@@ -12,7 +12,7 @@
 ;
 ;---------------------------------------------------------------------------------------------
 
-(load "libn.sf")
+(load "k.sf")
 
 
 ;---------------------------------------------------------------------------------------------
@@ -201,7 +201,7 @@
 (define (empty-xenv id)            (if (symbol? id) id (old-den id)))
 (define (extend-xenv env id bnd)   (lambda (i) (if (eq? id i) bnd (env i))))
 
-(define (add-binding key val env) ; ads as-is     
+(define (add-binding key val env) ; adds as-is     
   (extend-xenv env key (make-binding val (id->sym key))))
 
 (define (add-var var val env) ; adds renamed var as <core>
@@ -624,7 +624,7 @@
 ; Runtime
 ;---------------------------------------------------------------------------------------------
 
-(%localdef "#include \"vm.h\"")
+(%localdef "#include \"i.h\"")
 
 (define *globals* '())
 
@@ -998,17 +998,10 @@
              (display "\"\n" oport)             
              (loop (fx+ i 70) l)]))))  
 
-(define (process-define id xlam oport)
-  ;(define free (find-free xlam '()))
-  ;(set! *free-refs* (set-union *free-refs* free))
-  ;(set! *defined-refs* (set-union *defined-refs* (list id)))
-  (newline oport)
-  (display "  \"P\", \"" oport) (display id oport) (display "\",\n" oport)
-  (display-code (compile-to-string xlam) oport) (newline oport))
 
 (define (process-define-syntax id xval oport)
   (newline oport)
-  (display "  \"S\", \"" oport) (display id oport) (display "\",\n" oport)
+  (display "  \"" oport) (display id oport) (display "\",\n" oport)
   ; hack xval's define-inline leftovers
   (set! xval 
     (let hack ([v xval])
@@ -1017,19 +1010,19 @@
             [(pair? v) (cons (hack (car v)) (hack (cdr v)))]
             [else v])))
   (let ([p (open-output-string)]) (write-serialized-sexp xval p)
-    (display-code (get-output-string p) oport) (newline oport))
-  ;(display "  \"" oport) 
-  ;(write xval oport) 
-  ;(display "\",\n" oport)
-)
+    (display-code (get-output-string p) oport) (newline oport)))
 
 (define (process-statement xval oport)
-  ;(define free (find-free xval '()))
   (define cstr (compile-to-string xval))
-  ;(set! *free-refs* (set-union *free-refs* free))
   (newline oport)
-  (display "  \"I\", NULL,\n" oport)
+  (display "  0,\n" oport)
   (display-code cstr oport) (newline oport))
+
+(define (process-define id xlam oport)
+  ;(newline oport)
+  ;(display "  \"P\", \"" oport) (display id oport) (display "\",\n" oport)
+  ;(display-code (compile-to-string xlam) oport) (newline oport)
+  (process-statement (list 'set! id xlam) oport))
 
 (define (process-top-form xenv x oport) ;=> xenv'
   (cond 
@@ -1073,18 +1066,22 @@
       (if r (list->string (reverse (cdr r))) filename))))
 
 (define (module-name filename)
-  (string-append "module_" (path-strip-extension (path-strip-directory filename))))
+  (path-strip-extension (path-strip-directory filename)))
 
 (define (process-file fname)
   (define iport (open-input-file fname))
   (define oport (current-output-port))
-  (display "char *" oport)
-  (display (module-name fname) oport)
-  (display "[] = {" oport)
+  (define mname (module-name fname))
+  (display "/* " oport) (display mname oport) 
+  (display ".c -- generated via skint -c " oport) 
+  (display (path-strip-directory fname) oport) 
+  (display " */" oport) (newline oport) (newline oport)
+  (display "char *" oport) (display mname oport) 
+  (display "_code[] = {" oport) (newline oport)
   (let loop ([xenv *transformer-env*] [x (read iport)])
     (unless (eof-object? x)
       (loop (process-top-form xenv x oport) (read iport))))
-  (display "\n  NULL, NULL, NULL\n};\n" oport)
+  (display "\n  0, 0\n};\n" oport)
   (close-input-port iport))
 
 
@@ -1250,6 +1247,9 @@
 ;
 ; (evaluate test4) =>
 ; 3628800
+;
+; (evaluate test5) =>
+; (3628800 3628800 3628800 3628800)
 ;
 
 
