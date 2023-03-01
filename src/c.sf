@@ -175,22 +175,25 @@
 ; Special forms are either a symbol naming a builtin, or a transformer procedure 
 ; that takes two arguments: a macro use and the environment of the macro use.
 
-; <identifier> ->  <symbol> | <thunk>
-; <denotation> ->  <symbol> | <binding>
-; <binding>    ->  (<value> . <symbol>)
-; <value>      ->  <special> | <core>
-; <special>    ->  <builtin> | <transformer>
-; <builtin>    ->  syntax | define | define-syntax |
-;                  quote | set! | begin | if | lambda | body
+; <identifier>  ->  <symbol> | <thunk returning den>
+; <denotation>  ->  <symbol> | <binding>
+; <binding>     ->  (<symbol> . <value>)
+; <value>       ->  <special> | <core>
+; <special>     ->  <builtin> | <transformer>
+; <builtin>     ->  syntax | define | define-syntax |
+;                   quote | set! | begin | if | lambda | body
+; <transformer> ->  <procedure of exp and env returning exp>
 
 (define-inline (val-core? val)            (pair? val))
 (define-inline (val-special? val)         (not (pair? val)))
 
-(define-inline (make-binding v s)         (cons v s))
-(define-inline (binding-val bnd)          (car bnd))
-(define-inline (binding-special? bnd)     (val-special? (car bnd)))
-(define-inline (binding-sym bnd)          (cdr bnd))
-(define-inline (binding-set-val! bnd val) (set-car! bnd val))
+(define-inline (binding? x)               (pair? x))
+(define-inline (make-binding s v)         (cons s v))
+(define-inline (binding-val bnd)          (cdr bnd))
+(define-inline (binding-special? bnd)     (val-special? (cdr bnd)))
+(define-inline (binding-sym bnd)          (car bnd))
+(define-inline (binding-set-val! bnd val) (set-cdr! bnd val))
+(define-inline (find-top-binding s blist) (assq s blist))
 
 (define (new-id den)               (define p (list den)) (lambda () p))
 (define (old-den id)               (car (id)))
@@ -202,10 +205,10 @@
 (define (extend-xenv env id bnd)   (lambda (i) (if (eq? id i) bnd (env i))))
 
 (define (add-binding key val env) ; adds as-is     
-  (extend-xenv env key (make-binding val (id->sym key))))
+  (extend-xenv env key (make-binding (id->sym key) val)))
 
 (define (add-var var val env) ; adds renamed var as <core>
-  (extend-xenv env var (make-binding (list 'ref val) (id->sym var))))
+  (extend-xenv env var (make-binding (id->sym var) (list 'ref val))))
 
 ; xform receives Scheme s-expressions and returns either Core Scheme <core>
 ; (always a pair) or special-form, which is either a builtin (a symbol) or
@@ -244,6 +247,7 @@
 
 (define (xform-ref id env)
   (let ([den (env id)])
+    (display "** id = ") (write id) (display " den = ") (write den) (newline) 
     (cond [(symbol? den) (list 'ref den)]
           [else (binding-val den)])))
 
@@ -350,28 +354,67 @@
       (list 'define-syntax (id->sym id) (xform #t exp env))
       (error 'transform "define-syntax of non-identifier form")))
 
-(define *transformer-env* empty-xenv)
-
-(define (transform appos? sexp . optenv)
-  (gensym #f) ; reset gs counter to make results reproducible
-  (xform appos? sexp (if (null? optenv) *transformer-env* (car optenv))))
-
-; the rest of the system is implemented as a bunch of transformers
-
-(define (install-transformer! s t)
-  (set! *transformer-env* (add-binding s t *transformer-env*)))
-
-(for-each 
-  (lambda (s) (install-transformer! s s))
-   '(syntax define define-syntax quote set! begin if lambda body))
 
 ; ellipsis denotation is used for comparisons only
 
 (define denotation-of-default-ellipsis 
   (make-binding (lambda (sexp env) (error '... sexp)) '...))
 
+
+#|
+; -----------------------
+
+(define *transformations* 
+  (list
+    (make-binding 'syntax 'syntax) 
+    (make-binding 'define 'define)
+    (make-binding 'define-syntax 'define-syntax)
+    (make-binding 'quote 'quote)
+    (make-binding 'set! 'set!)
+    (make-binding 'begin 'begin)
+    (make-binding 'if 'if)
+    (make-binding 'lambda 'lambda)
+    (make-binding 'body 'body)
+    denotation-of-default-ellipsis))
+
+(define (*transformer-env* id)
+  (let ([bnd (find-top-binding id *transformations*)])
+    (cond [(binding? bnd) bnd]
+          [(symbol? id) id]
+          [else (old-den id)])))
+
+; the rest of the system is implemented as a bunch of transformers
+
+(define (install-transformer! s t)
+  (set! *transformations* 
+    (cons (make-binding s t) *transformations*)))
+|#
+; -----------------------
+
+(define *transformer-env* empty-xenv)  ; id => (if (symbol? id) id (old-den id))
+
+(define (install-transformer! s t)
+  (set! *transformer-env* (add-binding s t *transformer-env*)))
+
+(define (install-transformer-rules! s ell lits rules)
+  (set! *transformer-env* (add-binding s #f *transformer-env*))
+  (binding-set-val! (*transformer-env* s)
+    (syntax-rules* *transformer-env* ell lits rules)))  
+
+(for-each 
+  (lambda (s) (install-transformer! s s))
+   '(syntax define define-syntax quote set! begin if lambda body))
+
 (set! *transformer-env* 
   (extend-xenv *transformer-env* '... denotation-of-default-ellipsis))
+
+
+; -----------------------
+
+(define (transform appos? sexp . optenv)
+  (gensym #f) ; reset gs counter to make results reproducible
+  (xform appos? sexp (if (null? optenv) *transformer-env* (car optenv))))
+
 
 ; 'syntax-rules' transformer produces another transformer from the rules
 
@@ -444,8 +487,8 @@
     ; fresh id, assq will always retrieve the first one.
     (define new-literals
       (map (lambda (id) (cons id (new-id (mac-env id))))
-             (list-ids tmpl #t
-               (lambda (id) (not (assq id top-bindings))))))
+           (list-ids tmpl #t
+             (lambda (id) (not (assq id top-bindings))))))
 
     (define ellipsis-vars
       (list-ids pat #f not-pat-literal?))
@@ -499,11 +542,12 @@
 ; non-recursive transformer for define relies on old definition
 
 (install-transformer! 'define
-  (syntax-rules* *transformer-env* #f '() '(
-    [(_ (name . args) . forms)
-     (define name (lambda args . forms))]
-    [(_ name exp)
-     (define name exp)])))
+  (let ([env (add-binding 'define 'define *transformer-env*)])
+    (syntax-rules* env #f '() '(
+      [(_ (name . args) . forms)
+       (define name (lambda args . forms))]
+      [(_ name exp)
+       (define name exp)]))))
 
 ; Remaining transformers are made with the help of syntax-rules*
 ; NB: order of installation is important -- each transformer can
@@ -512,15 +556,9 @@
 (define-syntax install-sr-transformer!
   (syntax-rules (quote syntax-rules)
     [(_ 'name (syntax-rules (lit ...) . rules))
-     (begin
-       (set! *transformer-env* (add-binding 'name #f *transformer-env*))
-       (binding-set-val! (*transformer-env* 'name) 
-         (syntax-rules* *transformer-env* #f '(lit ...) 'rules)))]
+     (install-transformer-rules! 'name #f '(lit ...) 'rules)]
     [(_ 'name (syntax-rules ellipsis (lit ...) . rules))
-     (begin
-       (set! *transformer-env* (add-binding 'name #f *transformer-env*))
-       (binding-set-val! (*transformer-env* 'name) 
-         (syntax-rules* *transformer-env* 'ellipsis '(lit ...) 'rules)))]))
+     (install-transformer-rules! 'name 'ellipsis '(lit ...) 'rules)]))    
 
 (install-sr-transformer! 'letrec-syntax
   (syntax-rules ()
