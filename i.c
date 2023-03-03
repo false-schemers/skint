@@ -84,13 +84,28 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define VM_REGC       5    /* r[0] ... r[4] */
 #define VM_STACK_LEN  1000 /* r[5] ... r[1004] */
 
-#define unload_ip()   (rx = obj_from_fixnum(ip - &vectorref(vectorref(rd, 0), 0)))
-#define reload_ip()   (ip = &vectorref(vectorref(rd, 0), fixnum_from_obj(rx)))
+/* vm closure representation */
+#ifdef VMCLO_AS_VECTOR
+#define isvmclo       isvector
+#define vmcloref      vectorref
+#define vmclolen      vectorlen
+#define vmclobsz(c)   hbsz((c)+1)
+#define hpushvmclo(c) (*--hp = obj_from_size(VECTOR_BTAG), hendblk((c)+1))
+#else /* as procedure with code vector */
+#define isvmclo       isprocedure
+#define vmcloref      *procedureref
+#define vmclolen      procedurelen
+#define vmclobsz(c)   hbsz(c)
+#define hpushvmclo(c) hendblk(c)
+#endif
+
+#define unload_ip()   (rx = obj_from_fixnum(ip - &vectorref(vmcloref(rd, 0), 0)))
+#define reload_ip()   (ip = &vectorref(vmcloref(rd, 0), fixnum_from_obj(rx)))
 #define unload_sp()   (rs = obj_from_fixnum(sp - r))
 #define reload_sp()   (sp = r + fixnum_from_obj(rs))
 
 #define sref(i)       (sp[-(i)-1])
-#define dref(i)       (vectorref(rd, (i)+1))
+#define dref(i)       (vmcloref(rd, (i)+1))
 #define gref(p)       (cdr(p))
 #define spush(o)      (*sp++ = o) /* todo: overflow check */
 #define spop()        (*--sp)     /* todo: underflow check */
@@ -182,10 +197,9 @@ jump:
     { assert(rc == 3);
     r[0] = r[1]; r[1] = r[2]; 
     /* r[0] = k; r[1] = code */
-    hreserve(hbsz(1+1), 2); /* 2 live regs */
+    hreserve(vmclobsz(1), 2); /* 2 live regs */
     *--hp = r[1];
-    *--hp = obj_from_size(VECTOR_BTAG);
-    r[2] = (hendblk(1+1));
+    r[2] = hpushvmclo(1);
     r[1] = obj_from_ktrap();
     pc = objptr_from_obj(r[0])[0];
     rc = 3;
@@ -303,11 +317,10 @@ define_instruction(indirect) { ac = boxref(ac); gonexti(); }
 
 define_instruction(dclose) {
   int i, n = fixnum_from_obj(*ip++), c = n+1; 
-  hp_reserve(hbsz(c));
+  hp_reserve(vmclobsz(c));
   for (i = n-1; i >= 0; --i) *--hp = sref(i); /* display */
   *--hp = *ip++; /* code */
-  *--hp = obj_from_size(VECTOR_BTAG);
-  ac = hendblk(c+1); /* closure */
+  ac = hpushvmclo(c); /* closure */
   sdrop(n);   
   gonexti();
 }
@@ -347,14 +360,13 @@ define_instruction(gset) {
 
 define_instruction(conti) {
   int n = (int)(sp - (r + VM_REGC));
-  hp_reserve(hbsz(2+1)+hbsz(n+1));
+  hp_reserve(vmclobsz(2)+hbsz(n+1));
   hp -= n; memcpy(hp, sp-n, n*sizeof(obj));
   *--hp = obj_from_size(VECTOR_BTAG);
   ac = hendblk(n+1); /* stack copy */   
   *--hp = ac;
   *--hp = cx_continuation_2Dclosure_2Dcode;
-  *--hp = obj_from_size(VECTOR_BTAG);
-  ac = hendblk(2+1); /* closure */   
+  ac = hpushvmclo(2); /* closure */   
   gonexti();
 }
 
@@ -379,7 +391,7 @@ define_instruction(appl) {
 define_instruction(save) {
   int dx = fixnum_from_obj(*ip++); 
   spush(rd);
-  spush(obj_from_fixnum(ip + dx - &vectorref(vectorref(rd, 0), 0)));  
+  spush(obj_from_fixnum(ip + dx - &vectorref(vmcloref(rd, 0), 0)));  
   gonexti();
 }
 
@@ -2664,10 +2676,9 @@ obj *revlist2vec(obj *r, obj *sp, obj *hp)
 /* protects registers from r to sp, in: ra=code, out: ra=closure */
 obj *close0(obj *r, obj *sp, obj *hp)
 {
-  hreserve(hbsz(1+1), sp-r);
+  hreserve(vmclobsz(1), sp-r);
   *--hp = ra;
-  *--hp = obj_from_size(VECTOR_BTAG);
-  ra = hendblk(1+1);
+  ra = hpushvmclo(1);
   return hp;
 }
 

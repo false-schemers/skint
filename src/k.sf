@@ -2297,6 +2297,11 @@ long fxflo(double f) {
 ; sfc allocates env-less global procedures in static memory,
 ; so procedure? answers #t to any nonzero out-of-heap pointer
 
+(%definition "/* procedures */")
+(%definition "extern int isprocedure(obj o);")
+(%definition "extern int procedurelen(obj o);")
+(%definition "extern obj* procedureref(obj o, int i);")
+
 (%localdef "int isprocedure(obj o) {
   if (!o) return 0;
   else if (isaptr(o) && !isobjptr(o)) return 1;
@@ -2317,11 +2322,6 @@ long fxflo(double f) {
   assert(i >= 0 && i < len);
   return &hblkref(o, i);   
 }")
-
-(%definition "/* procedures */")
-(%definition "extern int isprocedure(obj o);")
-(%definition "extern int procedurelen(obj o);")
-(%definition "extern obj* procedureref(obj o, int i);")
 
 (define-inline (procedure? o)
   (%prim "bool(isprocedure(obj_from_$arg))" o))
