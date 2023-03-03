@@ -215,7 +215,6 @@
 ; a transformer (a procedure)
 
 (define (xform appos? sexp env)
-  ;;(display "** xform ") (write appos?) (display " ") (write sexp) (newline) 
   (cond [(id? sexp) 
          (let ([hval (xform-ref sexp env)])
            (if (and (procedure? hval) (not appos?))
@@ -247,7 +246,6 @@
 
 (define (xform-ref id env)
   (let ([den (env id)])
-    (display "** id = ") (write id) (display " den = ") (write den) (newline) 
     (cond [(symbol? den) (list 'ref den)]
           [else (binding-val den)])))
 
@@ -358,13 +356,9 @@
 ; ellipsis denotation is used for comparisons only
 
 (define denotation-of-default-ellipsis 
-  (make-binding (lambda (sexp env) (error '... sexp)) '...))
+  (make-binding '... (lambda (sexp env) (error '... sexp))))
 
-
-#|
-; -----------------------
-
-(define *transformations* 
+(define *transformers* 
   (list
     (make-binding 'syntax 'syntax) 
     (make-binding 'define 'define)
@@ -377,43 +371,30 @@
     (make-binding 'body 'body)
     denotation-of-default-ellipsis))
 
-(define (*transformer-env* id)
-  (let ([bnd (find-top-binding id *transformations*)])
-    (cond [(binding? bnd) bnd]
-          [(symbol? id) id]
+(define (top-transformer-env id)
+  (let ([bnd (find-top-binding id *transformers*)])
+    (cond [(binding? bnd)
+           ; special case: syntax-rules in sexp form (left by init)
+           (let ([val (binding-val bnd)])
+             (when (and (pair? val) (eq? (car val) 'syntax-rules))
+               (binding-set-val! bnd (transform #t val))))
+           bnd]
+          [(symbol? id)
+           (let ([bnd (make-binding id (list 'ref id))])
+             (set! *transformers* (cons bnd *transformers*))
+             bnd)]
           [else (old-den id)])))
 
-; the rest of the system is implemented as a bunch of transformers
-
 (define (install-transformer! s t)
-  (set! *transformations* 
-    (cons (make-binding s t) *transformations*)))
-|#
-; -----------------------
-
-(define *transformer-env* empty-xenv)  ; id => (if (symbol? id) id (old-den id))
-
-(define (install-transformer! s t)
-  (set! *transformer-env* (add-binding s t *transformer-env*)))
+  (binding-set-val! (top-transformer-env s) t))
 
 (define (install-transformer-rules! s ell lits rules)
-  (set! *transformer-env* (add-binding s #f *transformer-env*))
-  (binding-set-val! (*transformer-env* s)
-    (syntax-rules* *transformer-env* ell lits rules)))  
-
-(for-each 
-  (lambda (s) (install-transformer! s s))
-   '(syntax define define-syntax quote set! begin if lambda body))
-
-(set! *transformer-env* 
-  (extend-xenv *transformer-env* '... denotation-of-default-ellipsis))
-
-
-; -----------------------
+  (install-transformer! s
+    (syntax-rules* top-transformer-env ell lits rules)))
 
 (define (transform appos? sexp . optenv)
   (gensym #f) ; reset gs counter to make results reproducible
-  (xform appos? sexp (if (null? optenv) *transformer-env* (car optenv))))
+  (xform appos? sexp (if (null? optenv) top-transformer-env (car optenv))))
 
 
 ; 'syntax-rules' transformer produces another transformer from the rules
@@ -542,7 +523,7 @@
 ; non-recursive transformer for define relies on old definition
 
 (install-transformer! 'define
-  (let ([env (add-binding 'define 'define *transformer-env*)])
+  (let ([env (add-binding 'define 'define top-transformer-env)])
     (syntax-rules* env #f '() '(
       [(_ (name . args) . forms)
        (define name (lambda args . forms))]
@@ -1062,35 +1043,30 @@
   ;(display-code (compile-to-string xlam) oport) (newline oport)
   (process-statement (list 'set! id xlam) oport))
 
-(define (process-top-form xenv x oport) ;=> xenv'
+(define (process-top-form x oport)
   (cond 
     [(pair? x)
-     (let ([hval (transform #t (car x) xenv)])
+     (let ([hval (transform #t (car x))])
        (cond
          [(eq? hval 'begin)
-          (let loop ([x* (cdr x)] [xenv xenv])
-            (if (null? x*) 
-                xenv
-                (loop (cdr x*) (process-top-form xenv (car x*) oport))))]
+          (let loop ([x* (cdr x)])
+            (when (pair? x*) 
+               (process-top-form (car x*) oport)
+               (loop (cdr x*))))]
          [(eq? hval 'define-syntax)
-          (let* ([xenv (add-binding (cadr x) '(undefined) xenv)]
-                 [xval (transform #t (caddr x) xenv)])
-            (binding-set-val! (xenv (cadr x)) xval)
+          (let ([xval (transform #t (caddr x))])
+            (install-transformer! (cadr x) xval)
             (unless (memq (cadr x) *hide-refs*)  
-              (process-define-syntax (cadr x) (caddr x) oport))
-            xenv)]
+              (process-define-syntax (cadr x) (caddr x) oport)))]
          [(eq? hval 'define)
-          (let ([xval (transform #f (caddr x) xenv)])
-            (process-define (cadr x) xval oport))
-          xenv]
+          (let ([xval (transform #f (caddr x))])
+            (process-define (cadr x) xval oport))]
          [(procedure? hval)
-          (process-top-form xenv (hval x xenv) oport)]
+          (process-top-form (hval x top-transformer-env) oport)]
          [else
-          (process-statement (transform #f x xenv) oport)
-          xenv]))]
+          (process-statement (transform #f x) oport)]))]
     [else
-     (process-statement (transform #f x xenv) oport)
-     xenv]))
+     (process-statement (transform #f x) oport)]))
 
 (define (path-strip-directory filename)
   (let loop ([l (reverse (string->list filename))] [r '()])
@@ -1116,9 +1092,10 @@
   (display " */" oport) (newline oport) (newline oport)
   (display "char *" oport) (display mname oport) 
   (display "_code[] = {" oport) (newline oport)
-  (let loop ([xenv *transformer-env*] [x (read iport)])
+  (let loop ([x (read iport)])
     (unless (eof-object? x)
-      (loop (process-top-form xenv x oport) (read iport))))
+      (process-top-form x oport)
+      (loop (read iport))))
   (display "\n  0, 0\n};\n" oport)
   (close-input-port iport))
 
@@ -1306,8 +1283,8 @@
   (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
   (display " ms.") (newline))
 
-(define (repl-eval x xenv)
-  (let ([xexp (transform #f x xenv)])
+(define (repl-eval x)
+  (let ([xexp (transform #f x)])
     (display "TRANSFORM =>") (newline)
     (write xexp) (newline)
     (if (eq? (car xexp) 'define) (set-car! xexp 'set!))
@@ -1323,84 +1300,48 @@
       (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
       (display " ms.") (newline))))
 
-(define (repl-eval-top-form x xenv) ;=> xenv'
+(define (repl-eval-top-form x)
   (cond 
     [(and (list? x) (= (length x) 2) (eq? (car x) 'load) (string? (cadr x)))
-     (let* ([iport (open-input-file (cadr x))] 
-            [xenv (repl-from-port iport xenv)])
-       (close-input-port iport)
-       xenv)]
+     (let ([iport (open-input-file (cadr x))])
+       (repl-from-port iport)
+       (close-input-port iport))]
     [(pair? x)
-     (let ([hval (transform #t (car x) xenv)])
+     (let ([hval (transform #t (car x))])
        (cond
          [(eq? hval 'begin)
-          (let loop ([x* (cdr x)] [xenv xenv])
-            (if (null? x*) 
-                xenv
-                (loop (cdr x*) (repl-eval-top-form (car x*) xenv))))]
+          (let loop ([x* (cdr x)])
+            (when (pair? x*) 
+              (repl-eval-top-form (car x*))
+              (loop (cdr x*))))]
          [(eq? hval 'define-syntax)
-          (let* ([xenv (add-binding (cadr x) '(undefined) xenv)]
-                 [xval (transform #t (caddr x) xenv)])
-            (binding-set-val! (xenv (cadr x)) xval)
-            xenv)]
+          (let ([xval (transform #t (caddr x))])
+            (install-transformer! (cadr x) xval))]
          [(procedure? hval)
-          (repl-eval-top-form (hval x xenv) xenv)]
+          (repl-eval-top-form (hval x top-transformer-env))]
          [else
-          (repl-eval x xenv)
-          xenv]))]
+          (repl-eval x)]))]
     [else
-     (repl-eval x xenv)
-     xenv]))
+     (repl-eval x)]))
 
 (define (repl-read iport)
   (when (eq? iport (current-input-port))
     (display "\n3imp> "))
   (read iport))
 
-(define (repl-from-port iport xenv) ;=> xenv'
-  (let loop ([xenv xenv] [x (repl-read iport)])
-    (if (eof-object? x)
-        xenv
-        (loop (repl-eval-top-form x xenv) (repl-read iport)))))
+(define (repl-from-port iport)
+  (let loop ([x (repl-read iport)])
+    (unless (eof-object? x)
+        (repl-eval-top-form x)
+        (loop (repl-read iport)))))
 
 (define (run-repl)
-  (repl-from-port (current-input-port) *transformer-env*))
-
-#|
-(define (run-repl)
-  (let repl ([xenv *transformer-env*] [p (current-input-port)])
-    (display "3imp> ")
-    (let ([x (read p)])
-      (unless (eof-object? x)
-        (let xloop ([x x])
-          (if (pair? x)
-              (let ([hval (transform #t (car x) xenv)])
-                (case hval
-                  [(begin)
-                   (map xloop (cdr x))]
-                  [(define-syntax)
-                   (set! xenv (add-binding (cadr x) '(undefined) xenv))
-                   (let ([xval (transform #t (caddr x) xenv)])
-                     (binding-set-val! (xenv (cadr x)) xval))]
-                  [else 
-                   (if (procedure? hval)
-                       (xloop (hval x xenv))
-                       (repl-eval x xenv))]))
-              (repl-eval x xenv)))
-        (repl xenv p)))))
-|#
-
+  (repl-from-port (current-input-port)))
 
 (define (main argv)
   (let ([args (cdr (command-line))])
-    ;(write args) (newline)
     (cond
       [(syntax-match? '("-c" *) args)
-       ;(let ([refs (process-file (cadr args))])
-       ;  (newline)         
-       ; (display "** refs\n")         
-       ;  (write refs)
-       ; (newline))
        (process-file (cadr args))]
       [else
        ;(run-tests)
