@@ -2945,7 +2945,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
   /* go over module entries and install/execute */
   for (ent = mod; ent[1] != NULL; ent += 2) {
     const char *name = ent[0], *data = ent[1];
-    fprintf(stderr, "## initializing: %s\n%s\n", name?name:"NULL", data);
+    /* fprintf(stderr, "## initializing: %s\n%s\n", name?name:"NULL", data); */
     if (name != NULL) {
       /* install sexp-encoded syntax-rules as a transformer */
       obj sym = mksymbol(internsym((char*)name));

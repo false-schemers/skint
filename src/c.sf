@@ -1278,7 +1278,7 @@
       (display "DECODE+EXECUTE =>") (newline) 
       (set! start (current-jiffy))
       (let* ([thunk (decode cstr)]
-             [foo (begin (display "decoded: ") (write thunk) (newline))]
+             ;[foo (begin (display "decoded: ") (write thunk) (newline))]
              [res (execute thunk)])
         (write res) (newline))
       (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
