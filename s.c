@@ -374,16 +374,20 @@ char *s_code[] = {
   "&0{%1.0N4]1}@!(y18:%25residual-integer?)",
 
   "complex?",
-  "y7:number?",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py7:number?;y4:args;;;l2:y1:_;"
+  "y7:number?;;",
 
   "real?",
-  "y7:number?",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py7:number?;y4:args;;;l2:y1:_;"
+  "y7:number?;;",
 
   "rational?",
-  "y8:integer?",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py8:integer?;y4:args;;;l2:y1:_"
+  ";y8:integer?;;",
 
   "exact-integer?",
-  "y7:fixnum?",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py7:fixnum?;y4:args;;;l2:y1:_;"
+  "y7:fixnum?;;",
 
   "exact?",
   "l4:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25fixp;l2:y4:%25ckn;y1:x"
@@ -543,10 +547,12 @@ char *s_code[] = {
   "&0{%2.0%nG6]2}@!(y19:%25residual-remainder)",
 
   "truncate-quotient",
-  "y8:quotient",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py8:quotient;y4:args;;;l2:y1:_"
+  ";y8:quotient;;",
 
   "truncate-remainder",
-  "y9:remainder",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py9:remainder;y4:args;;;l2:y1:"
+  "_;y9:remainder;;",
 
   "modquo",
   "l4:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l2:y4:%25mqu;l2:y4:%25ckn;"
@@ -563,10 +569,12 @@ char *s_code[] = {
   "&0{%2.0%nG4]2}@!(y16:%25residual-modulo)",
 
   "floor-quotient",
-  "y6:modquo",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py6:modquo;y4:args;;;l2:y1:_;y"
+  "6:modquo;;",
 
   "floor-remainder",
-  "y6:modulo",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py6:modulo;y4:args;;;l2:y1:_;y"
+  "6:modulo;;",
 
   "boolean?",
   "l4:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y6:%25boolp;y1:x;;;l2:y1:_;y"
@@ -1144,7 +1152,8 @@ char *s_code[] = {
   ";y1:x;l4:y5:list*;y1:y;y1:z;y3:...;;;;l2:y1:_;y15:%25residual-list*;;",
 
   "cons*",
-  "y5:list*",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py5:list*;y4:args;;;l2:y1:_;y5"
+  ":list*;;",
 
   "map",
   "l4:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
@@ -1166,7 +1175,8 @@ char *s_code[] = {
   "&0{%1.0V0]1}@!(y17:%25residual-vector?)",
 
   "vector",
-  "y4:%25vec",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py4:%25vec;y4:args;;;l2:y1:_;y"
+  "4:%25vec;;",
 
   "make-vector",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:n;;l3:y4:%25vmk;l2:y4:%25ckk;y1:n;"
@@ -1418,10 +1428,12 @@ char *s_code[] = {
   "p;l5:y5:list*;y1:a;y1:b;y3:...;y1:l;;;;l2:y1:_;y15:%25residual-apply;;",
 
   "call/cc",
-  "y4:%25ccc",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py4:%25ccc;y4:args;;;l2:y1:_;y"
+  "4:%25ccc;;",
 
   "call-with-current-continuation",
-  "y7:call/cc",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py7:call/cc;y4:args;;;l2:y1:_;"
+  "y7:call/cc;;",
 
   "input-port?",
   "l4:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25ipp;y1:x;;;l2:y1:_;y21"

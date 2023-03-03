@@ -376,8 +376,8 @@
     (cond [(binding? bnd)
            ; special case: syntax-rules in sexp form (left by init)
            (let ([val (binding-val bnd)])
-             (when (and (pair? val) (eq? (car val) 'syntax-rules))
-               (binding-set-val! bnd (transform #t val))))
+             (if (and (pair? val) (eq? (car val) 'syntax-rules))  
+                 (binding-set-val! bnd (transform #t val))))
            bnd]
           [(symbol? id)
            (let ([bnd (make-binding id (list 'ref id))])
@@ -1028,6 +1028,9 @@
             [(eq? v 'define-inline) '_]
             [(pair? v) (cons (hack (car v)) (hack (cdr v)))]
             [else v])))
+  ; wrap symbolic definitions so init code can use them
+  (when (symbol? xval)
+    (set! xval (list 'syntax-rules '() (list '(_ . args) (cons xval 'args)) (list '_ xval))))
   (let ([p (open-output-string)]) (write-serialized-sexp xval p)
     (display-code (get-output-string p) oport) (newline oport)))
 
@@ -1101,37 +1104,11 @@
 
 
 ;---------------------------------------------------------------------------------------------
-; Test environment
+; Initial environment
 ;---------------------------------------------------------------------------------------------
 
 ; NB: 'nuate' restores stack with fn arg on top of return triple
 (define continuation-closure-code (decode "%1.0K2]1"))
-
-#|
-(define (install-global-lambdas)
-  (define (install-global-lambda! sym cstr)
-    (index-set-global! (global-location sym) (make-closure (decode cstr))))
-  ; top-level definitions using integrables 
-  (install-global-lambda! 'eq? "%2.1,.1q]2")
-  (install-global-lambda! 'car "%1.0a]1")
-  (install-global-lambda! 'cdr "%1.0d]1")
-  (install-global-lambda! 'null? "%1.0u]1")
-  (install-global-lambda! 'pair? "%1.0p]1")
-  (install-global-lambda! 'cons "%2.1,.1c]2")
-  (install-global-lambda! 'list "%!0.0]1")
-  (install-global-lambda! 'append "%2.1,.1L6]2")
-  (install-global-lambda! '+ "%2.1,.1+]2")
-  (install-global-lambda! '- "%2.1,.1-]2")
-  (install-global-lambda! '* "%2.1,.1*]2")
-  (install-global-lambda! '< "%2.1,.1<]2")
-  (install-global-lambda! '= "%2.1,.1=]2")
-  (install-global-lambda! 'zero? "%1.0z]1")
-  (install-global-lambda! 'not "%1.0~]1")
-  (install-global-lambda! 'string<? "%2'0,.2,.2O6<]2")
-  (install-global-lambda! 'deserialize-sexp "%1.0U3]1")
-  (install-global-lambda! 'deserialize-code "%1.0U4]1")
-  (install-global-lambda! 'call/cc "%1K1,.1[11"))
-|#
 
 (define install-global-lambdas
   (%prim "{ /* define install-global-lambdas */
@@ -1139,6 +1116,13 @@
     $return objptr(c); }"))
 
 (install-global-lambdas)
+
+(define initialize-modules
+  (%prim "{ /* define initialize-modules */
+    static obj c[] = { obj_from_objptr(vmcases+7) };
+    $return objptr(c); }"))
+
+(initialize-modules)
 
 
 ;---------------------------------------------------------------------------------------------

@@ -6,6 +6,7 @@
 /* imports */
 extern obj cx_continuation_2Dclosure_2Dcode;
 extern obj cx__2Aglobals_2A;
+extern obj cx__2Atransformers_2A;
 
 #define istagged(o, t) istagged_inlined(o, t) 
 
@@ -15,6 +16,7 @@ static void wrs_integrable(int argc, struct intgtab_entry *pe, obj port);
 static obj *rds_intgtab(obj *r, obj *sp, obj *hp);
 static obj *rds_stox(obj *r, obj *sp, obj *hp);
 static obj *rds_stoc(obj *r, obj *sp, obj *hp);
+static obj *init_modules(obj *r, obj *sp, obj *hp);
 
 /* platform-dependent optimizations */
 #if defined(__clang__)
@@ -138,9 +140,9 @@ typedef obj* regcall (*ins_t)(IPARAMS);
 #endif
 
 static obj vmhost(obj);
-obj vmcases[7] = { 
+obj vmcases[8] = { 
   (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost, 
-  (obj)vmhost, (obj)vmhost, (obj)vmhost 
+  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost 
 };
 /* vmhost procedure */
 static obj vmhost(obj pc)
@@ -151,7 +153,7 @@ static obj vmhost(obj pc)
 jump: 
   switch (objptr_from_obj(pc)-vmcases) {
 
-  case 0: /* execute */    
+  case 0: /* execute-thunk-closure */    
     /* r[0] = self, r[1] = k, r[2] = closure */
     { obj k, arg;
     assert(rc == 3);
@@ -243,6 +245,18 @@ jump:
     { assert(rc == 2);
     r[0] = r[1];
     hp = rds_intgtab(r, r+2, hp);
+    r[1] = obj_from_ktrap();
+    r[2] = obj_from_void(0);
+    pc = objptr_from_obj(r[0])[0];
+    rc = 3;
+    goto jump; }
+
+  case 7: /* initialize-modules */
+    /* r[0] = clo, r[1] = k */
+    { assert(rc == 2);
+    r[0] = r[1];
+    r = cxm_rgc(NULL, VM_REGC + VM_STACK_LEN);
+    hp = init_modules(r, r+2, hp);
     r[1] = obj_from_ktrap();
     r[2] = obj_from_void(0);
     pc = objptr_from_obj(r[0])[0];
@@ -2919,5 +2933,77 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
     if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
     if (!iseof(ra)) cdr(spop()) = ra;
   }
+  return hp;
+}
+
+/* protects registers from r to sp=r+2; returns new hp */
+static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
+{
+  const char **ent;
+  /* make sure we are called in a clean vm state */
+  assert(r = cxg_regs); assert(sp-r == 2); /* k, ra (for temp use) */
+  /* go over module entries and install/execute */
+  for (ent = mod; ent[1] != NULL; ent += 2) {
+    const char *name = ent[0], *data = ent[1];
+    fprintf(stderr, "## initializing: %s\n%s\n", name?name:"NULL", data);
+    if (name != NULL) {
+      /* install sexp-encoded syntax-rules as a transformer */
+      obj sym = mksymbol(internsym((char*)name));
+      obj al = cx__2Atransformers_2A, bnd = mknull();
+      assert(ispair(al)); /* basic transformers already installed */
+      /* look for existing binding (we allow redefinition) */
+      while (al != mknull()) {
+        obj ael = car(al);
+        if (car(ael) != sym) { al = cdr(al); continue; }
+        bnd = ael; break;
+      }
+      /* or add new binding */
+      if (bnd == mknull()) { /* acons (sym . #f) */
+        hreserve(hbsz(3)*2, sp-r);
+        *--hp = obj_from_bool(0); *--hp = sym;
+        *--hp = obj_from_size(PAIR_BTAG); bnd = hendblk(3);
+        *--hp = cx__2Atransformers_2A; *--hp = bnd;
+        *--hp = obj_from_size(PAIR_BTAG); cx__2Atransformers_2A = hendblk(3);
+      }
+      /* sexp-decode data into the cdr of the binding */
+      spush(bnd); /* protect from gc */
+      ra = mkiport_string(sp-r, sialloc((char*)data, NULL));
+      hp = rds_sexp(r, sp, hp);  /* ra=port => ra=sexp/eof */      
+      bnd = spop();
+      assert(ispair(bnd) && (ispair(ra) || issymbol(ra)));
+      cdr(bnd) = ra;
+    } else {
+      /* execute code-encoded thunk */
+      obj *ip;
+#ifdef VM_AC_IN_REG
+      obj *ac;
+#endif      
+      ra = mkiport_string(sp-r, sialloc((char*)data, NULL));
+      hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
+      if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
+      if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
+      assert(!iseof(ra));
+      /* ra is a thunk closure to execute */
+      rd = ra;
+      ra = obj_from_fixnum(0); /* argc, shadow ac */
+      rx = obj_from_fixnum(0); /* shadow ip */ 
+      rs = obj_from_fixnum(VM_REGC); /* sp */
+      do { /* unwindi trampoline */
+        reload_ac(); /* ra => ac */
+        reload_ip(); /* rd/rx => ip */
+        reload_sp(); /* rs => sp */
+        hp = (ins_from_obj(*ip))(IARGS1);
+      } while (trampcnd());
+      /* r[0] = k, r[1] = random result */
+    }
+  }
+  return hp;
+}
+
+/* protects registers from r to sp=r+2; returns new hp */
+static obj *init_modules(obj *r, obj *sp, obj *hp)
+{
+  extern char* s_code[]; /* s.c */
+  hp = init_module(r, sp, hp, s_code);
   return hp;
 }
