@@ -12,7 +12,7 @@
 ;
 ;---------------------------------------------------------------------------------------------
 
-(load "k.sf")
+(load "n.sf")
 
 
 ;---------------------------------------------------------------------------------------------
@@ -127,6 +127,11 @@
   (let loop ([x x] [rest more])
     (if (null? rest) x 
         (cons x (loop (car rest) (cdr rest))))))
+
+(define (list1? x) (and (pair? x) (null? (cdr x))))
+(define (list2? x) (and (pair? x) (list1? (cdr x))))
+(define (list3? x) (and (pair? x) (list2? (cdr x))))
+(define (list4? x) (and (pair? x) (list3? (cdr x))))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -634,10 +639,6 @@
   (syntax-rules ()
     [(_ test . rest) (if (not test) (begin . rest))]))
 
-;(install-sr-transformer! 'define-inline
-;  (syntax-rules ()
-;    [(_ . rest) (define . rest)]))
-
 
 ;---------------------------------------------------------------------------------------------
 ; Runtime
@@ -995,8 +996,6 @@
 ; File processor (Scheme => Serialized code)
 ;---------------------------------------------------------------------------------------------
 
-;(define *defined-refs* '())
-;(define *free-refs* '())
 (define *hide-refs* '(
   define-inline nullary-unary-adaptor nullary-unary-binary-adaptor
   unary-binary-adaptor unary-binary-ternary-adaptor 
@@ -1041,21 +1040,45 @@
   (display-code cstr oport) (newline oport))
 
 (define (process-define id xlam oport)
-  ;(newline oport)
-  ;(display "  \"P\", \"" oport) (display id oport) (display "\",\n" oport)
-  ;(display-code (compile-to-string xlam) oport) (newline oport)
   (process-statement (list 'set! id xlam) oport))
+
+(define (scan-top-form x)
+  (cond 
+    [(and (list2? x) (eq? (car x) 'load) (string? (cadr x)))
+     (let ([iport (open-input-file (cadr x))])
+       (let loop ([x (read iport)])
+         (unless (eof-object? x)
+           (scan-top-form x)
+           (loop (read iport))))
+       (close-input-port iport))]
+    [(pair? x)
+     (let ([hval (transform #t (car x))])
+       (cond
+         [(eq? hval 'begin)
+          (for-each scan-top-form (cdr x))]
+         [(eq? hval 'define-syntax)
+          (let ([xval (transform #t (caddr x))])
+            (install-transformer! (cadr x) xval))]
+         [(procedure? hval)
+          (scan-top-form (hval x top-transformer-env))]))]))
 
 (define (process-top-form x oport)
   (cond 
+    [(and (list2? x) (eq? (car x) 'load) (string? (cadr x)))
+     (let ([iport (open-input-file (cadr x))])
+       (let loop ([x (read iport)])
+         (unless (eof-object? x)
+           (scan-top-form x)
+           (loop (read iport))))
+       (close-input-port iport))]
     [(pair? x)
      (let ([hval (transform #t (car x))])
        (cond
          [(eq? hval 'begin)
           (let loop ([x* (cdr x)])
             (when (pair? x*) 
-               (process-top-form (car x*) oport)
-               (loop (cdr x*))))]
+              (process-top-form (car x*) oport)
+              (loop (cdr x*))))]
          [(eq? hval 'define-syntax)
           (let ([xval (transform #t (caddr x))])
             (install-transformer! (cadr x) xval)
@@ -1286,7 +1309,7 @@
 
 (define (repl-eval-top-form x)
   (cond 
-    [(and (list? x) (= (length x) 2) (eq? (car x) 'load) (string? (cadr x)))
+    [(and (list2? x) (eq? (car x) 'load) (string? (cadr x)))
      (let ([iport (open-input-file (cadr x))])
        (repl-from-port iport)
        (close-input-port iport))]

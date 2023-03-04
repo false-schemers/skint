@@ -1,4 +1,4 @@
-/* k.h -- kernel */
+/* n.h -- natives */
 
 /* standard includes */
 #include <stdio.h>

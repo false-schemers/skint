@@ -1,6 +1,6 @@
 /* i.c -- instructions */
 
-#include "k.h"
+#include "n.h"
 #include "i.h"
 
 /* imports */
@@ -2208,6 +2208,15 @@ define_instruction(atest2) { if (unlikely(ac != obj_from_fixnum(2))) fail("argum
 define_instruction(atest3) { if (unlikely(ac != obj_from_fixnum(3))) fail("argument count error on entry"); gonexti(); }
 define_instruction(atest4) { if (unlikely(ac != obj_from_fixnum(4))) fail("argument count error on entry"); gonexti(); }
 
+
+define_instruction(scall1) {
+  int m = 1, n = fixnum_from_obj(*ip++);
+  rd = ac; rx = obj_from_fixnum(0); 
+  ac = obj_from_fixnum(n); /* argc */
+  memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+  sdrop(m); callsubi();
+}
+
 define_instruction(scall10) {
   rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); /* argc */
   sdrop(1); callsubi();
@@ -2235,6 +2244,14 @@ define_instruction(scall14) {
   rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4); /* argc */
   sref(4) = sref(3); sref(3) = sref(2); sref(2) = sref(1); sref(1) = sref(0);
   sdrop(1); callsubi();
+}
+
+define_instruction(scall2) {
+  int m = 2, n = fixnum_from_obj(*ip++);
+  rd = ac; rx = obj_from_fixnum(0); 
+  ac = obj_from_fixnum(n); /* argc */
+  memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+  sdrop(m); callsubi();
 }
 
 define_instruction(scall20) {
@@ -2266,6 +2283,14 @@ define_instruction(scall24) {
   sdrop(2); callsubi();
 }
 
+define_instruction(scall3) {
+  int m = 3, n = fixnum_from_obj(*ip++);
+  rd = ac; rx = obj_from_fixnum(0); 
+  ac = obj_from_fixnum(n); /* argc */
+  memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+  sdrop(m); callsubi();
+}
+
 define_instruction(scall30) {
   rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); /* argc */
   sdrop(3); callsubi();
@@ -2293,6 +2318,14 @@ define_instruction(scall34) {
   rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4); /* argc */
   sref(6) = sref(3); sref(5) = sref(2); sref(4) = sref(1); sref(3) = sref(0);
   sdrop(3); callsubi();
+}
+
+define_instruction(scall4) {
+  int m = 3, n = fixnum_from_obj(*ip++);
+  rd = ac; rx = obj_from_fixnum(0); 
+  ac = obj_from_fixnum(n); /* argc */
+  memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+  sdrop(m); callsubi();
 }
 
 define_instruction(scall40) {
@@ -2633,7 +2666,7 @@ static struct embranch *get_encmap(void)
 static struct embranch *rds_prefix(obj port)
 {
   struct embranch *pbr = get_encmap(); int c;
-  down: while((c = iportpeekc(port)) != EOF) {
+  down: while ((c = iportpeekc(port)) != EOF) {
     struct emtrans *ptr = pbr->ptr;
     while (ptr != NULL) {
       if (ptr->c != c) {
@@ -2754,6 +2787,9 @@ more:
   } else {
     struct embranch *pbr = rds_prefix(sref(1));
     if (pbr->g == 0) {
+      /* fprintf(stderr, "### rds_seq's remaining chars:\n");
+      while (iportpeekc(sref(1)) != EOF) fputc(iportgetc(sref(1)), stderr);
+      fputc('\n', stderr); */
       ra = mkeof();
     } else switch (pbr->etyp) {
       case 0: {
@@ -2826,7 +2862,9 @@ more:
       case 'd': { /* dclose */
         fixnum_t n;
         ra = sref(1); hp = rds_arg(r, sp, hp);
-        if (!is_fixnum_obj(ra)) { ra = mkeof(); goto out; }
+        if (!is_fixnum_obj(ra)) { 
+          ra = mkeof(); goto out; 
+        }
         n = fixnum_from_obj(ra);
         ra = sref(1); hp = rds_block(r, sp, hp);
         if (iseof(ra)) goto out;
@@ -3015,6 +3053,8 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
 static obj *init_modules(obj *r, obj *sp, obj *hp)
 {
   extern char* s_code[]; /* s.c */
+  extern char* t_code[]; /* t.c */
   hp = init_module(r, sp, hp, s_code);
+  hp = init_module(r, sp, hp, t_code);
   return hp;
 }
