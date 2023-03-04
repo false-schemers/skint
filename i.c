@@ -3028,7 +3028,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       /* execute code-encoded thunk */
       obj *ip;
 #ifdef VM_AC_IN_REG
-      obj *ac;
+      obj ac;
 #endif      
       ra = mkiport_string(sp-r, sialloc((char*)data, NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */

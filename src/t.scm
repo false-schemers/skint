@@ -177,16 +177,16 @@
 ;                   quote | set! | begin | if | lambda | body
 ; <transformer> ->  <procedure of exp and env returning exp>
 
-(define-syntax val-core?                  pair?)
+(define        val-core?                  pair?)
 (define        (val-special? val)         (not (pair? val)))
 
-(define-syntax binding?                   pair?)
-(define-syntax make-binding               cons)
-(define-syntax binding-val                cdr)
+(define        binding?                   pair?)
+(define        make-binding               cons)
+(define        binding-val                cdr)
 (define        (binding-special? bnd)     (val-special? (cdr bnd)))
-(define-syntax binding-sym                car)
-(define-syntax binding-set-val!           set-cdr!)
-(define-syntax find-top-binding           assq)
+(define        binding-sym                car)
+(define        binding-set-val!           set-cdr!)
+(define        find-top-binding           assq)
 
 (define (new-id den)               (define p (list den)) (lambda () p))
 (define (old-den id)               (car (id)))
@@ -208,6 +208,7 @@
 ; a transformer (a procedure)
 
 (define (xform appos? sexp env)
+  (display "** xform ") (write sexp) (newline)
   (cond [(id? sexp) 
          (let ([hval (xform-ref sexp env)])
            (if (and (procedure? hval) (not appos?))

@@ -10,6 +10,7 @@
        (define-syntax id
          (syntax-rules ()
            [(_ v ...) expr] ; NB: do not use the same var twice!
+           [(_ . r) (rid . r)] ; NB: use syntax-error?
            [_ rid]))
        (define rid (lambda (v ...) expr)))]))
 
