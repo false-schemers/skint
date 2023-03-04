@@ -27,11 +27,14 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define outofline   __attribute__((noinline))
 #define VM_MUSTTAIL_GUARANTEE
 #define musttail    __attribute__((musttail))
-#else
-#define musttail    
-#endif
 #define regcall     __regcall        
 #define noalias     restrict
+#else
+#define outofline
+#define musttail    
+#define regcall
+#define noalias
+#endif
 /* #pragma GCC optimize ("align-functions=16") */
 #define nochecks    __attribute__((no_stack_protector, aligned(8)))
 /* __attribute__((nocf_check)) */
@@ -2990,7 +2993,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
 {
   const char **ent;
   /* make sure we are called in a clean vm state */
-  assert(r = cxg_regs); assert(sp-r == 2); /* k, ra (for temp use) */
+  assert(r == cxg_regs); assert(sp-r == 2); /* k, ra (for temp use) */
   /* go over module entries and install/execute */
   for (ent = mod; ent[1] != NULL; ent += 2) {
     const char *name = ent[0], *data = ent[1];
@@ -3054,7 +3057,7 @@ static obj *init_modules(obj *r, obj *sp, obj *hp)
 {
   extern char* s_code[]; /* s.c */
   extern char* t_code[]; /* t.c */
-  hp = init_module(r, sp, hp, s_code);
-  hp = init_module(r, sp, hp, t_code);
+  hp = init_module(r, sp, hp, (const char **)s_code);
+  hp = init_module(r, sp, hp, (const char **)t_code);
   return hp;
 }
