@@ -1309,20 +1309,6 @@ char *s_code[] = {
   "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py5:list*;y4:args;;;l2:y1:_;y5"
   ":list*;;",
 
-  "map",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
-  "3:fun;;;l4:y3:let;y4:loop;l1:l2:y1:l;y3:lst;;;l4:y2:if;l2:y5:pair?;y1:"
-  "l;;l3:y4:cons;l2:y1:f;l2:y4:%25car;y1:l;;;l2:y4:loop;l2:y4:%25cdr;y1:l"
-  ";;;;l2:y5:quote;n;;;;;;l2:py1:_;y4:args;;py13:%25residual-map;y4:args;"
-  ";;l2:y1:_;y13:%25residual-map;;",
-
-  "for-each",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
-  "3:fun;;;l4:y3:let;y4:loop;l1:l2:y1:l;y3:lst;;;l3:y2:if;l2:y5:pair?;y1:"
-  "l;;l3:y5:begin;l2:y1:f;l2:y4:%25car;y1:l;;;l2:y4:loop;l2:y4:%25cdr;y1:"
-  "l;;;;;;;;l2:py1:_;y4:args;;py18:%25residual-for-each;y4:args;;;l2:y1:_"
-  ";y18:%25residual-for-each;;",
-
   "vector?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25vecp;y1:x;;;l2:py1:_;y"
   "12:syntax-rules;;py17:%25residual-vector?;y12:syntax-rules;;;l2:y1:_;y"
@@ -1628,6 +1614,56 @@ char *s_code[] = {
   "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py7:call/cc;y4:args;;;l2:y1:_;"
   "y7:call/cc;;",
 
+  "values",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py5:%25sdmv;y4:args;;;l2:y1:_;"
+  "y5:%25sdmv;;",
+
+  "call-with-values",
+  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py5:%25cwmv;y4:args;;;l2:y1:_;"
+  "y5:%25cwmv;;",
+
+  "map",
+  "l5:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
+  "3:fun;;;l4:y3:let;y4:loop;l1:l2:y1:l;y3:lst;;;l4:y2:if;l2:y5:pair?;y1:"
+  "l;;l3:y4:cons;l2:y1:f;l2:y4:%25car;y1:l;;;l2:y4:loop;l2:y4:%25cdr;y1:l"
+  ";;;;l2:y5:quote;n;;;;;;l2:py1:_;y4:args;;py13:%25residual-map;y4:args;"
+  ";;l2:y1:_;y13:%25residual-map;;",
+
+  "for-each",
+  "l5:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
+  "3:fun;;;l4:y3:let;y4:loop;l1:l2:y1:l;y3:lst;;;l3:y2:if;l2:y5:pair?;y1:"
+  "l;;l3:y5:begin;l2:y1:f;l2:y4:%25car;y1:l;;;l2:y4:loop;l2:y4:%25cdr;y1:"
+  "l;;;;;;;;l2:py1:_;y4:args;;py18:%25residual-for-each;y4:args;;;l2:y1:_"
+  ";y18:%25residual-for-each;;",
+
+  0,
+  "&0{%!2.0u?{.2%sS3,'(c ),.1%kS2,'0,,#0.0,.3,.7,.9,.7,&5{%1:0%i,.1%iI<!?"
+  "{:3]1}${.2%i,:1%sS4,:2[01}%c,.1%i,:3%sS5.0'1%i,.1%iI+,:4^[11}.!0.0^_1["
+  "51}${@(y22:%25residual-string->list),${.5,.8c,,#0.4,.1,&2{%1.0p?{${.2d"
+  ",:0^[01},${.3a,:1[01}c]1}n]1}.!0.0^_1[01}_1,.4c,@(y13:%25residual-map)"
+  ",@(y5:%25appl)[02}%lX3]3}@!(y10:string-map)",
+
+  0,
+  "&0{%!2.0u?{.2%vV3,f,.1%kV2,'0,,#0.0,.3,.8,.8,.7,&5{%1:0%i,.1%iI<!?{:3]"
+  "1}${.2%i,:2%vV4,:1[01},.1%i,:3%vV5.0'1%i,.1%iI+,:4^[11}.!0.0^_1[51}${@"
+  "(y22:%25residual-vector->list),${.5,.8c,,#0.4,.1,&2{%1.0p?{${.2d,:0^[0"
+  "1},${.3a,:1[01}c]1}n]1}.!0.0^_1[01}_1,.4c,@(y13:%25residual-map),@(y5:"
+  "%25appl)[02}%lX1]3}@!(y10:vector-map)",
+
+  0,
+  "&0{%!2.0u?{.2%sS3,'0,,#0.2,.6,.6,.3,&4{%1:3%i,.1%iI<!,.0?{.0]2}${.3%i,"
+  ":2%sS4,:1[01}.1'1%i,.2%iI+,:0^[21}.!0.0^_1[41}@(y22:%25residual-string"
+  "->list),${.3,.6c,,#0.4,.1,&2{%1.0p?{${.2d,:0^[01},${.3a,:1[01}c]1}n]1}"
+  ".!0.0^_1[01}_1,.2c,@(y18:%25residual-for-each),@(y5:%25appl)[32}@!(y15"
+  ":string-for-each)",
+
+  0,
+  "&0{%!2.0u?{.2%vV3,'0,,#0.2,.6,.6,.3,&4{%1:3%i,.1%iI<!,.0?{.0]2}${.3%i,"
+  ":2%vV4,:1[01}.1'1%i,.2%iI+,:0^[21}.!0.0^_1[41}@(y22:%25residual-vector"
+  "->list),${.3,.6c,,#0.4,.1,&2{%1.0p?{${.2d,:0^[01},${.3a,:1[01}c]1}n]1}"
+  ".!0.0^_1[01}_1,.2c,@(y18:%25residual-for-each),@(y5:%25appl)[32}@!(y15"
+  ":vector-for-each)",
+
   "input-port?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25ipp;y1:x;;;l2:py1:_;y1"
   "2:syntax-rules;;py21:%25residual-input-port?;y12:syntax-rules;;;l2:y1:"
@@ -1643,14 +1679,6 @@ char *s_code[] = {
 
   0,
   "&0{%1.0P01]1}@!(y22:%25residual-output-port?)",
-
-  "eof-object?",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25eofp;y1:x;;;l2:py1:_;y"
-  "12:syntax-rules;;py21:%25residual-eof-object?;y12:syntax-rules;;;l2:y1"
-  ":_;y21:%25residual-eof-object?;;",
-
-  0,
-  "&0{%1.0Y9]1}@!(y21:%25residual-eof-object?)",
 
   "current-input-port",
   "l5:y12:syntax-rules;n;l2:l1:y1:_;;l1:y4:%25sip;;;l2:py1:_;y12:syntax-r"
@@ -1731,6 +1759,14 @@ char *s_code[] = {
 
   0,
   "&0{%1.0%wP9]1}@!(y27:%25residual-get-output-string)",
+
+  "eof-object?",
+  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25eofp;y1:x;;;l2:py1:_;y"
+  "12:syntax-rules;;py21:%25residual-eof-object?;y12:syntax-rules;;;l2:y1"
+  ":_;y21:%25residual-eof-object?;;",
+
+  0,
+  "&0{%1.0Y9]1}@!(y21:%25residual-eof-object?)",
 
   "write-char",
   "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25wrc;l2:y4:%25ckc;y1:x;"
@@ -1870,34 +1906,6 @@ char *s_code[] = {
   "[02}@(y13:%25residual-cdr),${.3,,#0.4,.1,&2{%1.0p?{${.2d,:0^[01},${.3a"
   ",:1[01}c]1}n]1}.!0.0^_1[01}_1,:0^[11}]1}.!0.0^_1[31}@!(y18:%25residual"
   "-for-each)",
-
-  0,
-  "&0{%!2.0u?{.2%sS3,'(c ),.1%kS2,'0,,#0.0,.3,.7,.9,.7,&5{%1:0%i,.1%iI<!?"
-  "{:3]1}${.2%i,:1%sS4,:2[01}%c,.1%i,:3%sS5.0'1%i,.1%iI+,:4^[11}.!0.0^_1["
-  "51}${@(y22:%25residual-string->list),${.5,.8c,,#0.4,.1,&2{%1.0p?{${.2d"
-  ",:0^[01},${.3a,:1[01}c]1}n]1}.!0.0^_1[01}_1,.4c,@(y13:%25residual-map)"
-  ",@(y5:%25appl)[02}%lX3]3}@!(y10:string-map)",
-
-  0,
-  "&0{%!2.0u?{.2%vV3,f,.1%kV2,'0,,#0.0,.3,.8,.8,.7,&5{%1:0%i,.1%iI<!?{:3]"
-  "1}${.2%i,:2%vV4,:1[01},.1%i,:3%vV5.0'1%i,.1%iI+,:4^[11}.!0.0^_1[51}${@"
-  "(y22:%25residual-vector->list),${.5,.8c,,#0.4,.1,&2{%1.0p?{${.2d,:0^[0"
-  "1},${.3a,:1[01}c]1}n]1}.!0.0^_1[01}_1,.4c,@(y13:%25residual-map),@(y5:"
-  "%25appl)[02}%lX1]3}@!(y10:vector-map)",
-
-  0,
-  "&0{%!2.0u?{.2%sS3,'0,,#0.2,.6,.6,.3,&4{%1:3%i,.1%iI<!,.0?{.0]2}${.3%i,"
-  ":2%sS4,:1[01}.1'1%i,.2%iI+,:0^[21}.!0.0^_1[41}@(y22:%25residual-string"
-  "->list),${.3,.6c,,#0.4,.1,&2{%1.0p?{${.2d,:0^[01},${.3a,:1[01}c]1}n]1}"
-  ".!0.0^_1[01}_1,.2c,@(y18:%25residual-for-each),@(y5:%25appl)[32}@!(y15"
-  ":string-for-each)",
-
-  0,
-  "&0{%!2.0u?{.2%vV3,'0,,#0.2,.6,.6,.3,&4{%1:3%i,.1%iI<!,.0?{.0]2}${.3%i,"
-  ":2%vV4,:1[01}.1'1%i,.2%iI+,:0^[21}.!0.0^_1[41}@(y22:%25residual-vector"
-  "->list),${.3,.6c,,#0.4,.1,&2{%1.0p?{${.2d,:0^[01},${.3a,:1[01}c]1}n]1}"
-  ".!0.0^_1[01}_1,.2c,@(y18:%25residual-for-each),@(y5:%25appl)[32}@!(y15"
-  ":vector-for-each)",
 
   0,
   "&0{%!0.0,,#0.0,&1{%1.0u?{n]1}.0%pdu?{.0%pa]1}${.2%pd,:0^[01},.1%pa%lL6"

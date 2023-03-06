@@ -1133,6 +1133,9 @@
 ; NB: 'nuate' restores stack with fn arg on top of return triple
 (define continuation-closure-code (decode "%1.0K2]1"))
 
+; adapter closure for values/call-with-values pair
+(define callmv-adapter-closure (make-closure (decode "K5")))
+
 (define install-global-lambdas
   (%prim "{ /* define install-global-lambdas */
     static obj c[] = { obj_from_objptr(vmcases+6) };

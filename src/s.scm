@@ -463,24 +463,6 @@
 
 (define-syntax cons* list*)
 
-(define-syntax map
-  (syntax-rules ()
-    [(_ fun lst)
-     (let ([f fun]) 
-       (let loop ([l lst]) 
-         (if (pair? l) (cons (f (%car l)) (loop (%cdr l))) '())))]
-    [(_ . args) (%residual-map . args)]
-    [_ %residual-map])) 
-
-(define-syntax for-each
-  (syntax-rules ()
-    [(_ fun lst)
-     (let ([f fun]) 
-       (let loop ([l lst]) 
-         (if (pair? l) (begin (f (%car l)) (loop (%cdr l))))))]
-    [(_ . args) (%residual-for-each . args)]
-    [_ %residual-for-each]))
-
 
 ;---------------------------------------------------------------------------------------------
 ; Vectors
@@ -621,19 +603,57 @@
     [(_ . args) (%residual-apply . args)]
     [_ %residual-apply]))
 
-
 (define-syntax call/cc %ccc) ; (%ccc (%ckr1 k)) -- check for 1-arg proc?
 
 (define-syntax call-with-current-continuation call/cc)
 
-;map
-;string-map
-;vector-map
-;for-each
-;string-for-each
-;vector-for-each
-;values
-;call-with-values
+(define-syntax values %sdmv)
+
+(define-syntax call-with-values %cwmv)
+
+(define-syntax map
+  (syntax-rules ()
+    [(_ fun lst)
+     (let ([f fun]) 
+       (let loop ([l lst]) 
+         (if (pair? l) (cons (f (%car l)) (loop (%cdr l))) '())))]
+    [(_ . args) (%residual-map . args)]
+    [_ %residual-map])) 
+
+(define-syntax for-each
+  (syntax-rules ()
+    [(_ fun lst)
+     (let ([f fun]) 
+       (let loop ([l lst]) 
+         (if (pair? l) (begin (f (%car l)) (loop (%cdr l))))))]
+    [(_ . args) (%residual-for-each . args)]
+    [_ %residual-for-each]))
+
+(define (string-map p s . s*)
+  (if (null? s*)
+      (let* ([len (string-length s)] [res (make-string len)])
+        (do ([i 0 (fx+ i 1)]) [(fx>=? i len) res]
+           (string-set! res i (p (string-ref s i)))))
+      (list->string (apply map p (map string->list (cons s s*))))))
+
+(define (vector-map p v . v*)
+  (if (null? v*)
+      (let* ([len (vector-length v)] [res (make-vector len)])
+        (do ([i 0 (fx+ i 1)]) [(fx>=? i len) res]
+          (vector-set! res i (p (vector-ref v i)))))
+      (list->vector (apply map p (map vector->list (cons v v*))))))
+
+(define (string-for-each p s . s*)
+  (if (null? s*) 
+      (let ([len (string-length s)])
+        (do ([i 0 (fx+ i 1)]) [(fx>=? i len)] (p (string-ref s i))))
+      (apply for-each p (map string->list (cons s s*)))))
+
+(define (vector-for-each p v . v*)
+  (if (null? v*)
+      (let ([len (vector-length v)])
+        (do ([i 0 (fx+ i 1)]) [(fx>=? i len)] (p (vector-ref v i))))
+      (apply for-each p (map vector->list (cons v v*)))))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -643,8 +663,6 @@
 (define-inline (input-port? x) %residual-input-port? (%ipp x))
 
 (define-inline (output-port? x) %residual-output-port? (%opp x))
-
-(define-inline (eof-object? x) %residual-eof-object? (%eofp x))
 
 (define-inline (current-input-port) %residual-current-input-port (%sip))
 
@@ -665,6 +683,41 @@
 (define-inline (close-output-port x) %residual-close-output-port (%cop (%ckw x)))
 
 (define-inline (get-output-string x) %residual-get-output-string (%gos (%ckw x)))
+
+;call-with-port
+;call-with-input-file
+;call-with-output-file
+;port?
+;input-port-open?
+;output-port-open?
+;with-input-from-file
+;with-output-to-file
+;open-binary-input-file
+;open-binary-output-file
+;close-port
+;open-input-bytevector
+;open-output-bytevector
+;get-output-bytevector
+
+
+;---------------------------------------------------------------------------------------------
+; Input
+;---------------------------------------------------------------------------------------------
+
+;read
+;read-char
+;peek-char
+;read-line
+;char-ready?
+;read-string
+;read-u8
+;peek-u8
+;u8-ready?
+;read-bytevector
+;read-bytevector!
+
+(define-inline (eof-object? x) %residual-eof-object? (%eofp x))
+;eof-object
 
 
 ;---------------------------------------------------------------------------------------------
@@ -719,6 +772,24 @@
     [(_ x p) (%wriw x (%ckw p))]
     [(_ . args) (%residual-write-simple . args)]
     [_ %residual-write-simple]))
+
+
+;---------------------------------------------------------------------------------------------
+; System interface
+;---------------------------------------------------------------------------------------------
+
+;load
+;file-exists?
+;delete-file
+;command-line
+;exit
+;emergency-exit
+;get-environment-variable
+;get-environment-variables
+;current-second
+;current-jiffy
+;jiffies-per-second
+;features
 
 
 ;---------------------------------------------------------------------------------------------
@@ -851,32 +922,6 @@
       (let loop ([l* (cons l l*)])
         (if (let lp ([l* l*]) (or (null? l*) (and (pair? (car l*)) (lp (cdr l*)))))
             (begin (apply p (map car l*)) (loop (map cdr l*)))))))
-
-(define (string-map p s . s*)
-  (if (null? s*)
-      (let* ([len (string-length s)] [res (make-string len)])
-        (do ([i 0 (fx+ i 1)]) [(fx>=? i len) res]
-           (string-set! res i (p (string-ref s i)))))
-      (list->string (apply map p (map string->list (cons s s*))))))
-
-(define (vector-map p v . v*)
-  (if (null? v*)
-      (let* ([len (vector-length v)] [res (make-vector len)])
-        (do ([i 0 (fx+ i 1)]) [(fx>=? i len) res]
-          (vector-set! res i (p (vector-ref v i)))))
-      (list->vector (apply map p (map vector->list (cons v v*))))))
-
-(define (string-for-each p s . s*)
-  (if (null? s*) 
-      (let ([len (string-length s)])
-        (do ([i 0 (fx+ i 1)]) [(fx>=? i len)] (p (string-ref s i))))
-      (apply for-each p (map string->list (cons s s*)))))
-
-(define (vector-for-each p v . v*)
-  (if (null? v*)
-      (let ([len (vector-length v)])
-        (do ([i 0 (fx+ i 1)]) [(fx>=? i len)] (p (vector-ref v i))))
-      (apply for-each p (map vector->list (cons v v*)))))
 
 (define-syntax append-reducer
   (syntax-rules ()

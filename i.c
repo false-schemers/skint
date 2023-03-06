@@ -4,9 +4,10 @@
 #include "i.h"
 
 /* imports */
-extern obj cx_continuation_2Dclosure_2Dcode;
 extern obj cx__2Aglobals_2A;
 extern obj cx__2Atransformers_2A;
+extern obj cx_continuation_2Dclosure_2Dcode;
+extern obj cx_callmv_2Dadapter_2Dclosure;
 
 #define istagged(o, t) istagged_inlined(o, t) 
 
@@ -389,6 +390,49 @@ define_instruction(appl) {
   rd = ac; rx = obj_from_fixnum(0);
   ac = obj_from_fixnum(n); /* argc */
   callsubi();
+}
+
+define_instruction(cwmv) {
+  obj prd = ac, cns = spop();
+  /* arrange return to cwmv code w/cns */
+  spush(cns);
+  spush(cx_callmv_2Dadapter_2Dclosure); 
+  spush(obj_from_fixnum(0));
+  /* call the producer */
+  rd = prd; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); 
+  callsubi(); 
+}
+
+define_instruction(rcmv) {
+  /* single-value producer call returns here with result in ac, cns on stack */
+  obj val = ac, cns = spop();
+  /* tail-call the consumer with the returned value */
+  spush(val); ac = obj_from_fixnum(1);
+  rd = cns; rx = obj_from_fixnum(0); 
+  callsubi(); 
+}
+
+define_instruction(sdmv) {
+  /* sending values on stack, ac contains argc */
+  if (ac == obj_from_fixnum(1)) {
+    /* can return anywhere, including rcmv */
+    ac = spop();
+    rx = spop();
+    rd = spop();
+    retfromi();
+  } else {
+    /* can only pseudo-return to rcmv */
+    int n = fixnum_from_obj(ac), m = 3;
+    if (sref(n) == obj_from_fixnum(0) && sref(n+1) == cx_callmv_2Dadapter_2Dclosure) {
+      /* tail-call the consumer with the produced values */
+      rd = sref(n+2); rx = obj_from_fixnum(0); /* cns */
+      /* NB: can be sped up for popular cases: n == 0, n == 2 */
+      memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+      sdrop(m); callsubi();
+    } else {
+      fail("multiple values returned to single value context");
+    }
+  }
 }
 
 define_instruction(save) {

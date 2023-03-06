@@ -57,6 +57,9 @@ declare_instruction(gset,     "@!",  'g', NULL, 0, NULL)
 declare_instruction(conti,    "K1",    0, NULL, 0, NULL) 
 declare_instruction(nuate,    "K2",    0, NULL, 0, NULL) 
 declare_instruction(appl,     "K3",    0, NULL, 0, NULL)
+declare_instruction(cwmv,     "K4",    0, NULL, 0, NULL)
+declare_instruction(rcmv,     "K5",    0, NULL, 0, NULL)
+declare_instruction(sdmv,     "K6",    0, NULL, 0, NULL)
 declare_instruction(save,     "$",   's', NULL, 0, NULL)
 declare_instruction(push,     ",",     0, NULL, 0, NULL) 
 declare_instruction(call,     "[0",    1, NULL, 0, NULL) 
@@ -470,6 +473,8 @@ declare_integrable(NULL,      "dddd",  0, "%cddddr", 1, INLINED)
 /* globals */
 declare_integrable(NULL,       NULL,   0, "%ccc", 1, "%1K1,.1[11")
 declare_integrable(NULL,       NULL,   0, "%appl", 2, "%2_!K3")
+declare_integrable(NULL,       NULL,   0, "%cwmv", 2, "%2_!K4")
+declare_integrable(NULL,       NULL,   0, "%sdmv", -1, "K6")
 
 #undef declare_instruction
 #undef declare_instrshadow
