@@ -5,7 +5,6 @@
 
 (load "s.scm")
 
-
 ;---------------------------------------------------------------------------------------------
 ; Utils
 ;---------------------------------------------------------------------------------------------
@@ -208,7 +207,6 @@
 ; a transformer (a procedure)
 
 (define (xform appos? sexp env)
-  (display "** xform ") (write sexp) (newline)
   (cond [(id? sexp) 
          (let ([hval (xform-ref sexp env)])
            (if (and (procedure? hval) (not appos?))
@@ -501,7 +499,8 @@
       (if (null? rules) (error 'transform "invalid syntax" use))
       (let* ([rule (car rules)] [pat (car rule)] [tmpl (cadr rule)])
         (cond [(match-pattern pat use use-env) =>
-               (lambda (bindings) (expand-template pat tmpl bindings))]
+               (lambda (bindings) 
+                 (expand-template pat tmpl bindings))]
               [else (loop (cdr rules))])))))
 
 (install-transformer! 'syntax-rules
@@ -627,4 +626,3 @@
 (install-sr-transformer! 'unless
   (syntax-rules ()
     [(_ test . rest) (if (not test) (begin . rest))]))
-

@@ -385,7 +385,7 @@ define_instruction(nuate) {
 define_instruction(appl) {
   int n, i; obj l = spop(), t = l;
   for (n = 0; ispair(t); t = cdr(t)) ++n; sgrow(n);
-  for (i = n-1; i >= 0; --i, l = cdr(l)) sref(i) = car(l);
+  for (i = 0; i < n; ++i, l = cdr(l)) sref(i) = car(l);
   rd = ac; rx = obj_from_fixnum(0);
   ac = obj_from_fixnum(n); /* argc */
   callsubi();

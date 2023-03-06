@@ -173,6 +173,7 @@
     [(_ x) x]
     [(_ x y) (%min (%ckn x) (%ckn y))]
     [(_ x y z ...) (min (min x y) z ...)]
+    [(_ . args) (%residual-min . args)]
     [_ %residual-min]))
 
 (define-syntax max
@@ -180,6 +181,7 @@
     [(_ x) x]
     [(_ x y) (%max (%ckn x) (%ckn y))]
     [(_ x y z ...) (max (max x y) z ...)]
+    [(_ . args) (%residual-max . args)]
     [_ %residual-max]))
 
 (define-syntax + 
@@ -203,6 +205,7 @@
     [(_ x) (%neg (%ckn x))]
     [(_ x y) (%sub (%ckn x) (%ckn y))]
     [(_ x y z ...) (- (- x y) z ...)]
+    [(_ . args) (%residual- . args)]
     [_ %residual-]))
 
 (define-syntax /
@@ -210,36 +213,42 @@
     [(_ x) (%div 1 (%ckn x))]
     [(_ x y) (%div (%ckn x) (%ckn y))]
     [(_ x y z ...) (/ (/ x y) z ...)]
+    [(_ . args) (%residual/ . args)]
     [_ %residual/]))
 
 (define-syntax =
   (syntax-rules ()
     [(_ x y) (%eq (%ckn x) (%ckn y))] 
     [(_ x y z ...) (let ([t y]) (and (= x t) (= t z ...)))]
+    [(_ . args) (%residual= . args)]
     [_ %residual=]))
 
 (define-syntax <
   (syntax-rules ()
     [(_ x y) (%lt (%ckn x) (%ckn y))]
     [(_ x y z ...) (let ([t y]) (and (< x t) (< t z ...)))]
+    [(_ . args) (%residual< . args)]
     [_ %residual<]))
 
 (define-syntax >
   (syntax-rules ()
     [(_ x y) (%gt (%ckn x) (%ckn y))]
     [(_ x y z ...) (let ([t y]) (and (> x t) (> t z ...)))]
+    [(_ . args) (%residual> . args)]
     [_ %residual>]))
 
 (define-syntax <=
   (syntax-rules ()
     [(_ x y) (%le (%ckn x) (%ckn y))]
     [(_ x y z ...) (let ([t y]) (and (<= x t) (<= t z ...)))]
+    [(_ . args) (%residual<= . args)]
     [_ %residual<=]))
 
 (define-syntax >=
   (syntax-rules ()
     [(_ x y) (%ge (%ckn x) (%ckn y))]
     [(_ x y z ...) (let ([t y]) (and (>= x t) (>= t z ...)))]
+    [(_ . args) (%residual>= . args)]
     [_ %residual>=]))
 
 (define-inline (abs x) %residual-abs (%abs (%ckn x)))
@@ -383,6 +392,7 @@
   (syntax-rules ()
     [(_ n) (%make-list n #f)]  ; #f > (void)
     [(_ n i) (%make-list n i)]
+    [(_ . args) (%residual-make-list . args)]
     [_ %residual-make-list]))
 
 (define-syntax list 
@@ -416,6 +426,7 @@
   (syntax-rules ()
     [(_ v y) (%meme v (%ckl y))]
     [(_ v y eq) (%member v y eq)]
+    [(_ . args) (%residual-member . args)]
     [_ %residual-member]))
 
 (define-inline (assq v y) %residual-assq (%assq v (%ckl y)))  ; check for a-list; optimize combo?
@@ -429,6 +440,7 @@
   (syntax-rules ()
     [(_ v al) (%asse v (%ckl al))]
     [(_ v al eq) (%assoc v al eq)]
+    [(_ . args) (%residual-assoc . args)]
     [_ %residual-assoc]))
 
 (define-inline (list-copy x) %residual-list-copy (%lcat (%ckl x) '()))
@@ -446,6 +458,7 @@
     [(_ x) x]
     [(_ x y) (%cons x y)]
     [(_ x y z ...) (%cons x (list* y z ...))]
+    [(_ . args) (%residual-list* . args)]
     [_ %residual-list*]))
 
 (define-syntax cons* list*)
@@ -456,6 +469,7 @@
      (let ([f fun]) 
        (let loop ([l lst]) 
          (if (pair? l) (cons (f (%car l)) (loop (%cdr l))) '())))]
+    [(_ . args) (%residual-map . args)]
     [_ %residual-map])) 
 
 (define-syntax for-each
@@ -464,6 +478,7 @@
      (let ([f fun]) 
        (let loop ([l lst]) 
          (if (pair? l) (begin (f (%car l)) (loop (%cdr l))))))]
+    [(_ . args) (%residual-for-each . args)]
     [_ %residual-for-each]))
 
 
@@ -479,6 +494,7 @@
   (syntax-rules ()
     [(_ n) (%vmk (%ckk n) #f)]
     [(_ n v) (%vmk (%ckk n) v)]
+    [(_ . args) (%residual-make-vector . args)]
     [_ %residual-make-vector]))
 
 (define-inline (vector-length x) %residual-vector-length (%vlen (%ckv x))) ; optimize combo?
@@ -521,6 +537,7 @@
   (syntax-rules ()
     [(_ x) (%smk (%ckk x) #\space)]
     [(_ x y) (%smk (%ckk x) (%ckc y))]
+    [(_ . args) (%residual-make-string . args)]
     [_ %residual-make-string]))
 
 (define-inline (string-length x) %residual-string-length (%slen (%cks x))) ; optimize combo?
@@ -580,12 +597,14 @@
   (syntax-rules ()
     [(_ x r) (%ntos (%cki x) (%cki r))]
     [(_ x) (%ntos (%cki x) 10)]
+    [(_ . args) (%residual-number->string . args)]
     [_ %residual-number->string]))
 
 (define-syntax string->number
   (syntax-rules ()
     [(_ x r) (%ston (%cks x) (%cki r))]
     [(_ x) (%ston (%cks x) 10)]
+    [(_ . args) (%residual-string->number . args)]
     [_ %residual-string->number]))
 
 
@@ -599,6 +618,7 @@
   (syntax-rules ()
     [(_ p l) (%appl p (%ckl l))]  ; -- check for proc?
     [(_ p a b ... l) (%appl p (list* a b ... l))]
+    [(_ . args) (%residual-apply . args)]
     [_ %residual-apply]))
 
 
@@ -628,7 +648,7 @@
 
 (define-inline (current-input-port) %residual-current-input-port (%sip))
 
-(define-inline (current-ouput-port) %residual-current-ouput-port (%sop))
+(define-inline (current-output-port) %residual-current-output-port (%sop))
 
 (define-inline (current-error-port) %residual-current-error-port (%sep))
 
@@ -651,19 +671,54 @@
 ; Output
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (write-char x p) %residual-write-char (%wrc (%ckc x) (%ckw p)))
+(define-syntax write-char
+  (syntax-rules ()
+    [(_ x) (%wrc (%ckc x) (%sop))]
+    [(_ x p) (%wrc (%ckc x) (%ckw p))]
+    [(_ . args) (%residual-write-char . args)]
+    [_ %residual-write-char]))
 
-(define-inline (write-string x p) %residual-write-string (%wrs (%cks x) (%ckw p)))
+(define-syntax write-string
+  (syntax-rules ()
+    [(_ x) (%wrs (%cks x) (%sop))]
+    [(_ x p) (%wrs (%cks x) (%ckw p))]
+    [(_ . args) (%residual-write-string . args)]
+    [_ %residual-write-string]))
 
-(define-inline (display x p) %residual-display (%wrcd x (%ckw p)))
+(define-syntax display
+  (syntax-rules ()
+    [(_ x) (%wrcd x (%sop))]
+    [(_ x p) (%wrcd x (%ckw p))]
+    [(_ . args) (%residual-display . args)]
+    [_ %residual-display]))
 
-(define-inline (write x p) %residual-write (%wrcw x (%ckw p)))
+(define-syntax write
+  (syntax-rules ()
+    [(_ x) (%wrcw x (%sop))]
+    [(_ x p) (%wrcw x (%ckw p))]
+    [(_ . args) (%residual-write . args)]
+    [_ %residual-write]))
 
-(define-inline (newline p) %residual-newline (%wrnl (%ckw p)))
+(define-syntax newline
+  (syntax-rules ()
+    [(_)  (%wrnl (%sop))]
+    [(_ p) (%wrnl (%ckw p))]
+    [(_ . args) (%residual-newline . args)]
+    [_ %residual-newline]))
 
-(define-inline (write-shared x p) %residual-write-shared (%wrhw x (%ckw p)))
+(define-syntax write-shared
+  (syntax-rules ()
+    [(_ x) (%wrhw x (%sop))]
+    [(_ x p) (%wrhw x (%ckw p))]
+    [(_ . args) (%residual-write-shared . args)]
+    [_ %residual-write-shared]))
 
-(define-inline (write-simple x p) %residual-write-simple (%wriw x (%ckw p)))
+(define-syntax write-simple
+  (syntax-rules ()
+    [(_ x) (%wriw x (%sop))]
+    [(_ x p) (%wriw x (%ckw p))]
+    [(_ . args) (%residual-write-simple . args)]
+    [_ %residual-write-simple]))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -839,3 +894,10 @@
 (define %residual-number->string (unary-binary-adaptor number->string))
 (define %residual-string->number (unary-binary-adaptor string->number))
 
+(define %residual-write-char (unary-binary-adaptor write-char))
+(define %residual-write-string (unary-binary-adaptor write-string))
+(define %residual-newline (nullary-unary-adaptor newline))
+(define %residual-display (unary-binary-adaptor display))
+(define %residual-write (unary-binary-adaptor write))
+(define %residual-write-simple (unary-binary-adaptor write-simple))
+(define %residual-write-shared (unary-binary-adaptor write-shared))

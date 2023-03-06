@@ -523,16 +523,16 @@ char *s_code[] = {
   "&0{%1.0%nN9]1}@!(y14:%25residual-odd?)",
 
   "min",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;y1:x;;l2:l3:y1:_;y1:x;y1:y;;l3:"
+  "l7:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;y1:x;;l2:l3:y1:_;y1:x;y1:y;;l3:"
   "y4:%25min;l2:y4:%25ckn;y1:x;;l2:y4:%25ckn;y1:y;;;;l2:l5:y1:_;y1:x;y1:y"
-  ";y1:z;y3:...;;l4:y3:min;l3:y3:min;y1:x;y1:y;;y1:z;y3:...;;;l2:y1:_;y13"
-  ":%25residual-min;;",
+  ";y1:z;y3:...;;l4:y3:min;l3:y3:min;y1:x;y1:y;;y1:z;y3:...;;;l2:py1:_;y4"
+  ":args;;py13:%25residual-min;y4:args;;;l2:y1:_;y13:%25residual-min;;",
 
   "max",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;y1:x;;l2:l3:y1:_;y1:x;y1:y;;l3:"
+  "l7:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;y1:x;;l2:l3:y1:_;y1:x;y1:y;;l3:"
   "y4:%25max;l2:y4:%25ckn;y1:x;;l2:y4:%25ckn;y1:y;;;;l2:l5:y1:_;y1:x;y1:y"
-  ";y1:z;y3:...;;l4:y3:max;l3:y3:max;y1:x;y1:y;;y1:z;y3:...;;;l2:y1:_;y13"
-  ":%25residual-max;;",
+  ";y1:z;y3:...;;l4:y3:max;l3:y3:max;y1:x;y1:y;;y1:z;y3:...;;;l2:py1:_;y4"
+  ":args;;py13:%25residual-max;y4:args;;;l2:y1:_;y13:%25residual-max;;",
 
   "+",
   "l7:y12:syntax-rules;n;l2:l1:y1:_;;i0;;l2:l2:y1:_;y1:x;;l2:y4:%25ckn;y1"
@@ -547,46 +547,53 @@ char *s_code[] = {
   ";y1:z;y3:...;;;l2:y1:_;y10:%25residual*;;",
 
   "-",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25neg;l2:y4:%25ckn;y1:x;"
+  "l7:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25neg;l2:y4:%25ckn;y1:x;"
   ";;;l2:l3:y1:_;y1:x;y1:y;;l3:y4:%25sub;l2:y4:%25ckn;y1:x;;l2:y4:%25ckn;"
   "y1:y;;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l4:y1:-;l3:y1:-;y1:x;y1:y;;y"
-  "1:z;y3:...;;;l2:y1:_;y10:%25residual-;;",
+  "1:z;y3:...;;;l2:py1:_;y4:args;;py10:%25residual-;y4:args;;;l2:y1:_;y10"
+  ":%25residual-;;",
 
   "/",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25div;i1;l2:y4:%25ckn;y1"
+  "l7:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25div;i1;l2:y4:%25ckn;y1"
   ":x;;;;l2:l3:y1:_;y1:x;y1:y;;l3:y4:%25div;l2:y4:%25ckn;y1:x;;l2:y4:%25c"
   "kn;y1:y;;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l4:y1:/;l3:y1:/;y1:x;y1:y"
-  ";;y1:z;y3:...;;;l2:y1:_;y10:%25residual/;;",
+  ";;y1:z;y3:...;;;l2:py1:_;y4:args;;py10:%25residual/;y4:args;;;l2:y1:_;"
+  "y10:%25residual/;;",
 
   "=",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25eq;l2:y4:%25ckn;y"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25eq;l2:y4:%25ckn;y"
   "1:x;;l2:y4:%25ckn;y1:y;;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l3:y3:let;"
   "l1:l2:y1:t;y1:y;;;l3:y3:and;l3:y1:=;y1:x;y1:t;;l4:y1:=;y1:t;y1:z;y3:.."
-  ".;;;;;l2:y1:_;y10:%25residual=;;",
+  ".;;;;;l2:py1:_;y4:args;;py10:%25residual=;y4:args;;;l2:y1:_;y10:%25res"
+  "idual=;;",
 
   "<",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25lt;l2:y4:%25ckn;y"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25lt;l2:y4:%25ckn;y"
   "1:x;;l2:y4:%25ckn;y1:y;;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l3:y3:let;"
   "l1:l2:y1:t;y1:y;;;l3:y3:and;l3:y1:<;y1:x;y1:t;;l4:y1:<;y1:t;y1:z;y3:.."
-  ".;;;;;l2:y1:_;y10:%25residual<;;",
+  ".;;;;;l2:py1:_;y4:args;;py10:%25residual<;y4:args;;;l2:y1:_;y10:%25res"
+  "idual<;;",
 
   ">",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25gt;l2:y4:%25ckn;y"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25gt;l2:y4:%25ckn;y"
   "1:x;;l2:y4:%25ckn;y1:y;;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l3:y3:let;"
   "l1:l2:y1:t;y1:y;;;l3:y3:and;l3:y1:>;y1:x;y1:t;;l4:y1:>;y1:t;y1:z;y3:.."
-  ".;;;;;l2:y1:_;y10:%25residual>;;",
+  ".;;;;;l2:py1:_;y4:args;;py10:%25residual>;y4:args;;;l2:y1:_;y10:%25res"
+  "idual>;;",
 
   "<=",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25le;l2:y4:%25ckn;y"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25le;l2:y4:%25ckn;y"
   "1:x;;l2:y4:%25ckn;y1:y;;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l3:y3:let;"
   "l1:l2:y1:t;y1:y;;;l3:y3:and;l3:y2:<=;y1:x;y1:t;;l4:y2:<=;y1:t;y1:z;y3:"
-  "...;;;;;l2:y1:_;y11:%25residual<=;;",
+  "...;;;;;l2:py1:_;y4:args;;py11:%25residual<=;y4:args;;;l2:y1:_;y11:%25"
+  "residual<=;;",
 
   ">=",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25ge;l2:y4:%25ckn;y"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y3:%25ge;l2:y4:%25ckn;y"
   "1:x;;l2:y4:%25ckn;y1:y;;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l3:y3:let;"
   "l1:l2:y1:t;y1:y;;;l3:y3:and;l3:y2:>=;y1:x;y1:t;;l4:y2:>=;y1:t;y1:z;y3:"
-  "...;;;;;l2:y1:_;y11:%25residual>=;;",
+  "...;;;;;l2:py1:_;y4:args;;py11:%25residual>=;y4:args;;;l2:y1:_;y11:%25"
+  "residual>=;;",
 
   "abs",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25abs;l2:y4:%25ckn;y1:x;"
@@ -1159,9 +1166,10 @@ char *s_code[] = {
   "1[22}@!(y10:%25make-list)",
 
   "make-list",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:n;;l3:y10:%25make-list;y1:n;f;;;l2"
-  ":l3:y1:_;y1:n;y1:i;;l3:y10:%25make-list;y1:n;y1:i;;;l2:y1:_;y19:%25res"
-  "idual-make-list;;",
+  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:n;;l3:y10:%25make-list;y1:n;f;;;l2"
+  ":l3:y1:_;y1:n;y1:i;;l3:y10:%25make-list;y1:n;y1:i;;;l2:py1:_;y4:args;;"
+  "py19:%25residual-make-list;y4:args;;;l2:y1:_;y19:%25residual-make-list"
+  ";;",
 
   "list",
   "l6:y12:syntax-rules;n;l2:l1:y1:_;;l2:y5:quote;n;;;l2:l2:y1:_;y1:x;;l3:"
@@ -1220,9 +1228,10 @@ char *s_code[] = {
   ":%25member)",
 
   "member",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:v;y1:y;;l3:y5:%25meme;y1:v;l2:y4:%"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:v;y1:y;;l3:y5:%25meme;y1:v;l2:y4:%"
   "25ckl;y1:y;;;;l2:l4:y1:_;y1:v;y1:y;y2:eq;;l4:y7:%25member;y1:v;y1:y;y2"
-  ":eq;;;l2:y1:_;y16:%25residual-member;;",
+  ":eq;;;l2:py1:_;y4:args;;py16:%25residual-member;y4:args;;;l2:y1:_;y16:"
+  "%25residual-member;;",
 
   "assq",
   "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:v;y1:y;;l3:y5:%25assq;y1:v;l2:y4:%"
@@ -1245,9 +1254,10 @@ char *s_code[] = {
   "(y6:%25assoc)",
 
   "assoc",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:v;y2:al;;l3:y5:%25asse;y1:v;l2:y4:"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:v;y2:al;;l3:y5:%25asse;y1:v;l2:y4:"
   "%25ckl;y2:al;;;;l2:l4:y1:_;y1:v;y2:al;y2:eq;;l4:y6:%25assoc;y1:v;y2:al"
-  ";y2:eq;;;l2:y1:_;y15:%25residual-assoc;;",
+  ";y2:eq;;;l2:py1:_;y4:args;;py15:%25residual-assoc;y4:args;;;l2:y1:_;y1"
+  "5:%25residual-assoc;;",
 
   "list-copy",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25lcat;l2:y4:%25ckl;y1:x"
@@ -1290,25 +1300,28 @@ char *s_code[] = {
   "&0{%1.0%lA9]1}@!(y18:%25residual-reverse!)",
 
   "list*",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;y1:x;;l2:l3:y1:_;y1:x;y1:y;;l3:"
+  "l7:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;y1:x;;l2:l3:y1:_;y1:x;y1:y;;l3:"
   "y5:%25cons;y1:x;y1:y;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l3:y5:%25cons"
-  ";y1:x;l4:y5:list*;y1:y;y1:z;y3:...;;;;l2:y1:_;y15:%25residual-list*;;",
+  ";y1:x;l4:y5:list*;y1:y;y1:z;y3:...;;;;l2:py1:_;y4:args;;py15:%25residu"
+  "al-list*;y4:args;;;l2:y1:_;y15:%25residual-list*;;",
 
   "cons*",
   "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py5:list*;y4:args;;;l2:y1:_;y5"
   ":list*;;",
 
   "map",
-  "l4:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
+  "l5:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
   "3:fun;;;l4:y3:let;y4:loop;l1:l2:y1:l;y3:lst;;;l4:y2:if;l2:y5:pair?;y1:"
   "l;;l3:y4:cons;l2:y1:f;l2:y4:%25car;y1:l;;;l2:y4:loop;l2:y4:%25cdr;y1:l"
-  ";;;;l2:y5:quote;n;;;;;;l2:y1:_;y13:%25residual-map;;",
+  ";;;;l2:y5:quote;n;;;;;;l2:py1:_;y4:args;;py13:%25residual-map;y4:args;"
+  ";;l2:y1:_;y13:%25residual-map;;",
 
   "for-each",
-  "l4:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
+  "l5:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
   "3:fun;;;l4:y3:let;y4:loop;l1:l2:y1:l;y3:lst;;;l3:y2:if;l2:y5:pair?;y1:"
   "l;;l3:y5:begin;l2:y1:f;l2:y4:%25car;y1:l;;;l2:y4:loop;l2:y4:%25cdr;y1:"
-  "l;;;;;;;;l2:y1:_;y18:%25residual-for-each;;",
+  "l;;;;;;;;l2:py1:_;y4:args;;py18:%25residual-for-each;y4:args;;;l2:y1:_"
+  ";y18:%25residual-for-each;;",
 
   "vector?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25vecp;y1:x;;;l2:py1:_;y"
@@ -1323,9 +1336,10 @@ char *s_code[] = {
   "4:%25vec;;",
 
   "make-vector",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:n;;l3:y4:%25vmk;l2:y4:%25ckk;y1:n;"
-  ";f;;;l2:l3:y1:_;y1:n;y1:v;;l3:y4:%25vmk;l2:y4:%25ckk;y1:n;;y1:v;;;l2:y"
-  "1:_;y21:%25residual-make-vector;;",
+  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:n;;l3:y4:%25vmk;l2:y4:%25ckk;y1:n;"
+  ";f;;;l2:l3:y1:_;y1:n;y1:v;;l3:y4:%25vmk;l2:y4:%25ckk;y1:n;;y1:v;;;l2:p"
+  "y1:_;y4:args;;py21:%25residual-make-vector;y4:args;;;l2:y1:_;y21:%25re"
+  "sidual-make-vector;;",
 
   "vector-length",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25vlen;l2:y4:%25ckv;y1:x"
@@ -1388,9 +1402,10 @@ char *s_code[] = {
   "c;y1:c;;y3:...;;;l2:y1:_;y16:%25residual-string;;",
 
   "make-string",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25smk;l2:y4:%25ckk;y1:x;"
+  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25smk;l2:y4:%25ckk;y1:x;"
   ";c ;;;l2:l3:y1:_;y1:x;y1:y;;l3:y4:%25smk;l2:y4:%25ckk;y1:x;;l2:y4:%25c"
-  "kc;y1:y;;;;l2:y1:_;y21:%25residual-make-string;;",
+  "kc;y1:y;;;;l2:py1:_;y4:args;;py21:%25residual-make-string;y4:args;;;l2"
+  ":y1:_;y21:%25residual-make-string;;",
 
   "string-length",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25slen;l2:y4:%25cks;y1:x"
@@ -1580,14 +1595,16 @@ char *s_code[] = {
   "&0{%1.0%sE7]1}@!(y24:%25residual-string->flonum)",
 
   "number->string",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:r;;l3:y5:%25ntos;l2:y4:%25cki"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:r;;l3:y5:%25ntos;l2:y4:%25cki"
   ";y1:x;;l2:y4:%25cki;y1:r;;;;l2:l2:y1:_;y1:x;;l3:y5:%25ntos;l2:y4:%25ck"
-  "i;y1:x;;i10;;;l2:y1:_;y24:%25residual-number->string;;",
+  "i;y1:x;;i10;;;l2:py1:_;y4:args;;py24:%25residual-number->string;y4:arg"
+  "s;;;l2:y1:_;y24:%25residual-number->string;;",
 
   "string->number",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:r;;l3:y5:%25ston;l2:y4:%25cks"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:r;;l3:y5:%25ston;l2:y4:%25cks"
   ";y1:x;;l2:y4:%25cki;y1:r;;;;l2:l2:y1:_;y1:x;;l3:y5:%25ston;l2:y4:%25ck"
-  "s;y1:x;;i10;;;l2:y1:_;y24:%25residual-string->number;;",
+  "s;y1:x;;i10;;;l2:py1:_;y4:args;;py24:%25residual-string->number;y4:arg"
+  "s;;;l2:y1:_;y24:%25residual-string->number;;",
 
   "procedure?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25funp;y1:x;;;l2:py1:_;y"
@@ -1598,9 +1615,10 @@ char *s_code[] = {
   "&0{%1.0K0]1}@!(y20:%25residual-procedure?)",
 
   "apply",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:p;y1:l;;l3:y5:%25appl;y1:p;l2:y4:%"
+  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:p;y1:l;;l3:y5:%25appl;y1:p;l2:y4:%"
   "25ckl;y1:l;;;;l2:l6:y1:_;y1:p;y1:a;y1:b;y3:...;y1:l;;l3:y5:%25appl;y1:"
-  "p;l5:y5:list*;y1:a;y1:b;y3:...;y1:l;;;;l2:y1:_;y15:%25residual-apply;;",
+  "p;l5:y5:list*;y1:a;y1:b;y3:...;y1:l;;;;l2:py1:_;y4:args;;py15:%25resid"
+  "ual-apply;y4:args;;;l2:y1:_;y15:%25residual-apply;;",
 
   "call/cc",
   "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py4:%25ccc;y4:args;;;l2:y1:_;y"
@@ -1642,13 +1660,13 @@ char *s_code[] = {
   0,
   "&0{%0P10]0}@!(y28:%25residual-current-input-port)",
 
-  "current-ouput-port",
+  "current-output-port",
   "l5:y12:syntax-rules;n;l2:l1:y1:_;;l1:y4:%25sop;;;l2:py1:_;y12:syntax-r"
-  "ules;;py28:%25residual-current-ouput-port;y12:syntax-rules;;;l2:y1:_;y"
-  "28:%25residual-current-ouput-port;;",
+  "ules;;py29:%25residual-current-output-port;y12:syntax-rules;;;l2:y1:_;"
+  "y29:%25residual-current-output-port;;",
 
   0,
-  "&0{%0P11]0}@!(y28:%25residual-current-ouput-port)",
+  "&0{%0P11]0}@!(y29:%25residual-current-output-port)",
 
   "current-error-port",
   "l5:y12:syntax-rules;n;l2:l1:y1:_;;l1:y4:%25sep;;;l2:py1:_;y12:syntax-r"
@@ -1715,61 +1733,45 @@ char *s_code[] = {
   "&0{%1.0%wP9]1}@!(y27:%25residual-get-output-string)",
 
   "write-char",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:p;;l3:y4:%25wrc;l2:y4:%25ckc;"
-  "y1:x;;l2:y4:%25ckw;y1:p;;;;l2:py1:_;y12:syntax-rules;;py20:%25residual"
-  "-write-char;y12:syntax-rules;;;l2:y1:_;y20:%25residual-write-char;;",
-
-  0,
-  "&0{%2.1%w,.1%cW0]2}@!(y20:%25residual-write-char)",
+  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25wrc;l2:y4:%25ckc;y1:x;"
+  ";l1:y4:%25sop;;;;l2:l3:y1:_;y1:x;y1:p;;l3:y4:%25wrc;l2:y4:%25ckc;y1:x;"
+  ";l2:y4:%25ckw;y1:p;;;;l2:py1:_;y4:args;;py20:%25residual-write-char;y4"
+  ":args;;;l2:y1:_;y20:%25residual-write-char;;",
 
   "write-string",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:p;;l3:y4:%25wrs;l2:y4:%25cks;"
-  "y1:x;;l2:y4:%25ckw;y1:p;;;;l2:py1:_;y12:syntax-rules;;py22:%25residual"
-  "-write-string;y12:syntax-rules;;;l2:y1:_;y22:%25residual-write-string;"
-  ";",
-
-  0,
-  "&0{%2.1%w,.1%sW1]2}@!(y22:%25residual-write-string)",
+  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25wrs;l2:y4:%25cks;y1:x;"
+  ";l1:y4:%25sop;;;;l2:l3:y1:_;y1:x;y1:p;;l3:y4:%25wrs;l2:y4:%25cks;y1:x;"
+  ";l2:y4:%25ckw;y1:p;;;;l2:py1:_;y4:args;;py22:%25residual-write-string;"
+  "y4:args;;;l2:y1:_;y22:%25residual-write-string;;",
 
   "display",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wrcd;y1:x;l2:y4:%"
-  "25ckw;y1:p;;;;l2:py1:_;y12:syntax-rules;;py17:%25residual-display;y12:"
-  "syntax-rules;;;l2:y1:_;y17:%25residual-display;;",
-
-  0,
-  "&0{%2.1%w,.1W4]2}@!(y17:%25residual-display)",
+  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25wrcd;y1:x;l1:y4:%25sop"
+  ";;;;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wrcd;y1:x;l2:y4:%25ckw;y1:p;;;;l2:p"
+  "y1:_;y4:args;;py17:%25residual-display;y4:args;;;l2:y1:_;y17:%25residu"
+  "al-display;;",
 
   "write",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wrcw;y1:x;l2:y4:%"
-  "25ckw;y1:p;;;;l2:py1:_;y12:syntax-rules;;py15:%25residual-write;y12:sy"
-  "ntax-rules;;;l2:y1:_;y15:%25residual-write;;",
-
-  0,
-  "&0{%2.1%w,.1W5]2}@!(y15:%25residual-write)",
+  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25wrcw;y1:x;l1:y4:%25sop"
+  ";;;;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wrcw;y1:x;l2:y4:%25ckw;y1:p;;;;l2:p"
+  "y1:_;y4:args;;py15:%25residual-write;y4:args;;;l2:y1:_;y15:%25residual"
+  "-write;;",
 
   "newline",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:p;;l2:y5:%25wrnl;l2:y4:%25ckw;y1:p"
-  ";;;;l2:py1:_;y12:syntax-rules;;py17:%25residual-newline;y12:syntax-rul"
-  "es;;;l2:y1:_;y17:%25residual-newline;;",
-
-  0,
-  "&0{%1.0%wW6]1}@!(y17:%25residual-newline)",
+  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l2:y5:%25wrnl;l1:y4:%25sop;;;;l2:l2:"
+  "y1:_;y1:p;;l2:y5:%25wrnl;l2:y4:%25ckw;y1:p;;;;l2:py1:_;y4:args;;py17:%"
+  "25residual-newline;y4:args;;;l2:y1:_;y17:%25residual-newline;;",
 
   "write-shared",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wrhw;y1:x;l2:y4:%"
-  "25ckw;y1:p;;;;l2:py1:_;y12:syntax-rules;;py22:%25residual-write-shared"
-  ";y12:syntax-rules;;;l2:y1:_;y22:%25residual-write-shared;;",
-
-  0,
-  "&0{%2.1%w,.1W7]2}@!(y22:%25residual-write-shared)",
+  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25wrhw;y1:x;l1:y4:%25sop"
+  ";;;;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wrhw;y1:x;l2:y4:%25ckw;y1:p;;;;l2:p"
+  "y1:_;y4:args;;py22:%25residual-write-shared;y4:args;;;l2:y1:_;y22:%25r"
+  "esidual-write-shared;;",
 
   "write-simple",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wriw;y1:x;l2:y4:%"
-  "25ckw;y1:p;;;;l2:py1:_;y12:syntax-rules;;py22:%25residual-write-simple"
-  ";y12:syntax-rules;;;l2:y1:_;y22:%25residual-write-simple;;",
-
-  0,
-  "&0{%2.1%w,.1W8]2}@!(y22:%25residual-write-simple)",
+  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25wriw;y1:x;l1:y4:%25sop"
+  ";;;;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wriw;y1:x;l2:y4:%25ckw;y1:p;;;;l2:p"
+  "y1:_;y4:args;;py22:%25residual-write-simple;y4:args;;;l2:y1:_;y22:%25r"
+  "esidual-write-simple;;",
 
   0,
   "&0{%!0.0]1}@!(y14:%25residual-list)",
@@ -1916,6 +1918,29 @@ char *s_code[] = {
   0,
   "&0{%!1.0u?{'(i10),.2%sE9]2}.0%pa%i,.2%sE9]2}@!(y24:%25residual-string-"
   ">number)",
+
+  0,
+  "&0{%!1.0u?{P11,.2%cW0]2}.0%pa%w,.2%cW0]2}@!(y20:%25residual-write-char"
+  ")",
+
+  0,
+  "&0{%!1.0u?{P11,.2%sW1]2}.0%pa%w,.2%sW1]2}@!(y22:%25residual-write-stri"
+  "ng)",
+
+  0,
+  "&0{%!0.0u?{P11W6]1}.0%pa%wW6]1}@!(y17:%25residual-newline)",
+
+  0,
+  "&0{%!1.0u?{P11,.2W4]2}.0%pa%w,.2W4]2}@!(y17:%25residual-display)",
+
+  0,
+  "&0{%!1.0u?{P11,.2W5]2}.0%pa%w,.2W5]2}@!(y15:%25residual-write)",
+
+  0,
+  "&0{%!1.0u?{P11,.2W8]2}.0%pa%w,.2W8]2}@!(y22:%25residual-write-simple)",
+
+  0,
+  "&0{%!1.0u?{P11,.2W7]2}.0%pa%w,.2W7]2}@!(y22:%25residual-write-shared)",
 
   0, 0
 };

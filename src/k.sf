@@ -33,26 +33,26 @@
         (cons x s))))
 
 (define set-union
-  (lambda (sl s2)
-    (if (null? sl) 
+  (lambda (s1 s2)
+    (if (null? s1) 
         s2 
-        (set-union (cdr sl) (set-cons (car sl) s2)))))
+        (set-union (cdr s1) (set-cons (car s1) s2)))))
 
 (define set-minus
-  (lambda (sl s2)
-    (if (null? sl)
+  (lambda (s1 s2)
+    (if (null? s1)
         '()
-        (if (set-member? (car sl) s2)
-            (set-minus (cdr sl) s2)
-            (cons (car sl) (set-minus (cdr sl) s2))))))
+        (if (set-member? (car s1) s2)
+            (set-minus (cdr s1) s2)
+            (cons (car s1) (set-minus (cdr s1) s2))))))
 
 (define set-intersect
-  (lambda (sl s2)
-    (if (null? sl)
+  (lambda (s1 s2)
+    (if (null? s1)
         '()
-        (if (set-member? (car sl) s2)
-            (cons (car sl) (set-intersect (cdr sl) s2))
-            (set-intersect (cdr sl) s2)))))
+        (if (set-member? (car s1) s2)
+            (cons (car s1) (set-intersect (cdr s1) s2))
+            (set-intersect (cdr s1) s2)))))
 
 (define-syntax record-case
   (syntax-rules (else)
