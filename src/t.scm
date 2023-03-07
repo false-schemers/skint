@@ -23,26 +23,26 @@
         (cons x s))))
 
 (define set-union
-  (lambda (sl s2)
-    (if (null? sl) 
+  (lambda (s1 s2)
+    (if (null? s1) 
         s2 
-        (set-union (cdr sl) (set-cons (car sl) s2)))))
+        (set-union (cdr s1) (set-cons (car s1) s2)))))
 
 (define set-minus
-  (lambda (sl s2)
-    (if (null? sl)
+  (lambda (s1 s2)
+    (if (null? s1)
         '()
-        (if (set-member? (car sl) s2)
-            (set-minus (cdr sl) s2)
-            (cons (car sl) (set-minus (cdr sl) s2))))))
+        (if (set-member? (car s1) s2)
+            (set-minus (cdr s1) s2)
+            (cons (car s1) (set-minus (cdr s1) s2))))))
 
 (define set-intersect
-  (lambda (sl s2)
-    (if (null? sl)
+  (lambda (s1 s2)
+    (if (null? s1)
         '()
-        (if (set-member? (car sl) s2)
-            (cons (car sl) (set-intersect (cdr sl) s2))
-            (set-intersect (cdr sl) s2)))))
+        (if (set-member? (car s1) s2)
+            (cons (car s1) (set-intersect (cdr s1) s2))
+            (set-intersect (cdr s1) s2)))))
 
 (define-syntax record-case
   (syntax-rules (else)
@@ -129,6 +129,7 @@
 ;  <core> -> (ref <id>)
 ;  <core> -> (set! <id> <core>)
 ;  <core> -> (lambda <ids> <core>) where <ids> -> (<id> ...) | (<id> ... . <id>) | <id>
+;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>) 
 ;  <core> -> (begin <core> ...)
 ;  <core> -> (if <core> <core> <core>)
 ;  <core> -> (call <core> <core> ...) 
@@ -138,6 +139,15 @@
 
 ;  <core> -> (define <id> <core>)
 ;  <core> -> (define-syntax <id> <transformer>)
+
+(define normalize-arity
+  (lambda (arity)
+    (if (and (list2? arity) (fixnum? (car arity)) (boolean? (cadr arity)))
+        arity
+        (let loop ([cnt 0] [l arity])
+          (cond [(pair? l) (loop (fx+ 1 cnt) (cdr l))]
+                [(null? l) (list cnt #f)]
+                [else (list cnt #t)])))))
 
 ; convention for 'flattened' <ids> is to put rest arg if any at the front
 (define flatten-idslist
@@ -221,6 +231,7 @@
                   [(begin)         (xform-begin tail env)]
                   [(if)            (xform-if tail env)]
                   [(lambda)        (xform-lambda tail env)]
+                  [(lambda*)       (xform-lambda* tail env)]
                   [(body)          (xform-body tail env)]
                   [(define)        (xform-define (car tail) (cadr tail) env)]
                   [(define-syntax) (xform-define-syntax (car tail) (cadr tail) env)]
@@ -289,6 +300,17 @@
                 (list 'lambda (append (reverse ipars) nvar)
                   (xform-body (cdr tail) ienv)))]))
       (error 'transform "improper lambda body")))
+
+(define (xform-lambda* tail env)
+  (if (list? tail)
+      (cons 'lambda*
+         (map (lambda (aexp)
+                 (if (list2? aexp)
+                     (list (normalize-arity (car aexp))
+                           (xform #f (cadr aexp) env))
+                     (error 'transform "improper lambda* clause")))
+              tail))
+      (error 'transform "improper lambda* form")))
 
 (define (xform-body tail env)
   (if (null? tail)
@@ -360,6 +382,7 @@
     (make-binding 'begin 'begin)
     (make-binding 'if 'if)
     (make-binding 'lambda 'lambda)
+    (make-binding 'lambda* 'lambda*)
     (make-binding 'body 'body)
     denotation-of-default-ellipsis))
 
@@ -499,8 +522,7 @@
       (if (null? rules) (error 'transform "invalid syntax" use))
       (let* ([rule (car rules)] [pat (car rule)] [tmpl (cadr rule)])
         (cond [(match-pattern pat use use-env) =>
-               (lambda (bindings) 
-                 (expand-template pat tmpl bindings))]
+               (lambda (bindings) (expand-template pat tmpl bindings))]
               [else (loop (cdr rules))])))))
 
 (install-transformer! 'syntax-rules
@@ -626,3 +648,7 @@
 (install-sr-transformer! 'unless
   (syntax-rules ()
     [(_ test . rest) (if (not test) (begin . rest))]))
+
+(install-sr-transformer! 'case-lambda
+  (syntax-rules ()
+    [(_ [args . body] ...) (lambda* [args (lambda args . body)] ...)]))

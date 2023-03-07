@@ -372,21 +372,6 @@ define_instruction(brt) { int dx = fixnum_from_obj(*ip++); if (ac) ip += dx; gon
 
 define_instruction(brnot) { int dx = fixnum_from_obj(*ip++); if (!ac) ip += dx; gonexti(); }
 
-/* define_instruction(brcne) {
-  obj v = *ip++;
-  int dx = fixnum_from_obj(*ip++);
-  ip = (ac == v) ? ip : ip + dx;
-  gonexti(); 
-}
-
-define_instruction(brclt) {
-  obj v = *ip++;
-  int dx = fixnum_from_obj(*ip++);
-  // unsigned tagged fixnums can be compared as-is
-  ip = (ac >= v) ? ip : ip + dx; 
-  gonexti(); 
-} */
-
 define_instruction(sseti) {
   int i = fixnum_from_obj(*ip++);
   boxref(sref(i)) = ac;
@@ -492,7 +477,7 @@ define_instruction(push) { spush(ac); gonexti(); }
 define_instruction(jdceq) {
   obj v = *ip++, i = *ip++;
   if (ac == v) {
-    rd = dref(fixnum_from_obj(i)); ckx(rd); 
+    rd = dref(fixnum_from_obj(i));
     rx = obj_from_fixnum(0);
     callsubi();
   }
@@ -502,7 +487,7 @@ define_instruction(jdceq) {
 define_instruction(jdcge) {
   obj v = *ip++, i = *ip++;
   if (ac >= v) { /* unsigned tagged fixnums can be compared as-is */
-    rd = dref(fixnum_from_obj(i)); ckx(rd); 
+    rd = dref(fixnum_from_obj(i));
     rx = obj_from_fixnum(0);
     callsubi();
   }
@@ -511,7 +496,7 @@ define_instruction(jdcge) {
 
 define_instruction(jdref) {
   int i = fixnum_from_obj(*ip++); 
-  rd = dref(i); ckx(rd); 
+  rd = dref(i); 
   rx = obj_from_fixnum(0);
   callsubi();
 }
@@ -658,13 +643,6 @@ define_instruction(ckw) {
 define_instruction(ckx) {
   if (likely(isprocedure(ac))) gonexti(); // fixme?
   failactype("procedure");
-}
-
-define_instruction(cknj) {
-  if (likely(is_flonum_obj(ac))) gonexti();
-  if (!is_fixnum_obj(ac)) failactype("number");
-  ac = obj_from_flonum(sp-r, (flonum_t)fixnum_from_obj(ac));
-  gonexti();
 }
 
 
@@ -3165,27 +3143,6 @@ more:
         *--hp = obj_from_size(PAIR_BTAG); sref(0) = hendblk(3);
         goto more;
       } break;
-      /* case 'c': { cases 
-        fixnum_t n;
-        ra = sref(1); hp = rds_arg(r, sp, hp);
-        if (iseof(ra)) goto out;
-        hreserve(hbsz(3)*2, sp-r);
-        *--hp = sref(0); *--hp = pbr->g;  
-        *--hp = obj_from_size(PAIR_BTAG); sref(0) = hendblk(3);
-        *--hp = sref(0); *--hp = ra;  
-        *--hp = obj_from_size(PAIR_BTAG); sref(0) = hendblk(3);
-        ra = sref(1); hp = rds_block(r, sp, hp);
-        if (iseof(ra)) goto out;
-        n = length(ra);
-        hreserve(hbsz(3)*1, sp-r); 
-        *--hp = sref(0); *--hp = obj_from_fixnum(n);
-        *--hp = obj_from_size(PAIR_BTAG); sref(0) = hendblk(3);
-        if (n > 0) {
-          obj lp = lastpair(ra); assert(ispair(lp));
-          cdr(lp) = sref(0); sref(0) = ra;
-        }
-        goto more;
-      } break; */
       case 'b': { /* branches */
         fixnum_t n; int c;
         ra = sref(1); hp = rds_block(r, sp, hp);

@@ -933,6 +933,7 @@
        (do ([clauses (reverse clauses) (cdr clauses)] [l l (cons #f l)]) 
             [(null? clauses)]
          (codegen (cadr (car clauses)) l f s g #f port)
+         (write-char #\% port) (write-char #\x port)
          (write-char #\, port))
        (write-char #\& port)
        (write-serialized-arg (length clauses) port)

@@ -51,8 +51,6 @@ declare_instruction(sbox,     "#",     1, NULL, 0, NULL)
 declare_instruction(br,       NULL,  'b', NULL, 0, NULL) 
 declare_instruction(brnot,    "?",   'b', NULL, 0, NULL) 
 declare_instruction(brt,      "~?",  'b', NULL, 0, NULL)  
-/* declare_instruction(brcne,    "|",   'c', NULL, 0, NULL) */
-/* declare_instruction(brclt,    "|!",  'c', NULL, 0, NULL) */ 
 declare_instruction(sseti,    ".!",    1, NULL, 0, NULL) 
 declare_instruction(dseti,    ":!",    1, NULL, 0, NULL)
 declare_instruction(gset,     "@!",  'g', NULL, 0, NULL)
@@ -217,9 +215,6 @@ declare_instruction(cky,      "%y",    0, "%cky", 1, INLINED)
 declare_instruction(ckr,      "%r",    0, "%ckr", 1, INLINED) 
 declare_instruction(ckw,      "%w",    0, "%ckw", 1, INLINED) 
 declare_instruction(ckx,      "%x",    0, "%ckx", 1, INLINED) 
-
-/* type checks-adapters */
-declare_instruction(cknj,     "%z",    0, "%cknj", 1, INLINED)
 
 /* intrinsics (no arg checks), integrables and globals */
 declare_instruction(isq,      "q",     0, "%isq", 2, INLINED)

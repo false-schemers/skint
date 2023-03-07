@@ -68,6 +68,11 @@ char *t_code[] = {
   "&0{%1.0p?{.0d,@(y6:list3?)[11}f]1}@!(y6:list4?)",
 
   0,
+  "&0{%1${.2,@(y6:list2?)[01}?{.0aI0?{.0daY1}{f}}{f}?{.0]1}.0,'0,,#0.0,&1"
+  "{%2.1p?{.1d,.1,'1I+,:0^[22}.1u?{f,.1,l2]2}t,.1,l2]2}.!0.0^_1[12}@!(y15"
+  ":normalize-arity)",
+
+  0,
   "&0{%1.0L0?{.0]1}n,.1,,#0.0,&1{%2.0p?{.1,.1ac,.1d,:0^[22}.0u?{.1A9]2}.1"
   "A9,.1c]2}.!0.0^_1[12}@!(y15:flatten-idslist)",
 
@@ -139,11 +144,12 @@ char *t_code[] = {
   "}'(l1:y5:quote;)%l,.1A1?{.6,.3a,@(y11:xform-quote)[72}'(l1:y4:set!;)%l"
   ",.1A1?{.6,.3da,.4a,@(y10:xform-set!)[73}'(l1:y5:begin;)%l,.1A1?{.6,.3,"
   "@(y11:xform-begin)[72}'(l1:y2:if;)%l,.1A1?{.6,.3,@(y8:xform-if)[72}'(l"
-  "1:y6:lambda;)%l,.1A1?{.6,.3,@(y12:xform-lambda)[72}'(l1:y4:body;)%l,.1"
-  "A1?{.6,.3,@(y10:xform-body)[72}'(l1:y6:define;)%l,.1A1?{.6,.3da,.4a,@("
-  "y12:xform-define)[73}'(l1:y13:define-syntax;)%l,.1A1?{.6,.3da,.4a,@(y1"
-  "9:xform-define-syntax)[73}t?{.1K0?{.6,${.9,.9,.6[02},.6,@(y5:xform)[73"
-  "}.6,.3,.3,@(y10:xform-call)[73}f]7}@!(y5:xform)",
+  "1:y6:lambda;)%l,.1A1?{.6,.3,@(y12:xform-lambda)[72}'(l1:y7:lambda*;)%l"
+  ",.1A1?{.6,.3,@(y13:xform-lambda*)[72}'(l1:y4:body;)%l,.1A1?{.6,.3,@(y1"
+  "0:xform-body)[72}'(l1:y6:define;)%l,.1A1?{.6,.3da,.4a,@(y12:xform-defi"
+  "ne)[73}'(l1:y13:define-syntax;)%l,.1A1?{.6,.3da,.4a,@(y19:xform-define"
+  "-syntax)[73}t?{.1K0?{.6,${.9,.9,.6[02},.6,@(y5:xform)[73}.6,.3,.3,@(y1"
+  "0:xform-call)[73}f]7}@!(y5:xform)",
 
   0,
   "&0{%2${.2,,#0.0,&1{%1${.2,@(y3:id?)[01}?{.0,@(y7:id->sym)[11}.0p?{${.2"
@@ -190,6 +196,13 @@ char *t_code[] = {
   " lambda body),'(y9:transform),@(y5:error)[22}@!(y12:xform-lambda)",
 
   0,
+  "&0{%2.0L0?{.1,&1{%1${.2,@(y6:list2?)[01}?{${:0,.3da,f,@(y5:xform)[03},"
+  "${.3a,@(y15:normalize-arity)[01},l2]1}'(s23:improper lambda* clause),'"
+  "(y9:transform),@(y5:error)[12},${.3,,#0.4,.1,&2{%1.0p?{${.2d,:0^[01},$"
+  "{.3a,:1[01}c]1}n]1}.!0.0^_1[01}_1,'(y7:lambda*)c]2}'(s21:improper lamb"
+  "da* form),'(y9:transform),@(y5:error)[22}@!(y13:xform-lambda*)",
+
+  0,
   "&0{%2.0u?{n,'(y5:begin)c]2}.0,n,n,n,.5,,#0.0,&1{%5.4p?{.4ap}{f}?{.4d,."
   "5a,.0a,${.5,.3,t,@(y5:xform)[03},.0,'(l1:y5:begin;)%l,.1A1?{.4,.4dL6,."
   "9,.9,.9,.9,:0^[(i10)5}'(l1:y6:define;)%l,.1A1?{.3da,.4dda,${${.5,@(y7:"
@@ -227,13 +240,14 @@ char *t_code[] = {
 
   0,
   "@(y30:denotation-of-default-ellipsis),${'(y4:body),'(y4:body),@(y12:ma"
-  "ke-binding)[02},${'(y6:lambda),'(y6:lambda),@(y12:make-binding)[02},${"
-  "'(y2:if),'(y2:if),@(y12:make-binding)[02},${'(y5:begin),'(y5:begin),@("
-  "y12:make-binding)[02},${'(y4:set!),'(y4:set!),@(y12:make-binding)[02},"
-  "${'(y5:quote),'(y5:quote),@(y12:make-binding)[02},${'(y13:define-synta"
-  "x),'(y13:define-syntax),@(y12:make-binding)[02},${'(y6:define),'(y6:de"
-  "fine),@(y12:make-binding)[02},${'(y6:syntax),'(y6:syntax),@(y12:make-b"
-  "inding)[02},l(i10)@!(y14:*transformers*)",
+  "ke-binding)[02},${'(y7:lambda*),'(y7:lambda*),@(y12:make-binding)[02},"
+  "${'(y6:lambda),'(y6:lambda),@(y12:make-binding)[02},${'(y2:if),'(y2:if"
+  "),@(y12:make-binding)[02},${'(y5:begin),'(y5:begin),@(y12:make-binding"
+  ")[02},${'(y4:set!),'(y4:set!),@(y12:make-binding)[02},${'(y5:quote),'("
+  "y5:quote),@(y12:make-binding)[02},${'(y13:define-syntax),'(y13:define-"
+  "syntax),@(y12:make-binding)[02},${'(y6:define),'(y6:define),@(y12:make"
+  "-binding)[02},${'(y6:syntax),'(y6:syntax),@(y12:make-binding)[02},l(i1"
+  "1)@!(y14:*transformers*)",
 
   0,
   "&0{%1${@(y14:*transformers*),.3,@(y16:find-top-binding)[02},${.2,@(y8:"
@@ -400,6 +414,11 @@ char *t_code[] = {
   0,
   "${'(l1:l2:py1:_;py4:test;y4:rest;;;l3:y2:if;l2:y3:not;y4:test;;py5:beg"
   "in;y4:rest;;;;),n,f,'(y6:unless),@(y26:install-transformer-rules!)[04}",
+
+  0,
+  "${'(l1:l2:l3:y1:_;py4:args;y4:body;;y3:...;;l3:y7:lambda*;l2:y4:args;p"
+  "y6:lambda;py4:args;y4:body;;;;y3:...;;;),n,f,'(y11:case-lambda),@(y26:"
+  "install-transformer-rules!)[04}",
 
   0, 0
 };
