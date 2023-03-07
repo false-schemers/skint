@@ -664,6 +664,10 @@
 
 (define-inline (output-port? x) %residual-output-port? (%opp x))
 
+(define-inline (input-port-open? x) %residual-input-port-open? (%ipop x))
+
+(define-inline (output-port-open? x) %residual-output-port-open? (%opop x))
+
 (define-inline (current-input-port) %residual-current-input-port (%sip))
 
 (define-inline (current-output-port) %residual-current-output-port (%sop))
@@ -684,17 +688,26 @@
 
 (define-inline (get-output-string x) %residual-get-output-string (%gos x))
 
-;call-with-port
-;call-with-input-file
-;call-with-output-file
-;port?
-;input-port-open?
-;output-port-open?
-;with-input-from-file
-;with-output-to-file
+(define (port? x) (or (input-port? x) (output-port? x)))
+
+(define (close-port p)
+  (if (input-port? p) (close-input-port p))
+  (if (output-port? p) (close-output-port p)))
+
+(define (call-with-port port proc)
+  (call-with-values (lambda () (proc port))
+    (lambda vals (close-port port) (apply values vals))))
+
+(define (call-with-input-file fname proc)
+  (call-with-port (open-input-file fname) proc)) 
+
+(define (call-with-output-file fname proc)
+  (call-with-port (open-output-file fname) proc)) 
+
+;with-input-from-file  -- requires parameterize
+;with-output-to-file   -- requires parameterize
 ;open-binary-input-file
 ;open-binary-output-file
-;close-port
 ;open-input-bytevector
 ;open-output-bytevector
 ;get-output-bytevector
@@ -704,11 +717,46 @@
 ; Input
 ;---------------------------------------------------------------------------------------------
 
+(define-syntax read-char
+  (syntax-rules ()
+    [(_) (%rdc (%sip))]
+    [(_ p) (%rdc p)]
+    [(_ . args) (%residual-read-char . args)]
+    [_ %residual-read-char]))
+
+(define-syntax peek-char
+  (syntax-rules ()
+    [(_) (%rdac (%sip))]
+    [(_ p) (%rdac p)]
+    [(_ . args) (%residual-peek-char . args)]
+    [_ %residual-peek-char]))
+
+(define-syntax char-ready?
+  (syntax-rules ()
+    [(_) (%rdcr (%sip))]
+    [(_ p) (%rdcr p)]
+    [_ %residual-char-ready?]))
+
+(define (%read-line p)
+  (let ([op (%oos)])
+    (let loop ([read-nothing? #t])
+      (let ([c (%rdc p)])
+        (cond [(or (%eofp c) (char=? c #\newline))
+               (if (and (%eofp c) read-nothing?) c
+                   (let ([s (%gos op)]) (%cop op) s))]
+              [(char=? c #\return) (loop #f)]
+              [else (%wrc c op) (loop #f)]))))) 
+
+(define-syntax read-line
+  (syntax-rules ()
+    [(_) (%read-line (%sip))]
+    [(_ p) (%read-line p)]
+    [_ %residual-read-line]))
+
+(define-inline (eof-object? x) %residual-eof-object? (%eofp x))
+(define-inline (eof-object) %residual-eof-object (%eof))
+
 ;read
-;read-char
-;peek-char
-;read-line
-;char-ready?
 ;read-string
 ;read-u8
 ;peek-u8
@@ -716,8 +764,6 @@
 ;read-bytevector
 ;read-bytevector!
 
-(define-inline (eof-object? x) %residual-eof-object? (%eofp x))
-;eof-object
 
 
 ;---------------------------------------------------------------------------------------------
@@ -772,6 +818,8 @@
     [(_ x p) (%wriw x p)]
     [(_ . args) (%residual-write-simple . args)]
     [_ %residual-write-simple]))
+
+;flush-output-port
 
 
 ;---------------------------------------------------------------------------------------------
@@ -938,6 +986,11 @@
 
 (define %residual-number->string (unary-binary-adaptor number->string))
 (define %residual-string->number (unary-binary-adaptor string->number))
+
+(define %residual-read-char (nullary-unary-adaptor read-char))
+(define %residual-peek-char (nullary-unary-adaptor peek-char))
+(define %residual-char-ready? (nullary-unary-adaptor char-ready?))
+(define %residual-read-line (nullary-unary-adaptor read-line))
 
 (define %residual-write-char (unary-binary-adaptor write-char))
 (define %residual-write-string (unary-binary-adaptor write-string))

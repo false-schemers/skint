@@ -2118,11 +2118,6 @@ define_instruction(boolp) {
   gonexti();
 }
 
-define_instruction(eofp) {
-  ac = obj_from_bool(iseof(ac));
-  gonexti();
-}
-
 define_instruction(funp) {
   ac = obj_from_bool(isvmclo(ac));
   gonexti();
@@ -2150,6 +2145,20 @@ define_instruction(sop) {
 
 define_instruction(sep) {
   ac = mkoport_file(sp-r, stderr); /* TODO: keep in global var -- in r7rs it is a parameter */
+  gonexti();
+}
+
+define_instruction(ipop) {
+  cxtype_iport_t *vt; ckr(ac); 
+  vt = iportvt(ac); assert(vt);
+  ac = obj_from_bool(vt != (cxtype_iport_t *)IPORT_CLOSED_NTAG);
+  gonexti();
+}
+
+define_instruction(opop) {
+  cxtype_oport_t *vt; ckw(ac); 
+  vt = oportvt(ac); assert(vt);
+  ac = obj_from_bool(vt != (cxtype_oport_t *)OPORT_CLOSED_NTAG);
   gonexti();
 }
 
@@ -2207,6 +2216,40 @@ define_instruction(gos) {
   }
   gonexti();
 }
+
+
+define_instruction(rdc) {
+  int c; ckr(ac);
+  c = iportgetc(ac);
+  if (unlikely(c == EOF)) ac = mkeof();
+  else ac = obj_from_char(c);
+  gonexti();
+}
+
+define_instruction(rdac) {
+  int c; ckr(ac);
+  c = iportpeekc(ac);
+  if (unlikely(c == EOF)) ac = mkeof();
+  else ac = obj_from_char(c);
+  gonexti();
+}
+
+define_instruction(rdcr) {
+  ckr(ac);
+  ac = obj_from_bool(1); /* no portable way to detect hanging? */
+  gonexti();
+}
+
+define_instruction(eofp) {
+  ac = obj_from_bool(iseof(ac));
+  gonexti();
+}
+
+define_instruction(eof) {
+  ac = mkeof();
+  gonexti();
+}
+
 
 define_instruction(wrc) {
   obj x = ac, y = spop(); ckc(x); ckw(y);

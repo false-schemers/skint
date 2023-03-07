@@ -1663,6 +1663,22 @@ char *s_code[] = {
   0,
   "&0{%1.0P01]1}@!(y22:%25residual-output-port?)",
 
+  "input-port-open?",
+  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25ipop;y1:x;;;l2:py1:_;y"
+  "12:syntax-rules;;py26:%25residual-input-port-open?;y12:syntax-rules;;;"
+  "l2:y1:_;y26:%25residual-input-port-open?;;",
+
+  0,
+  "&0{%1.0P20]1}@!(y26:%25residual-input-port-open?)",
+
+  "output-port-open?",
+  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25opop;y1:x;;;l2:py1:_;y"
+  "12:syntax-rules;;py27:%25residual-output-port-open?;y12:syntax-rules;;"
+  ";l2:y1:_;y27:%25residual-output-port-open?;;",
+
+  0,
+  "&0{%1.0P21]1}@!(y27:%25residual-output-port-open?)",
+
   "current-input-port",
   "l5:y12:syntax-rules;n;l2:l1:y1:_;;l1:y4:%25sip;;;l2:py1:_;y12:syntax-r"
   "ules;;py28:%25residual-current-input-port;y12:syntax-rules;;;l2:y1:_;y"
@@ -1743,13 +1759,61 @@ char *s_code[] = {
   0,
   "&0{%1.0P9]1}@!(y27:%25residual-get-output-string)",
 
+  0,
+  "&0{%1.0P00,.0?{.0]2}.1P01]2}@!(y5:port?)",
+
+  0,
+  "&0{%1.0P00?{.0P60}.0P01?{.0P61]1}]1}@!(y10:close-port)",
+
+  0,
+  "&0{%2.0,&1{%!0${:0,@(y10:close-port)[01}.0,@(y5:%25sdmv),@(y5:%25appl)"
+  "[12},.1,.3,&2{%0:1,:0[01},@(y5:%25cwmv)[22}@!(y14:call-with-port)",
+
+  0,
+  "&0{%2.1,.1P40,@(y14:call-with-port)[22}@!(y20:call-with-input-file)",
+
+  0,
+  "&0{%2.1,.1P41,@(y14:call-with-port)[22}@!(y21:call-with-output-file)",
+
+  "read-char",
+  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l2:y4:%25rdc;l1:y4:%25sip;;;;l2:l2:y"
+  "1:_;y1:p;;l2:y4:%25rdc;y1:p;;;l2:py1:_;y4:args;;py19:%25residual-read-"
+  "char;y4:args;;;l2:y1:_;y19:%25residual-read-char;;",
+
+  "peek-char",
+  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l2:y5:%25rdac;l1:y4:%25sip;;;;l2:l2:"
+  "y1:_;y1:p;;l2:y5:%25rdac;y1:p;;;l2:py1:_;y4:args;;py19:%25residual-pee"
+  "k-char;y4:args;;;l2:y1:_;y19:%25residual-peek-char;;",
+
+  "char-ready?",
+  "l5:y12:syntax-rules;n;l2:l1:y1:_;;l2:y5:%25rdcr;l1:y4:%25sip;;;;l2:l2:"
+  "y1:_;y1:p;;l2:y5:%25rdcr;y1:p;;;l2:y1:_;y21:%25residual-char-ready?;;",
+
+  0,
+  "&0{%1P51,t,,#0.3,.3,.2,&3{%1:2R0,.0R8,.0?{.0}{'(c%0a),.2C=}_1?{.0R8?{."
+  "1}{f}?{.0]2}:1P9,:1P61.0]3}'(c%0d),.1C=?{f,:0^[21}:1,.1W0f,:0^[21}.!0."
+  "0^_1[21}@!(y10:%25read-line)",
+
+  "read-line",
+  "l5:y12:syntax-rules;n;l2:l1:y1:_;;l2:y10:%25read-line;l1:y4:%25sip;;;;"
+  "l2:l2:y1:_;y1:p;;l2:y10:%25read-line;y1:p;;;l2:y1:_;y19:%25residual-re"
+  "ad-line;;",
+
   "eof-object?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25eofp;y1:x;;;l2:py1:_;y"
   "12:syntax-rules;;py21:%25residual-eof-object?;y12:syntax-rules;;;l2:y1"
   ":_;y21:%25residual-eof-object?;;",
 
   0,
-  "&0{%1.0Y9]1}@!(y21:%25residual-eof-object?)",
+  "&0{%1.0R8]1}@!(y21:%25residual-eof-object?)",
+
+  "eof-object",
+  "l5:y12:syntax-rules;n;l2:l1:y1:_;;l1:y4:%25eof;;;l2:py1:_;y12:syntax-r"
+  "ules;;py20:%25residual-eof-object;y12:syntax-rules;;;l2:y1:_;y20:%25re"
+  "sidual-eof-object;;",
+
+  0,
+  "&0{%0R9]0}@!(y20:%25residual-eof-object)",
 
   "write-char",
   "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25wrc;y1:x;l1:y4:%25sop;"
@@ -1903,6 +1967,19 @@ char *s_code[] = {
 
   0,
   "&0{%!1.0u?{'(i10),.2E9]2}.0a,.2E9]2}@!(y24:%25residual-string->number)",
+
+  0,
+  "&0{%!0.0u?{P10R0]1}.0aR0]1}@!(y19:%25residual-read-char)",
+
+  0,
+  "&0{%!0.0u?{P10R1]1}.0aR1]1}@!(y19:%25residual-peek-char)",
+
+  0,
+  "&0{%!0.0u?{P10R2]1}.0aR2]1}@!(y21:%25residual-char-ready?)",
+
+  0,
+  "&0{%!0.0u?{P10,@(y10:%25read-line)[11}.0a,@(y10:%25read-line)[11}@!(y1"
+  "9:%25residual-read-line)",
 
   0,
   "&0{%!1.0u?{P11,.2W0]2}.0a,.2W0]2}@!(y20:%25residual-write-char)",
