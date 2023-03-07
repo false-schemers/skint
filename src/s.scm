@@ -265,8 +265,11 @@
 (define-syntax floor-quotient modquo)
 (define-syntax floor-remainder modulo)
 
-;floor/
-;truncate/
+(define (floor/ x y)
+  (%sdmv (floor-quotient x y) (floor-remainder x y)))
+
+(define (truncate/ x y)
+  (%sdmv (truncate-quotient x y) (truncate-remainder x y)))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -492,16 +495,68 @@
     [(_ x y z ...) (vector-append x (vector-append y z ...))]
     [_ %residual-vector-append]))
 
-(define-inline (vector->list x) %residual-vector->list (%vtol x))
-
 (define-inline (list->vector x) %residual-list->vector (%ltov x))
 
-;vector->list/1/2/3
-;vector-copy/1/2/3=subvector
-;vector-copy!/2/3/4/5 (to at from start end) 
-;vector-fill!/2/3/4 (vector val start end) 
-;vector->string/1/2/3
-;string->vector/1/2/3
+(define (subvector->list vec start end)
+  (let loop ([i (fx- end 1)] [l '()])
+    (if (fx<? i start) l (loop (fx- i 1) (cons (vector-ref vec i) l)))))
+
+(define vector->list
+  (case-lambda
+     [(vec) (%vtol vec)]
+     [(vec start) (subvector->list vec start (vector-length vec))]
+     [(vec start end) (subvector->list vec start end)]))
+
+(define (subvector-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (vector-length to) at)))])
+    (if (fx<=? at start)
+        (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+          [(fx>=? j limit)]
+          (vector-set! to i (vector-ref from j)))
+        (do ([i (fx+ at (fx- (fx- end start) 1)) (fx- i 1)] [j (fx- limit 1) (fx- j 1)])
+          [(fx<? j start)]
+          (vector-set! to i (vector-ref from j))))))
+
+(define vector-copy!
+  (case-lambda
+     [(to at from) (subvector-copy! to at from 0 (vector-length from))]
+     [(to at from start) (subvector-copy! to at from start (vector-length from))]
+     [(to at from start end) (subvector-copy! to at from start end)]))
+
+(define (subvector vec start end)  ; TODO: %vsub?
+  (let ([v (make-vector (fx- end start))])
+    (subvector-copy! v 0 vec start end)
+    v))
+
+(define vector-copy
+  (case-lambda
+     [(vec) (subvector vec 0 (vector-length vec))] ; TODO: %vcpy ?
+     [(vec start) (subvector vec start (vector-length vec))]
+     [(vec start end) (subvector vec start end)]))
+
+(define (subvector-fill! vec x start end)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (vector-set! vec i x)))
+
+(define vector-fill!
+  (case-lambda
+     [(vec x) (subvector-fill! vec x 0 (vector-length vec))]
+     [(vec x start) (subvector-fill! vec x start (vector-length vec))]
+     [(vec x start end) (subvector-fill! vec x start end)]))
+
+(define (subvector-string-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (string-length to) at)))])
+    (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+      [(fx>=? j limit) to]
+      (string-set! to i (vector-ref from j)))))
+
+(define (subvector->string vec start end)
+  (subvector-string-copy! (make-string (fx- end start)) 0 vec start end))
+
+(define vector->string
+  (case-lambda
+     [(vec) (subvector->string vec 0 (vector-length vec))]
+     [(vec start) (subvector->string vec start (vector-length vec))]
+     [(vec start end) (subvector->string vec start end)]))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -535,7 +590,65 @@
     [(_ x y z ...) (string-append x (string-append y z ...))]
     [_ %residual-string-append]))
 
+(define-inline (list->string x) %residual-list->string (%ltos x))
+
+(define (substring->list str start end)
+  (let loop ([i (fx- end 1)] [l '()])
+    (if (fx<? i start) l (loop (fx- i 1) (cons (string-ref str i) l)))))
+
+(define string->list
+  (case-lambda
+     [(str) (%stol str)]
+     [(str start) (substring->list str start (string-length str))]
+     [(str start end) (substring->list str start end)]))
+
+(define (substring-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (string-length to) at)))])
+    (if (fx<=? at start)
+        (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+          [(fx>=? j limit)]
+          (string-set! to i (string-ref from j)))
+        (do ([i (fx+ at (fx- (fx- end start) 1)) (fx- i 1)] [j (fx- limit 1) (fx- j 1)])
+          [(fx<? j start)]
+          (string-set! to i (string-ref from j))))))
+
+(define string-copy!
+  (case-lambda
+     [(to at from) (substring-copy! to at from 0 (string-length from))]
+     [(to at from start) (substring-copy! to at from start (string-length from))]
+     [(to at from start end) (substring-copy! to at from start end)]))
+
 (define-inline (substring x s e) %residual-substring (%ssub x s e))
+
+(define string-copy 
+  (case-lambda
+     [(str) (substring str 0 (string-length str))]  ; TODO: %scpy ?
+     [(str start) (substring str start (string-length str))]
+     [(str start end) (substring str start end)]))
+
+(define (substring-fill! str c start end)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (string-set! str i c)))
+
+(define string-fill!
+  (case-lambda
+     [(str c) (substring-fill! str c 0 (string-length str))]
+     [(str c start) (substring-fill! str c start (string-length str))]
+     [(str c start end) (substring-fill! str c start end)]))
+
+(define (substring-vector-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (vector-length to) at)))])
+    (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+      [(fx>=? j limit) to]
+      (vector-set! to i (string-ref from j)))))
+
+(define (substring->vector str start end)
+  (substring-vector-copy! (make-vector (fx- end start)) 0 str start end))
+
+(define string->vector
+  (case-lambda
+     [(str) (substring->vector str 0 (string-length str))]
+     [(str start) (substring->vector str start (string-length str))]
+     [(str start end) (substring->vector str start end)]))
 
 (define-inline (string-cmp x y) %residual-string-cmp (%scmp x y))
 (define-inline (string=? x y) %residual-string<? (%seq x y))
@@ -550,17 +663,9 @@
 (define-inline (string-ci>? x y) %residual-string>? (%sigt x y))
 (define-inline (string-ci>=? x y) %residual-string>=? (%sige x y))
 
-(define-inline (string->list x) %residual-string->list (%stol x))
-
-(define-inline (list->string x) %residual-list->string (%ltos x))
-
 ;string-upcase
 ;string-downcase
 ;string-foldcase
-;string->list/1/2/3
-;string-copy/1/2/3=substring
-;string-copy!/2/3/4/5 (to at from start end) 
-;string-fill!/2/3/4 (string v start end) 
 
 
 ;---------------------------------------------------------------------------------------------

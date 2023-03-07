@@ -931,7 +931,7 @@ define_instruction(vget) {
 define_instruction(vput) {
   obj x = spop(), y = spop(); int i; 
   ckv(ac); ckk(x);
-  i = fixnum_from_obj(spop());
+  i = fixnum_from_obj(x);
   vectorref(ac, i) = y;
   gonexti();
 }
