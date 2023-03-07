@@ -142,15 +142,25 @@
 ;  <core> -> (ref <id>)
 ;  <core> -> (set! <id> <core>)
 ;  <core> -> (lambda <ids> <core>) where <ids> -> (<id> ...) | (<id> ... . <id>) | <id>
+;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>) 
 ;  <core> -> (begin <core> ...)
 ;  <core> -> (if <core> <core> <core>)
-;  <core> -> (call <core> <core> ...) 
+;  <core> -> (call <core> <core> ...)
 
 ;  NB: (begin) is legit, returns unspecified value
 ;  on top level, these two extra core forms are legal:
 
 ;  <core> -> (define <id> <core>)
 ;  <core> -> (define-syntax <id> <transformer>)
+
+(define normalize-arity
+  (lambda (arity)
+    (if (and (list2? arity) (fixnum? (car arity)) (boolean? (cadr arity)))
+        arity
+        (let loop ([cnt 0] [l arity])
+          (cond [(pair? l) (loop (fx+ 1 cnt) (cdr l))]
+                [(null? l) (list cnt #f)]
+                [else (list cnt #t)])))))
 
 ; convention for 'flattened' <ids> is to put rest arg if any at the front
 (define flatten-idslist
@@ -165,7 +175,6 @@
     (if (pair? ilist)
         (fx+ 1 (idslist-req-count (cdr ilist)))
         0)))
-
 
 ;---------------------------------------------------------------------------------------------
 ; Macro transformer (from Scheme to Scheme Core) derived from Al Petrofsky's EIOD 1.17
@@ -234,6 +243,7 @@
                   [(begin)         (xform-begin tail env)]
                   [(if)            (xform-if tail env)]
                   [(lambda)        (xform-lambda tail env)]
+                  [(lambda*)       (xform-lambda* tail env)]
                   [(body)          (xform-body tail env)]
                   [(define)        (xform-define (car tail) (cadr tail) env)]
                   [(define-syntax) (xform-define-syntax (car tail) (cadr tail) env)]
@@ -302,6 +312,17 @@
                 (list 'lambda (append (reverse ipars) nvar)
                   (xform-body (cdr tail) ienv)))]))
       (error 'transform "improper lambda body")))
+
+(define (xform-lambda* tail env)
+  (if (list? tail)
+      (cons 'lambda*
+         (map (lambda (aexp)
+                 (if (list2? aexp)
+                     (list (normalize-arity (car aexp))
+                           (xform #f (cadr aexp) env))
+                     (error 'transform "improper lambda* clause")))
+              tail))
+      (error 'transform "improper lambda* form")))
 
 (define (xform-body tail env)
   (if (null? tail)
@@ -373,6 +394,7 @@
     (make-binding 'begin 'begin)
     (make-binding 'if 'if)
     (make-binding 'lambda 'lambda)
+    (make-binding 'lambda* 'lambda*)
     (make-binding 'body 'body)
     denotation-of-default-ellipsis))
 
@@ -639,6 +661,10 @@
   (syntax-rules ()
     [(_ test . rest) (if (not test) (begin . rest))]))
 
+(install-sr-transformer! 'case-lambda
+  (syntax-rules ()
+    [(_ [args . body] ...) (lambda* [args (lambda args . body)] ...)]))
+
 
 ;---------------------------------------------------------------------------------------------
 ; Runtime
@@ -754,6 +780,8 @@
          (find-free exp b))]
       [lambda (idsi exp)
        (find-free exp (set-union (flatten-idslist idsi) b))]
+      [lambda* clauses
+       (find-free* (map cadr clauses) b)]
       [if (test then else)
        (set-union
          (find-free test b)
@@ -784,6 +812,8 @@
          (find-sets x v))]
       [lambda (idsi exp)
        (find-sets exp (set-minus v (flatten-idslist idsi)))]
+      [lambda* clauses
+       (find-sets* (map cadr clauses) v)]
       [begin exps
        (find-sets* exps v)]
       [if (test then else)
@@ -898,6 +928,24 @@
            (set-union sets (set-intersect s free))
            g (length ids) port)
          (write-char #\} port))
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [lambda* clauses
+       (do ([clauses (reverse clauses) (cdr clauses)] [l l (cons #f l)]) 
+            [(null? clauses)]
+         (codegen (cadr (car clauses)) l f s g #f port)
+         (write-char #\, port))
+       (write-char #\& port)
+       (write-serialized-arg (length clauses) port)
+       (write-char #\{ port)
+       (do ([clauses clauses (cdr clauses)] [i 0 (fx+ i 1)]) 
+            [(null? clauses)]
+         (let* ([arity (caar clauses)] [cnt (car arity)] [rest? (cadr arity)])
+           (write-char #\| port)
+           (if rest? (write-char #\! port))
+           (write-serialized-arg cnt port)
+           (write-serialized-arg i port)))
+       (write-char #\% port) (write-char #\% port)
+       (write-char #\} port)
        (when k (write-char #\] port) (write-serialized-arg k port))]
       [call (exp . args)
        (cond [(and (eq? (car exp) 'lambda) (list? (cadr exp))
