@@ -32,51 +32,51 @@
 
 (define-inline (fixnum? x) %residual-fixnum? (%fixp x))
 
-(define-inline (fxzero? x) %residual-fxzero? (%izerop (%cki x)))
+(define-inline (fxzero? x) %residual-fxzero? (%izerop x))
 
-(define-inline (fxpositive? x) %residual-fxpositive? (%iposp (%cki x)))
+(define-inline (fxpositive? x) %residual-fxpositive? (%iposp x))
 
-(define-inline (fxnegative? x) %residual-fxnegative? (%inegp (%cki x)))
+(define-inline (fxnegative? x) %residual-fxnegative? (%inegp x))
 
-(define-inline (fx+ x y) %residual-fx+ (%iadd (%cki x) (%cki y)))
+(define-inline (fx+ x y) %residual-fx+ (%iadd x y))
 
-(define-inline (fx* x y) %residual-fx* (%imul (%cki x) (%cki y)))
+(define-inline (fx* x y) %residual-fx* (%imul x y))
 
-(define-inline (fx- x y) %residual-fx- (%isub (%cki x) (%cki y)))
+(define-inline (fx- x y) %residual-fx- (%isub x y))
 
-(define-inline (fx/ x y) %residual-fx/ (%idiv (%cki x) (%cki y)))
+(define-inline (fx/ x y) %residual-fx/ (%idiv x y))
 
-(define-inline (fxquotient x y) %residual-fxquotient (%iquo (%cki x) (%cki y)))
+(define-inline (fxquotient x y) %residual-fxquotient (%iquo x y))
 
-(define-inline (fxremainder x y) %residual-fxremainder (%irem (%cki x) (%cki y)))
+(define-inline (fxremainder x y) %residual-fxremainder (%irem x y))
 
-(define-inline (fxmodquo x y) %residual-fxmodquo (%imqu (%cki x) (%cki y)))
+(define-inline (fxmodquo x y) %residual-fxmodquo (%imqu x y))
 
-(define-inline (fxmodulo x y) %residual-fxmodulo (%imlo (%cki x) (%cki y)))
+(define-inline (fxmodulo x y) %residual-fxmodulo (%imlo x y))
 
-(define-inline (fxeucquo x y) %residual-fxeucquo (%ieuq (%cki x) (%cki y))) ;euclidean-quotient
+(define-inline (fxeucquo x y) %residual-fxeucquo (%ieuq x y)) ;euclidean-quotient
 
-(define-inline (fxeucrem x y) %residual-fxeucrem (%ieur (%cki x) (%cki y))) ;euclidean-remainder
+(define-inline (fxeucrem x y) %residual-fxeucrem (%ieur x y)) ;euclidean-remainder
 
-(define-inline (fxneg x) %residual-fxneg (%ineg (%cki x)))
+(define-inline (fxneg x) %residual-fxneg (%ineg x))
 
-(define-inline (fxabs x) %residual-fxabs (%iabs (%cki x)))
+(define-inline (fxabs x) %residual-fxabs (%iabs x))
 
-(define-inline (fx<? x y) %residual-fx<? (%ilt (%cki x) (%cki y)))
+(define-inline (fx<? x y) %residual-fx<? (%ilt x y))
 
-(define-inline (fx<=? x y) %residual-fx<=? (%ile (%cki x) (%cki y)))
+(define-inline (fx<=? x y) %residual-fx<=? (%ile x y))
 
-(define-inline (fx>? x y) %residual-fx>? (%igt (%cki x) (%cki y)))
+(define-inline (fx>? x y) %residual-fx>? (%igt x y))
 
-(define-inline (fx>=? x y) %residual-fx>=? (%ige (%cki x) (%cki y)))
+(define-inline (fx>=? x y) %residual-fx>=? (%ige x y))
 
-(define-inline (fx=? x y) %residual-fx=? (%ieq (%cki x) (%cki y)))
+(define-inline (fx=? x y) %residual-fx=? (%ieq x y))
 
-(define-inline (fxmin x y) %residual-fxmin (%imin (%cki x) (%cki y)))
+(define-inline (fxmin x y) %residual-fxmin (%imin x y))
 
-(define-inline (fxmax x y) %residual-fxmax (%imax (%cki x) (%cki y)))
+(define-inline (fxmax x y) %residual-fxmax (%imax x y))
 
-(define-inline (fixnum->flonum x) %residual-fixnum->flonum (%itoj (%cki x)))
+(define-inline (fixnum->flonum x) %residual-fixnum->flonum (%itoj x))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -85,51 +85,51 @@
 
 (define-inline (flonum? x) %residual-flonum? (%flop x))
 
-(define-inline (flzero? x) %residual-flzero? (%jzerop (%ckj x)))
+(define-inline (flzero? x) %residual-flzero? (%jzerop x))
 
-(define-inline (flpositive? x) %residual-flpositive? (%jposp (%ckj x)))
+(define-inline (flpositive? x) %residual-flpositive? (%jposp x))
 
-(define-inline (flnegative? x) %residual-flnegative? (%jnegp (%ckj x)))
+(define-inline (flnegative? x) %residual-flnegative? (%jnegp x))
 
-(define-inline (flinteger? x) %residual-flinteger? (%jintp (%ckj x))) 
+(define-inline (flinteger? x) %residual-flinteger? (%jintp x)) 
 
-(define-inline (flnan? x) %residual-flnan? (%jnanp (%ckj x))) 
+(define-inline (flnan? x) %residual-flnan? (%jnanp x)) 
 
-(define-inline (flinfinite? x) %residual-flinfinite? (%jinfp (%ckj x))) 
+(define-inline (flinfinite? x) %residual-flinfinite? (%jinfp x)) 
 
-(define-inline (flfinite? x) %residual-flfinite? (%jfinp (%ckj x))) 
+(define-inline (flfinite? x) %residual-flfinite? (%jfinp x)) 
 
-(define-inline (fleven? x) %residual-fleven? (%jevnp (%ckj x)))
+(define-inline (fleven? x) %residual-fleven? (%jevnp x))
 
-(define-inline (flodd? x) %residual-flodd? (%joddp (%ckj x)))
+(define-inline (flodd? x) %residual-flodd? (%joddp x))
 
-(define-inline (fl+ x y) %residual-fl+ (%jadd (%ckj x) (%ckj y)))
+(define-inline (fl+ x y) %residual-fl+ (%jadd x y))
 
-(define-inline (fl- x y) %residual-fl- (%jsub (%ckj x) (%ckj y)))
+(define-inline (fl- x y) %residual-fl- (%jsub x y))
 
-(define-inline (fl* x y) %residual-fl* (%jmul (%ckj x) (%ckj y)))
+(define-inline (fl* x y) %residual-fl* (%jmul x y))
 
-(define-inline (fl/ x y) %residual-fl/ (%jdiv (%ckj x) (%ckj y)))
+(define-inline (fl/ x y) %residual-fl/ (%jdiv x y))
 
-(define-inline (flneg x) %residual-flneg (%jneg (%ckj x)))
+(define-inline (flneg x) %residual-flneg (%jneg x))
 
-(define-inline (flabs x) %residual-flabs (%jabs (%ckj x)))
+(define-inline (flabs x) %residual-flabs (%jabs x))
 
-(define-inline (fl<? x y) %residual-fl<? (%jlt (%ckj x) (%ckj y)))
+(define-inline (fl<? x y) %residual-fl<? (%jlt x y))
 
-(define-inline (fl<=? x y) %residual-fl<=? (%jle (%ckj x) (%ckj y)))
+(define-inline (fl<=? x y) %residual-fl<=? (%jle x y))
 
-(define-inline (fl>? x y) %residual-fl>? (%jgt (%ckj x) (%ckj y)))
+(define-inline (fl>? x y) %residual-fl>? (%jgt x y))
 
-(define-inline (fl>=? x y) %residual-fl>=? (%jge (%ckj x) (%ckj y)))
+(define-inline (fl>=? x y) %residual-fl>=? (%jge x y))
 
-(define-inline (fl=? x y) %residual-fl=? (%jeq (%ckj x) (%ckj y)))
+(define-inline (fl=? x y) %residual-fl=? (%jeq x y))
 
-(define-inline (flmin x y) %residual-flmin (%jmin (%ckj x) (%ckj y)))
+(define-inline (flmin x y) %residual-flmin (%jmin x y))
 
-(define-inline (flmax x y) %residual-flmax (%jmax (%ckj x) (%ckj y)))
+(define-inline (flmax x y) %residual-flmax (%jmax x y))
 
-(define-inline (flonum->fixnum x) %residual-flonum->fixnum (%jtoi (%ckj x)))
+(define-inline (flonum->fixnum x) %residual-flonum->fixnum (%jtoi x))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -152,26 +152,26 @@
 
 (define-inline (inexact? x) %residual-inexact? (%flop (%ckn x)))
 
-(define-inline (finite? x) %residual-finite? (%finp (%ckn x))) 
+(define-inline (finite? x) %residual-finite? (%finp x)) 
 
-(define-inline (infinite? x) %residual-infinite? (%infp (%ckn x))) 
+(define-inline (infinite? x) %residual-infinite? (%infp x)) 
 
-(define-inline (nan? x) %residual-nan? (%nanp (%ckn x))) 
+(define-inline (nan? x) %residual-nan? (%nanp x)) 
 
-(define-inline (zero? x) %residual-zero? (%zerop (%ckn x)))
+(define-inline (zero? x) %residual-zero? (%zerop x))
 
-(define-inline (positive? x) %residual-positive? (%posp (%ckn x)))
+(define-inline (positive? x) %residual-positive? (%posp x))
 
-(define-inline (negative? x) %residual-negative? (%negp (%ckn x)))
+(define-inline (negative? x) %residual-negative? (%negp x))
 
-(define-inline (even? x) %residual-even? (%evnp (%ckn x)))
+(define-inline (even? x) %residual-even? (%evnp x))
 
-(define-inline (odd? x) %residual-odd? (%oddp (%ckn x)))
+(define-inline (odd? x) %residual-odd? (%oddp x))
 
 (define-syntax min
   (syntax-rules ()
     [(_ x) x]
-    [(_ x y) (%min (%ckn x) (%ckn y))]
+    [(_ x y) (%min x y)]
     [(_ x y z ...) (min (min x y) z ...)]
     [(_ . args) (%residual-min . args)]
     [_ %residual-min]))
@@ -179,7 +179,7 @@
 (define-syntax max
   (syntax-rules ()
     [(_ x) x]
-    [(_ x y) (%max (%ckn x) (%ckn y))]
+    [(_ x y) (%max x y)]
     [(_ x y z ...) (max (max x y) z ...)]
     [(_ . args) (%residual-max . args)]
     [_ %residual-max]))
@@ -188,7 +188,7 @@
   (syntax-rules ()
     [(_) 0] 
     [(_ x) (%ckn x)]
-    [(_ x y) (%add (%ckn x) (%ckn y))]
+    [(_ x y) (%add x y)]
     [(_ x y z ...) (+ (+ x y) z ...)]
     [_ %residual+]))
 
@@ -196,71 +196,71 @@
   (syntax-rules ()
     [(_) 1]
     [(_ x) (%ckn x)]
-    [(_ x y) (%mul (%ckn x) (%ckn y))]
+    [(_ x y) (%mul x y)]
     [(_ x y z ...) (* (* x y) z ...)]
     [_ %residual*]))
 
 (define-syntax -
   (syntax-rules ()
-    [(_ x) (%neg (%ckn x))]
-    [(_ x y) (%sub (%ckn x) (%ckn y))]
+    [(_ x) (%neg x)]
+    [(_ x y) (%sub x y)]
     [(_ x y z ...) (- (- x y) z ...)]
     [(_ . args) (%residual- . args)]
     [_ %residual-]))
 
 (define-syntax /
   (syntax-rules ()
-    [(_ x) (%div 1 (%ckn x))]
-    [(_ x y) (%div (%ckn x) (%ckn y))]
+    [(_ x) (%div 1 x)]
+    [(_ x y) (%div x y)]
     [(_ x y z ...) (/ (/ x y) z ...)]
     [(_ . args) (%residual/ . args)]
     [_ %residual/]))
 
 (define-syntax =
   (syntax-rules ()
-    [(_ x y) (%eq (%ckn x) (%ckn y))] 
+    [(_ x y) (%eq x y)] 
     [(_ x y z ...) (let ([t y]) (and (= x t) (= t z ...)))]
     [(_ . args) (%residual= . args)]
     [_ %residual=]))
 
 (define-syntax <
   (syntax-rules ()
-    [(_ x y) (%lt (%ckn x) (%ckn y))]
+    [(_ x y) (%lt x y)]
     [(_ x y z ...) (let ([t y]) (and (< x t) (< t z ...)))]
     [(_ . args) (%residual< . args)]
     [_ %residual<]))
 
 (define-syntax >
   (syntax-rules ()
-    [(_ x y) (%gt (%ckn x) (%ckn y))]
+    [(_ x y) (%gt x y)]
     [(_ x y z ...) (let ([t y]) (and (> x t) (> t z ...)))]
     [(_ . args) (%residual> . args)]
     [_ %residual>]))
 
 (define-syntax <=
   (syntax-rules ()
-    [(_ x y) (%le (%ckn x) (%ckn y))]
+    [(_ x y) (%le x y)]
     [(_ x y z ...) (let ([t y]) (and (<= x t) (<= t z ...)))]
     [(_ . args) (%residual<= . args)]
     [_ %residual<=]))
 
 (define-syntax >=
   (syntax-rules ()
-    [(_ x y) (%ge (%ckn x) (%ckn y))]
+    [(_ x y) (%ge x y)]
     [(_ x y z ...) (let ([t y]) (and (>= x t) (>= t z ...)))]
     [(_ . args) (%residual>= . args)]
     [_ %residual>=]))
 
-(define-inline (abs x) %residual-abs (%abs (%ckn x)))
+(define-inline (abs x) %residual-abs (%abs x))
 
-(define-inline (quotient x y) %residual-quotient (%quo (%ckn x)))
-(define-inline (remainder x y) %residual-remainder (%rem (%ckn x)))
+(define-inline (quotient x y) %residual-quotient (%quo x y))
+(define-inline (remainder x y) %residual-remainder (%rem x y))
 
 (define-syntax truncate-quotient quotient)
 (define-syntax truncate-remainder remainder)
 
-(define-inline (modquo x y) %residual-modquo (%mqu (%ckn x)))
-(define-inline (modulo x y) %residual-modulo (%mlo (%ckn x)))
+(define-inline (modquo x y) %residual-modquo (%mqu x y))
+(define-inline (modulo x y) %residual-modulo (%mlo x y))
 
 (define-syntax floor-quotient modquo)
 (define-syntax floor-remainder modulo)
@@ -284,30 +284,30 @@
 
 (define-inline (char? x) %residual-char? (%charp x))
 
-(define-inline (char-cmp x y) %residual-char-cmp (%ccmp (%ckc x) (%ckc y)))
-(define-inline (char=? x y) %residual-char=? (%ceq (%ckc x) (%ckc y)))
-(define-inline (char<? x y) %residual-char<? (%clt (%ckc x) (%ckc y)))
-(define-inline (char<=? x y) %residual-char<=? (%cle (%ckc x) (%ckc y)))
-(define-inline (char>? x y) %residual-char>? (%cgt (%ckc x) (%ckc y)))
-(define-inline (char>=? x y) %residual-char>=? (%cge (%ckc x) (%ckc y)))
+(define-inline (char-cmp x y) %residual-char-cmp (%ccmp x y))
+(define-inline (char=? x y) %residual-char=? (%ceq x y))
+(define-inline (char<? x y) %residual-char<? (%clt x y))
+(define-inline (char<=? x y) %residual-char<=? (%cle x y))
+(define-inline (char>? x y) %residual-char>? (%cgt x y))
+(define-inline (char>=? x y) %residual-char>=? (%cge x y))
 
-(define-inline (char-ci-cmp x y) %residual-char-cmp (%cicmp (%ckc x) (%ckc y)))
-(define-inline (char-ci=? x y) %residual-char-ci=? (%cieq (%ckc x) (%ckc y)))
-(define-inline (char-ci<? x y) %residual-char-ci<? (%cilt (%ckc x) (%ckc y)))
-(define-inline (char-ci<=? x y) %residual-char-ci<=? (%cile (%ckc x) (%ckc y)))
-(define-inline (char-ci>? x y) %residual-char-ci>? (%cigt (%ckc x) (%ckc y)))
-(define-inline (char-ci>=? x y) %residual-char-ci>=? (%cige (%ckc x) (%ckc y)))
+(define-inline (char-ci-cmp x y) %residual-char-cmp (%cicmp x y))
+(define-inline (char-ci=? x y) %residual-char-ci=? (%cieq x y))
+(define-inline (char-ci<? x y) %residual-char-ci<? (%cilt x y))
+(define-inline (char-ci<=? x y) %residual-char-ci<=? (%cile x y))
+(define-inline (char-ci>? x y) %residual-char-ci>? (%cigt x y))
+(define-inline (char-ci>=? x y) %residual-char-ci>=? (%cige x y))
 
-(define-inline (char-alphabetic? x) %residual-char-alphabetic? (%calp (%ckc x)))
-(define-inline (char-numeric? x) %residual-char-numeric? (%cnup (%ckc x)))
-(define-inline (char-whitespace? x) %residual-char-whitespace? (%cwsp (%ckc x)))
-(define-inline (char-upper-case? x) %residual-char-upper-case? (%cucp (%ckc x)))
-(define-inline (char-lower-case? x) %residual-char-lower-case? (%clcp (%ckc x)))
-(define-inline (char-upcase x) %residual-char-upcase (%cupc (%ckc x)))
-(define-inline (char-downcase x) %residual-char-downcase (%cdnc (%ckc x)))
+(define-inline (char-alphabetic? x) %residual-char-alphabetic? (%calp x))
+(define-inline (char-numeric? x) %residual-char-numeric? (%cnup x))
+(define-inline (char-whitespace? x) %residual-char-whitespace? (%cwsp x))
+(define-inline (char-upper-case? x) %residual-char-upper-case? (%cucp x))
+(define-inline (char-lower-case? x) %residual-char-lower-case? (%clcp x))
+(define-inline (char-upcase x) %residual-char-upcase (%cupc x))
+(define-inline (char-downcase x) %residual-char-downcase (%cdnc x))
 
-(define-inline (char->integer x) %residual-char->integer (%ctoi (%ckc x)))
-(define-inline (integer->char x) %residual-integer->char (%itoc (%cki x)))
+(define-inline (char->integer x) %residual-char->integer (%ctoi x))
+(define-inline (integer->char x) %residual-integer->char (%itoc x))
 
 ;char-foldcase
 ;digit-value
@@ -319,9 +319,9 @@
 
 (define-inline (symbol? x) %residual-symbol? (%symp x))
 
-(define-inline (symbol->string x) %residual-symbol->string (%ytos (%cky x)))
+(define-inline (symbol->string x) %residual-symbol->string (%ytos x))
 
-(define-inline (string->symbol x) %residual-string->symbol (%stoy (%cks x)))
+(define-inline (string->symbol x) %residual-string->symbol (%stoy x))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -332,13 +332,13 @@
 
 (define-inline (pair? x) %residual-pair? (%pairp x))
 
-(define-inline (car x) %residual-car (%car (%ckp x)))
+(define-inline (car x) %residual-car (%car x))
 
-(define-inline (set-car! x v) %residual-set-car! (%setcar (%ckp x) v))
+(define-inline (set-car! x v) %residual-set-car! (%setcar x v))
 
-(define-inline (cdr x) %residual-cdr (%cdr (%ckp x)))
+(define-inline (cdr x) %residual-cdr (%cdr x))
 
-(define-inline (set-cdr! x v) %residual-set-cdr! (%setcdr (%ckp x) v))
+(define-inline (set-cdr! x v) %residual-set-cdr! (%setcdr x v))
 
 (define-syntax c?r
   (syntax-rules (a d)
@@ -402,56 +402,56 @@
     [(_ x ...) (%list x ...)]
     [_ %residual-list]))
 
-(define-inline (length x) %residual-length (%llen (%ckl x))) ; optimize via combo instruction "%lg"?
+(define-inline (length x) %residual-length (%llen x))
 
-(define-inline (list-ref x i) %residual-list-ref (%lget (%ckl x) (%cki i))) ; check for range, optimize combo?
+(define-inline (list-ref x i) %residual-list-ref (%lget x i))
 
-(define-inline (list-set! x i v) %residual-list-set! (%lput (%ckl x) (%cki i) v)) ; check for range, optimize combo?
+(define-inline (list-set! x i v) %residual-list-set! (%lput x i v))
 
 (define-syntax append
   (syntax-rules ()
     [(_) '()] [(_ x) x]
-    [(_ x y) (%lcat (%ckl x) y)]
-    [(_ x y z ...) (%lcat (%ckl x) (append y z ...))]
+    [(_ x y) (%lcat x y)]
+    [(_ x y z ...) (%lcat x (append y z ...))]
     [_ %residual-append]))
 
-(define-inline (memq v y) %residual-memq (%memq v (%ckl y)))  ; optimize combo?
+(define-inline (memq v y) %residual-memq (%memq v y))
 
-(define-inline (memv v y) %residual-memv (%memv v (%ckl y)))  ; optimize combo?
+(define-inline (memv v y) %residual-memv (%memv v (%ckl y)))  ; TODO: make sure memv checks list
 
 (define (%member x l eq)
   (and (pair? l) (if (eq x (%car l)) l (%member x (%cdr l) eq))))
 
 (define-syntax member
   (syntax-rules ()
-    [(_ v y) (%meme v (%ckl y))]
+    [(_ v y) (%meme v (%ckl y))] ; TODO: make sure meme checks list
     [(_ v y eq) (%member v y eq)]
     [(_ . args) (%residual-member . args)]
     [_ %residual-member]))
 
-(define-inline (assq v y) %residual-assq (%assq v (%ckl y)))  ; check for a-list; optimize combo?
+(define-inline (assq v y) %residual-assq (%assq v y))
 
-(define-inline (assv v y) %residual-assv (%assv v (%ckl y)))  ; check for a-list; optimize combo?
+(define-inline (assv v y) %residual-assv (%assv v (%ckl y)))  ; TODO: make sure assv checks list
 
 (define (%assoc v al eq) 
   (and (pair? al) (if (eq v (car (%car al))) (%car al) (%assoc v (%cdr al) eq))))
 
 (define-syntax assoc
   (syntax-rules ()
-    [(_ v al) (%asse v (%ckl al))]
+    [(_ v al) (%asse v (%ckl al))] ; TODO: make sure asse checks list
     [(_ v al eq) (%assoc v al eq)]
     [(_ . args) (%residual-assoc . args)]
     [_ %residual-assoc]))
 
-(define-inline (list-copy x) %residual-list-copy (%lcat (%ckl x) '()))
+(define-inline (list-copy x) %residual-list-copy (%lcat x '()))
 
-(define-inline (list-tail x i) %residual-list-tail (%ltail (%ckl x) (%cki i))) ; check for range, optimize combo?
+(define-inline (list-tail x i) %residual-list-tail (%ltail x i))
 
-(define-inline (last-pair x) %residual-last-pair (%lpair (%ckp x)))
+(define-inline (last-pair x) %residual-last-pair (%lpair x))
 
-(define-inline (reverse x) %residual-reverse (%lrev (%ckl x))) ; optimize combo?
+(define-inline (reverse x) %residual-reverse (%lrev x))
 
-(define-inline (reverse! x) %residual-reverse! (%lrevi (%ckl x))) ; optimize combo?
+(define-inline (reverse! x) %residual-reverse! (%lrevi x))
 
 (define-syntax list*
   (syntax-rules ()
@@ -474,27 +474,27 @@
 
 (define-syntax make-vector
   (syntax-rules ()
-    [(_ n) (%vmk (%ckk n) #f)]
-    [(_ n v) (%vmk (%ckk n) v)]
+    [(_ n) (%vmk n #f)]
+    [(_ n v) (%vmk n v)]
     [(_ . args) (%residual-make-vector . args)]
     [_ %residual-make-vector]))
 
-(define-inline (vector-length x) %residual-vector-length (%vlen (%ckv x))) ; optimize combo?
+(define-inline (vector-length x) %residual-vector-length (%vlen x))
 
-(define-inline (vector-ref x i) %residual-vector-ref (%vget (%ckv x) (%cki i))) ; check for range, optimize combo?
+(define-inline (vector-ref x i) %residual-vector-ref (%vget x i))
 
-(define-inline (vector-set! x i v) %residual-vector-set! (%vput (%ckv x) (%cki i) v)) ; check for range, optimize combo?
+(define-inline (vector-set! x i v) %residual-vector-set! (%vput x i v))
 
 (define-syntax vector-append
   (syntax-rules ()
     [(_) '#()] [(_ x) (%ckv x)]
-    [(_ x y) (%vcat (%ckv x) (%ckv y))]
+    [(_ x y) (%vcat x y)]
     [(_ x y z ...) (vector-append x (vector-append y z ...))]
     [_ %residual-vector-append]))
 
-(define-inline (vector->list x) %residual-vector->list (%vtol (%ckv x)))
+(define-inline (vector->list x) %residual-vector->list (%vtol x))
 
-(define-inline (list->vector x) %residual-list->vector (%ltov (%ckl x)))
+(define-inline (list->vector x) %residual-list->vector (%ltov x))
 
 ;vector->list/1/2/3
 ;vector-copy/1/2/3=subvector
@@ -512,47 +512,47 @@
 
 (define-syntax string
   (syntax-rules ()
-    [(_ c ...) (%str (%ckc c) ...)]
+    [(_ c ...) (%str c ...)]
     [_ %residual-string]))
 
 (define-syntax make-string
   (syntax-rules ()
-    [(_ x) (%smk (%ckk x) #\space)]
-    [(_ x y) (%smk (%ckk x) (%ckc y))]
+    [(_ x) (%smk x #\space)]
+    [(_ x y) (%smk x y)]
     [(_ . args) (%residual-make-string . args)]
     [_ %residual-make-string]))
 
-(define-inline (string-length x) %residual-string-length (%slen (%cks x))) ; optimize combo?
+(define-inline (string-length x) %residual-string-length (%slen x))
 
-(define-inline (string-ref x i) %residual-string-ref (%sget (%cks x) (%cki i))) ; check for range, optimize combo?
+(define-inline (string-ref x i) %residual-string-ref (%sget x i))
 
-(define-inline (string-set! x i v) %residual-string-set! (%sput (%cks x) (%cki i) (%ckc v))) ; check for range, optimize combo?
+(define-inline (string-set! x i v) %residual-string-set! (%sput x i v))
 
 (define-syntax string-append
   (syntax-rules ()
     [(_) ""] [(_ x) (%cks x)]
-    [(_ x y) (%scat (%cks x) (%cks y))]
+    [(_ x y) (%scat x y)]
     [(_ x y z ...) (string-append x (string-append y z ...))]
     [_ %residual-string-append]))
 
-(define-inline (substring x s e) %residual-substring (%ssub (%cks x) (%cki s) (%cki e)))  ; check for range
+(define-inline (substring x s e) %residual-substring (%ssub x s e))
 
-(define-inline (string-cmp x y) %residual-string-cmp (%scmp (%cks x) (%cks y)))
-(define-inline (string=? x y) %residual-string<? (%seq (%cks x) (%cks y)))
-(define-inline (string<? x y) %residual-string<? (%slt (%cks x) (%cks y)))
-(define-inline (string<=? x y) %residual-string<=? (%sle (%cks x) (%cks y)))
-(define-inline (string>? x y) %residual-string>? (%sgt (%cks x) (%cks y)))
-(define-inline (string>=? x y) %residual-string>=? (%sge (%cks x) (%cks y)))
-(define-inline (string-ci-cmp x y) %residual-string-cmp (%sicmp (%cks x) (%cks y)))
-(define-inline (string-ci=? x y) %residual-string<? (%sieq (%cks x) (%cks y)))
-(define-inline (string-ci<? x y) %residual-string<? (%silt (%cks x) (%cks y)))
-(define-inline (string-ci<=? x y) %residual-string<=? (%sile (%cks x) (%cks y)))
-(define-inline (string-ci>? x y) %residual-string>? (%sigt (%cks x) (%cks y)))
-(define-inline (string-ci>=? x y) %residual-string>=? (%sige (%cks x) (%cks y)))
+(define-inline (string-cmp x y) %residual-string-cmp (%scmp x y))
+(define-inline (string=? x y) %residual-string<? (%seq x y))
+(define-inline (string<? x y) %residual-string<? (%slt x y))
+(define-inline (string<=? x y) %residual-string<=? (%sle x y))
+(define-inline (string>? x y) %residual-string>? (%sgt x y))
+(define-inline (string>=? x y) %residual-string>=? (%sge x y))
+(define-inline (string-ci-cmp x y) %residual-string-cmp (%sicmp x y))
+(define-inline (string-ci=? x y) %residual-string<? (%sieq x y))
+(define-inline (string-ci<? x y) %residual-string<? (%silt x y))
+(define-inline (string-ci<=? x y) %residual-string<=? (%sile x y))
+(define-inline (string-ci>? x y) %residual-string>? (%sigt x y))
+(define-inline (string-ci>=? x y) %residual-string>=? (%sige x y))
 
-(define-inline (string->list x) %residual-string->list (%stol (%cks x)))
+(define-inline (string->list x) %residual-string->list (%stol x))
 
-(define-inline (list->string x) %residual-list->string (%ltos (%ckl x)))  ; list-of-chars test
+(define-inline (list->string x) %residual-list->string (%ltos x))
 
 ;string-upcase
 ;string-downcase
@@ -567,25 +567,25 @@
 ; Conversions
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (fixnum->string x r) %residual-fixnum->string (%itos (%cki x) (%cki r)))
+(define-inline (fixnum->string x r) %residual-fixnum->string (%itos x r))
 
-(define-inline (string->fixnum x r) %residual-string->fixnum (%stoi (%cks x) (%cki r)))
+(define-inline (string->fixnum x r) %residual-string->fixnum (%stoi x r))
 
-(define-inline (flonum->string x) %residual-flonum->string (%jtos (%ckj x)))
+(define-inline (flonum->string x) %residual-flonum->string (%jtos x))
 
-(define-inline (string->flonum x) %residual-string->flonum (%stoj (%cks x)))
+(define-inline (string->flonum x) %residual-string->flonum (%stoj x))
 
 (define-syntax number->string
   (syntax-rules ()
-    [(_ x r) (%ntos (%cki x) (%cki r))]
-    [(_ x) (%ntos (%cki x) 10)]
+    [(_ x r) (%ntos x r)]
+    [(_ x) (%ntos x 10)]
     [(_ . args) (%residual-number->string . args)]
     [_ %residual-number->string]))
 
 (define-syntax string->number
   (syntax-rules ()
-    [(_ x r) (%ston (%cks x) (%cki r))]
-    [(_ x) (%ston (%cks x) 10)]
+    [(_ x r) (%ston x r)]
+    [(_ x) (%ston x 10)]
     [(_ . args) (%residual-string->number . args)]
     [_ %residual-string->number]))
 
@@ -598,12 +598,12 @@
 
 (define-syntax apply
   (syntax-rules ()
-    [(_ p l) (%appl p (%ckl l))]  ; -- check for proc?
+    [(_ p l) (%appl p l)]
     [(_ p a b ... l) (%appl p (list* a b ... l))]
     [(_ . args) (%residual-apply . args)]
     [_ %residual-apply]))
 
-(define-syntax call/cc %ccc) ; (%ccc (%ckr1 k)) -- check for 1-arg proc?
+(define-syntax call/cc %ccc)
 
 (define-syntax call-with-current-continuation call/cc)
 
@@ -672,17 +672,17 @@
 
 (define-inline (open-output-string) %residual-open-output-string (%oos))
 
-(define-inline (open-input-file x) %residual-open-input-file (%otip (%cks x)))
+(define-inline (open-input-file x) %residual-open-input-file (%otip x))
 
-(define-inline (open-output-file x) %residual-open-output-file (%otop (%cks x)))
+(define-inline (open-output-file x) %residual-open-output-file (%otop x))
 
-(define-inline (open-input-string x) %residual-open-input-string (%ois (%cks x)))
+(define-inline (open-input-string x) %residual-open-input-string (%ois x))
 
-(define-inline (close-input-port x) %residual-close-input-port (%cip (%ckr x)))
+(define-inline (close-input-port x) %residual-close-input-port (%cip x))
 
-(define-inline (close-output-port x) %residual-close-output-port (%cop (%ckw x)))
+(define-inline (close-output-port x) %residual-close-output-port (%cop x))
 
-(define-inline (get-output-string x) %residual-get-output-string (%gos (%ckw x)))
+(define-inline (get-output-string x) %residual-get-output-string (%gos x))
 
 ;call-with-port
 ;call-with-input-file
@@ -726,50 +726,50 @@
 
 (define-syntax write-char
   (syntax-rules ()
-    [(_ x) (%wrc (%ckc x) (%sop))]
-    [(_ x p) (%wrc (%ckc x) (%ckw p))]
+    [(_ x) (%wrc x (%sop))]
+    [(_ x p) (%wrc x p)]
     [(_ . args) (%residual-write-char . args)]
     [_ %residual-write-char]))
 
 (define-syntax write-string
   (syntax-rules ()
-    [(_ x) (%wrs (%cks x) (%sop))]
-    [(_ x p) (%wrs (%cks x) (%ckw p))]
+    [(_ x) (%wrs x (%sop))]
+    [(_ x p) (%wrs x p)]
     [(_ . args) (%residual-write-string . args)]
     [_ %residual-write-string]))
 
 (define-syntax display
   (syntax-rules ()
     [(_ x) (%wrcd x (%sop))]
-    [(_ x p) (%wrcd x (%ckw p))]
+    [(_ x p) (%wrcd x p)]
     [(_ . args) (%residual-display . args)]
     [_ %residual-display]))
 
 (define-syntax write
   (syntax-rules ()
     [(_ x) (%wrcw x (%sop))]
-    [(_ x p) (%wrcw x (%ckw p))]
+    [(_ x p) (%wrcw x p)]
     [(_ . args) (%residual-write . args)]
     [_ %residual-write]))
 
 (define-syntax newline
   (syntax-rules ()
     [(_)  (%wrnl (%sop))]
-    [(_ p) (%wrnl (%ckw p))]
+    [(_ p) (%wrnl p)]
     [(_ . args) (%residual-newline . args)]
     [_ %residual-newline]))
 
 (define-syntax write-shared
   (syntax-rules ()
     [(_ x) (%wrhw x (%sop))]
-    [(_ x p) (%wrhw x (%ckw p))]
+    [(_ x p) (%wrhw x p)]
     [(_ . args) (%residual-write-shared . args)]
     [_ %residual-write-shared]))
 
 (define-syntax write-simple
   (syntax-rules ()
     [(_ x) (%wriw x (%sop))]
-    [(_ x p) (%wriw x (%ckw p))]
+    [(_ x p) (%wriw x p)]
     [(_ . args) (%residual-write-simple . args)]
     [_ %residual-write-simple]))
 

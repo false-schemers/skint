@@ -56,9 +56,6 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define ins_from_obj(x) (*(ins_t*)(x))
 #endif
 
-#define fail(msg) do { ac = (obj)msg; musttail return cxi_fail(IARGS); } while (0)
-#define failactype(msg) do { spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
-
 /* instruction calling convention (platform-dependent) */
 #ifdef VM_AC_IN_REG
 #define ILOCALS       obj ac, *r, *ip, *sp, *hp
@@ -289,7 +286,6 @@ jump:
   }
 }
 
-
 /* instructions for basic vm machinery */
 
 define_instrhelper(cxi_fail) { 
@@ -306,6 +302,38 @@ define_instrhelper(cxi_failactype) {
   spop();
   unwindi(0); 
 }
+
+#define fail(msg) do { ac = (obj)msg; musttail return cxi_fail(IARGS); } while (0)
+#define failtype(x, msg) do { ac = (x); spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
+#define failactype(msg) do { spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
+
+#define ckp(x) do { obj _x = (x); if (unlikely(!ispair(_x))) \
+  { ac = _x; spush((obj)"pair"); musttail return cxi_failactype(IARGS); } } while (0)
+#define cki(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x))) \
+  { ac = _x; spush((obj)"fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckk(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x) || fixnum_from_obj(_x) < 0)) \
+  { ac = _x; spush((obj)"nonnegative fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckj(x) do { obj _x = (x); if (unlikely(!is_flonum_obj(_x))) \
+  { ac = _x; spush((obj)"flonum"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckn(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x) && !is_flonum_obj(_x))) \
+  { ac = _x; spush((obj)"number"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckl(x) do { obj _x = (x); if (unlikely(!islist(_x))) \
+  { ac = _x; spush((obj)"list"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckc(x) do { obj _x = (x); if (unlikely(!ischar(_x))) \
+  { ac = _x; spush((obj)"char"); musttail return cxi_failactype(IARGS); } } while (0)
+#define cks(x) do { obj _x = (x); if (unlikely(!isstring(_x))) \
+  { ac = _x; spush((obj)"string"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckv(x) do { obj _x = (x); if (unlikely(!isvector(_x))) \
+  { ac = _x; spush((obj)"vector"); musttail return cxi_failactype(IARGS); } } while (0)
+#define cky(x) do { obj _x = (x); if (unlikely(!issymbol(_x))) \
+  { ac = _x; spush((obj)"symbol"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckr(x) do { obj _x = (x); if (unlikely(!isiport(_x))) \
+  { ac = _x; spush((obj)"input port"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckw(x) do { obj _x = (x); if (unlikely(!isoport(_x))) \
+  { ac = _x; spush((obj)"output port"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckx(x) do { obj _x = (x); if (unlikely(!isvmclo(_x))) \
+  { ac = _x; spush((obj)"procedure"); musttail return cxi_failactype(IARGS); } } while (0)
+
 
 define_instruction(halt) { unwindi(0); }
 
@@ -363,7 +391,8 @@ define_instruction(gset) {
 }
 
 define_instruction(conti) {
-  int n = (int)(sp - (r + VM_REGC));
+  int n; ckx(sref(0));
+  n = (int)(sp - (r + VM_REGC));
   hp_reserve(vmclobsz(2)+hbsz(n+1));
   hp -= n; memcpy(hp, sp-n, n*sizeof(obj));
   *--hp = obj_from_size(VECTOR_BTAG);
@@ -387,7 +416,7 @@ define_instruction(appl) {
   int n, i; obj l = spop(), t = l;
   for (n = 0; ispair(t); t = cdr(t)) ++n; sgrow(n);
   for (i = 0; i < n; ++i, l = cdr(l)) sref(i) = car(l);
-  rd = ac; rx = obj_from_fixnum(0);
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0);
   ac = obj_from_fixnum(n); /* argc */
   callsubi();
 }
@@ -395,6 +424,7 @@ define_instruction(appl) {
 define_instruction(cwmv) {
   obj prd = ac, cns = spop();
   /* arrange return to cwmv code w/cns */
+  ckx(prd); ckx(cns); 
   spush(cns);
   spush(cx_callmv_2Dadapter_2Dclosure); 
   spush(obj_from_fixnum(0));
@@ -446,14 +476,14 @@ define_instruction(push) { spush(ac); gonexti(); }
 
 define_instruction(call) {
   int n = fixnum_from_obj(*ip++); 
-  rd = ac; rx = obj_from_fixnum(0); 
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); 
   ac = obj_from_fixnum(n); /* argc */
   callsubi();
 }
 
 define_instruction(scall) {
   int m = fixnum_from_obj(*ip++), n = fixnum_from_obj(*ip++);
-  rd = ac; rx = obj_from_fixnum(0); 
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); 
   ac = obj_from_fixnum(n); /* argc */
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
   sdrop(m);
@@ -492,7 +522,7 @@ define_instruction(shrarg) {
   int n = fixnum_from_obj(*ip++), c = fixnum_from_obj(ac), m = c-n; 
   /* rest arg ends up on top */
   if (unlikely(m < 0)) {
-    fail("argument count error on entry (<)");
+    fail("argument count error on entry (not enough arguments)");
   } else if (unlikely(m == 0)) {
     spush(mknull());
   } else {
@@ -611,20 +641,20 @@ define_instruction(ise) {
   gonexti(); 
 }
 
-define_instruction(car) { ac = car(ac); gonexti(); }
-define_instruction(cdr) { ac = cdr(ac); gonexti(); }
-define_instruction(caar) { ac = car(car(ac)); gonexti(); }
-define_instruction(cadr) { ac = car(cdr(ac)); gonexti(); }
-define_instruction(cdar) { ac = cdr(car(ac)); gonexti(); }
-define_instruction(cddr) { ac = cdr(cdr(ac)); gonexti(); }
+define_instruction(car) { ckp(ac); ac = car(ac); gonexti(); }
+define_instruction(cdr) { ckp(ac); ac = cdr(ac); gonexti(); }
+define_instruction(caar) { ckp(ac); ac = car(ac); ckp(ac); ac = car(ac); gonexti(); }
+define_instruction(cadr) { ckp(ac); ac = cdr(ac); ckp(ac); ac = car(ac); gonexti(); }
+define_instruction(cdar) { ckp(ac); ac = car(ac); ckp(ac); ac = cdr(ac); gonexti(); }
+define_instruction(cddr) { ckp(ac); ac = cdr(ac); ckp(ac); ac = cdr(ac); gonexti(); }
 
 define_instruction(setcar) {
-  car(ac) = spop();
+  ckp(ac); car(ac) = spop();
   gonexti();
 }
 
 define_instruction(setcdr) {
-  cdr(ac) = spop();
+  ckp(ac); cdr(ac) = spop();
   gonexti();
 }
 
@@ -673,66 +703,69 @@ define_instruction(llen) {
 }
 
 define_instruction(lget) {
-  int c = fixnum_from_obj(spop());
-  while (c-- > 0) ac = cdr(ac);
-  ac = car(ac);
+  obj x = spop(); int c;
+  ckk(x); c = fixnum_from_obj(x);
+  while (c-- > 0) { ckp(ac); ac = cdr(ac); }
+  ckp(ac); ac = car(ac);
   gonexti();
 }
 
 define_instruction(lput) {
-  int c = fixnum_from_obj(spop());
-  while (c-- > 0) ac = cdr(ac);
-  car(ac) = spop();
+  obj x = spop(); int c;
+  ckk(x); c = fixnum_from_obj(x);
+  while (c-- > 0) { ckp(ac); ac = cdr(ac); }
+  ckp(ac); car(ac) = spop();
   gonexti();
 }
 
 
 define_instruction(memq) {
   obj l = spop(); 
-  for (; l != mknull(); l = cdr(l)) {
+  for (; ispair(l); l = cdr(l)) {
     if (car(l) == ac) { ac = l; gonexti(); }
   }
-  ac = 0;
+  ac = obj_from_bool(0);
   gonexti();
 }
 
 define_instruction(memv) {
-  ac = ismemv(ac, spop());
+  ac = ismemv(ac, spop()); /* FIXME: ckp() */
   gonexti();
 }
 
 define_instruction(meme) {
-  ac = ismember(ac, spop());
+  ac = ismember(ac, spop()); /* FIXME: ckp() */
   gonexti();
 }
 
 define_instruction(assq) {
   obj l = spop(); 
-  for (; l != mknull(); l = cdr(l)) {
-    obj p = car(l); if (car(p) == ac) { ac = p; gonexti(); }
+  for (; ispair(l); l = cdr(l)) {
+    obj p = car(l); if (ispair(p) && car(p) == ac) { ac = p; gonexti(); }
   }
-  ac = 0;
+  ac = obj_from_bool(0);
   gonexti();
 }
 
 define_instruction(assv) {
-  ac = isassv(ac, spop());
+  ac = isassv(ac, spop()); /* FIXME: ckp() */
   gonexti();
 }
 
 define_instruction(asse) {
-  ac = isassoc(ac, spop());
+  ac = isassoc(ac, spop()); /* FIXME: ckp() */
   gonexti();
 }
 
 define_instruction(ltail) {
-  int c = fixnum_from_obj(spop());
-  while (c-- > 0) ac = cdr(ac);
+  obj x = spop(); int c;
+  ckk(x); c = fixnum_from_obj(x);
+  while (c-- > 0) { ckp(ac); ac = cdr(ac); }
   gonexti();
 }
 
 define_instruction(lpair) {
-  obj l = 0;
+  obj l = obj_from_bool(0);
   while (ispair(ac)) { l = ac; ac = cdr(ac); }
   ac = l;
   gonexti();
@@ -752,7 +785,7 @@ define_instruction(lrev) {
 
 define_instruction(lrevi) {
   obj t, v = mknull();
-  while (ac != mknull()) t = cdr(ac), cdr(ac) = v, v = ac, ac = t;
+  while (ispair(ac)) t = cdr(ac), cdr(ac) = v, v = ac, ac = t;
   ac = v;
   gonexti();
 }
@@ -771,45 +804,60 @@ define_instruction(str) {
   int i, n = fixnum_from_obj(*ip++);
   obj o = hpushstr(sp-r, allocstring(n, ' '));
   unsigned char *s = (unsigned char *)stringchars(o);
-  for (i = 0; i < n; ++i) s[i] = char_from_obj(sref(i));
+  for (i = 0; i < n; ++i) {
+    obj x = sref(i); ckc(x); s[i] = char_from_obj(x);
+  }
   sdrop(n); ac = o;
   gonexti();
 }
 
 define_instruction(smk) {
-  int n = fixnum_from_obj(ac), c = char_from_obj(spop());
+  int n, c; obj x = spop(); 
+  ckk(ac); ckc(x);
+  n = fixnum_from_obj(ac), c = char_from_obj(x);
   ac = hpushstr(sp-r, allocstring(n, c)); 
   gonexti();
 }
 
 define_instruction(slen) {
+  cks(ac);
   ac = obj_from_fixnum(stringlen(ac));
   gonexti();
 }
 
 define_instruction(sget) {
-  int i = fixnum_from_obj(spop());
+  obj x = spop(); int i; 
+  cks(ac); ckk(x); 
+  i = fixnum_from_obj(x); 
+  if (i >= stringlen(ac)) failtype(x, "valid string index");
   ac = obj_from_char(*stringref(ac, i));
   gonexti();
 }
 
 define_instruction(sput) {
-  int i = fixnum_from_obj(spop());
-  *stringref(ac, i) = char_from_obj(spop());
+  obj x = spop(), y = spop(); int i; 
+  cks(ac); ckk(x); ckc(y); 
+  i = fixnum_from_obj(x); 
+  if (i >= stringlen(ac)) failtype(x, "valid string index");
+  *stringref(ac, i) = char_from_obj(y);
   gonexti();
 }
 
 define_instruction(scat) {
-  obj x = ac, y = spop();
-  int *d = stringcat(stringdata(x), stringdata(y));
+  obj x = ac, y = spop(); int *d; 
+  cks(x); cks(y);
+  d = stringcat(stringdata(x), stringdata(y));
   ac = hpushstr(sp-r, d);
   gonexti();
 }
 
 define_instruction(ssub) {
-  int is = fixnum_from_obj(spop());
-  int ie = fixnum_from_obj(spop());
-  int *d = substring(stringdata(ac), is, ie);
+  obj x = spop(), y = spop(); int is, ie, *d; 
+  cks(ac); ckk(x); ckk(y); 
+  is = fixnum_from_obj(x), ie = fixnum_from_obj(y);
+  if (is > ie) failtype(x, "valid start string index");
+  if (ie > stringlen(ac)) failtype(y, "valid end string index");
+  d = substring(stringdata(ac), is, ie);
   ac = hpushstr(sp-r, d);
   gonexti();
 }
@@ -830,7 +878,8 @@ define_instruction(vec) {
 }
 
 define_instruction(vmk) {
-  int i, n = fixnum_from_obj(ac); obj v = sref(0);
+  int i, n; obj v; ckk(ac);
+  n = fixnum_from_obj(ac); v = sref(0);
   hp_reserve(hbsz(n+1));
   for (i = 0; i < n; ++i) *--hp = v;
   *--hp = obj_from_size(VECTOR_BTAG);
@@ -840,35 +889,44 @@ define_instruction(vmk) {
 }
 
 define_instruction(vlen) {
+  ckv(ac);
   ac = obj_from_fixnum(vectorlen(ac));
   gonexti();
 }
 
 define_instruction(vget) {
-  int i = fixnum_from_obj(spop());
+  obj x = spop(); int i; 
+  ckv(ac); ckk(x); 
+  i = fixnum_from_obj(x);
+  if (i >= vectorlen(ac)) failtype(x, "valid vector index");
   ac = vectorref(ac, i);
   gonexti();
 }
 
 define_instruction(vput) {
-  int i = fixnum_from_obj(spop());
-  vectorref(ac, i) = spop();
+  obj x = spop(), y = spop(); int i; 
+  ckv(ac); ckk(x);
+  i = fixnum_from_obj(spop());
+  vectorref(ac, i) = y;
   gonexti();
 }
 
 define_instruction(vcat) {
-  int n1 = vectorlen(ac), n2 = vectorlen(sref(0)), n = n1 + n2;
+  obj x = ac, y = sref(0); int n1, n2, n;
+  ckv(x); ckv(y);
+  n1 = vectorlen(x), n2 = vectorlen(y), n = n1 + n2;
   hp_reserve(hbsz(n+1));
-  hp -= n2; memcpy(hp, &vectorref(spop(), 0), n2*sizeof(obj));
-  hp -= n1; memcpy(hp, &vectorref(ac, 0), n1*sizeof(obj));
+  hp -= n2; memcpy(hp, &vectorref(y, 0), n2*sizeof(obj));
+  hp -= n1; memcpy(hp, &vectorref(x, 0), n1*sizeof(obj));
   *--hp = obj_from_size(VECTOR_BTAG);
   ac = hendblk(n+1);
+  sdrop(1);
   gonexti();
 }
 
 define_instruction(vtol) {
-  int n = vectorlen(ac);
-  obj l = mknull();
+  obj l = mknull(); int n;
+  ckv(ac); n = vectorlen(ac);
   hp_reserve(hbsz((2+1)*n));
   while (n > 0) {
     *--hp = l; *--hp = vectorref(ac, n-1);
@@ -891,8 +949,8 @@ define_instruction(ltov) {
 }
 
 define_instruction(stol) {
-  int n = stringlen(ac);
-  obj l = mknull();
+  obj l = mknull(); int n;
+  cks(ac); n = stringlen(ac);
   hp_reserve(hbsz((2+1)*n));
   while (n > 0) {
     *--hp = l; *--hp = obj_from_char(*stringref(ac, n-1));
@@ -915,21 +973,24 @@ define_instruction(ltos) {
 }
 
 define_instruction(ytos) {
+  cky(ac);
   ac = hpushstr(sp-r, newstring(symbolname(getsymbol(ac))));
   gonexti();
 }
 
 define_instruction(stoy) {
+  cks(ac);
   ac = mksymbol(internsym(stringchars(ac)));
   gonexti();
 }
 
 define_instruction(itos) {
   char buf[35], *s = buf + sizeof(buf) - 1; 
-  int neg = 0;
-  long num = fixnum_from_obj(ac);
-  long radix = fixnum_from_obj(spop());
+  int neg = 0; long num, radix;
+  obj x = ac, y = spop(); cki(x); ckk(y);
+  num = fixnum_from_obj(x), radix = fixnum_from_obj(y);
   if (num < 0) { neg = 1; num = -num; }
+  if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
   *s = 0;
   do { int d = num % radix; *--s = d < 10 ? d + '0' : d - 10 + 'a'; }
   while (num /= radix);
@@ -939,8 +1000,10 @@ define_instruction(itos) {
 }
 
 define_instruction(stoi) {
-  char *e, *s = stringchars(ac);
-  int radix = fixnum_from_obj(spop()); long l;
+  char *e, *s; int radix = fixnum_from_obj(spop()); long l;
+  obj x = ac, y = spop(); cks(x); ckk(y);
+  s = stringchars(x); radix = fixnum_from_obj(y);
+  if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
   if (s[0] == '#' && (s[1] == 'b' || s[1] == 'B')) s += 2, radix = 2;
   else if (s[0] == '#' && (s[1] == 'o' || s[1] == 'O')) s += 2, radix = 8;
   else if (s[0] == '#' && (s[1] == 'd' || s[1] == 'D')) s += 2, radix = 10;
@@ -952,17 +1015,20 @@ define_instruction(stoi) {
 }
 
 define_instruction(ctoi) {
+  ckc(ac);
   ac = obj_from_fixnum(char_from_obj(ac));
   gonexti();
 }
 
 define_instruction(itoc) {
+  cki(ac); /* TODO: range check? */
   ac = obj_from_char(fixnum_from_obj(ac));
   gonexti();
 }
 
 define_instruction(jtos) {
-  char buf[30], *s; double d = flonum_from_obj(ac); sprintf(buf, "%.15g", d);
+  char buf[30], *s; double d; ckj(ac);
+  d = flonum_from_obj(ac); sprintf(buf, "%.15g", d);
   for (s = buf; *s != 0; s++) if (strchr(".eE", *s)) break;
   if (d != d) strcpy(buf, "+nan.0"); else if (d <= -HUGE_VAL) strcpy(buf, "-inf.0");
   else if (d >= HUGE_VAL) strcpy(buf, "+inf.0"); else if (*s == 'E') *s = 'e'; 
@@ -972,7 +1038,8 @@ define_instruction(jtos) {
 }
 
 define_instruction(stoj) {
-  char *e = "", *s = stringchars(ac); double d; errno = 0;
+  char *e = "", *s; double d; cks(ac);
+  s = stringchars(ac); errno = 0;
   if (*s != '+' && *s != '-') d = strtod(s, &e);
   else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
   else if (strcmp_ci(s+1, "nan.0") == 0) d = HUGE_VAL - HUGE_VAL; 
@@ -989,8 +1056,10 @@ define_instruction(ntos) {
 }
 
 define_instruction(ston) {
-  char *s = stringchars(ac);
-  int radix = fixnum_from_obj(spop()); long l; double d;
+  char *s; int radix; long l; double d;
+  obj x = ac, y = spop(); cks(x); ckk(y);
+  s = stringchars(x); radix = fixnum_from_obj(y);
+  if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
   switch (strtofxfl(s, radix, &l, &d)) {
     case 'e': ac = obj_from_fixnum(l); break;
     case 'i': ac = obj_from_flonum(sp-r, d); break;
@@ -1005,393 +1074,419 @@ define_instruction(not) {
 }
 
 define_instruction(izerop) {
+  cki(ac);
   ac = obj_from_bool(ac == obj_from_fixnum(0));
   gonexti();
 }
 
 define_instruction(iposp) {
+  cki(ac);
   ac = obj_from_bool(fixnum_from_obj(ac) > 0);
   gonexti(); 
 }
 
 define_instruction(inegp) {
+  cki(ac);
   ac = obj_from_bool(fixnum_from_obj(ac) < 0);
   gonexti(); 
 }
 
 define_instruction(ievnp) {
+  cki(ac);
   ac = obj_from_bool((fixnum_from_obj(ac) & 1) == 0);
   gonexti(); 
 }
 
 define_instruction(ioddp) {
+  cki(ac);
   ac = obj_from_bool((fixnum_from_obj(ac) & 1) != 0);
   gonexti(); 
 }
 
 define_instruction(iadd) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fxadd(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(isub) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fxsub(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(imul) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fxmul(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(iquo) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   if (y == obj_from_fixnum(0)) fail("division by zero");
   ac = obj_from_fixnum(fxquo(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(irem) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   if (y == obj_from_fixnum(0)) fail("division by zero");
   ac = obj_from_fixnum(fxrem(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(imin) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = fixnum_from_obj(x) < fixnum_from_obj(y) ? x : y;
   gonexti(); 
 }
 
 define_instruction(imax) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = fixnum_from_obj(x) > fixnum_from_obj(y) ? x : y;
   gonexti(); 
 }
 
 define_instruction(ineg) {
+  cki(ac);
   ac = obj_from_fixnum(fxneg(fixnum_from_obj(ac)));
   gonexti();
 }
 
 define_instruction(iabs) {
+  cki(ac);
   ac = obj_from_fixnum(fxabs(fixnum_from_obj(ac)));
   gonexti();
 }
 
 define_instruction(itoj) {
+  cki(ac);
   ac = obj_from_flonum(sp-r, (double)fixnum_from_obj(ac));
   gonexti();
 }
 
 define_instruction(idiv) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   if (y == obj_from_fixnum(0)) fail("division by zero");
   ac = obj_from_fixnum(fxdiv(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(imqu) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   if (y == obj_from_fixnum(0)) fail("division by zero");
   ac = obj_from_fixnum(fxmqu(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(imlo) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   if (y == obj_from_fixnum(0)) fail("division by zero");
   ac = obj_from_fixnum(fxmlo(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(ieuq) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   if (y == obj_from_fixnum(0)) fail("division by zero");
   ac = obj_from_fixnum(fxeuq(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(ieur) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   if (y == obj_from_fixnum(0)) fail("division by zero");
   ac = obj_from_fixnum(fxeur(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(igcd) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fxgcd(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(ipow) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fxpow(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(isqrt) {
+  cki(ac); /* TODO: check for negative */
   ac = obj_from_fixnum(fxsqrt(fixnum_from_obj(ac)));
   gonexti();
 }
 
 define_instruction(inot) {
+  cki(ac);
   ac = obj_from_fixnum(~fixnum_from_obj(ac));
   gonexti();
 }
 
 define_instruction(iand) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fixnum_from_obj(x) & fixnum_from_obj(y));
   gonexti();
 }
 
 define_instruction(iior) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fixnum_from_obj(x) | fixnum_from_obj(y));
   gonexti();
 }
 
 define_instruction(ixor) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fixnum_from_obj(x) ^ fixnum_from_obj(y));
   gonexti();
 }
 
 define_instruction(iasl) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fxasl(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(iasr) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_fixnum(fxasr(fixnum_from_obj(x), fixnum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(ilt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_bool(fixnum_from_obj(x) < fixnum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(igt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_bool(fixnum_from_obj(x) > fixnum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(ile) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_bool(fixnum_from_obj(x) <= fixnum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(ige) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_bool(fixnum_from_obj(x) >= fixnum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(ieq) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_bool(x == y);
   gonexti(); 
 }
 
 define_instruction(ine) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cki(x); cki(y);
   ac = obj_from_bool(x != y);
   gonexti(); 
 }
 
 
 define_instruction(jzerop) {
+  ckj(ac);
   ac = obj_from_bool(flonum_from_obj(ac) == 0.0);
   gonexti();
 }
 
 define_instruction(jposp) {
+  ckj(ac);
   ac = obj_from_bool(flonum_from_obj(ac) > 0.0);
   gonexti(); 
 }
 
 define_instruction(jnegp) {
+  ckj(ac);
   ac = obj_from_bool(flonum_from_obj(ac) < 0.0);
   gonexti(); 
 }
 
 define_instruction(jevnp) {
-  double f = flonum_from_obj(ac);
+  double f; ckj(ac);
+  f = flonum_from_obj(ac);
   ac = obj_from_bool(flisint(f / 2.0));
   gonexti(); 
 }
 
 define_instruction(joddp) {
-  double f = flonum_from_obj(ac);
+  double f; ckj(ac);
+  f = flonum_from_obj(ac);
   ac = obj_from_bool(flisint((f + 1.0) / 2.0));
   gonexti(); 
 }
 
 define_instruction(jintp) {
-  double f = flonum_from_obj(ac);
+  double f; ckj(ac);
+  f = flonum_from_obj(ac);
   ac = obj_from_bool(f > -HUGE_VAL && f < HUGE_VAL && f == floor(f));
   gonexti(); 
 }
 
 define_instruction(jnanp) {
-  double f = flonum_from_obj(ac);
+  double f; ckj(ac);
+  f = flonum_from_obj(ac);
   ac = obj_from_bool(f != f);
   gonexti(); 
 }
 
 define_instruction(jfinp) {
-  double f = flonum_from_obj(ac);
+  double f; ckj(ac);
+  f = flonum_from_obj(ac);
   ac = obj_from_bool(f > -HUGE_VAL && f < HUGE_VAL);
   gonexti(); 
 }
 
 define_instruction(jinfp) {
-  double f = flonum_from_obj(ac);
+  double f; ckj(ac);
+  f = flonum_from_obj(ac);
   ac = obj_from_bool(f <= -HUGE_VAL || f >= HUGE_VAL);
   gonexti(); 
 }
 
 define_instruction(jadd) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_flonum(sp-r, flonum_from_obj(x) + flonum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(jsub) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_flonum(sp-r, flonum_from_obj(x) - flonum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(jmul) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_flonum(sp-r, flonum_from_obj(x) * flonum_from_obj(y));
   gonexti();
 }
 
 define_instruction(jdiv) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_flonum(sp-r, flonum_from_obj(x) / flonum_from_obj(y));
   gonexti();
 }
 
 define_instruction(jrem) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_flonum(sp-r, flrem(flonum_from_obj(x), flonum_from_obj(y)));
   gonexti();
 }
 
 define_instruction(jlt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_bool(flonum_from_obj(x) < flonum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(jgt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_bool(flonum_from_obj(x) > flonum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(jle) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_bool(flonum_from_obj(x) <= flonum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(jge) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_bool(flonum_from_obj(x) >= flonum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(jeq) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_bool(flonum_from_obj(x) == flonum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(jne) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_bool(flonum_from_obj(x) != flonum_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(jmin) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = flonum_from_obj(x) < flonum_from_obj(y) ? x : y;
   gonexti(); 
 }
 
 define_instruction(jmax) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = flonum_from_obj(x) > flonum_from_obj(y) ? x : y;
   gonexti(); 
 }
 
 define_instruction(jneg) {
+  ckj(ac);
   ac = obj_from_flonum(sp-r, -flonum_from_obj(ac));
   gonexti(); 
 }
 
 define_instruction(jabs) {
+  ckj(ac);
   ac = obj_from_flonum(sp-r, fabs(flonum_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(jtoi) {
+  ckj(ac);
   ac = obj_from_fixnum(fxflo(flonum_from_obj(ac)));
   gonexti();
 }
 
 define_instruction(jquo) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_flonum(sp-r, flquo(flonum_from_obj(x), flonum_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(jmqu) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_flonum(sp-r, flmqu(flonum_from_obj(x), flonum_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(jmlo) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = obj_from_flonum(sp-r, flmlo(flonum_from_obj(x), flonum_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(jfloor) {
+  ckj(ac);
   ac = obj_from_flonum(sp-r, floor(flonum_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(jceil) {
+  ckj(ac);
   ac = obj_from_flonum(sp-r, ceil(flonum_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(jtrunc) {
-  double f = flonum_from_obj(ac), i;
+  double f, i; ckj(ac);
+  f = flonum_from_obj(ac);
   modf(f,  &i);
   ac = obj_from_flonum(sp-r, i);
   gonexti(); 
 }
 
 define_instruction(jround) {
+  ckj(ac);
   ac = obj_from_flonum(sp-r, flround(flonum_from_obj(ac)));
   gonexti(); 
 }
@@ -1401,21 +1496,23 @@ define_instruction(zerop) {
   obj x = ac;
   if (likely(is_fixnum_obj(x))) {
     ac = obj_from_bool(x == obj_from_fixnum(0));
-  } else {
+  } else if (likely(is_flonum_obj(x))) {
     ac = obj_from_bool(flonum_from_obj(x) == 0.0);
-  }
+  } else failactype("number");
   gonexti();
 }
 
 define_instruction(posp) {
   if (likely(is_fixnum_obj(ac))) ac = obj_from_bool(get_fixnum_unchecked(ac) > 0);
-  else ac = obj_from_bool(flonum_from_obj(ac) > 0.0);
+  else if (likely(is_flonum_obj(ac))) ac = obj_from_bool(flonum_from_obj(ac) > 0.0);
+  else failactype("number");
   gonexti(); 
 }
 
 define_instruction(negp) {
   if (likely(is_fixnum_obj(ac))) ac = obj_from_bool(get_fixnum_unchecked(ac) < 0);
-  else ac = obj_from_bool(flonum_from_obj(ac) < 0.0);
+  else if (likely(is_flonum_obj(ac))) ac = obj_from_bool(flonum_from_obj(ac) < 0.0);
+  else failactype("number");
   gonexti(); 
 }
 
@@ -1426,9 +1523,11 @@ define_instruction(add) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_flonum(sp-r, dx + dy);
   }
   gonexti(); 
@@ -1441,9 +1540,11 @@ define_instruction(sub) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_flonum(sp-r, dx - dy);
   }
   gonexti(); 
@@ -1456,9 +1557,11 @@ define_instruction(mul) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_flonum(sp-r, dx * dy);
   }
   gonexti(); 
@@ -1474,9 +1577,11 @@ define_instruction(div) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_flonum(sp-r, dx / dy);
   }
   gonexti(); 
@@ -1490,9 +1595,11 @@ define_instruction(quo) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_flonum(sp-r, flquo(dx, dy));
   }
   gonexti(); 
@@ -1506,9 +1613,11 @@ define_instruction(rem) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_flonum(sp-r, flrem(dx, dy));
   }
   gonexti(); 
@@ -1522,9 +1631,11 @@ define_instruction(mqu) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_flonum(sp-r, flmqu(dx, dy));
   }
   gonexti(); 
@@ -1538,9 +1649,11 @@ define_instruction(mlo) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_flonum(sp-r, flmlo(dx, dy));
   }
   gonexti(); 
@@ -1554,9 +1667,11 @@ define_instruction(lt) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_bool(dx < dy);
   }
   gonexti(); 
@@ -1569,9 +1684,11 @@ define_instruction(gt) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_bool(dx > dy);
   }
   gonexti(); 
@@ -1584,9 +1701,11 @@ define_instruction(le) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_bool(dx <= dy);
   }
   gonexti(); 
@@ -1599,9 +1718,11 @@ define_instruction(ge) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_bool(dx >= dy);
   }
   gonexti(); 
@@ -1613,9 +1734,11 @@ define_instruction(eq) {
   else if (is_flonum_obj(x) || is_flonum_obj(y)) {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_bool(dx == dy);
   } else ac = obj_from_bool(0);
   gonexti(); 
@@ -1627,9 +1750,11 @@ define_instruction(ne) {
   else if (is_flonum_obj(x) || is_flonum_obj(y)) {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = obj_from_bool(dx != dy);
   } else ac = obj_from_bool(1);
   gonexti(); 
@@ -1642,9 +1767,11 @@ define_instruction(min) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = dx < dy ? obj_from_flonum(sp-r, dx) : obj_from_flonum(sp-r, dy);
   }
   gonexti(); 
@@ -1657,9 +1784,11 @@ define_instruction(max) {
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
     if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
     ac = dx > dy ? obj_from_flonum(sp-r, dx) : obj_from_flonum(sp-r, dy);
   }
   gonexti(); 
@@ -1669,18 +1798,18 @@ define_instruction(max) {
 define_instruction(neg) {
   if (likely(is_fixnum_obj(ac))) {
     ac = obj_from_fixnum(-fixnum_from_obj(ac));
-  } else {
+  } else if (likely(is_flonum_obj(ac))) {
     ac = obj_from_flonum(sp-r, -flonum_from_obj(ac));
-  }
+  } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(abs) {
   if (likely(is_fixnum_obj(ac))) {
     ac = obj_from_fixnum(fxabs(fixnum_from_obj(ac)));
-  } else {
+  } else if (likely(is_flonum_obj(ac))) {
     ac = obj_from_flonum(sp-r, fabs(flonum_from_obj(ac)));
-  }
+  } else failactype("number");
   gonexti(); 
 }
 
@@ -1712,60 +1841,64 @@ define_instruction(intp) {
 define_instruction(nanp) {
   if (unlikely(is_fixnum_obj(ac))) {
     ac = obj_from_bool(0);
-  } else {
+  } else if (likely(is_flonum_obj(ac))) {
     double f = flonum_from_obj(ac);
     ac = obj_from_bool(f != f);
-  }
+  } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(finp) {
   if (unlikely(is_fixnum_obj(ac))) {
     ac = obj_from_bool(1);
-  } else {
+  } else if (likely(is_flonum_obj(ac))) {
     double f = flonum_from_obj(ac);
     ac = obj_from_bool(f > -HUGE_VAL && f < HUGE_VAL);
-  }
+  } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(infp) {
   if (unlikely(is_fixnum_obj(ac))) {
     ac = obj_from_bool(0);
-  } else {
+  } else if (likely(is_flonum_obj(ac))) {
     double f = flonum_from_obj(ac);
     ac = obj_from_bool(f <= -HUGE_VAL || f >= HUGE_VAL);
-  }
+  } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(evnp) {
   if (likely(is_fixnum_obj(ac))) {
     ac = obj_from_bool((fixnum_from_obj(ac) & 1) == 0);
-  } else {
+  } else if (likely(is_flonum_obj(ac))) {
     double f = flonum_from_obj(ac);
     ac = obj_from_bool(flisint(f / 2.0));
-  }
+  } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(oddp) {
   if (likely(is_fixnum_obj(ac))) {
     ac = obj_from_bool((fixnum_from_obj(ac) & 1) != 0);
-  } else {
+  } else if (likely(is_flonum_obj(ac))) {
     double f = flonum_from_obj(ac);
     ac = obj_from_bool(flisint((f + 1.0) / 2.0));
-  }
+  } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(ntoi) {
-  if (is_flonum_obj(ac)) ac = obj_from_fixnum(fxflo(flonum_from_obj(ac)));
+  if (likely(is_flonum_obj(ac))) ac = obj_from_fixnum(fxflo(flonum_from_obj(ac)));
+  else if (likely(is_fixnum_obj(ac))) /* keep ac as-is */ ;
+  else failactype("number");
   gonexti(); 
 }
 
 define_instruction(ntoj) {
-  if (is_fixnum_obj(ac)) ac = obj_from_flonum(sp-r, (flonum_t)flonum_from_obj(ac));
+  if (likely(is_fixnum_obj(ac))) ac = obj_from_flonum(sp-r, (flonum_t)flonum_from_obj(ac));
+  else if (likely(is_flonum_obj(ac))) /* keep ac as-is */ ;
+  else failactype("number");
   gonexti(); 
 }
 
@@ -1785,184 +1918,191 @@ define_instruction(lcat) {
 }  
 
 define_instruction(ccmp) {
-  obj x = ac, y = spop();
-  int cmp = char_from_obj(x) - char_from_obj(y);
+  obj x = ac, y = spop(); int cmp; ckc(x); ckc(y);
+  cmp = char_from_obj(x) - char_from_obj(y);
   ac = obj_from_fixnum(cmp);
   gonexti(); 
 }
 
 define_instruction(ceq) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(char_from_obj(x) == char_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(clt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(char_from_obj(x) < char_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(cgt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(char_from_obj(x) > char_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(cle) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(char_from_obj(x) <= char_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(cge) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(char_from_obj(x) >= char_from_obj(y));
   gonexti(); 
 }
 
 define_instruction(cicmp) {
-  obj x = ac, y = spop();
-  int cmp = tolower(char_from_obj(x)) - tolower(char_from_obj(y));
+  obj x = ac, y = spop(); int cmp; ckc(x); ckc(y);
+  cmp = tolower(char_from_obj(x)) - tolower(char_from_obj(y));
   ac = obj_from_fixnum(cmp);
   gonexti(); 
 }
 
 define_instruction(cieq) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(tolower(char_from_obj(x)) == tolower(char_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(cilt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(tolower(char_from_obj(x)) < tolower(char_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(cigt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(tolower(char_from_obj(x)) > tolower(char_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(cile) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(tolower(char_from_obj(x)) <= tolower(char_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(cige) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); ckc(x); ckc(y);
   ac = obj_from_bool(tolower(char_from_obj(x)) >= tolower(char_from_obj(y)));
   gonexti(); 
 }
 
 define_instruction(cwsp) {
+  ckc(ac);
   ac = obj_from_bool(isspace(char_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(clcp) {
+  ckc(ac);
   ac = obj_from_bool(islower(char_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(cucp) {
+  ckc(ac);
   ac = obj_from_bool(isupper(char_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(calp) {
+  ckc(ac);
   ac = obj_from_bool(isalpha(char_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(cnup) {
+  ckc(ac);
   ac = obj_from_bool(isdigit(char_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(cupc) {
+  ckc(ac);
   ac = obj_from_char(toupper(char_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(cdnc) {
+  ckc(ac);
   ac = obj_from_char(tolower(char_from_obj(ac)));
   gonexti(); 
 }
 
 define_instruction(scmp) {
-  obj x = ac, y = spop();
-  int cmp = strcmp(stringchars(x), stringchars(y));
+  obj x = ac, y = spop(); int cmp; cks(x); cks(y);
+  cmp = strcmp(stringchars(x), stringchars(y));
   ac = obj_from_fixnum(cmp);
   gonexti(); 
 }
 
 define_instruction(seq) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp(stringchars(x), stringchars(y)) == 0);
   gonexti(); 
 }
 
 define_instruction(slt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp(stringchars(x), stringchars(y)) < 0);
   gonexti(); 
 }
 
 define_instruction(sgt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp(stringchars(x), stringchars(y)) > 0);
   gonexti(); 
 }
 
 define_instruction(sle) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp(stringchars(x), stringchars(y)) <= 0);
   gonexti(); 
 }
 
 define_instruction(sge) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp(stringchars(x), stringchars(y)) >= 0);
   gonexti(); 
 }
 
 define_instruction(sicmp) {
-  obj x = ac, y = spop();
-  int cmp = strcmp_ci(stringchars(x), stringchars(y));
+  obj x = ac, y = spop(); int cmp; cks(x); cks(y);
+  cmp = strcmp_ci(stringchars(x), stringchars(y));
   ac = obj_from_fixnum(cmp);
   gonexti(); 
 }
 
 define_instruction(sieq) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp_ci(stringchars(x), stringchars(y)) == 0);
   gonexti(); 
 }
 
 define_instruction(silt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp_ci(stringchars(x), stringchars(y)) < 0);
   gonexti(); 
 }
 
 define_instruction(sigt) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp_ci(stringchars(x), stringchars(y)) > 0);
   gonexti(); 
 }
 
 define_instruction(sile) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp_ci(stringchars(x), stringchars(y)) <= 0);
   gonexti(); 
 }
 
 define_instruction(sige) {
-  obj x = ac, y = spop();
+  obj x = ac, y = spop(); cks(x); cks(y);
   ac = obj_from_bool(strcmp_ci(stringchars(x), stringchars(y)) >= 0);
   gonexti(); 
 }
@@ -1984,7 +2124,7 @@ define_instruction(eofp) {
 }
 
 define_instruction(funp) {
-  ac = obj_from_bool(isprocedure(ac)); // FIXME/TODO: make VM closure recognizeable as procedure
+  ac = obj_from_bool(isvmclo(ac));
   gonexti();
 }
 
@@ -1999,17 +2139,17 @@ define_instruction(opp) {
 }
 
 define_instruction(sip) {
-  ac = mkiport_file(sp-r, stdin);
+  ac = mkiport_file(sp-r, stdin); /* TODO: keep in global var -- in r7rs it is a parameter */
   gonexti();
 }
 
 define_instruction(sop) {
-  ac = mkoport_file(sp-r, stdout);
+  ac = mkoport_file(sp-r, stdout); /* TODO: keep in global var -- in r7rs it is a parameter */
   gonexti();
 }
 
 define_instruction(sep) {
-  ac = mkoport_file(sp-r, stderr);
+  ac = mkoport_file(sp-r, stderr); /* TODO: keep in global var -- in r7rs it is a parameter */
   gonexti();
 }
 
@@ -2028,7 +2168,8 @@ define_instruction(otop) {
 }
 
 define_instruction(ois) {
-  int *d = dupstring(stringdata(ac));
+  int *d; cks(ac);
+  d = dupstring(stringdata(ac));
   ac = mkiport_string(sp-r, sialloc(sdatachars(d), d));
   gonexti();
 }
@@ -2039,21 +2180,24 @@ define_instruction(oos) {
 }
 
 define_instruction(cip) {
-  cxtype_iport_t *vt = iportvt(ac); assert(vt);
+  cxtype_iport_t *vt; ckr(ac);
+  vt = iportvt(ac); assert(vt);
   vt->close(iportdata(ac)); vt->free(iportdata(ac));
   objptr_from_obj(ac)[-1] = (obj)IPORT_CLOSED_NTAG;
   gonexti();
 }
 
 define_instruction(cop) {
-  cxtype_oport_t *vt = oportvt(ac); assert(vt);
+  cxtype_oport_t *vt; ckw(ac);
+  vt = oportvt(ac); assert(vt);
   vt->close(oportdata(ac)); vt->free(oportdata(ac));
   objptr_from_obj(ac)[-1] = (obj)OPORT_CLOSED_NTAG;
   gonexti();
 }
 
 define_instruction(gos) {
-  cxtype_oport_t *vt = ckoportvt(ac);
+  cxtype_oport_t *vt; ckw(ac);
+  vt = ckoportvt(ac);
   if (vt != (cxtype_oport_t *)OPORT_STRING_NTAG &&
       vt != (cxtype_oport_t *)OPORT_BYTEVECTOR_NTAG) {
     ac = mkeof();
@@ -2065,67 +2209,73 @@ define_instruction(gos) {
 }
 
 define_instruction(wrc) {
-  oportputc(char_from_obj(ac), spop());
+  obj x = ac, y = spop(); ckc(x); ckw(y);
+  oportputc(char_from_obj(x), y);
   gonexti();
 }
 
 define_instruction(wrs) {
-  oportputs(stringchars(ac), spop());
+  obj x = ac, y = spop(); cks(x); ckw(y);
+  oportputs(stringchars(x), y);
   gonexti();
 }
 
 define_instruction(wrcd) {
-  oportputcircular(ac, spop(), 1);
+  obj x = ac, y = spop(); ckw(y);
+  oportputcircular(x, y, 1);
   gonexti();
 }
 
 define_instruction(wrcw) {
-  oportputcircular(ac, spop(), 0);
+  obj x = ac, y = spop(); ckw(y);
+  oportputcircular(x, y, 0);
   gonexti();
 }
 
 define_instruction(wrnl) {
+  ckw(ac);
   oportputc('\n', ac);
   gonexti();
 }
 
 define_instruction(wrhw) {
-  oportputshared(ac, spop(), 0);
+  obj x = ac, y = spop(); ckw(y);
+  oportputshared(x, y, 0);
   gonexti();
 }
 
 define_instruction(wriw) {
-  oportputsimple(ac, spop(), 0);
+  obj x = ac, y = spop(); ckw(y);
+  oportputsimple(x, y, 0);
   gonexti();
 }
 
 define_instruction(fenc) {
-  obj y = ac, c = spop();
-  assert(issymbol(y) && is_fixnum_obj(c));
+  obj y = ac, c = spop(); cky(y); ckc(c);
   ac = (obj)intgtab_find_encoding(getsymbol(y), fixnum_from_obj(c));
   gonexti(); 
 }
 
 define_instruction(wrsi) {
-  obj c = ac, e = spop(), p = spop();
-  assert(is_fixnum_obj(c) && isaptr(e) && notobjptr(e) && isoport(p));
+  obj c = ac, e = spop(), p = spop(); cki(c);
+  assert(isaptr(e) && notobjptr(e) && isoport(p));
   wrs_integrable(fixnum_from_obj(c), (struct intgtab_entry *)e, p);
   gonexti(); 
 }
 
 define_instruction(rdsx) {
-  unload_ac(); /* ac->ra (string) */
+  cks(ac); unload_ac(); /* ac->ra (string) */
   hp = rds_stox(r, sp, hp);
   reload_ac(); /* ra->ac (sexp or eof) */
-  /* if (ac == mkeof()) { set ac to error object; unwindi(0); }  */
+  if (ac == mkeof()) fail("failed to read serialized s-expression");
   gonexti(); 
 }
 
 define_instruction(rdsc) {
-  unload_ac(); /* ac->ra (port) */
+  cks(ac); unload_ac(); /* ac->ra (string) */
   hp = rds_stoc(r, sp, hp);
   reload_ac(); /* ra->ac (codevec or eof) */
-  /* if (ac == mkeof()) { set ac to error object; unwindi(0); } */
+  if (ac == mkeof()) fail("failed to read serialized code");
   gonexti(); 
 }
 
@@ -2212,23 +2362,23 @@ define_instruction(pushdrefi3) { ac = boxref(dref(3)); spush(ac); gonexti(); }
 define_instruction(pushdrefi4) { ac = boxref(dref(4)); spush(ac); gonexti(); }
 
 define_instruction(call0) { 
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); 
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); 
   callsubi(); 
 }
 define_instruction(call1) { 
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1); 
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1); 
   callsubi(); 
 }
 define_instruction(call2) { 
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2); 
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2); 
   callsubi(); 
 }
 define_instruction(call3) { 
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3); 
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3); 
   callsubi(); 
 }
 define_instruction(call4) { 
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4); 
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4); 
   callsubi(); 
 }
 
@@ -2255,151 +2405,150 @@ define_instruction(atest2) { if (unlikely(ac != obj_from_fixnum(2))) fail("argum
 define_instruction(atest3) { if (unlikely(ac != obj_from_fixnum(3))) fail("argument count error on entry"); gonexti(); }
 define_instruction(atest4) { if (unlikely(ac != obj_from_fixnum(4))) fail("argument count error on entry"); gonexti(); }
 
-
 define_instruction(scall1) {
   int m = 1, n = fixnum_from_obj(*ip++);
-  rd = ac; rx = obj_from_fixnum(0); 
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); 
   ac = obj_from_fixnum(n); /* argc */
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
   sdrop(m); callsubi();
 }
 
 define_instruction(scall10) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0);
   sdrop(1); callsubi();
 }
 
 define_instruction(scall11) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1);
   sref(1) = sref(0);
   sdrop(1); callsubi();
 }
 
 define_instruction(scall12) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2);
   sref(2) = sref(1); sref(1) = sref(0);
   sdrop(1); callsubi();
 }
 
 define_instruction(scall13) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3);
   sref(3) = sref(2); sref(2) = sref(1); sref(1) = sref(0);
   sdrop(1); callsubi();
 }
 
 define_instruction(scall14) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4);
   sref(4) = sref(3); sref(3) = sref(2); sref(2) = sref(1); sref(1) = sref(0);
   sdrop(1); callsubi();
 }
 
 define_instruction(scall2) {
   int m = 2, n = fixnum_from_obj(*ip++);
-  rd = ac; rx = obj_from_fixnum(0); 
-  ac = obj_from_fixnum(n); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); 
+  ac = obj_from_fixnum(n);
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
   sdrop(m); callsubi();
 }
 
 define_instruction(scall20) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0);
   sdrop(2); callsubi();
 }
 
 define_instruction(scall21) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1);
   sref(2) = sref(0);
   sdrop(2); callsubi();
 }
 
 define_instruction(scall22) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2);
   sref(3) = sref(1); sref(2) = sref(0);
   sdrop(2); callsubi();
 }
 
 define_instruction(scall23) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3);
   sref(4) = sref(2); sref(3) = sref(1); sref(2) = sref(0);
   sdrop(2); callsubi();
 }
 
 define_instruction(scall24) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4);
   sref(5) = sref(3); sref(4) = sref(2); sref(3) = sref(1); sref(2) = sref(0);
   sdrop(2); callsubi();
 }
 
 define_instruction(scall3) {
   int m = 3, n = fixnum_from_obj(*ip++);
-  rd = ac; rx = obj_from_fixnum(0); 
-  ac = obj_from_fixnum(n); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); 
+  ac = obj_from_fixnum(n);
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
   sdrop(m); callsubi();
 }
 
 define_instruction(scall30) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0);
   sdrop(3); callsubi();
 }
 
 define_instruction(scall31) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1);
   sref(3) = sref(0);
   sdrop(3); callsubi();
 }
 
 define_instruction(scall32) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2);
   sref(4) = sref(1); sref(3) = sref(0);
   sdrop(3); callsubi();
 }
 
 define_instruction(scall33) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3);
   sref(5) = sref(2); sref(4) = sref(1); sref(3) = sref(0);
   sdrop(3); callsubi();
 }
 
 define_instruction(scall34) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4);
   sref(6) = sref(3); sref(5) = sref(2); sref(4) = sref(1); sref(3) = sref(0);
   sdrop(3); callsubi();
 }
 
 define_instruction(scall4) {
   int m = 3, n = fixnum_from_obj(*ip++);
-  rd = ac; rx = obj_from_fixnum(0); 
-  ac = obj_from_fixnum(n); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); 
+  ac = obj_from_fixnum(n);
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
   sdrop(m); callsubi();
 }
 
 define_instruction(scall40) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0);
   sdrop(4); callsubi();
 }
 
 define_instruction(scall41) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(1);
   sref(4) = sref(0);
   sdrop(4); callsubi();
 }
 
 define_instruction(scall42) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(2);
   sref(5) = sref(1); sref(4) = sref(0);
   sdrop(4); callsubi();
 }
 
 define_instruction(scall43) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(3);
   sref(6) = sref(2); sref(5) = sref(1); sref(4) = sref(0);
   sdrop(4); callsubi();
 }
 
 define_instruction(scall44) {
-  rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4); /* argc */
+  ckx(ac); rd = ac; rx = obj_from_fixnum(0); ac = obj_from_fixnum(4);
   sref(7) = sref(3); sref(6) = sref(2); sref(5) = sref(1); sref(4) = sref(0);
   sdrop(4); callsubi();
 }
@@ -2415,9 +2564,9 @@ define_instruction(brnotlt) {
     int dx = fixnum_from_obj(*ip++);
     double fx, fy;
     if (likely(is_flonum_obj(x))) fx = flonum_from_obj(x);
-    else fx = (double)fixnum_from_obj(x);
+    else { cki(x); fx = (double)get_fixnum_unchecked(x); }
     if (likely(is_flonum_obj(y))) fy = flonum_from_obj(y);
-    else fy = (double)fixnum_from_obj(y);
+    else { cki(y); fy = (double)get_fixnum_unchecked(y); }
     ac = obj_from_bool(fx < fy);
     ip = ac ? ip : ip + dx;
     gonexti(); 
@@ -2429,12 +2578,12 @@ define_instruction(pushsub) {
   if (likely(are_fixnum_objs(x, y))) {
     ac = obj_from_fixnum(fxsub(get_fixnum_unchecked(x), get_fixnum_unchecked(y)));
   } else {
-    double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else dx = (double)fixnum_from_obj(x);
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else dy = (double)fixnum_from_obj(y);
-    ac = obj_from_flonum(sp-r, dx - dy);
+    double fx, fy;
+    if (likely(is_flonum_obj(x))) fx = flonum_from_obj(x);
+    else { cki(x); fx = (double)get_fixnum_unchecked(x); }
+    if (likely(is_flonum_obj(y))) fy = flonum_from_obj(y);
+    else { cki(y); fy = (double)get_fixnum_unchecked(y); }
+    ac = obj_from_flonum(sp-r, fx - fy);
   }
   spush(ac);
   gonexti(); 
