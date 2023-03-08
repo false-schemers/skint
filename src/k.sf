@@ -1331,6 +1331,8 @@
 ; REPL
 ;---------------------------------------------------------------------------------------------
 
+(define *verbose* #f)
+
 (define (run-tests)
   (define start (current-jiffy))
   (display "Running tests ...") (newline)
@@ -1344,20 +1346,19 @@
 
 (define (repl-eval x)
   (let ([xexp (transform #f x)])
-    (display "TRANSFORM =>") (newline)
-    (write xexp) (newline)
+    (when *verbose* (display "TRANSFORM =>") (newline) (write xexp) (newline))
     (if (eq? (car xexp) 'define) (set-car! xexp 'set!))
-    (display "COMPILE-TO-STRING =>") (newline)
+    (when *verbose* (display "COMPILE-TO-STRING =>") (newline))
     (let ([cstr (compile-to-string xexp)] [start #f])
-      (display cstr) (newline)
-      (display "DECODE+EXECUTE =>") (newline) 
-      (set! start (current-jiffy))
-      (let* ([thunk (decode cstr)]
-             ;[foo (begin (display "decoded: ") (write thunk) (newline))]
-             [res (execute thunk)])
+      (when *verbose* 
+        (display cstr) (newline)
+        (display "DECODE+EXECUTE =>") (newline)
+        (set! start (current-jiffy)))
+      (let* ([thunk (decode cstr)] [res (execute thunk)])
         (write res) (newline))
-      (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
-      (display " ms.") (newline))))
+      (when *verbose* 
+        (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
+        (display " ms.") (newline)))))
 
 (define (repl-eval-top-form x)
   (cond 
@@ -1402,7 +1403,11 @@
     (cond
       [(syntax-match? '("-c" *) args)
        (process-file (cadr args))]
+      [(syntax-match? '("-t") args)
+       (run-tests)]
+      [(syntax-match? '("-v") args)
+       (set! *verbose* #t)
+       (run-repl)]
       [else
-       ;(run-tests)
        (run-repl)])))
 

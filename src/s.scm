@@ -488,20 +488,19 @@
 
 (define-inline (vector-set! x i v) %residual-vector-set! (%vput x i v))
 
-(define-syntax vector-append
-  (syntax-rules ()
-    [(_) '#()] [(_ x) (%ckv x)]
-    [(_ x y) (%vcat x y)]
-    [(_ x y z ...) (vector-append x (vector-append y z ...))]
-    [_ %residual-vector-append]))
-
 (define-inline (list->vector x) %residual-list->vector (%ltov x))
 
 (define (subvector->list vec start end)
   (let loop ([i (fx- end 1)] [l '()])
     (if (fx<? i start) l (loop (fx- i 1) (cons (vector-ref vec i) l)))))
 
-(define vector->list
+(define-syntax vector->list
+  (syntax-rules ()
+    [(_ x) (%vtol x)]
+    [(_ . r) (%residual-vector->list . r)]
+    [_ %residual-vector->list]))
+
+(define %residual-vector->list
   (case-lambda
      [(vec) (%vtol vec)]
      [(vec start) (subvector->list vec start (vector-length vec))]
@@ -558,6 +557,29 @@
      [(vec start) (subvector->string vec start (vector-length vec))]
      [(vec start end) (subvector->string vec start end)]))
 
+(define (vectors-sum-length vecs)
+  (let loop ([vecs vecs] [l 0])
+    (if (null? vecs) l (loop (cdr vecs) (fx+ l (vector-length (car vecs)))))))
+
+(define (vectors-copy-into! to vecs)
+  (let loop ([vecs vecs] [i 0])
+    (if (null? vecs)
+        to
+        (let ([vec (car vecs)] [vecs (cdr vecs)])
+          (let ([len (vector-length vec)])
+            (subvector-copy! to i vec 0 len)
+            (loop vecs (fx+ i len)))))))  
+
+(define (%residual-vector-append . vecs)
+  (vectors-copy-into! (make-vector (vectors-sum-length vecs)) vecs))
+
+(define-syntax vector-append
+  (syntax-rules ()
+    [(_) '#()] [(_ x) (%ckv x)]
+    [(_ x y) (%vcat x y)]
+    [(_ . r) (%residual-vector-append . r)]
+    [_ %residual-vector-append]))
+
 
 ;---------------------------------------------------------------------------------------------
 ; Strings
@@ -596,7 +618,13 @@
   (let loop ([i (fx- end 1)] [l '()])
     (if (fx<? i start) l (loop (fx- i 1) (cons (string-ref str i) l)))))
 
-(define string->list
+(define-syntax string->list
+  (syntax-rules ()
+    [(_ x) (%stol x)]
+    [(_ . r) (%residual-string->list . r)]
+    [_ %residual-string->list]))
+
+(define %residual-string->list
   (case-lambda
      [(str) (%stol str)]
      [(str start) (substring->list str start (string-length str))]
@@ -649,6 +677,29 @@
      [(str) (substring->vector str 0 (string-length str))]
      [(str start) (substring->vector str start (string-length str))]
      [(str start end) (substring->vector str start end)]))
+
+(define (strings-sum-length strs)
+  (let loop ([strs strs] [l 0])
+    (if (null? strs) l (loop (cdr strs) (fx+ l (string-length (car strs)))))))
+
+(define (strings-copy-into! to strs)
+  (let loop ([strs strs] [i 0])
+    (if (null? strs)
+        to
+        (let ([str (car strs)] [strs (cdr strs)])
+          (let ([len (string-length str)])
+            (substring-copy! to i str 0 len)
+            (loop strs (fx+ i len)))))))  
+
+(define (%residual-string-append . strs)
+  (strings-copy-into! (make-string (strings-sum-length strs)) strs))
+
+(define-syntax string-append
+  (syntax-rules ()
+    [(_) ""] [(_ x) (%cks x)]
+    [(_ x y) (%scat x y)]
+    [(_ . r) (%residual-string-append . r)]
+    [_ %residual-string-append]))
 
 (define-inline (string-cmp x y) %residual-string-cmp (%scmp x y))
 (define-inline (string=? x y) %residual-string<? (%seq x y))
