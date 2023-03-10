@@ -439,7 +439,7 @@ define_instruction(rcmv) {
   /* tail-call the consumer with the returned value */
   spush(val); ac = obj_from_fixnum(1);
   rd = cns; rx = obj_from_fixnum(0); 
-  callsubi(); 
+  callsubi();
 }
 
 define_instruction(sdmv) {
@@ -463,6 +463,52 @@ define_instruction(sdmv) {
       fail("multiple values returned to single value context");
     }
   }
+}
+
+define_instruction(lck) {
+  int m = fixnum_from_obj(*ip++);
+  int n; cki(sref(m)); ckx(sref(m+1));
+  n = (int)(sp-m-(r+VM_REGC));
+  hp_reserve(hbsz(n+1));
+  hp -= n; memcpy(hp, sp-n-m, n*sizeof(obj));
+  *--hp = obj_from_size(VECTOR_BTAG);
+  ac = hendblk(n+1); /* stack copy */
+  gonexti();
+}
+
+define_instruction(lck0) {
+  int n; cki(sref(0)); ckx(sref(1));
+  n = (int)(sp-(r+VM_REGC));
+  hp_reserve(hbsz(n+1));
+  hp -= n; memcpy(hp, sp-n, n*sizeof(obj));
+  *--hp = obj_from_size(VECTOR_BTAG);
+  ac = hendblk(n+1); /* stack copy */
+  gonexti();
+}
+
+define_instruction(wck) {
+  obj v = ac, t = spop(); int n; ckx(t); ckv(v);
+  n = vectorlen(v);
+  assert((cxg_rend - cxg_regs - VM_REGC) > n);
+  sp = r + VM_REGC; /* stack is empty */
+  memcpy(sp, &vectorref(v, 0), n*sizeof(obj));
+  sp += n; /* contains n elements now */
+  rd = t; rx = obj_from_fixnum(0); 
+  ac = obj_from_fixnum(0);
+  callsubi();
+}
+
+define_instruction(wckr) {
+  obj v = ac, o = spop(); int n; ckv(v);
+  n = vectorlen(v);
+  assert((cxg_rend - cxg_regs - VM_REGC) > n);
+  sp = r + VM_REGC; /* stack is empty */
+  memcpy(sp, &vectorref(v, 0), n*sizeof(obj));
+  sp += n;
+  ac = o;
+  rx = spop();
+  rd = spop();
+  retfromi();
 }
 
 define_instruction(save) {

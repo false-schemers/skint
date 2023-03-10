@@ -143,6 +143,8 @@
 ;  <core> -> (set! <id> <core>)
 ;  <core> -> (lambda <ids> <core>) where <ids> -> (<id> ...) | (<id> ... . <id>) | <id>
 ;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>) 
+;  <core> -> (letcc <id> <core>) 
+;  <core> -> (withcc <core> <core>) 
 ;  <core> -> (begin <core> ...)
 ;  <core> -> (if <core> <core> <core>)
 ;  <core> -> (call <core> <core> ...)
@@ -244,6 +246,8 @@
                   [(if)            (xform-if tail env)]
                   [(lambda)        (xform-lambda tail env)]
                   [(lambda*)       (xform-lambda* tail env)]
+                  [(letcc)         (xform-letcc tail env)]
+                  [(withcc)        (xform-withcc tail env)]
                   [(body)          (xform-body tail env)]
                   [(define)        (xform-define (car tail) (cadr tail) env)]
                   [(define-syntax) (xform-define-syntax (car tail) (cadr tail) env)]
@@ -324,6 +328,19 @@
               tail))
       (error 'transform "improper lambda* form")))
 
+(define (xform-letcc tail env)
+  (if (and (list2? tail) (id? (car tail)))
+      (let* ([var (car tail)] [nvar (gensym (id->sym var))])
+        (list 'letcc nvar 
+          (xform #f (cadr tail) (add-var var nvar env))))
+      (error 'transform "improper letcc form")))
+
+(define (xform-withcc tail env)
+  (if (list2? tail)
+      (list 'withcc (xform #f (car tail) env)
+        (xform #f (cadr tail) env))
+      (error 'transform "improper withcc form")))
+
 (define (xform-body tail env)
   (if (null? tail)
       (list 'begin)
@@ -391,10 +408,12 @@
     (make-binding 'define-syntax 'define-syntax)
     (make-binding 'quote 'quote)
     (make-binding 'set! 'set!)
-    (make-binding 'begin 'begin)
-    (make-binding 'if 'if)
     (make-binding 'lambda 'lambda)
     (make-binding 'lambda* 'lambda*)
+    (make-binding 'letcc 'letcc)
+    (make-binding 'withcc 'withcc)
+    (make-binding 'begin 'begin)
+    (make-binding 'if 'if)
     (make-binding 'body 'body)
     denotation-of-default-ellipsis))
 
@@ -420,7 +439,7 @@
     (syntax-rules* top-transformer-env ell lits rules)))
 
 (define (transform appos? sexp . optenv)
-  (gensym #f) ; reset gs counter to make results reproducible
+  ; (gensym #f) ; reset gs counter to make results reproducible
   (xform appos? sexp (if (null? optenv) top-transformer-env (car optenv))))
 
 
@@ -782,6 +801,10 @@
        (find-free exp (set-union (flatten-idslist idsi) b))]
       [lambda* clauses
        (find-free* (map cadr clauses) b)]
+      [letcc (kid exp)
+       (find-free exp (set-union (list kid) b))]
+      [withcc (kexp exp)
+       (set-union (find-free kexp b) (find-free exp b))]
       [if (test then else)
        (set-union
          (find-free test b)
@@ -814,6 +837,10 @@
        (find-sets exp (set-minus v (flatten-idslist idsi)))]
       [lambda* clauses
        (find-sets* (map cadr clauses) v)]
+      [letcc (kid exp)
+       (find-sets exp (set-minus v (list kid)))]
+      [withcc (kexp exp)
+       (set-union (find-sets kexp v) (find-sets exp v))]
       [begin exps
        (find-sets* exps v)]
       [if (test then else)
@@ -948,6 +975,36 @@
        (write-char #\% port) (write-char #\% port)
        (write-char #\} port)
        (when k (write-char #\] port) (write-serialized-arg k port))]
+      [letcc (kid exp)
+       (let* ([ids (list kid)] [sets (find-sets exp ids)]
+              [news (set-union (set-minus s ids) sets)]
+              [newl (cons kid l)])
+         (cond [k ; tail position with k locals on stack to be disposed of
+                (write-char #\k port) (write-serialized-arg k port)
+                (write-char #\, port)
+                (when (set-member? kid sets) 
+                  (write-char #\# port) (write-char #\0 port))
+                (codegen exp newl f news g (fx+ k 1) port)]
+               [else ; non-tail position 
+                (write-char #\$ port) (write-char #\{ port)
+                (write-char #\k port) (write-char #\0 port)
+                (write-char #\, port)
+                (when (set-member? kid sets) 
+                  (write-char #\# port) (write-char #\0 port))
+                (codegen exp newl f news g #f port)
+                (write-char #\_ port) (write-serialized-arg 3 port)
+                (write-char #\} port)]))]
+      [withcc (kexp exp)
+       (cond [(memq (car exp) '(quote ref lambda)) ; exp is a constant, return it
+              (codegen exp l f s g #f port) 
+              (write-char #\, port)
+              (codegen kexp (cons #f l) f s g #f port)
+              (write-char #\w port) (write-char #\! port)]
+             [else ; exp is not a constant, thunk it and call it from k
+              (codegen (list 'lambda '() exp) l f s g #f port) 
+              (write-char #\, port)
+              (codegen kexp (cons #f l) f s g #f port)
+              (write-char #\w port)])]
       [call (exp . args)
        (cond [(and (eq? (car exp) 'lambda) (list? (cadr exp))
                    (fx=? (length args) (length (cadr exp))))
@@ -1386,7 +1443,7 @@
 
 (define (repl-read iport)
   (when (eq? iport (current-input-port))
-    (display "\n3imp> "))
+    (display "\nskint> "))
   (read iport))
 
 (define (repl-from-port iport)
