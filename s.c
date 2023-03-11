@@ -26,6 +26,38 @@ char *s_code[] = {
   0,
   "&0{%2.1,.1e]2}@!(y16:%25residual-equal?)",
 
+  "box?",
+  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25boxp;y1:x;;;l2:py1:_;y"
+  "12:syntax-rules;;py14:%25residual-box?;y12:syntax-rules;;;l2:y1:_;y14:"
+  "%25residual-box?;;",
+
+  0,
+  "&0{%1.0Y2]1}@!(y14:%25residual-box?)",
+
+  "box",
+  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25box;y1:x;;;l2:py1:_;y1"
+  "2:syntax-rules;;py13:%25residual-box;y12:syntax-rules;;;l2:y1:_;y13:%2"
+  "5residual-box;;",
+
+  0,
+  "&0{%1.0b]1}@!(y13:%25residual-box)",
+
+  "unbox",
+  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y6:%25unbox;y1:x;;;l2:py1:_;"
+  "y12:syntax-rules;;py15:%25residual-unbox;y12:syntax-rules;;;l2:y1:_;y1"
+  "5:%25residual-unbox;;",
+
+  0,
+  "&0{%1.0z]1}@!(y15:%25residual-unbox)",
+
+  "set-box!",
+  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y7:%25setbox;y1:x;y1:y;"
+  ";;l2:py1:_;y12:syntax-rules;;py18:%25residual-set-box!;y12:syntax-rule"
+  "s;;;l2:y1:_;y18:%25residual-set-box!;;",
+
+  0,
+  "&0{%2.1,.1z!]2}@!(y18:%25residual-set-box!)",
+
   "fixnum?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25fixp;y1:x;;;l2:py1:_;y"
   "12:syntax-rules;;py17:%25residual-fixnum?;y12:syntax-rules;;;l2:y1:_;y"

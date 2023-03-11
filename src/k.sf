@@ -667,11 +667,6 @@
     [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
     [(_ x . d) 'x]))
 
-(install-sr-transformer! 'delay
-  (syntax-rules ()
-    [(_ exp)
-     (make-delayed (lambda () exp))]))
-
 (install-sr-transformer! 'when
   (syntax-rules ()
     [(_ test . rest) (if test (begin . rest))]))

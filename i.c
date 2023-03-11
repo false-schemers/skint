@@ -309,22 +309,22 @@ define_instrhelper(cxi_failactype) {
 
 #define ckp(x) do { obj _x = (x); if (unlikely(!ispair(_x))) \
   { ac = _x; spush((obj)"pair"); musttail return cxi_failactype(IARGS); } } while (0)
-#define cki(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x))) \
-  { ac = _x; spush((obj)"fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckk(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x) || fixnum_from_obj(_x) < 0)) \
-  { ac = _x; spush((obj)"nonnegative fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckj(x) do { obj _x = (x); if (unlikely(!is_flonum_obj(_x))) \
-  { ac = _x; spush((obj)"flonum"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckn(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x) && !is_flonum_obj(_x))) \
-  { ac = _x; spush((obj)"number"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckl(x) do { obj _x = (x); if (unlikely(!islist(_x))) \
   { ac = _x; spush((obj)"list"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckv(x) do { obj _x = (x); if (unlikely(!isvector(_x))) \
+  { ac = _x; spush((obj)"vector"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckc(x) do { obj _x = (x); if (unlikely(!ischar(_x))) \
   { ac = _x; spush((obj)"char"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cks(x) do { obj _x = (x); if (unlikely(!isstring(_x))) \
   { ac = _x; spush((obj)"string"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckv(x) do { obj _x = (x); if (unlikely(!isvector(_x))) \
-  { ac = _x; spush((obj)"vector"); musttail return cxi_failactype(IARGS); } } while (0)
+#define cki(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x))) \
+  { ac = _x; spush((obj)"fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckj(x) do { obj _x = (x); if (unlikely(!is_flonum_obj(_x))) \
+  { ac = _x; spush((obj)"flonum"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckn(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x) && !is_flonum_obj(_x))) \
+  { ac = _x; spush((obj)"number"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckk(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x) || fixnum_from_obj(_x) < 0)) \
+  { ac = _x; spush((obj)"nonnegative fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cky(x) do { obj _x = (x); if (unlikely(!issymbol(_x))) \
   { ac = _x; spush((obj)"symbol"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckr(x) do { obj _x = (x); if (unlikely(!isiport(_x))) \
@@ -333,6 +333,8 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"output port"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckx(x) do { obj _x = (x); if (unlikely(!isvmclo(_x))) \
   { ac = _x; spush((obj)"procedure"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckz(x) do { obj _x = (x); if (unlikely(!isbox(_x))) \
+  { ac = _x; spush((obj)"box, cell, or promise"); musttail return cxi_failactype(IARGS); } } while (0)
 
 
 define_instruction(halt) { unwindi(0); }
@@ -345,7 +347,9 @@ define_instruction(dref) { int i = fixnum_from_obj(*ip++); ac = dref(i); gonexti
 
 define_instruction(gref) { obj p = *ip++; ac = gref(p); gonexti(); }
 
-define_instruction(indirect) { ac = boxref(ac); gonexti(); }
+define_instruction(iref) { ac = boxref(ac); gonexti(); }
+
+define_instruction(iset) { boxref(ac) = spop(); gonexti(); }
 
 define_instruction(dclose) {
   int i, n = fixnum_from_obj(*ip++), c = n+1; 
@@ -642,70 +646,20 @@ define_instruction(shi0)  { spush(ac); ac = obj_from_fixnum(0); gonexti(); }
 
 /* type checks */
 
-define_instruction(ckp) {
-  if (likely(ispair(ac))) gonexti();
-  failactype("pair");
-}
-
-define_instruction(ckl) {
-  if (likely(islist(ac))) gonexti();
-  failactype("list");
-}
-
-define_instruction(ckv) {
-  if (likely(isvector(ac))) gonexti();
-  failactype("vector");
-}
-
-define_instruction(ckc) {
-  if (likely(ischar(ac))) gonexti();
-  failactype("char");
-}
-
-define_instruction(cks) {
-  if (likely(isstring(ac))) gonexti();
-  failactype("string");
-}
-
-define_instruction(cki) {
-  if (likely(is_fixnum_obj(ac))) gonexti();
-  failactype("fixnum");
-}
-
-define_instruction(ckj) {
-  if (likely(is_flonum_obj(ac))) gonexti();
-  failactype("flonum");
-}
-
-define_instruction(ckn) {
-  if (likely(is_fixnum_obj(ac) || is_flonum_obj(ac))) gonexti();
-  failactype("number");
-}
-
-define_instruction(ckk) {
-  if (likely(is_fixnum_obj(ac) && get_fixnum_unchecked(ac) >= 0)) gonexti();
-  failactype("nonnegative fixnum");
-}
-
-define_instruction(cky) {
-  if (likely(issymbol(ac))) gonexti();
-  failactype("symbol");
-}
-
-define_instruction(ckr) {
-  if (likely(isiport(ac))) gonexti();
-  failactype("input port");
-}
-
-define_instruction(ckw) {
-  if (likely(isoport(ac))) gonexti();
-  failactype("output port");
-}
-
-define_instruction(ckx) {
-  if (likely(isprocedure(ac))) gonexti(); // fixme?
-  failactype("procedure");
-}
+define_instruction(ckp) { ckp(ac); gonexti(); }
+define_instruction(ckl) { ckl(ac); gonexti(); }
+define_instruction(ckv) { ckv(ac); gonexti(); }
+define_instruction(ckc) { ckc(ac); gonexti(); }
+define_instruction(cks) { cks(ac); gonexti(); }
+define_instruction(cki) { cki(ac); gonexti(); }
+define_instruction(ckj) { ckj(ac); gonexti(); }
+define_instruction(ckn) { ckn(ac); gonexti(); }
+define_instruction(ckk) { ckk(ac); gonexti(); }
+define_instruction(cky) { cky(ac); gonexti(); }
+define_instruction(ckr) { ckr(ac); gonexti(); }
+define_instruction(ckw) { ckw(ac); gonexti(); }
+define_instruction(ckx) { ckx(ac); gonexti(); }
+define_instruction(ckz) { ckz(ac); gonexti(); }
 
 
 /* integrable instructions */
@@ -728,22 +682,27 @@ define_instruction(ise) {
   gonexti(); 
 }
 
+define_instruction(unbox) { ckz(ac); ac = boxref(ac); gonexti(); }
+define_instruction(setbox) { ckz(ac); boxref(ac) = spop(); gonexti(); }
+
+define_instruction(box) {
+  hp_reserve(hbsz(1+1));
+  *--hp = ac;
+  *--hp = obj_from_size(BOX_BTAG);
+  ac = hendblk(1+1);
+  gonexti();
+}
+
 define_instruction(car) { ckp(ac); ac = car(ac); gonexti(); }
 define_instruction(cdr) { ckp(ac); ac = cdr(ac); gonexti(); }
+define_instruction(setcar) { ckp(ac); car(ac) = spop(); gonexti(); }
+define_instruction(setcdr) { ckp(ac); cdr(ac) = spop(); gonexti(); }
+
 define_instruction(caar) { ckp(ac); ac = car(ac); ckp(ac); ac = car(ac); gonexti(); }
 define_instruction(cadr) { ckp(ac); ac = cdr(ac); ckp(ac); ac = car(ac); gonexti(); }
 define_instruction(cdar) { ckp(ac); ac = car(ac); ckp(ac); ac = cdr(ac); gonexti(); }
 define_instruction(cddr) { ckp(ac); ac = cdr(ac); ckp(ac); ac = cdr(ac); gonexti(); }
 
-define_instruction(setcar) {
-  ckp(ac); car(ac) = spop();
-  gonexti();
-}
-
-define_instruction(setcdr) {
-  ckp(ac); cdr(ac) = spop();
-  gonexti();
-}
 
 define_instruction(nullp) {
   ac = obj_from_bool(isnull(ac));
@@ -2202,6 +2161,11 @@ define_instruction(symp) {
 
 define_instruction(boolp) {
   ac = obj_from_bool(is_bool_obj(ac));
+  gonexti();
+}
+
+define_instruction(boxp) {
+  ac = obj_from_bool(isbox(ac));
   gonexti();
 }
 
