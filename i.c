@@ -400,23 +400,35 @@ define_instruction(appl) {
 }
 
 define_instruction(cwmv) {
-  obj prd = ac, cns = spop();
-  /* arrange return to cwmv code w/cns */
-  ckx(prd); ckx(cns); 
-  spush(cns);
-  spush(cx_callmv_2Dadapter_2Dclosure); 
-  spush(obj_from_fixnum(0));
-  /* call the producer */
-  rd = prd; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); 
-  callsubi(); 
+  obj t = ac, x = spop();
+  ckx(t); ckx(x);
+  if (vmcloref(x, 0) == cx_continuation_2Dadapter_2Dcode) {
+    /* arrange call of t with x as continuation */
+    int n = vmclolen(x) - 1;
+    assert((cxg_rend - cxg_regs - VM_REGC) > n);
+    sp = r + VM_REGC; /* stack is empty */
+    memcpy(sp, &vmcloref(x, 1), n*sizeof(obj));
+    sp += n; /* contains n elements now */
+    rd = t; rx = obj_from_fixnum(0); 
+    ac = obj_from_fixnum(0);
+    callsubi();
+  } else { 
+    /* arrange return to cwmv code w/x */
+    spush(x);
+    spush(cx_callmv_2Dadapter_2Dclosure); 
+    spush(obj_from_fixnum(0));
+    /* call the producer */
+    rd = t; rx = obj_from_fixnum(0); ac = obj_from_fixnum(0); 
+    callsubi(); 
+  }
 }
 
 define_instruction(rcmv) {
   /* single-value producer call returns here with result in ac, cns on stack */
-  obj val = ac, cns = spop();
+  obj val = ac, x = spop();
   /* tail-call the consumer with the returned value */
   spush(val); ac = obj_from_fixnum(1);
-  rd = cns; rx = obj_from_fixnum(0); 
+  rd = x; rx = obj_from_fixnum(0); 
   callsubi();
 }
 

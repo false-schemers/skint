@@ -482,7 +482,6 @@ declare_integrable(NULL,      "addd",  0, "%cdddar", 1, INLINED)
 declare_integrable(NULL,      "dddd",  0, "%cddddr", 1, INLINED)
 
 /* globals */
-declare_integrable(NULL,       NULL,   0, "%ccc", 1, "%1K1,.1[11")
 declare_integrable(NULL,       NULL,   0, "%appl", 2, "%2_!K3")
 declare_integrable(NULL,       NULL,   0, "%cwmv", 2, "%2_!K4")
 declare_integrable(NULL,       NULL,   0, "%sdmv", -1, "K6")
