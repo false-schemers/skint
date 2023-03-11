@@ -759,7 +759,7 @@
     [(_ . args) (%residual-apply . args)]
     [_ %residual-apply]))
 
-(define-syntax call/cc %ccc)
+(define-inline (call/cc f) %residual-call/cc (letcc k (f k)))
 
 (define-syntax call-with-current-continuation call/cc)
 

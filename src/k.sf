@@ -977,32 +977,33 @@
        (when k (write-char #\] port) (write-serialized-arg k port))]
       [letcc (kid exp)
        (let* ([ids (list kid)] [sets (find-sets exp ids)]
-              [news (set-union (set-minus s ids) sets)]
-              [newl (cons kid l)])
+              [news (set-union (set-minus s ids) sets)]) 
          (cond [k ; tail position with k locals on stack to be disposed of
                 (write-char #\k port) (write-serialized-arg k port)
                 (write-char #\, port)
                 (when (set-member? kid sets) 
                   (write-char #\# port) (write-char #\0 port))
-                (codegen exp newl f news g (fx+ k 1) port)]
+                ; stack map here: kid on top
+                (codegen exp (cons kid l) f news g (fx+ k 1) port)]
                [else ; non-tail position 
                 (write-char #\$ port) (write-char #\{ port)
                 (write-char #\k port) (write-char #\0 port)
                 (write-char #\, port)
                 (when (set-member? kid sets) 
                   (write-char #\# port) (write-char #\0 port))
-                (codegen exp newl f news g #f port)
+                ; stack map here: kid on top, two-slot frame under it
+                (codegen exp (cons kid (cons #f (cons #f l))) f news g #f port)
                 (write-char #\_ port) (write-serialized-arg 3 port)
                 (write-char #\} port)]))]
       [withcc (kexp exp)
        (cond [(memq (car exp) '(quote ref lambda)) ; exp is a constant, return it
               (codegen exp l f s g #f port) 
-              (write-char #\, port)
+              (write-char #\, port) ; stack map after: k on top
               (codegen kexp (cons #f l) f s g #f port)
               (write-char #\w port) (write-char #\! port)]
              [else ; exp is not a constant, thunk it and call it from k
               (codegen (list 'lambda '() exp) l f s g #f port) 
-              (write-char #\, port)
+              (write-char #\, port) ; stack map after: k on top
               (codegen kexp (cons #f l) f s g #f port)
               (write-char #\w port)])]
       [call (exp . args)

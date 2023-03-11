@@ -1721,8 +1721,12 @@ char *s_code[] = {
   "rgs;;;l2:y1:_;y15:%25residual-apply;;",
 
   "call/cc",
-  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py4:%25ccc;y4:args;;;l2:y1:_;y"
-  "4:%25ccc;;",
+  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:f;;l3:y5:letcc;y1:k;l2:y1:f;y1:k;;"
+  ";;l2:py1:_;y12:syntax-rules;;py17:%25residual-call/cc;y12:syntax-rules"
+  ";;;l2:y1:_;y17:%25residual-call/cc;;",
+
+  0,
+  "&0{%1k1,.0,.2[21}@!(y17:%25residual-call/cc)",
 
   "call-with-current-continuation",
   "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py7:call/cc;y4:args;;;l2:y1:_;"
