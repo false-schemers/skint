@@ -6,7 +6,6 @@
 /* imports */
 extern obj cx__2Aglobals_2A;
 extern obj cx__2Atransformers_2A;
-extern obj cx_continuation_2Dclosure_2Dcode;
 extern obj cx_continuation_2Dadapter_2Dcode;
 extern obj cx_callmv_2Dadapter_2Dclosure;
 
@@ -388,28 +387,6 @@ define_instruction(dseti) {
 define_instruction(gset) {
   obj p = *ip++;
   gref(p) = ac;
-  gonexti();
-}
-
-define_instruction(conti) {
-  int n; ckx(sref(0));
-  n = (int)(sp - (r + VM_REGC));
-  hp_reserve(vmclobsz(2)+hbsz(n+1));
-  hp -= n; memcpy(hp, sp-n, n*sizeof(obj));
-  *--hp = obj_from_size(VECTOR_BTAG);
-  ac = hendblk(n+1); /* stack copy */   
-  *--hp = ac;
-  *--hp = cx_continuation_2Dclosure_2Dcode;
-  ac = hpushvmclo(2); /* closure */   
-  gonexti();
-}
-
-define_instruction(nuate) {
-  obj v = dref(0); int n = vectorlen(v);
-  assert((cxg_rend - cxg_regs - VM_REGC) > n);
-  sp = r + VM_REGC; /* stack is empty */
-  memcpy(sp, &vectorref(v, 0), n*sizeof(obj));
-  sp += n; /* contains n elements now */
   gonexti();
 }
 

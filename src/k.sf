@@ -1237,8 +1237,7 @@
 ; Initial environment
 ;---------------------------------------------------------------------------------------------
 
-; NB: 'nuate' restores stack with fn arg on top of return triple
-(define continuation-closure-code (decode "%1.0K2]1"))
+; adapter code for continuation closures produced by letcc 
 (define continuation-adapter-code (decode "k!"))
 
 ; adapter closure for values/call-with-values pair

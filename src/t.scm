@@ -116,9 +116,9 @@
         (cons x (loop (car rest) (cdr rest))))))
 
 (define (list1? x) (and (pair? x) (null? (cdr x))))
+(define (list1+? x) (and (pair? x) (list? (cdr x))))
 (define (list2? x) (and (pair? x) (list1? (cdr x))))
-(define (list3? x) (and (pair? x) (list2? (cdr x))))
-(define (list4? x) (and (pair? x) (list3? (cdr x))))
+(define (list2+? x) (and (pair? x) (list1+? (cdr x))))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -130,6 +130,8 @@
 ;  <core> -> (set! <id> <core>)
 ;  <core> -> (lambda <ids> <core>) where <ids> -> (<id> ...) | (<id> ... . <id>) | <id>
 ;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>) 
+;  <core> -> (letcc <id> <core>) 
+;  <core> -> (withcc <core> <core>) 
 ;  <core> -> (begin <core> ...)
 ;  <core> -> (if <core> <core> <core>)
 ;  <core> -> (call <core> <core> ...) 
@@ -162,7 +164,6 @@
     (if (pair? ilist)
         (fx+ 1 (idslist-req-count (cdr ilist)))
         0)))
-
 
 ;---------------------------------------------------------------------------------------------
 ; Macro transformer (from Scheme to Scheme Core) derived from Al Petrofsky's EIOD 1.17
@@ -232,6 +233,8 @@
                   [(if)            (xform-if tail env)]
                   [(lambda)        (xform-lambda tail env)]
                   [(lambda*)       (xform-lambda* tail env)]
+                  [(letcc)         (xform-letcc tail env)]
+                  [(withcc)        (xform-withcc tail env)]
                   [(body)          (xform-body tail env)]
                   [(define)        (xform-define (car tail) (cadr tail) env)]
                   [(define-syntax) (xform-define-syntax (car tail) (cadr tail) env)]
@@ -312,6 +315,19 @@
               tail))
       (error 'transform "improper lambda* form")))
 
+(define (xform-letcc tail env)
+  (if (and (list2+? tail) (id? (car tail)))
+      (let* ([var (car tail)] [nvar (gensym (id->sym var))])
+        (list 'letcc nvar 
+          (xform-body (cdr tail) (add-var var nvar env))))
+      (error 'transform "improper letcc form")))
+
+(define (xform-withcc tail env)
+  (if (list2+? tail)
+      (list 'withcc (xform #f (car tail) env)
+        (xform-body (cdr tail) env))
+      (error 'transform "improper withcc form")))
+
 (define (xform-body tail env)
   (if (null? tail)
       (list 'begin)
@@ -379,10 +395,12 @@
     (make-binding 'define-syntax 'define-syntax)
     (make-binding 'quote 'quote)
     (make-binding 'set! 'set!)
-    (make-binding 'begin 'begin)
-    (make-binding 'if 'if)
     (make-binding 'lambda 'lambda)
     (make-binding 'lambda* 'lambda*)
+    (make-binding 'letcc 'letcc)
+    (make-binding 'withcc 'withcc)
+    (make-binding 'begin 'begin)
+    (make-binding 'if 'if)
     (make-binding 'body 'body)
     denotation-of-default-ellipsis))
 
@@ -408,7 +426,7 @@
     (syntax-rules* top-transformer-env ell lits rules)))
 
 (define (transform appos? sexp . optenv)
-  (gensym #f) ; reset gs counter to make results reproducible
+  ; (gensym #f) ; reset gs counter to make results reproducible
   (xform appos? sexp (if (null? optenv) top-transformer-env (car optenv))))
 
 

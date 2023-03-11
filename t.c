@@ -59,13 +59,13 @@ char *t_code[] = {
   "&0{%1.0p?{.0du]1}f]1}@!(y6:list1?)",
 
   0,
+  "&0{%1.0p?{.0dL0]1}f]1}@!(y7:list1+?)",
+
+  0,
   "&0{%1.0p?{.0d,@(y6:list1?)[11}f]1}@!(y6:list2?)",
 
   0,
-  "&0{%1.0p?{.0d,@(y6:list2?)[11}f]1}@!(y6:list3?)",
-
-  0,
-  "&0{%1.0p?{.0d,@(y6:list3?)[11}f]1}@!(y6:list4?)",
+  "&0{%1.0p?{.0d,@(y7:list1+?)[11}f]1}@!(y7:list2+?)",
 
   0,
   "&0{%1${.2,@(y6:list2?)[01}?{.0aI0?{.0daY1}{f}}{f}?{.0]1}.0,'0,,#0.0,&1"
@@ -145,11 +145,12 @@ char *t_code[] = {
   ",.1A1?{.6,.3da,.4a,@(y10:xform-set!)[73}'(l1:y5:begin;)%l,.1A1?{.6,.3,"
   "@(y11:xform-begin)[72}'(l1:y2:if;)%l,.1A1?{.6,.3,@(y8:xform-if)[72}'(l"
   "1:y6:lambda;)%l,.1A1?{.6,.3,@(y12:xform-lambda)[72}'(l1:y7:lambda*;)%l"
-  ",.1A1?{.6,.3,@(y13:xform-lambda*)[72}'(l1:y4:body;)%l,.1A1?{.6,.3,@(y1"
-  "0:xform-body)[72}'(l1:y6:define;)%l,.1A1?{.6,.3da,.4a,@(y12:xform-defi"
-  "ne)[73}'(l1:y13:define-syntax;)%l,.1A1?{.6,.3da,.4a,@(y19:xform-define"
-  "-syntax)[73}t?{.1K0?{.6,${.9,.9,.6[02},.6,@(y5:xform)[73}.6,.3,.3,@(y1"
-  "0:xform-call)[73}f]7}@!(y5:xform)",
+  ",.1A1?{.6,.3,@(y13:xform-lambda*)[72}'(l1:y5:letcc;)%l,.1A1?{.6,.3,@(y"
+  "11:xform-letcc)[72}'(l1:y6:withcc;)%l,.1A1?{.6,.3,@(y12:xform-withcc)["
+  "72}'(l1:y4:body;)%l,.1A1?{.6,.3,@(y10:xform-body)[72}'(l1:y6:define;)%"
+  "l,.1A1?{.6,.3da,.4a,@(y12:xform-define)[73}'(l1:y13:define-syntax;)%l,"
+  ".1A1?{.6,.3da,.4a,@(y19:xform-define-syntax)[73}t?{.1K0?{.6,${.9,.9,.6"
+  "[02},.6,@(y5:xform)[73}.6,.3,.3,@(y10:xform-call)[73}f]7}@!(y5:xform)",
 
   0,
   "&0{%2${.2,,#0.0,&1{%1${.2,@(y3:id?)[01}?{.0,@(y7:id->sym)[11}.0p?{${.2"
@@ -203,6 +204,17 @@ char *t_code[] = {
   "da* form),'(y9:transform),@(y5:error)[22}@!(y13:xform-lambda*)",
 
   0,
+  "&0{%2${.2,@(y7:list2+?)[01}?{${.2a,@(y3:id?)[01}}{f}?{.0a,${${.4,@(y7:"
+  "id->sym)[01},@(y6:gensym)[01},${${.7,.5,.7,@(y7:add-var)[03},.5d,@(y10"
+  ":xform-body)[02},.1,'(y5:letcc),l3]4}'(s19:improper letcc form),'(y9:t"
+  "ransform),@(y5:error)[22}@!(y11:xform-letcc)",
+
+  0,
+  "&0{%2${.2,@(y7:list2+?)[01}?{${.3,.3d,@(y10:xform-body)[02},${.4,.4a,f"
+  ",@(y5:xform)[03},'(y6:withcc),l3]2}'(s20:improper withcc form),'(y9:tr"
+  "ansform),@(y5:error)[22}@!(y12:xform-withcc)",
+
+  0,
   "&0{%2.0u?{n,'(y5:begin)c]2}.0,n,n,n,.5,,#0.0,&1{%5.4p?{.4ap}{f}?{.4d,."
   "5a,.0a,${.5,.3,t,@(y5:xform)[03},.0,'(l1:y5:begin;)%l,.1A1?{.4,.4dL6,."
   "9,.9,.9,.9,:0^[(i10)5}'(l1:y6:define;)%l,.1A1?{.3da,.4dda,${${.5,@(y7:"
@@ -240,14 +252,15 @@ char *t_code[] = {
 
   0,
   "@(y30:denotation-of-default-ellipsis),${'(y4:body),'(y4:body),@(y12:ma"
-  "ke-binding)[02},${'(y7:lambda*),'(y7:lambda*),@(y12:make-binding)[02},"
-  "${'(y6:lambda),'(y6:lambda),@(y12:make-binding)[02},${'(y2:if),'(y2:if"
-  "),@(y12:make-binding)[02},${'(y5:begin),'(y5:begin),@(y12:make-binding"
-  ")[02},${'(y4:set!),'(y4:set!),@(y12:make-binding)[02},${'(y5:quote),'("
-  "y5:quote),@(y12:make-binding)[02},${'(y13:define-syntax),'(y13:define-"
-  "syntax),@(y12:make-binding)[02},${'(y6:define),'(y6:define),@(y12:make"
-  "-binding)[02},${'(y6:syntax),'(y6:syntax),@(y12:make-binding)[02},l(i1"
-  "1)@!(y14:*transformers*)",
+  "ke-binding)[02},${'(y2:if),'(y2:if),@(y12:make-binding)[02},${'(y5:beg"
+  "in),'(y5:begin),@(y12:make-binding)[02},${'(y6:withcc),'(y6:withcc),@("
+  "y12:make-binding)[02},${'(y5:letcc),'(y5:letcc),@(y12:make-binding)[02"
+  "},${'(y7:lambda*),'(y7:lambda*),@(y12:make-binding)[02},${'(y6:lambda)"
+  ",'(y6:lambda),@(y12:make-binding)[02},${'(y4:set!),'(y4:set!),@(y12:ma"
+  "ke-binding)[02},${'(y5:quote),'(y5:quote),@(y12:make-binding)[02},${'("
+  "y13:define-syntax),'(y13:define-syntax),@(y12:make-binding)[02},${'(y6"
+  ":define),'(y6:define),@(y12:make-binding)[02},${'(y6:syntax),'(y6:synt"
+  "ax),@(y12:make-binding)[02},l(i13)@!(y14:*transformers*)",
 
   0,
   "&0{%1${@(y14:*transformers*),.3,@(y16:find-top-binding)[02},${.2,@(y8:"
@@ -266,8 +279,8 @@ char *t_code[] = {
   ",@(y20:install-transformer!)[42}@!(y26:install-transformer-rules!)",
 
   0,
-  "&0{%!2${f,@(y6:gensym)[01}.0u?{@(y19:top-transformer-env)}{.0a},.3,.3,"
-  "@(y5:xform)[33}@!(y9:transform)",
+  "&0{%!2.0u?{@(y19:top-transformer-env)}{.0a},.3,.3,@(y5:xform)[33}@!(y9"
+  ":transform)",
 
   0,
   "&0{%4,,,,,,,#0#1#2#3#4#5#6.9,&1{%1:0,.1A0]1}.!0.0,&1{%1${.2,:0^[01}~]1"
