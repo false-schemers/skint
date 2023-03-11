@@ -7,6 +7,7 @@
 extern obj cx__2Aglobals_2A;
 extern obj cx__2Atransformers_2A;
 extern obj cx_continuation_2Dclosure_2Dcode;
+extern obj cx_continuation_2Dadapter_2Dcode;
 extern obj cx_callmv_2Dadapter_2Dclosure;
 
 #define istagged(o, t) istagged_inlined(o, t) 
@@ -469,29 +470,31 @@ define_instruction(lck) {
   int m = fixnum_from_obj(*ip++);
   int n; cki(sref(m)); ckx(sref(m+1));
   n = (int)(sp-m-(r+VM_REGC));
-  hp_reserve(hbsz(n+1));
+  hp_reserve(vmclobsz(n+1));
   hp -= n; memcpy(hp, sp-n-m, n*sizeof(obj));
-  *--hp = obj_from_size(VECTOR_BTAG);
-  ac = hendblk(n+1); /* stack copy */
+  *--hp = cx_continuation_2Dadapter_2Dcode;
+  ac = hpushvmclo(n+1);
   gonexti();
 }
 
 define_instruction(lck0) {
   int n; cki(sref(0)); ckx(sref(1));
   n = (int)(sp-(r+VM_REGC));
-  hp_reserve(hbsz(n+1));
+  hp_reserve(vmclobsz(n+1));
   hp -= n; memcpy(hp, sp-n, n*sizeof(obj));
-  *--hp = obj_from_size(VECTOR_BTAG);
-  ac = hendblk(n+1); /* stack copy */
+  *--hp = cx_continuation_2Dadapter_2Dcode;
+  ac = hendblk(n+1);
   gonexti();
 }
 
 define_instruction(wck) {
-  obj v = ac, t = spop(); int n; ckx(t); ckv(v);
-  n = vectorlen(v);
+  obj x = ac, t = spop(); int n; ckx(t); ckx(x);
+  if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
+    failactype("continuation");
+  n = vmclolen(x) - 1;
   assert((cxg_rend - cxg_regs - VM_REGC) > n);
   sp = r + VM_REGC; /* stack is empty */
-  memcpy(sp, &vectorref(v, 0), n*sizeof(obj));
+  memcpy(sp, &vmcloref(x, 1), n*sizeof(obj));
   sp += n; /* contains n elements now */
   rd = t; rx = obj_from_fixnum(0); 
   ac = obj_from_fixnum(0);
@@ -499,16 +502,40 @@ define_instruction(wck) {
 }
 
 define_instruction(wckr) {
-  obj v = ac, o = spop(); int n; ckv(v);
-  n = vectorlen(v);
+  obj x = ac, o = spop(); int n; ckx(x);
+  if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
+    failactype("continuation");
+  n = vmclolen(x) - 1;
   assert((cxg_rend - cxg_regs - VM_REGC) > n);
   sp = r + VM_REGC; /* stack is empty */
-  memcpy(sp, &vectorref(v, 0), n*sizeof(obj));
+  memcpy(sp, &vmcloref(x, 1), n*sizeof(obj));
   sp += n;
   ac = o;
   rx = spop();
   rd = spop();
   retfromi();
+}
+
+define_instruction(rck) {
+  /* in: ac:argc, args on stack, rd display is saved stack */
+  if (ac == obj_from_fixnum(1)) { /* easy, popular case */
+    ac = rd; 
+    goi(wckr);
+  } else { /* multiple results case */
+    int c = fixnum_from_obj(ac), n = vmclolen(rd) - 1;
+    obj *ks = &vmcloref(rd, 1), *ke = ks + n;
+    if (ke-ks > 3 && *--ke == obj_from_fixnum(0) && *--ke == cx_callmv_2Dadapter_2Dclosure) {
+      obj *sb = r + VM_REGC;
+      rd = *--ke; rx = obj_from_fixnum(0); n = ke - ks; /* cns */
+      /* arrange stack as follows: [ks..ke] [arg ...] */
+      assert((cxg_rend - cxg_regs - VM_REGC) > n + c);
+      if (c) memmove(sb+n, sp-c, c*sizeof(obj));
+      memcpy(sb, ks, n*sizeof(obj));
+      sp = sb+n+c; callsubi();
+    } else {
+      fail("multiple values returned to single value continuation");
+    }
+  } 
 }
 
 define_instruction(save) {

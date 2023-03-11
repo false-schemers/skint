@@ -129,9 +129,9 @@
         (cons x (loop (car rest) (cdr rest))))))
 
 (define (list1? x) (and (pair? x) (null? (cdr x))))
+(define (list1+? x) (and (pair? x) (list? (cdr x))))
 (define (list2? x) (and (pair? x) (list1? (cdr x))))
-(define (list3? x) (and (pair? x) (list2? (cdr x))))
-(define (list4? x) (and (pair? x) (list3? (cdr x))))
+(define (list2+? x) (and (pair? x) (list1+? (cdr x))))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -329,16 +329,16 @@
       (error 'transform "improper lambda* form")))
 
 (define (xform-letcc tail env)
-  (if (and (list2? tail) (id? (car tail)))
+  (if (and (list2+? tail) (id? (car tail)))
       (let* ([var (car tail)] [nvar (gensym (id->sym var))])
         (list 'letcc nvar 
-          (xform #f (cadr tail) (add-var var nvar env))))
+          (xform-body (cdr tail) (add-var var nvar env))))
       (error 'transform "improper letcc form")))
 
 (define (xform-withcc tail env)
-  (if (list2? tail)
+  (if (list2+? tail)
       (list 'withcc (xform #f (car tail) env)
-        (xform #f (cadr tail) env))
+        (xform-body (cdr tail) env))
       (error 'transform "improper withcc form")))
 
 (define (xform-body tail env)
@@ -1238,6 +1238,7 @@
 
 ; NB: 'nuate' restores stack with fn arg on top of return triple
 (define continuation-closure-code (decode "%1.0K2]1"))
+(define continuation-adapter-code (decode "k!"))
 
 ; adapter closure for values/call-with-values pair
 (define callmv-adapter-closure (make-closure (decode "K5")))
