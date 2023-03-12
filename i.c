@@ -89,13 +89,13 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define VM_STACK_GSZ  (VM_STACK_LEN-VM_STACK_RSZ)
 
 /* vm closure representation */
-#ifdef VMCLO_AS_VECTOR
-#define isvmclo       isvector
-#define vmcloref      vectorref
-#define vmclolen      vectorlen
-#define vmclobsz(c)   hbsz((c)+1)
-#define hpushvmclo(c) (*--hp = obj_from_size(VECTOR_BTAG), hendblk((c)+1))
-#else /* as procedure with code vector */
+#ifdef NDEBUG /* quick */
+#define isvmclo(x)    (isobjptr(x) && isobjptr(hblkref(x, 0)))
+#define vmcloref(x,i) hblkref(x, i)
+#define vmclolen(x)   hblklen(x)
+#define vmclobsz(c)   hbsz(c)
+#define hpushvmclo(c) hendblk(c)
+#else /* slow but thorough */
 #define isvmclo       isprocedure
 #define vmcloref      *procedureref
 #define vmclolen      procedurelen
