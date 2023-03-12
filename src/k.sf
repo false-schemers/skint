@@ -690,15 +690,15 @@
 
 (define global-location
   (lambda (sym)
-    (let ([loc (assq sym *globals*)])
-      (if (pair? loc)
-          loc
-          (let ([loc (cons sym 'undefined)])
-            (set! *globals* (cons loc *globals*))
+    (let ([p (assq sym *globals*)])
+      (if (pair? p)
+          (cdr p)
+          (let ([loc (box 'undefined)])
+            (set! *globals* (cons (cons sym loc) *globals*))
             loc)))))
 
-(define-syntax index-global cdr)
-(define-syntax index-set-global! set-cdr!)
+(define-syntax index-global unbox)
+(define-syntax index-set-global! set-box!)
 
 
 ;---------------------------------------------------------------------------------------------

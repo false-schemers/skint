@@ -80,10 +80,13 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define rx   (r[2])   /* next instruction (index in closure's code) */
 #define rd   (r[3])   /* current closure/display (vector of [0]=code, display) */
 #define rs   (r[4])   /* shadow reg for stack pointer */
+#define rz   (r[5])   /* red zone for stack pointer (r + len - rsz) */
 
 /* the rest of the register file is used as a stack */
-#define VM_REGC       5    /* r[0] ... r[4] */
-#define VM_STACK_LEN  1000 /* r[5] ... r[1004] */
+#define VM_REGC       6    /* r[0] ... r[5] */
+#define VM_STACK_LEN  1000 /* r[6] ... r[1005] */
+#define VM_STACK_RSZ  64   /* red zone for overflow checks */
+#define VM_STACK_GSZ  (VM_STACK_LEN-VM_STACK_RSZ)
 
 /* vm closure representation */
 #ifdef VMCLO_AS_VECTOR
@@ -107,11 +110,23 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 
 #define sref(i)       (sp[-(i)-1])
 #define dref(i)       (vmcloref(rd, (i)+1))
-#define gref(p)       (cdr(p))
-#define spush(o)      (*sp++ = o) /* todo: overflow check */
-#define spop()        (*--sp)     /* todo: underflow check */
-#define sdrop(n)      (sp -= (n)) /* todo: underflow check */
-#define sgrow(n)      (sp += (n)) /* todo: overflow check */
+#define gref(p)       (boxref(p))
+#ifdef _DEBUG
+static void _sck(obj *s) { 
+  assert(s != NULL);
+  assert(s >= cxg_regs + VM_REGC);
+  assert(s < cxg_rend); 
+}
+#define spush(o)      (_sck(sp), *sp++ = o)
+#define spop()        (_sck(sp), *--sp)
+#define sdrop(n)      (_sck(sp), sp -= (n))
+#define sgrow(n)      (_sck(sp), sp += (n))
+#else
+#define spush(o)      (*sp++ = o)
+#define spop()        (*--sp)
+#define sdrop(n)      (sp -= (n))
+#define sgrow(n)      (sp += (n))
+#endif
 
 #define hp_reserve(n) do { \
  if (unlikely(hp < cxg_heap + (n))) { \
@@ -128,12 +143,13 @@ typedef obj* regcall (*ins_t)(IPARAMS);
 #define goi(name)     musttail return (glue(cxi_, name)(IARGS))
 #define gonexti()     musttail return ((ins_from_obj(*ip))(IARGS1))
 #define unwindi(c)    return (unload_ac(), unload_ip(), rd = (c), hp)
+#define check_sp()    if (unlikely(sp > (obj*)rz)) fail("stack overflow")
 #ifdef VM_MUSTTAIL_GUARANTEE
-  #define callsubi()  reload_ip(); gonexti()
+  #define callsubi()  check_sp(); reload_ip(); gonexti()
   #define retfromi()  reload_ip(); gonexti()
   #define trampcnd()  (0)
 #else
-  #define callsubi()  unload_sp(); return hp
+  #define callsubi()  check_sp(); unload_sp(); return hp
   #define retfromi()  unload_sp(); return hp
   #define trampcnd()  (rd)
 #endif
@@ -164,14 +180,14 @@ obj vmcases[8] = {
 static obj vmhost(obj pc)
 {
   ILOCALS;
-  int rc = cxg_rc;
+  int rc = cxg_rc, i;
   r = cxg_regs; hp = cxg_hp;
 jump: 
   switch (objptr_from_obj(pc)-vmcases) {
 
   case 0: /* execute-thunk-closure */    
     /* r[0] = self, r[1] = k, r[2] = closure */
-    { obj k, arg;
+    { obj k, arg; 
     assert(rc == 3);
     k = r[1]; arg = r[2];
     r = cxm_rgc(NULL, VM_REGC + VM_STACK_LEN);
@@ -180,12 +196,13 @@ jump:
     rx = obj_from_fixnum(0); /* shadow ip */ 
     rd = arg; /* thunk closure to execute */
     rs = obj_from_fixnum(VM_REGC); /* sp */
+    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
     do { /* unwindi trampoline */
       reload_ac(); /* ra => ac */
       reload_ip(); /* rd/rx => ip */
       reload_sp(); /* rs => sp */
       hp = (ins_from_obj(*ip))(IARGS1);
-    } while (trampcnd());
+    } while (likely(trampcnd()));
     /* r[0] = k, r[1] = result */
     r[2] = r[1];
     r[1] = obj_from_ktrap();
@@ -211,7 +228,9 @@ jump:
     { assert(rc == 3);
     r[0] = r[1]; r[1] = r[2]; 
     /* r[0] = k; r[1] = xstr */
-    hp = rds_stox(r, r+2, hp); /* r[1] -> r[1] */
+    for (i = 3; i < VM_REGC; ++i) r[i] = 0; 
+    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
+    hp = rds_stox(r, r+VM_REGC, hp); /* r[1] -> r[1] */
     r[2] = r[1]; r[1] = obj_from_ktrap();
     /* r[0] = k; r[1] = ek; r[2] = code */
     pc = objptr_from_obj(r[0])[0];
@@ -223,7 +242,9 @@ jump:
     { assert(rc == 3);
     r[0] = r[1]; r[1] = r[2]; 
     /* r[0] = k; r[1] = cstr */
-    hp = rds_stoc(r, r+2, hp); /* r[1] -> r[1] */
+    for (i = 3; i < VM_REGC; ++i) r[i] = 0;
+    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
+    hp = rds_stoc(r, r+VM_REGC, hp); /* r[1] -> r[1] */
     r[2] = r[1]; r[1] = obj_from_ktrap();
     /* r[0] = k; r[1] = ek; r[2] = code */
     pc = objptr_from_obj(r[0])[0];
@@ -259,7 +280,9 @@ jump:
     /* r[0] = clo, r[1] = k */
     { assert(rc == 2);
     r[0] = r[1];
-    hp = rds_intgtab(r, r+2, hp);
+    for (i = 2; i < VM_REGC; ++i) r[i] = 0;
+    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
+    hp = rds_intgtab(r, r+VM_REGC, hp);
     r[1] = obj_from_ktrap();
     r[2] = obj_from_void(0);
     pc = objptr_from_obj(r[0])[0];
@@ -271,7 +294,9 @@ jump:
     { assert(rc == 2);
     r[0] = r[1];
     r = cxm_rgc(NULL, VM_REGC + VM_STACK_LEN);
-    hp = init_modules(r, r+2, hp);
+    for (i = 2; i < VM_REGC; ++i) r[i] = 0;
+    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
+    hp = init_modules(r, r+VM_REGC, hp);
     r[1] = obj_from_ktrap();
     r[2] = obj_from_void(0);
     pc = objptr_from_obj(r[0])[0];
@@ -3028,13 +3053,17 @@ static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
 {
   if (issymbol(ra)) {
     obj p = isassv(ra, cx__2Aglobals_2A);
-    if (ispair(p)) ra = p;
-    else { /* prepend (sym . undefined) to *globals* */
-      hreserve(hbsz(3)*2, sp-r);
-      *--hp = mksymbol(internsym("undefined")); *--hp = ra;
+    if (ispair(p)) ra = cdr(p);
+    else { /* prepend (sym . #&undefined) to *globals* */
+      obj box;
+      hreserve(hbsz(2)*1+hbsz(3)*2, sp-r);
+      *--hp = mksymbol(internsym("undefined")); 
+      *--hp = obj_from_size(BOX_BTAG); box = hendblk(2);
+      *--hp = box; *--hp = ra;
       *--hp = obj_from_size(PAIR_BTAG); ra = hendblk(3);
       *--hp = cx__2Aglobals_2A; *--hp = ra;
       *--hp = obj_from_size(PAIR_BTAG); cx__2Aglobals_2A = hendblk(3);
+      ra = box;
     }
   } else {
     ra = mkeof();
@@ -3265,12 +3294,12 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
     if (!lcode || *lcode == 0) continue;
     ra = mksymbol(internsym(pe->igname));
     hp = rds_global_loc(r, sp, hp); /* ra->ra */
-    spush(ra);
+    spush(ra); assert(isbox(ra));
     ra = mkiport_string(sp-r, sialloc(lcode, NULL));
     hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
     if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
     if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
-    if (!iseof(ra)) cdr(spop()) = ra;
+    if (!iseof(ra)) boxref(spop()) = ra;
   }
   return hp;
 }
@@ -3280,7 +3309,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
 {
   const char **ent;
   /* make sure we are called in a clean vm state */
-  assert(r == cxg_regs); assert(sp-r == 2); /* k, ra (for temp use) */
+  assert(r == cxg_regs); assert(sp-r == VM_REGC); /* k, ra (for temp use) */
   /* go over module entries and install/execute */
   for (ent = mod; ent[1] != NULL; ent += 2) {
     const char *name = ent[0], *data = ent[1];
@@ -3327,6 +3356,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       ra = obj_from_fixnum(0); /* argc, shadow ac */
       rx = obj_from_fixnum(0); /* shadow ip */ 
       rs = obj_from_fixnum(VM_REGC); /* sp */
+      rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
       do { /* unwindi trampoline */
         reload_ac(); /* ra => ac */
         reload_ip(); /* rd/rx => ip */
@@ -3334,6 +3364,8 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
         hp = (ins_from_obj(*ip))(IARGS1);
       } while (trampcnd());
       /* r[0] = k, r[1] = random result */
+      assert(r == cxg_regs);
+      sp = r + VM_REGC;
     }
   }
   return hp;
