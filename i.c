@@ -103,11 +103,20 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define hpushvmclo(c) hendblk(c)
 #endif
 
+/* vm tuple representation (c != 1) */
+#define istuple(x)    (isrecord(x) && recordrtd(x) == 0)  
+#define tupleref      recordref
+#define tuplelen      recordlen
+#define tuplebsz(c)   hbsz((c)+2)
+#define hpushtuple(c) (*--hp = 0, *--hp = obj_from_size(RECORD_BTAG), hendblk((c)+2))
+
+/* in/re-loading gc-save shadow registers */
 #define unload_ip()   (rx = obj_from_fixnum(ip - &vectorref(vmcloref(rd, 0), 0)))
 #define reload_ip()   (ip = &vectorref(vmcloref(rd, 0), fixnum_from_obj(rx)))
 #define unload_sp()   (rs = obj_from_fixnum(sp - r))
 #define reload_sp()   (sp = r + fixnum_from_obj(rs))
 
+/* access to stack, display, global cells */
 #define sref(i)       (sp[-(i)-1])
 #define dref(i)       (vmcloref(rd, (i)+1))
 #define gref(p)       (boxref(p))
@@ -476,15 +485,21 @@ define_instruction(sdmv) {
     retfromi();
   } else {
     /* can only pseudo-return to rcmv */
-    int n = fixnum_from_obj(ac), m = 3;
+    int n = fixnum_from_obj(ac), m = 3, i;
     if (sref(n) == obj_from_fixnum(0) && sref(n+1) == cx_callmv_2Dadapter_2Dclosure) {
       /* tail-call the consumer with the produced values */
       rd = sref(n+2); rx = obj_from_fixnum(0); /* cns */
       /* NB: can be sped up for popular cases: n == 0, n == 2 */
       memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
       sdrop(m); callsubi();
-    } else {
-      fail("multiple values returned to single value context");
+    } else { /* return args as a tuple (n != 1) */
+      hp_reserve(tuplebsz(n));
+      for (i = n-1; i >= 0; --i) *--hp = sref(i);
+      ac = hpushtuple(n);
+      sdrop(n);
+      rx = spop();
+      rd = spop();
+      retfromi();
     }
   }
 }
@@ -545,7 +560,7 @@ define_instruction(rck) {
     ac = rd; 
     goi(wckr);
   } else { /* multiple results case */
-    int c = fixnum_from_obj(ac), n = vmclolen(rd) - 1;
+    int c = fixnum_from_obj(ac), n = vmclolen(rd) - 1, i;
     obj *ks = &vmcloref(rd, 1), *ke = ks + n;
     if (ke-ks > 3 && *--ke == obj_from_fixnum(0) && *--ke == cx_callmv_2Dadapter_2Dclosure) {
       obj *sb = r + VM_REGC;
@@ -555,8 +570,14 @@ define_instruction(rck) {
       if (c) memmove(sb+n, sp-c, c*sizeof(obj));
       memcpy(sb, ks, n*sizeof(obj));
       sp = sb+n+c; callsubi();
-    } else {
-      fail("multiple values returned to single value continuation");
+    } else { /* return args as a tuple (c != 1) */
+      hp_reserve(tuplebsz(c));
+      for (i = c-1; i >= 0; --i) *--hp = sref(i);
+      ac = hpushtuple(c);
+      sdrop(c);
+      spush(ac);
+      ac = rd;
+      goi(wckr);
     }
   } 
 }
