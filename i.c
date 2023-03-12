@@ -781,7 +781,7 @@ define_instruction(listp) {
 
 define_instruction(list) {
   int i, n = fixnum_from_obj(*ip++);
-  hp_reserve(hbsz((2+1)*n));
+  hp_reserve(hbsz(2+1)*n);
   for (ac = mknull(), i = n-1; i >= 0; --i) {
     *--hp = ac;      /* cdr */
     *--hp = sref(i); /* car */
@@ -1024,7 +1024,7 @@ define_instruction(vcat) {
 define_instruction(vtol) {
   obj l = mknull(); int n;
   ckv(ac); n = vectorlen(ac);
-  hp_reserve(hbsz((2+1)*n));
+  hp_reserve(hbsz(2+1)*n);
   while (n > 0) {
     *--hp = l; *--hp = vectorref(ac, n-1);
     *--hp = obj_from_size(PAIR_BTAG);
@@ -1048,7 +1048,7 @@ define_instruction(ltov) {
 define_instruction(stol) {
   obj l = mknull(); int n;
   cks(ac); n = stringlen(ac);
-  hp_reserve(hbsz((2+1)*n));
+  hp_reserve(hbsz(2+1)*n);
   while (n > 0) {
     *--hp = l; *--hp = obj_from_char(*stringref(ac, n-1));
     *--hp = obj_from_size(PAIR_BTAG);
