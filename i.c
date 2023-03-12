@@ -413,6 +413,11 @@ define_instruction(dseti) {
   gonexti();
 }
 
+define_instruction(gloc) {
+  ac = *ip++;
+  gonexti();
+}
+
 define_instruction(gset) {
   obj p = *ip++;
   gref(p) = ac;
