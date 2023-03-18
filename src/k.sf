@@ -120,9 +120,6 @@
         '()
         (cons (car l) (list-diff (cdr l) t)))))
 
-(define-inline (string-cmp x y)
-  (%prim? "fixnum(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)))" x y))
-
 (define (pair* x . more)
   (let loop ([x x] [rest more])
     (if (null? rest) x 
@@ -135,6 +132,32 @@
 (define (list1+? x) (and (pair? x) (list? (cdr x))))
 (define (list2? x) (and (pair? x) (list1? (cdr x))))
 (define (list2+? x) (and (pair? x) (list1+? (cdr x))))
+
+(define integrable?
+  (%prim "{ /* define integrable? */
+    static obj c[] = { obj_from_objptr(vmcases+8) };
+    $return objptr(c); }"))
+
+(define lookup-integrable
+  (%prim "{ /* define lookup-integrable */
+    static obj c[] = { obj_from_objptr(vmcases+9) };
+    $return objptr(c); }"))
+
+(define integrable-type
+  (%prim "{ /* define integrable-type */
+    static obj c[] = { obj_from_objptr(vmcases+10) };
+    $return objptr(c); }"))
+
+(define integrable-global
+  (%prim "{ /* define integrable-global */
+    static obj c[] = { obj_from_objptr(vmcases+11) };
+    $return objptr(c); }"))
+
+(define integrable-code
+  (%prim "{ /* define integrable-code */
+    static obj c[] = { obj_from_objptr(vmcases+12) };
+    $return objptr(c); }"))
+
 
 ;---------------------------------------------------------------------------------------------
 ; Syntax of the Scheme Core language
@@ -151,6 +174,7 @@
 ;  <core> -> (begin <core> ...)
 ;  <core> -> (if <core> <core> <core>)
 ;  <core> -> (call <core> <core> ...)
+;  <core> -> (integrable <ienc> <core> ...) where <ienc> is a pointer to ig table entry
 
 ;  NB: (begin) is legit, returns unspecified value
 ;  on top level, these two extra core forms are legal:
@@ -242,28 +266,35 @@
 (define (xform appos? sexp env)
   (cond [(id? sexp) 
          (let ([hval (xform-ref sexp env)])
-           (if (and (procedure? hval) (not appos?))
-               (xform appos? (hval sexp env) env) ; id-syntax
-               hval))]
-        [(not (pair? sexp)) (xform-quote sexp env)]
-        [else (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
-                (case hval
-                  [(syntax)        (car tail)] ; internal use only
-                  [(quote)         (xform-quote (car tail) env)]
-                  [(set!)          (xform-set! (car tail) (cadr tail) env)]
-                  [(set&)          (xform-set& tail env)]
-                  [(begin)         (xform-begin tail env)]
-                  [(if)            (xform-if tail env)]
-                  [(lambda)        (xform-lambda tail env)]
-                  [(lambda*)       (xform-lambda* tail env)]
-                  [(letcc)         (xform-letcc tail env)]
-                  [(withcc)        (xform-withcc tail env)]
-                  [(body)          (xform-body tail env)]
-                  [(define)        (xform-define (car tail) (cadr tail) env)]
-                  [(define-syntax) (xform-define-syntax (car tail) (cadr tail) env)]
-                  [else            (if (procedure? hval)
-                                       (xform appos? (hval sexp env) env)
-                                       (xform-call hval tail env))]))]))
+           (cond [appos? hval]
+                 [(integrable? hval) ; integrable id-syntax
+                  (list 'ref (integrable-global hval))]
+                 [(procedure? hval) ; id-syntax
+                  (xform appos? (hval sexp env) env)]
+                 [else hval]))]
+        [(not (pair? sexp))
+         (xform-quote sexp env)]
+        [else 
+         (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
+           (case hval
+             [(syntax)        (car tail)] ; internal use only
+             [(quote)         (xform-quote (car tail) env)]
+             [(set!)          (xform-set! (car tail) (cadr tail) env)]
+             [(set&)          (xform-set& tail env)]
+             [(begin)         (xform-begin tail env)]
+             [(if)            (xform-if tail env)]
+             [(lambda)        (xform-lambda tail env)]
+             [(lambda*)       (xform-lambda* tail env)]
+             [(letcc)         (xform-letcc tail env)]
+             [(withcc)        (xform-withcc tail env)]
+             [(body)          (xform-body tail env)]
+             [(define)        (xform-define (car tail) (cadr tail) env)]
+             [(define-syntax) (xform-define-syntax (car tail) (cadr tail) env)]
+             [else            (if (integrable? hval)
+                                  (xform-integrable hval tail env)
+                                  (if (procedure? hval)
+                                      (xform appos? (hval sexp env) env)
+                                      (xform-call hval tail env)))]))]))
 
 (define (xform-quote sexp env)
   (list 'quote 
@@ -322,6 +353,17 @@
             (caddr xexp) ; ((let () x)) => x
             (pair* 'call xexp xexps)))
       (error 'transform "improper application")))
+
+(define (integrable-argc-match? igt n)
+  (case igt
+    [(#\0) (= n 0)]  [(#\1) (= n 1)]  [(#\2) (= n 2)]  [(#\3) (= n 3)] 
+    [(#\p) (>= n 0)] [(#\m) (>= n 1)] [(#\c) (>= n 2)]
+    [else #f])) 
+
+(define (xform-integrable ig tail env)
+  (if (integrable-argc-match? (integrable-type ig) (length tail))
+      (cons 'integrable (cons ig (map (lambda (sexp) (xform #f sexp env)) tail)))
+      (error 'transform "improper integrable application" (integrable-global ig))))
 
 (define (xform-lambda tail env)
   (if (and (list1+? tail) (idslist? (car tail)))
@@ -450,7 +492,7 @@
                  (binding-set-val! bnd (transform #t val))))
            bnd]
           [(symbol? id)
-           (let ([bnd (make-binding id (list 'ref id))])
+           (let ([bnd (make-binding id (or (lookup-integrable id) (list 'ref id)))])
              (set! *transformers* (cons bnd *transformers*))
              bnd)]
           [else (old-den id)])))
@@ -836,6 +878,8 @@
          (set-union (find-free then b) (find-free else b)))]
       [begin exps
        (find-free* exps b)]
+      [integrable (ig . args)
+       (find-free* args b)]
       [call (exp . args)
        (set-union (find-free exp b) (find-free* args b))])))
 
@@ -874,6 +918,8 @@
        (set-union
          (find-sets test v)
          (set-union (find-sets then v) (find-sets else v)))]
+      [integrable (ig . args)
+       (find-sets* args v)]
       [call (exp . args)
        (set-union (find-sets exp v) (find-sets* args v))])))
 
@@ -1046,6 +1092,16 @@
               (write-char #\, port) ; stack map after: k on top
               (codegen kexp (cons #f l) f s g #f port)
               (write-char #\w port)])]
+      [integrable (ig . args)
+       (let ([igty (integrable-type ig)] [igc0 (integrable-code ig 0)])
+         (case igty
+            [(#\0 #\1 #\2 #\3) ; 1st arg in a, others on stack
+             (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
+               [(null? args)]
+               (codegen (car args) l f s g #f port)
+               (unless (null? (cdr args)) (write-char #\, port)))
+             (write-string igc0 port)]
+            [else (error 'codegen "NYI: unsupported integrable type" igty)]))]
       [call (exp . args)
        (cond [(and (eq? (car exp) 'lambda) (list? (cadr exp))
                    (fx=? (length args) (length (cadr exp))))

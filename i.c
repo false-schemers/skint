@@ -15,6 +15,8 @@ extern obj cx_callmv_2Dadapter_2Dclosure;
 static struct intgtab_entry *intgtab_find_encoding(int sym, int arity);
 static struct intgtab_entry *lookup_integrable(int sym);
 static int isintegrable(obj x);
+static struct intgtab_entry *integrabledata(obj x);
+static obj mkintegrable(struct intgtab_entry *);
 static int integrable_type(struct intgtab_entry *pi);
 static const char *integrable_global(struct intgtab_entry *pi);
 static const char *integrable_code(struct intgtab_entry *pi, int n);
@@ -334,7 +336,7 @@ jump:
     if (issymbol(r[2])) {
       int sym = getsymbol(r[2]);
       struct intgtab_entry *pe = lookup_integrable(sym);
-      r[2] = pe ? (obj)pe : obj_from_bool(0);
+      r[2] = pe ? mkintegrable(pe) : obj_from_bool(0);
     } else r[2] = obj_from_bool(0);
     r[0] = r[1]; r[1] = obj_from_ktrap();
     pc = objptr_from_obj(r[0])[0];
@@ -345,7 +347,7 @@ jump:
     /* r[0] = clo, r[1] = k, r[2] = ig */
     { assert(rc == 3);
     if (isintegrable(r[2])) {
-      int it = integrable_type((struct intgtab_entry *)(r[2]));
+      int it = integrable_type(integrabledata(r[2]));
       r[2] = it ? obj_from_char(it) : obj_from_bool(0);
     } else r[2] = obj_from_bool(0);
     r[0] = r[1]; r[1] = obj_from_ktrap();
@@ -357,7 +359,7 @@ jump:
     /* r[0] = clo, r[1] = k, r[2] = ig */
     { assert(rc == 3);
     if (isintegrable(r[2])) {
-      const char *igs = integrable_global((struct intgtab_entry *)(r[2]));
+      const char *igs = integrable_global(integrabledata(r[2]));
       r[2] = igs ? mksymbol(internsym((char*)igs)) : obj_from_bool(0);
     } else r[2] = obj_from_bool(0);
     r[0] = r[1]; r[1] = obj_from_ktrap();
@@ -369,7 +371,7 @@ jump:
     /* r[0] = clo, r[1] = k, r[2] = ig, r[3] = i */
     { assert(rc == 4);
     if (isintegrable(r[2]) && is_fixnum_obj(r[3])) {
-      const char *cs = integrable_code((struct intgtab_entry *)(r[2]), fixnum_from_obj(r[3]));
+      const char *cs = integrable_code(integrabledata(r[2]), fixnum_from_obj(r[3]));
       r[2] = cs ? hpushstr(3, newstring((char*)cs)) : obj_from_bool(0);
     } else r[2] = obj_from_bool(0);
     r[0] = r[1]; r[1] = obj_from_ktrap();
@@ -2477,20 +2479,20 @@ define_instruction(igp) {
 define_instruction(iglk) {
   struct intgtab_entry *pe; cky(ac);
   pe = lookup_integrable(getsymbol(ac));
-  ac = pe ? (obj)pe : obj_from_bool(0);
+  ac = pe ? mkintegrable(pe) : obj_from_bool(0);
   gonexti(); 
 }
 
 define_instruction(igty) {
   int it; ckg(ac);
-  it = integrable_type((struct intgtab_entry *)ac);
+  it = integrable_type(integrabledata(ac));
   ac = it ? obj_from_char(it) : obj_from_bool(0);
   gonexti(); 
 }
 
 define_instruction(iggl) {
   const char *igs; ckg(ac);
-  igs = integrable_global((struct intgtab_entry *)ac);
+  igs = integrable_global(integrabledata(ac));
   ac = igs ? mksymbol(internsym((char*)igs)) : obj_from_bool(0);
   gonexti(); 
 }
@@ -2498,7 +2500,7 @@ define_instruction(iggl) {
 define_instruction(igco) {
   int n; const char *cs; ckg(ac); ckk(sref(0));
   n = fixnum_from_obj(spop());
-  cs = integrable_code((struct intgtab_entry *)ac, n);
+  cs = integrable_code(integrabledata(ac), n);
   ac = cs ? hpushstr(sp-r, newstring((char*)cs)) : obj_from_bool(0);
   gonexti(); 
 }
@@ -2892,14 +2894,35 @@ static struct intgtab_entry *intgtab_find_encoding(int sym, int arity)
   return (pe && pe->igtype < ' ' && pe->enc) ? pe : NULL;
 }
 
-static int isintegrable(obj x)
+#define INTEGRABLE_ITAG 6
+
+static int isintegrable(obj o)
 {
   int n = sizeof(intgtab)/sizeof(intgtab[0]);
-  struct intgtab_entry *ps = intgtab, *pe = ps + n;
-  return isaptr(x) 
-      && (struct intgtab_entry *)x >= ps 
-      && (struct intgtab_entry *)x < pe
-      && ((struct intgtab_entry *)x - ps) % sizeof(intgtab[0]) == 0;
+  if (isimm(o, INTEGRABLE_ITAG)) {
+    int i = getimms(o, INTEGRABLE_ITAG);
+    if (i >= 0 && i < n) {  
+      struct intgtab_entry *pe = &intgtab[i];
+      return (pe && pe->igtype >= ' ' && pe->igname && pe->enc);
+    }
+  }
+  return 0;
+}
+
+static struct intgtab_entry *integrabledata(obj o)
+{
+  int n = sizeof(intgtab)/sizeof(intgtab[0]);
+  int i = getimms(o, INTEGRABLE_ITAG);
+  struct intgtab_entry *pe = &intgtab[i];
+  assert(i >= 0 && i < n);
+  return pe;
+}
+
+static obj mkintegrable(struct intgtab_entry *pe)
+{
+  int n = sizeof(intgtab)/sizeof(intgtab[0]);
+  assert(pe >= &intgtab[0] && pe < &intgtab[n]); 
+  return mkimm((pe-intgtab), INTEGRABLE_ITAG);
 }
 
 static struct intgtab_entry *lookup_integrable(int sym)
