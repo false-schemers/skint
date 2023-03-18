@@ -557,19 +557,23 @@
                     (assq tmpl new-literals)))]
           [(vector? tmpl)
            (list->vector (expand-part (vector->list tmpl)))]
-          [(pair? tmpl)
-           (if (ellipsis-pair? (cdr tmpl))
-               (let ([vars-to-iterate (list-ellipsis-vars (car tmpl))])
-                 (define (lookup var)
-                   (cdr (assq var bindings)))
-                 (define (expand-using-vals . vals)
-                   (expand (car tmpl)
-                     (map cons vars-to-iterate vals)))
+          [(and (pair? tmpl) (ellipsis-pair? (cdr tmpl)))
+           (let ([vars-to-iterate (list-ellipsis-vars (car tmpl))])
+             (define (lookup var)
+               (cdr (assq var bindings)))
+             (define (expand-using-vals . vals)
+               (expand (car tmpl)
+                 (map cons vars-to-iterate vals)))
+             (if (null? vars-to-iterate)
+                 ; ellipsis following non-repeatable part is an error, but we don't care
+                 (cons (expand-part (car tmpl)) (expand-part (cddr tmpl))) ; repeat once
+                 ; correct use of ellipsis
                  (let ([val-lists (map lookup vars-to-iterate)])
                    (append
                      (apply map (cons expand-using-vals val-lists))
-                     (expand-part (cddr tmpl)))))
-               (cons (expand-part (car tmpl)) (expand-part (cdr tmpl))))]
+                     (expand-part (cddr tmpl))))))]
+          [(pair? tmpl)
+           (cons (expand-part (car tmpl)) (expand-part (cdr tmpl)))]
           [else tmpl]))))
 
   (lambda (use use-env)
