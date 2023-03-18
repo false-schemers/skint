@@ -456,10 +456,15 @@ declare_instruction(wrhw,     "W7",    0, "%wrhw", 2, INLINED)
 declare_instruction(wriw,     "W8",    0, "%wriw", 2, INLINED)
 
 /* serialization and deserialization instructions */
+declare_instruction(igp,      "U0",    0, "integrable?", 1, AUTOGL)
 declare_instruction(fenc,     "U1",    0, "find-integrable-encoding", 2, AUTOGL)
 declare_instruction(wrsi,     "U2",    0, "encode-integrable", 3, AUTOGL)
 declare_instruction(rdsx,     "U3",    0, "deserialize-sexp", 1, AUTOGL)
 declare_instruction(rdsc,     "U4",    0, "deserialize-code", 1, AUTOGL)
+declare_instruction(iglk,     "U5",    0, "lookup-integrable", 1, AUTOGL)
+declare_instruction(igty,     "U6",    0, "integrable-type", 1, AUTOGL)
+declare_instruction(iggl,     "U7",    0, "integrable-global", 1, AUTOGL)
+declare_instruction(igco,     "U8",    0, "integrable-code", 2, AUTOGL)
 
 /* inlined integrables (no custom instructions) */
 declare_integrable(NULL,      "aaa",   0, "%caaar", 1, INLINED)

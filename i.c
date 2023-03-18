@@ -13,6 +13,11 @@ extern obj cx_callmv_2Dadapter_2Dclosure;
 
 /* forwards */
 static struct intgtab_entry *intgtab_find_encoding(int sym, int arity);
+static struct intgtab_entry *lookup_integrable(int sym);
+static int isintegrable(obj x);
+static int integrable_type(struct intgtab_entry *pi);
+static const char *integrable_global(struct intgtab_entry *pi);
+static const char *integrable_code(struct intgtab_entry *pi, int n);
 static void wrs_integrable(int argc, struct intgtab_entry *pe, obj port);
 static obj *rds_intgtab(obj *r, obj *sp, obj *hp);
 static obj *rds_stox(obj *r, obj *sp, obj *hp);
@@ -181,9 +186,11 @@ typedef obj* regcall (*ins_t)(IPARAMS);
 #endif
 
 static obj vmhost(obj);
-obj vmcases[8] = { 
+obj vmcases[13] = { 
   (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost, 
-  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost 
+  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost,
+  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost,
+  (obj)vmhost
 };
 /* vmhost procedure */
 static obj vmhost(obj pc)
@@ -311,6 +318,64 @@ jump:
     pc = objptr_from_obj(r[0])[0];
     rc = 3;
     goto jump; }
+
+  case 8: /* integrable? */
+    /* r[0] = clo, r[1] = k, r[2] = obj */
+    { assert(rc == 3);
+    r[2] = obj_from_bool(isintegrable(r[2]));
+    r[0] = r[1]; r[1] = obj_from_ktrap();
+    pc = objptr_from_obj(r[0])[0];
+    rc = 3;
+    goto jump; }
+
+  case 9: /* lookup-integrable */
+    /* r[0] = clo, r[1] = k, r[2] = id */
+    { assert(rc == 3);
+    if (issymbol(r[2])) {
+      int sym = getsymbol(r[2]);
+      struct intgtab_entry *pe = lookup_integrable(sym);
+      r[2] = pe ? (obj)pe : obj_from_bool(0);
+    } else r[2] = obj_from_bool(0);
+    r[0] = r[1]; r[1] = obj_from_ktrap();
+    pc = objptr_from_obj(r[0])[0];
+    rc = 3;
+    goto jump; }
+
+  case 10: /* integrable-type */
+    /* r[0] = clo, r[1] = k, r[2] = ig */
+    { assert(rc == 3);
+    if (isintegrable(r[2])) {
+      int it = integrable_type((struct intgtab_entry *)(r[2]));
+      r[2] = it ? obj_from_char(it) : obj_from_bool(0);
+    } else r[2] = obj_from_bool(0);
+    r[0] = r[1]; r[1] = obj_from_ktrap();
+    pc = objptr_from_obj(r[0])[0];
+    rc = 3;
+    goto jump; }
+
+  case 11: /* integrable-global */
+    /* r[0] = clo, r[1] = k, r[2] = ig */
+    { assert(rc == 3);
+    if (isintegrable(r[2])) {
+      const char *igs = integrable_global((struct intgtab_entry *)(r[2]));
+      r[2] = igs ? mksymbol(internsym((char*)igs)) : obj_from_bool(0);
+    } else r[2] = obj_from_bool(0);
+    r[0] = r[1]; r[1] = obj_from_ktrap();
+    pc = objptr_from_obj(r[0])[0];
+    rc = 3;
+    goto jump; }
+
+  case 12: /* integrable-code */
+    /* r[0] = clo, r[1] = k, r[2] = ig, r[3] = i */
+    { assert(rc == 4);
+    if (isintegrable(r[2]) && is_fixnum_obj(r[3])) {
+      const char *cs = integrable_code((struct intgtab_entry *)(r[2]), fixnum_from_obj(r[3]));
+      r[2] = cs ? hpushstr(3, newstring((char*)cs)) : obj_from_bool(0);
+    } else r[2] = obj_from_bool(0);
+    r[0] = r[1]; r[1] = obj_from_ktrap();
+    pc = objptr_from_obj(r[0])[0];
+    rc = 3;
+    goto jump; }
       
   default: /* inter-host call */
     cxg_hp = hp;
@@ -369,6 +434,8 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"procedure"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckz(x) do { obj _x = (x); if (unlikely(!isbox(_x))) \
   { ac = _x; spush((obj)"box, cell, or promise"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckg(x) do { obj _x = (x); if (unlikely(!isintegrable(_x))) \
+  { ac = _x; spush((obj)"integrable entry"); musttail return cxi_failactype(IARGS); } } while (0)
 
 
 define_instruction(halt) { unwindi(0); }
@@ -2401,6 +2468,42 @@ define_instruction(fenc) {
   gonexti(); 
 }
 
+
+define_instruction(igp) {
+  ac = obj_from_bool(isintegrable(ac));
+  gonexti(); 
+}
+
+define_instruction(iglk) {
+  struct intgtab_entry *pe; cky(ac);
+  pe = lookup_integrable(getsymbol(ac));
+  ac = pe ? (obj)pe : obj_from_bool(0);
+  gonexti(); 
+}
+
+define_instruction(igty) {
+  int it; ckg(ac);
+  it = integrable_type((struct intgtab_entry *)ac);
+  ac = it ? obj_from_char(it) : obj_from_bool(0);
+  gonexti(); 
+}
+
+define_instruction(iggl) {
+  const char *igs; ckg(ac);
+  igs = integrable_global((struct intgtab_entry *)ac);
+  ac = igs ? mksymbol(internsym((char*)igs)) : obj_from_bool(0);
+  gonexti(); 
+}
+
+define_instruction(igco) {
+  int n; const char *cs; ckg(ac); ckk(sref(0));
+  n = fixnum_from_obj(spop());
+  cs = integrable_code((struct intgtab_entry *)ac, n);
+  ac = cs ? hpushstr(sp-r, newstring((char*)cs)) : obj_from_bool(0);
+  gonexti(); 
+}
+
+
 define_instruction(wrsi) {
   obj c = ac, e = spop(), p = spop(); cki(c);
   assert(isaptr(e) && notobjptr(e) && isoport(p));
@@ -2740,9 +2843,9 @@ define_instruction(pushsub) {
 #undef  VM_GEN_DEFGLOBAL
 
 /* integrables table */
-struct intgtab_entry { int sym; char *igname; int arity; char *enc; char *lcode; };
-#define declare_intgtable_entry(enc, igname, arity, lcode) \
-   { 0, igname, arity, enc, lcode },
+struct intgtab_entry { int sym; char *igname; int igtype; char *enc; char *lcode; };
+#define declare_intgtable_entry(enc, igname, igtype, lcode) \
+   { 0, igname, igtype, enc, lcode },
 
 static struct intgtab_entry intgtab[] = {
 #define VM_GEN_INTGTABLE
@@ -2753,12 +2856,15 @@ static struct intgtab_entry intgtab[] = {
 static int intgtab_sorted = 0;
 static int intgtab_cmp(const void *p1, const void *p2)
 {
+  int igtype1, igtype2;
   struct intgtab_entry *pe1 = (struct intgtab_entry *)p1;
   struct intgtab_entry *pe2 = (struct intgtab_entry *)p2;
   if (pe1->sym < pe2->sym) return -1;
   if (pe1->sym > pe2->sym) return 1;
-  if (pe1->arity < pe2->arity) return -1;
-  if (pe1->arity > pe2->arity) return 1;
+  igtype1 = pe1->igtype; if (igtype1 >= ' ') igtype1 = ' ';
+  igtype2 = pe2->igtype; if (igtype2 >= ' ') igtype2 = ' ';
+  if (igtype1 < igtype2) return -1;
+  if (igtype1 > igtype2) return 1;
   return 0;
 }
 
@@ -2780,10 +2886,64 @@ static struct intgtab_entry *intgtab_find_encoding(int sym, int arity)
   struct intgtab_entry e, *pe;
   int n = sizeof(intgtab)/sizeof(intgtab[0]);
   if (!intgtab_sorted) sort_intgtab(n);
-  e.sym = sym; e.arity = arity;
+  e.sym = sym; e.igtype = arity;
   pe = bsearch(&e, &intgtab[0], n, sizeof(intgtab[0]), intgtab_cmp);
-  if (!pe) { e.arity = -1; pe = bsearch(&e, &intgtab[0], n, sizeof(intgtab[0]), intgtab_cmp); }
-  return (pe && pe->enc) ? pe : NULL;
+  if (!pe) { e.igtype = -1; pe = bsearch(&e, &intgtab[0], n, sizeof(intgtab[0]), intgtab_cmp); }
+  return (pe && pe->igtype < ' ' && pe->enc) ? pe : NULL;
+}
+
+static int isintegrable(obj x)
+{
+  int n = sizeof(intgtab)/sizeof(intgtab[0]);
+  struct intgtab_entry *ps = intgtab, *pe = ps + n;
+  return isaptr(x) 
+      && (struct intgtab_entry *)x >= ps 
+      && (struct intgtab_entry *)x < pe
+      && ((struct intgtab_entry *)x - ps) % sizeof(intgtab[0]) == 0;
+}
+
+static struct intgtab_entry *lookup_integrable(int sym)
+{
+  struct intgtab_entry e, *pe;
+  int n = sizeof(intgtab)/sizeof(intgtab[0]);
+  if (!intgtab_sorted) sort_intgtab(n);
+  e.sym = sym; e.igtype = ' ';
+  pe = bsearch(&e, &intgtab[0], n, sizeof(intgtab[0]), intgtab_cmp);
+  return (pe && pe->igtype >= ' ' && pe->igname && pe->enc) ? pe : NULL;
+}
+
+static int integrable_type(struct intgtab_entry *pi)
+{
+  int it = pi->igtype;
+  return (it >= ' ') ? it : 0;
+}
+
+static const char *integrable_global(struct intgtab_entry *pi)
+{
+  return (pi->igtype >= ' ') ? pi->igname : NULL;
+}
+
+static const char *integrable_code(struct intgtab_entry *pi, int n)
+{
+  static char buf[60]; char *ps, *code = NULL;
+  int it = pi->igtype;
+  if (it >= ' ') {
+    ps = pi->enc;
+    while (ps && n-- > 0) {
+      ps = strchr(ps, '\t');
+      if (ps) ps += 1;
+    }
+    if (ps) {
+      code = ps; ps = strchr(ps, '\t');
+      if (ps) {
+        assert(ps-code < sizeof(buf));
+        strncpy(buf, code, ps-code);
+        buf[ps-code] = 0;
+        code = buf;
+      }
+    }
+  }
+  return code;
 }
 
 
@@ -2802,9 +2962,9 @@ static void wrs_int_arg(int arg, obj port)
 static void wrs_integrable(int argc, struct intgtab_entry *pe, obj port)
 {
   assert(pe); assert(pe->enc);
-  if (pe->arity == -1 && argc > 0) oportputc(',', port);
+  if (pe->igtype == -1 && argc > 0) oportputc(',', port);
   oportputs(pe->enc, port);
-  if (pe->arity == -1) wrs_int_arg(argc, port);
+  if (pe->igtype == -1) wrs_int_arg(argc, port);
 }
 
 
@@ -3298,20 +3458,20 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
     struct intgtab_entry *pe = &intgtab[i];
     if (!pe->igname) continue; 
     lcode = pe->lcode;
-    if (!lcode) switch (pe->arity) {
-      case 0:
+    if (!lcode) switch (pe->igtype) {
+      case 0: case '0':
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%0%s]0", pe->enc); 
         break; 
-      case 1: 
+      case 1: case '1':
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%1_!%s]0", pe->enc);   // "%%1.0%s]1"
         break;
-      case 2: 
+      case 2: case '2':
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%2_!%s]0", pe->enc);  // %%2.1,.1%s]2
         break;
-      case 3: 
+      case 3: case '3':
         lcode = lbuf; assert(pe->enc); 
         sprintf(lbuf, "%%3_!%s]0", pe->enc); // %%3.2,.2,.2%s]3
         break;
