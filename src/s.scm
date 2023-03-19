@@ -71,6 +71,8 @@
 ; Exact integer numbers (fixnums)
 ;---------------------------------------------------------------------------------------------
 
+#|
+
 (define-inline (fixnum? x) %residual-fixnum? (%fixp x))
 
 (define-inline (fxzero? x) %residual-fxzero? (%izerop x))
@@ -119,10 +121,13 @@
 
 (define-inline (fixnum->flonum x) %residual-fixnum->flonum (%itoj x))
 
+|#
 
 ;---------------------------------------------------------------------------------------------
 ; Inexact floating-point numbers (flonums)
 ;---------------------------------------------------------------------------------------------
+
+#|
 
 (define-inline (flonum? x) %residual-flonum? (%flop x))
 
@@ -172,6 +177,7 @@
 
 (define-inline (flonum->fixnum x) %residual-flonum->fixnum (%jtoi x))
 
+|#
 
 ;---------------------------------------------------------------------------------------------
 ; Numbers (fixnums or flonums)
