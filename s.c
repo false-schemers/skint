@@ -2,61 +2,29 @@
 
 char *s_code[] = {
 
-  "eq?",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y4:%25isq;y1:x;y1:y;;;l"
-  "2:py1:_;y12:syntax-rules;;py13:%25residual-eq?;y12:syntax-rules;;;l2:y"
-  "1:_;y13:%25residual-eq?;;",
+  0,
+  "@(y4:cons)@!(y14:%25residual-cons)",
 
   0,
-  "&0{%2.1,.1q]2}@!(y13:%25residual-eq?)",
-
-  "eqv?",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y4:%25isv;y1:x;y1:y;;;l"
-  "2:py1:_;y12:syntax-rules;;py14:%25residual-eqv?;y12:syntax-rules;;;l2:"
-  "y1:_;y14:%25residual-eqv?;;",
+  "@(y5:pair?)@!(y15:%25residual-pair?)",
 
   0,
-  "&0{%2.1,.1v]2}@!(y14:%25residual-eqv?)",
-
-  "equal?",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y4:%25ise;y1:x;y1:y;;;l"
-  "2:py1:_;y12:syntax-rules;;py16:%25residual-equal?;y12:syntax-rules;;;l"
-  "2:y1:_;y16:%25residual-equal?;;",
+  "@(y3:car)@!(y13:%25residual-car)",
 
   0,
-  "&0{%2.1,.1e]2}@!(y16:%25residual-equal?)",
-
-  "box?",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25boxp;y1:x;;;l2:py1:_;y"
-  "12:syntax-rules;;py14:%25residual-box?;y12:syntax-rules;;;l2:y1:_;y14:"
-  "%25residual-box?;;",
+  "@(y3:car)@!(y4:%25car)",
 
   0,
-  "&0{%1.0Y2]1}@!(y14:%25residual-box?)",
-
-  "box",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25box;y1:x;;;l2:py1:_;y1"
-  "2:syntax-rules;;py13:%25residual-box;y12:syntax-rules;;;l2:y1:_;y13:%2"
-  "5residual-box;;",
+  "@(y3:cdr)@!(y13:%25residual-cdr)",
 
   0,
-  "&0{%1.0b]1}@!(y13:%25residual-box)",
-
-  "unbox",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y6:%25unbox;y1:x;;;l2:py1:_;"
-  "y12:syntax-rules;;py15:%25residual-unbox;y12:syntax-rules;;;l2:y1:_;y1"
-  "5:%25residual-unbox;;",
+  "@(y3:cdr)@!(y4:%25cdr)",
 
   0,
-  "&0{%1.0z]1}@!(y15:%25residual-unbox)",
-
-  "set-box!",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y7:%25setbox;y1:x;y1:y;"
-  ";;l2:py1:_;y12:syntax-rules;;py18:%25residual-set-box!;y12:syntax-rule"
-  "s;;;l2:y1:_;y18:%25residual-set-box!;;",
+  "@(y8:set-car!)@!(y18:%25residual-set-car!)",
 
   0,
-  "&0{%2.1,.1z!]2}@!(y18:%25residual-set-box!)",
+  "@(y8:set-cdr!)@!(y18:%25residual-set-cdr!)",
 
   "number?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25nump;y1:x;;;l2:py1:_;y"
@@ -91,7 +59,7 @@ char *s_code[] = {
   "y7:fixnum?;;",
 
   "exact?",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25fixp;l2:y4:%25ckn;y1:x"
+  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y7:fixnum?;l2:y4:%25ckn;y1:x"
   ";;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-exact?;y12:syntax-rule"
   "s;;;l2:y1:_;y16:%25residual-exact?;;",
 
@@ -99,7 +67,7 @@ char *s_code[] = {
   "&0{%1.0%nI0]1}@!(y16:%25residual-exact?)",
 
   "inexact?",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25flop;l2:y4:%25ckn;y1:x"
+  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y7:flonum?;l2:y4:%25ckn;y1:x"
   ";;;;l2:py1:_;y12:syntax-rules;;py18:%25residual-inexact?;y12:syntax-ru"
   "les;;;l2:y1:_;y18:%25residual-inexact?;;",
 
@@ -297,22 +265,6 @@ char *s_code[] = {
 
   0,
   "&0{%2.1,.1G6,.2,.2G5,@(y5:%25sdmv)[22}@!(y9:truncate/)",
-
-  "boolean?",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y6:%25boolp;y1:x;;;l2:py1:_;"
-  "y12:syntax-rules;;py18:%25residual-boolean?;y12:syntax-rules;;;l2:y1:_"
-  ";y18:%25residual-boolean?;;",
-
-  0,
-  "&0{%1.0Y1]1}@!(y18:%25residual-boolean?)",
-
-  "not",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25not;y1:x;;;l2:py1:_;y1"
-  "2:syntax-rules;;py13:%25residual-not;y12:syntax-rules;;;l2:y1:_;y13:%2"
-  "5residual-not;;",
-
-  0,
-  "&0{%1.0~]1}@!(y13:%25residual-not)",
 
   "char?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y6:%25charp;y1:x;;;l2:py1:_;"
@@ -514,291 +466,11 @@ char *s_code[] = {
   0,
   "&0{%1.0X5]1}@!(y24:%25residual-string->symbol)",
 
-  "null?",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y6:%25nullp;y1:x;;;l2:py1:_;"
-  "y12:syntax-rules;;py15:%25residual-null?;y12:syntax-rules;;;l2:y1:_;y1"
-  "5:%25residual-null?;;",
-
-  0,
-  "&0{%1.0u]1}@!(y15:%25residual-null?)",
-
-  "pair?",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y6:%25pairp;y1:x;;;l2:py1:_;"
-  "y12:syntax-rules;;py15:%25residual-pair?;y12:syntax-rules;;;l2:y1:_;y1"
-  "5:%25residual-pair?;;",
-
-  0,
-  "&0{%1.0p]1}@!(y15:%25residual-pair?)",
-
-  "car",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25car;y1:x;;;l2:py1:_;y1"
-  "2:syntax-rules;;py13:%25residual-car;y12:syntax-rules;;;l2:y1:_;y13:%2"
-  "5residual-car;;",
-
-  0,
-  "&0{%1.0a]1}@!(y13:%25residual-car)",
-
-  "set-car!",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:v;;l3:y7:%25setcar;y1:x;y1:v;"
-  ";;l2:py1:_;y12:syntax-rules;;py18:%25residual-set-car!;y12:syntax-rule"
-  "s;;;l2:y1:_;y18:%25residual-set-car!;;",
-
-  0,
-  "&0{%2.1,.1a!]2}@!(y18:%25residual-set-car!)",
-
-  "cdr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y4:%25cdr;y1:x;;;l2:py1:_;y1"
-  "2:syntax-rules;;py13:%25residual-cdr;y12:syntax-rules;;;l2:y1:_;y13:%2"
-  "5residual-cdr;;",
-
-  0,
-  "&0{%1.0d]1}@!(y13:%25residual-cdr)",
-
-  "set-cdr!",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:v;;l3:y7:%25setcdr;y1:x;y1:v;"
-  ";;l2:py1:_;y12:syntax-rules;;py18:%25residual-set-cdr!;y12:syntax-rule"
-  "s;;;l2:y1:_;y18:%25residual-set-cdr!;;",
-
-  0,
-  "&0{%2.1,.1d!]2}@!(y18:%25residual-set-cdr!)",
-
   "c?r",
   "l5:y12:syntax-rules;l2:y1:a;y1:d;;l2:l2:y3:c?r;y1:x;;y1:x;;l2:l5:y3:c?"
   "r;y1:a;y1:?;y3:...;y1:x;;l2:y3:car;l4:y3:c?r;y1:?;y3:...;y1:x;;;;l2:l5"
   ":y3:c?r;y1:d;y1:?;y3:...;y1:x;;l2:y3:cdr;l4:y3:c?r;y1:?;y3:...;y1:x;;;"
   ";",
-
-  "caar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l4:y3:c?r;y1:a;y1:a;y1:x;;;l2:p"
-  "y1:_;y12:syntax-rules;;py14:%25residual-caar;y12:syntax-rules;;;l2:y1:"
-  "_;y14:%25residual-caar;;",
-
-  0,
-  "&0{%1.0aa]1}@!(y14:%25residual-caar)",
-
-  "cadr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l4:y3:c?r;y1:a;y1:d;y1:x;;;l2:p"
-  "y1:_;y12:syntax-rules;;py14:%25residual-cadr;y12:syntax-rules;;;l2:y1:"
-  "_;y14:%25residual-cadr;;",
-
-  0,
-  "&0{%1.0da]1}@!(y14:%25residual-cadr)",
-
-  "cdar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l4:y3:c?r;y1:d;y1:a;y1:x;;;l2:p"
-  "y1:_;y12:syntax-rules;;py14:%25residual-cdar;y12:syntax-rules;;;l2:y1:"
-  "_;y14:%25residual-cdar;;",
-
-  0,
-  "&0{%1.0ad]1}@!(y14:%25residual-cdar)",
-
-  "cddr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l4:y3:c?r;y1:d;y1:d;y1:x;;;l2:p"
-  "y1:_;y12:syntax-rules;;py14:%25residual-cddr;y12:syntax-rules;;;l2:y1:"
-  "_;y14:%25residual-cddr;;",
-
-  0,
-  "&0{%1.0dd]1}@!(y14:%25residual-cddr)",
-
-  "caaar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l5:y3:c?r;y1:a;y1:a;y1:a;y1:x;;"
-  ";l2:py1:_;y12:syntax-rules;;py15:%25residual-caaar;y12:syntax-rules;;;"
-  "l2:y1:_;y15:%25residual-caaar;;",
-
-  0,
-  "&0{%1.0aaa]1}@!(y15:%25residual-caaar)",
-
-  "caadr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l5:y3:c?r;y1:a;y1:a;y1:d;y1:x;;"
-  ";l2:py1:_;y12:syntax-rules;;py15:%25residual-caadr;y12:syntax-rules;;;"
-  "l2:y1:_;y15:%25residual-caadr;;",
-
-  0,
-  "&0{%1.0daa]1}@!(y15:%25residual-caadr)",
-
-  "cadar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l5:y3:c?r;y1:a;y1:d;y1:a;y1:x;;"
-  ";l2:py1:_;y12:syntax-rules;;py15:%25residual-cadar;y12:syntax-rules;;;"
-  "l2:y1:_;y15:%25residual-cadar;;",
-
-  0,
-  "&0{%1.0ada]1}@!(y15:%25residual-cadar)",
-
-  "caddr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l5:y3:c?r;y1:a;y1:d;y1:d;y1:x;;"
-  ";l2:py1:_;y12:syntax-rules;;py15:%25residual-caddr;y12:syntax-rules;;;"
-  "l2:y1:_;y15:%25residual-caddr;;",
-
-  0,
-  "&0{%1.0dda]1}@!(y15:%25residual-caddr)",
-
-  "cdaar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l5:y3:c?r;y1:d;y1:a;y1:a;y1:x;;"
-  ";l2:py1:_;y12:syntax-rules;;py15:%25residual-cdaar;y12:syntax-rules;;;"
-  "l2:y1:_;y15:%25residual-cdaar;;",
-
-  0,
-  "&0{%1.0aad]1}@!(y15:%25residual-cdaar)",
-
-  "cdadr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l5:y3:c?r;y1:d;y1:a;y1:d;y1:x;;"
-  ";l2:py1:_;y12:syntax-rules;;py15:%25residual-cdadr;y12:syntax-rules;;;"
-  "l2:y1:_;y15:%25residual-cdadr;;",
-
-  0,
-  "&0{%1.0dad]1}@!(y15:%25residual-cdadr)",
-
-  "cddar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l5:y3:c?r;y1:d;y1:d;y1:a;y1:x;;"
-  ";l2:py1:_;y12:syntax-rules;;py15:%25residual-cddar;y12:syntax-rules;;;"
-  "l2:y1:_;y15:%25residual-cddar;;",
-
-  0,
-  "&0{%1.0add]1}@!(y15:%25residual-cddar)",
-
-  "cdddr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l5:y3:c?r;y1:d;y1:d;y1:d;y1:x;;"
-  ";l2:py1:_;y12:syntax-rules;;py15:%25residual-cdddr;y12:syntax-rules;;;"
-  "l2:y1:_;y15:%25residual-cdddr;;",
-
-  0,
-  "&0{%1.0ddd]1}@!(y15:%25residual-cdddr)",
-
-  "caaaar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:a;y1:a;y1:a;y1:a;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-caaaar;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-caaaar;;",
-
-  0,
-  "&0{%1.0aaaa]1}@!(y16:%25residual-caaaar)",
-
-  "caaadr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:a;y1:a;y1:a;y1:d;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-caaadr;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-caaadr;;",
-
-  0,
-  "&0{%1.0daaa]1}@!(y16:%25residual-caaadr)",
-
-  "caadar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:a;y1:a;y1:d;y1:a;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-caadar;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-caadar;;",
-
-  0,
-  "&0{%1.0adaa]1}@!(y16:%25residual-caadar)",
-
-  "caaddr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:a;y1:a;y1:d;y1:d;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-caaddr;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-caaddr;;",
-
-  0,
-  "&0{%1.0ddaa]1}@!(y16:%25residual-caaddr)",
-
-  "cadaar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:a;y1:d;y1:a;y1:a;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cadaar;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cadaar;;",
-
-  0,
-  "&0{%1.0aada]1}@!(y16:%25residual-cadaar)",
-
-  "cadadr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:a;y1:d;y1:a;y1:d;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cadadr;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cadadr;;",
-
-  0,
-  "&0{%1.0dada]1}@!(y16:%25residual-cadadr)",
-
-  "caddar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:a;y1:d;y1:d;y1:a;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-caddar;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-caddar;;",
-
-  0,
-  "&0{%1.0adda]1}@!(y16:%25residual-caddar)",
-
-  "cadddr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:a;y1:d;y1:d;y1:d;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cadddr;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cadddr;;",
-
-  0,
-  "&0{%1.0ddda]1}@!(y16:%25residual-cadddr)",
-
-  "cdaaar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:d;y1:a;y1:a;y1:a;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cdaaar;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cdaaar;;",
-
-  0,
-  "&0{%1.0aaad]1}@!(y16:%25residual-cdaaar)",
-
-  "cdaadr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:d;y1:a;y1:a;y1:d;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cdaadr;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cdaadr;;",
-
-  0,
-  "&0{%1.0daad]1}@!(y16:%25residual-cdaadr)",
-
-  "cdadar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:d;y1:a;y1:d;y1:a;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cdadar;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cdadar;;",
-
-  0,
-  "&0{%1.0adad]1}@!(y16:%25residual-cdadar)",
-
-  "cdaddr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:d;y1:a;y1:d;y1:d;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cdaddr;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cdaddr;;",
-
-  0,
-  "&0{%1.0ddad]1}@!(y16:%25residual-cdaddr)",
-
-  "cddaar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:d;y1:d;y1:a;y1:a;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cddaar;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cddaar;;",
-
-  0,
-  "&0{%1.0aadd]1}@!(y16:%25residual-cddaar)",
-
-  "cddadr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:d;y1:d;y1:a;y1:d;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cddadr;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cddadr;;",
-
-  0,
-  "&0{%1.0dadd]1}@!(y16:%25residual-cddadr)",
-
-  "cdddar",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:d;y1:d;y1:d;y1:a;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cdddar;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cdddar;;",
-
-  0,
-  "&0{%1.0addd]1}@!(y16:%25residual-cdddar)",
-
-  "cddddr",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l6:y3:c?r;y1:d;y1:d;y1:d;y1:d;y"
-  "1:x;;;l2:py1:_;y12:syntax-rules;;py16:%25residual-cddddr;y12:syntax-ru"
-  "les;;;l2:y1:_;y16:%25residual-cddddr;;",
-
-  0,
-  "&0{%1.0dddd]1}@!(y16:%25residual-cddddr)",
-
-  "cons",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:y;;l3:y5:%25cons;y1:x;y1:y;;;"
-  "l2:py1:_;y12:syntax-rules;;py14:%25residual-cons;y12:syntax-rules;;;l2"
-  ":y1:_;y14:%25residual-cons;;",
-
-  0,
-  "&0{%2.1,.1c]2}@!(y14:%25residual-cons)",
 
   "list?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y6:%25listp;y1:x;;;l2:py1:_;"
@@ -820,8 +492,8 @@ char *s_code[] = {
 
   "list",
   "l6:y12:syntax-rules;n;l2:l1:y1:_;;l2:y5:quote;n;;;l2:l2:y1:_;y1:x;;l3:"
-  "y5:%25cons;y1:x;l2:y5:quote;n;;;;l2:l3:y1:_;y1:x;y3:...;;l3:y5:%25list"
-  ";y1:x;y3:...;;;l2:y1:_;y14:%25residual-list;;",
+  "y4:cons;y1:x;l2:y5:quote;n;;;;l2:l3:y1:_;y1:x;y3:...;;l3:y5:%25list;y1"
+  ":x;y3:...;;;l2:y1:_;y14:%25residual-list;;",
 
   "length",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25llen;y1:x;;;l2:py1:_;y"
@@ -947,9 +619,9 @@ char *s_code[] = {
 
   "list*",
   "l7:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;y1:x;;l2:l3:y1:_;y1:x;y1:y;;l3:"
-  "y5:%25cons;y1:x;y1:y;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l3:y5:%25cons"
-  ";y1:x;l4:y5:list*;y1:y;y1:z;y3:...;;;;l2:py1:_;y4:args;;py15:%25residu"
-  "al-list*;y4:args;;;l2:y1:_;y15:%25residual-list*;;",
+  "y4:cons;y1:x;y1:y;;;l2:l5:y1:_;y1:x;y1:y;y1:z;y3:...;;l3:y4:cons;y1:x;"
+  "l4:y5:list*;y1:y;y1:z;y3:...;;;;l2:py1:_;y4:args;;py15:%25residual-lis"
+  "t*;y4:args;;;l2:y1:_;y15:%25residual-list*;;",
 
   "cons*",
   "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py5:list*;y4:args;;;l2:y1:_;y5"
@@ -1391,16 +1063,16 @@ char *s_code[] = {
   "map",
   "l5:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
   "3:fun;;;l4:y3:let;y4:loop;l1:l2:y1:l;y3:lst;;;l4:y2:if;l2:y5:pair?;y1:"
-  "l;;l3:y4:cons;l2:y1:f;l2:y4:%25car;y1:l;;;l2:y4:loop;l2:y4:%25cdr;y1:l"
-  ";;;;l2:y5:quote;n;;;;;;l2:py1:_;y4:args;;py13:%25residual-map;y4:args;"
-  ";;l2:y1:_;y13:%25residual-map;;",
+  "l;;l3:y4:cons;l2:y1:f;l2:y3:car;y1:l;;;l2:y4:loop;l2:y3:cdr;y1:l;;;;l2"
+  ":y5:quote;n;;;;;;l2:py1:_;y4:args;;py13:%25residual-map;y4:args;;;l2:y"
+  "1:_;y13:%25residual-map;;",
 
   "for-each",
   "l5:y12:syntax-rules;n;l2:l3:y1:_;y3:fun;y3:lst;;l3:y3:let;l1:l2:y1:f;y"
   "3:fun;;;l4:y3:let;y4:loop;l1:l2:y1:l;y3:lst;;;l3:y2:if;l2:y5:pair?;y1:"
-  "l;;l3:y5:begin;l2:y1:f;l2:y4:%25car;y1:l;;;l2:y4:loop;l2:y4:%25cdr;y1:"
-  "l;;;;;;;;l2:py1:_;y4:args;;py18:%25residual-for-each;y4:args;;;l2:y1:_"
-  ";y18:%25residual-for-each;;",
+  "l;;l3:y5:begin;l2:y1:f;l2:y3:car;y1:l;;;l2:y4:loop;l2:y3:cdr;y1:l;;;;;"
+  ";;;l2:py1:_;y4:args;;py18:%25residual-for-each;y4:args;;;l2:y1:_;y18:%"
+  "25residual-for-each;;",
 
   0,
   "&0{%!2.0u?{.2S3,'(c ),.1S2,'0,,#0.0,.3,.8,.8,.7,&5{%1:0,.1I<!?{:3]1}${"

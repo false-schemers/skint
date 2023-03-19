@@ -3263,10 +3263,10 @@ static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
   if (issymbol(ra)) {
     obj p = isassv(ra, cx__2Aglobals_2A);
     if (ispair(p)) ra = cdr(p);
-    else { /* prepend (sym . #&undefined) to *globals* */
+    else { /* prepend (sym . #&sym) to *globals* */
       obj box;
       hreserve(hbsz(2)*1+hbsz(3)*2, sp-r);
-      *--hp = mksymbol(internsym("undefined")); 
+      *--hp = ra; /* mksymbol(internsym("undefined")); */
       *--hp = obj_from_size(BOX_BTAG); box = hendblk(2);
       *--hp = box; *--hp = ra;
       *--hp = obj_from_size(PAIR_BTAG); ra = hendblk(3);

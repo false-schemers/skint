@@ -1101,7 +1101,8 @@
                (codegen (car args) l f s g #f port)
                (unless (null? (cdr args)) (write-char #\, port)))
              (write-string igc0 port)]
-            [else (error 'codegen "NYI: unsupported integrable type" igty)]))]
+            [else (error 'codegen "NYI: unsupported integrable type" igty)]))
+       (when k (write-char #\] port) (write-serialized-arg k port))]
       [call (exp . args)
        (cond [(and (eq? (car exp) 'lambda) (list? (cadr exp))
                    (fx=? (length args) (length (cadr exp))))

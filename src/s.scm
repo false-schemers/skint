@@ -46,18 +46,19 @@
 ;---------------------------------------------------------------------------------------------
 ; Equivalence predicates
 ;---------------------------------------------------------------------------------------------
-
+#|
 (define-inline (eq? x y) %residual-eq? (%isq x y))
 
 (define-inline (eqv? x y) %residual-eqv? (%isv x y))
 
 (define-inline (equal? x y) %residual-equal? (%ise x y))
-
+|#
 
 ;---------------------------------------------------------------------------------------------
 ; Boxes, aka cells
 ;---------------------------------------------------------------------------------------------
 
+#|
 (define-inline (box? x) %residual-box? (%boxp x))
 
 (define-inline (box x) %residual-box (%box x))
@@ -65,7 +66,7 @@
 (define-inline (unbox x) %residual-unbox (%unbox x))
 
 (define-inline (set-box! x y) %residual-set-box! (%setbox x y))
-
+|#
 
 ;---------------------------------------------------------------------------------------------
 ; Exact integer numbers (fixnums)
@@ -195,9 +196,9 @@
 
 (define-syntax exact-integer? fixnum?)
 
-(define-inline (exact? x) %residual-exact? (%fixp (%ckn x)))
+(define-inline (exact? x) %residual-exact? (fixnum? (%ckn x)))
 
-(define-inline (inexact? x) %residual-inexact? (%flop (%ckn x)))
+(define-inline (inexact? x) %residual-inexact? (flonum? (%ckn x)))
 
 (define-inline (finite? x) %residual-finite? (%finp x)) 
 
@@ -323,10 +324,13 @@
 ; Booleans
 ;---------------------------------------------------------------------------------------------
 
+#|
+
 (define-inline (boolean? x) %residual-boolean? (%boolp x))
 
 (define-inline (not x) %residual-not (%not x))
 
+|#
 
 ;---------------------------------------------------------------------------------------------
 ; Characters
@@ -378,6 +382,7 @@
 ; Null and Pairs
 ;---------------------------------------------------------------------------------------------
 
+#|
 (define-inline (null? x) %residual-null? (%nullp x))
 
 (define-inline (pair? x) %residual-pair? (%pairp x))
@@ -389,6 +394,7 @@
 (define-inline (cdr x) %residual-cdr (%cdr x))
 
 (define-inline (set-cdr! x v) %residual-set-cdr! (%setcdr x v))
+|#
 
 (define-syntax c?r
   (syntax-rules (a d)
@@ -396,6 +402,7 @@
     [(c?r a ? ... x) (car (c?r ? ... x))]
     [(c?r d ? ... x) (cdr (c?r ? ... x))]))
 
+#|
 (define-inline (caar x) %residual-caar (c?r a a x))
 (define-inline (cadr x) %residual-cadr (c?r a d x))
 (define-inline (cdar x) %residual-cdar (c?r d a x))
@@ -424,8 +431,11 @@
 (define-inline (cddadr x) %residual-cddadr (c?r d d a d x))
 (define-inline (cdddar x) %residual-cdddar (c?r d d d a x))
 (define-inline (cddddr x) %residual-cddddr (c?r d d d d x))
+|#
 
+#|
 (define-inline (cons x y) %residual-cons (%cons x y))
+|#
 
 
 ;---------------------------------------------------------------------------------------------
@@ -436,7 +446,7 @@
 
 (define (%make-list n i)
   (let loop ([n (%ckk n)] [l '()])
-    (if (%ile n 0) l (loop (%isub n 1) (cons i l))))) 
+    (if (fx<=? n 0) l (loop (fx- n 1) (cons i l))))) 
 
 (define-syntax make-list
   (syntax-rules ()
@@ -448,7 +458,7 @@
 (define-syntax list 
   (syntax-rules ()
     [(_) '()]
-    [(_ x) (%cons x '())]
+    [(_ x) (cons x '())]
     [(_ x ...) (%list x ...)]
     [_ %residual-list]))
 
@@ -484,7 +494,7 @@
 (define-inline (assv v y) %residual-assv (%assv v (%ckl y)))  ; TODO: make sure assv checks list
 
 (define (%assoc v al eq) 
-  (and (pair? al) (if (eq v (car (%car al))) (%car al) (%assoc v (%cdr al) eq))))
+  (and (pair? al) (if (eq v (caar al)) (car al) (%assoc v (cdr al) eq))))
 
 (define-syntax assoc
   (syntax-rules ()
@@ -506,8 +516,8 @@
 (define-syntax list*
   (syntax-rules ()
     [(_ x) x]
-    [(_ x y) (%cons x y)]
-    [(_ x y z ...) (%cons x (list* y z ...))]
+    [(_ x y) (cons x y)]
+    [(_ x y z ...) (cons x (list* y z ...))]
     [(_ . args) (%residual-list* . args)]
     [_ %residual-list*]))
 
@@ -819,7 +829,7 @@
     [(_ fun lst)
      (let ([f fun]) 
        (let loop ([l lst]) 
-         (if (pair? l) (cons (f (%car l)) (loop (%cdr l))) '())))]
+         (if (pair? l) (cons (f (car l)) (loop (cdr l))) '())))]
     [(_ . args) (%residual-map . args)]
     [_ %residual-map])) 
 
@@ -828,7 +838,7 @@
     [(_ fun lst)
      (let ([f fun]) 
        (let loop ([l lst]) 
-         (if (pair? l) (begin (f (%car l)) (loop (%cdr l))))))]
+         (if (pair? l) (begin (f (car l)) (loop (cdr l))))))]
     [(_ . args) (%residual-for-each . args)]
     [_ %residual-for-each]))
 
