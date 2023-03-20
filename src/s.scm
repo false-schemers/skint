@@ -84,8 +84,8 @@
 ; (fxremainder x y)
 ; (fxmodquo x y) 
 ; (fxmodulo x y) 
-; (fxeucquo x y) a.k.a. euclidean-quotient
-; (fxeucrem x y) a.k.a. euclidean-remainder
+; (fxeucquo x y) a.k.a. euclidean-quotient, R6RS div
+; (fxeucrem x y) a.k.a. euclidean-remainder, R6RS mod
 ; (fxneg x)
 ; (fxabs x)
 ; (fx<? x y z ...)
@@ -140,18 +140,13 @@
 ;
 ; (number? x)
 ; (integer? x)
+; (complex? x) == number? what about inf and nan?
+; (real? x) == number? what about inf and nan?
+; (rational? x) == number? what about inf and nan?
+; (exact-integer? x) == fixnum?
 
-(define-syntax complex? number?)
-
-(define-syntax real? number?)
-
-(define-syntax rational? integer?)
-
-(define-syntax exact-integer? fixnum?)
-
-(define-inline (exact? x) %residual-exact? (fixnum? (%ckn x)))
-
-(define-inline (inexact? x) %residual-inexact? (flonum? (%ckn x)))
+; (exact? x)
+; (inexact? x)
 
 ; (finite? x)
 ; (infinite? x)
@@ -175,17 +170,14 @@
 
 ; (abs x)
 
-; (quotient x y)
-; (remainder x y)
+; (truncate-quotient x y)
+; (truncate-remainder x y)
+; (quotient x y) == truncate-quotient
+; (remainder x y) == truncate-remainder
 
-(define-syntax truncate-quotient quotient)
-(define-syntax truncate-remainder remainder)
-
-; (modquo x y) %residual-modquo (%mqu x y))
-; (modulo x y) %residual-modulo (%mlo x y))
-
-(define-syntax floor-quotient modquo)
-(define-syntax floor-remainder modulo)
+; (floor-quotient x y)
+; (floor-remainder x y)
+; (modulo x y) = floor-remainder
 
 (define (floor/ x y)
   (%sdmv (floor-quotient x y) (floor-remainder x y)))
@@ -270,7 +262,7 @@
 ; Lists
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (list? x) %residual-list? (%listp x))
+; (list? x)
 
 (define (%make-list n i)
   (let loop ([n (%ckk n)] [l '()])
@@ -290,11 +282,9 @@
     [(_ x ...) (%list x ...)]
     [_ %residual-list]))
 
-(define-inline (length x) %residual-length (%llen x))
-
-(define-inline (list-ref x i) %residual-list-ref (%lget x i))
-
-(define-inline (list-set! x i v) %residual-list-set! (%lput x i v))
+; (length l)
+; (list-ref l i)
+; (list-set! l i v)
 
 (define-syntax append
   (syntax-rules ()
@@ -303,43 +293,50 @@
     [(_ x y z ...) (%lcat x (append y z ...))]
     [_ %residual-append]))
 
-(define-inline (memq v y) %residual-memq (%memq v y))
+; (memq v l)
+; (memv v l)  ; TODO: make sure memv checks list
+; (meme v l)  ; TODO: make sure meme checks list
 
-(define-inline (memv v y) %residual-memv (%memv v (%ckl y)))  ; TODO: make sure memv checks list
-
-(define (%member x l eq)
-  (and (pair? l) (if (eq x (car l)) l (%member x (cdr l) eq))))
+(define (%member v l . ?eq)
+  (if (null? ?eq) 
+      (meme v l)
+      (let loop ([v v] [l l] [eq (car ?eq)])
+        (and (pair? l) 
+             (if (eq v (car l)) 
+                 l 
+                 (loop v (cdr l) eq))))))
 
 (define-syntax member
   (syntax-rules ()
-    [(_ v y) (%meme v (%ckl y))] ; TODO: make sure meme checks list
-    [(_ v y eq) (%member v y eq)]
-    [(_ . args) (%residual-member . args)]
-    [_ %residual-member]))
+    [(_ v l) (meme v l)] 
+    [(_ . args) (%member . args)]
+    [_ %member]))
 
-(define-inline (assq v y) %residual-assq (%assq v y))
+; (assq v y)
+; (assv v y) ; TODO: make sure assv checks list
+; (asse v y) ; TODO: make sure asse checks list
 
-(define-inline (assv v y) %residual-assv (%assv v (%ckl y)))  ; TODO: make sure assv checks list
-
-(define (%assoc v al eq) 
-  (and (pair? al) (if (eq v (caar al)) (car al) (%assoc v (cdr al) eq))))
+(define (%assoc v al . ?eq)
+  (if (null? ?eq) 
+      (asse v al)
+      (let loop ([v v] [al al] [eq (car ?eq)])
+        (and (pair? al) 
+             (if (eq v (caar al)) 
+                 (car al) 
+                 (loop v (cdr al) eq))))))
 
 (define-syntax assoc
   (syntax-rules ()
-    [(_ v al) (%asse v (%ckl al))] ; TODO: make sure asse checks list
-    [(_ v al eq) (%assoc v al eq)]
-    [(_ . args) (%residual-assoc . args)]
-    [_ %residual-assoc]))
+    [(_ v al) (asse v al)] 
+    [(_ . args) (%assoc . args)]
+    [_ %assoc]))
 
 (define-inline (list-copy x) %residual-list-copy (%lcat x '()))
 
-(define-inline (list-tail x i) %residual-list-tail (%ltail x i))
-
-(define-inline (last-pair x) %residual-last-pair (%lpair x))
-
-(define-inline (reverse x) %residual-reverse (%lrev x))
-
-(define-inline (reverse! x) %residual-reverse! (%lrevi x))
+; (list-tail l i)
+; (last-pair l)
+; (reverse l)
+; (reverse! l)
 
 (define-syntax list*
   (syntax-rules ()
@@ -609,25 +606,12 @@
 ;---------------------------------------------------------------------------------------------
 
 ; (fixnum->string x (r 10))
-; (string->fixnum x (r 10))
+; (string->fixnum s (r 10))
 ; (flonum->string x)
-; (string->flonum x)
+; (string->flonum s)
+; (number->string x (r 10))
+; (string->number s (r 10))
 
-#|
-(define-syntax number->string
-  (syntax-rules ()
-    [(_ x r) (%ntos x r)]
-    [(_ x) (%ntos x 10)]
-    [(_ . args) (%residual-number->string . args)]
-    [_ %residual-number->string]))
-
-(define-syntax string->number
-  (syntax-rules ()
-    [(_ x r) (%ston x r)]
-    [(_ x) (%ston x 10)]
-    [(_ . args) (%residual-string->number . args)]
-    [_ %residual-string->number]))
- |#
 
 ;---------------------------------------------------------------------------------------------
 ; Control features
@@ -699,33 +683,20 @@
 ; I/O Ports
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (input-port? x) %residual-input-port? (%ipp x))
-
-(define-inline (output-port? x) %residual-output-port? (%opp x))
-
-(define-inline (input-port-open? x) %residual-input-port-open? (%ipop x))
-
-(define-inline (output-port-open? x) %residual-output-port-open? (%opop x))
-
-(define-inline (current-input-port) %residual-current-input-port (%sip))
-
-(define-inline (current-output-port) %residual-current-output-port (%sop))
-
-(define-inline (current-error-port) %residual-current-error-port (%sep))
-
-(define-inline (open-output-string) %residual-open-output-string (%oos))
-
-(define-inline (open-input-file x) %residual-open-input-file (%otip x))
-
-(define-inline (open-output-file x) %residual-open-output-file (%otop x))
-
-(define-inline (open-input-string x) %residual-open-input-string (%ois x))
-
-(define-inline (close-input-port x) %residual-close-input-port (%cip x))
-
-(define-inline (close-output-port x) %residual-close-output-port (%cop x))
-
-(define-inline (get-output-string x) %residual-get-output-string (%gos x))
+; (input-port? x)
+; (output-port? x)
+; (input-port-open? p)
+; (output-port-open? p)
+; (current-input-port)
+; (current-output-port)
+; (current-error-port)
+; (open-output-string)
+; (open-input-file s)
+; (open-output-file x)
+; (open-input-string x)
+; (close-input-port x)
+; (close-output-port x)
+; (get-output-string x)
 
 (define (port? x) (or (input-port? x) (output-port? x)))
 
@@ -756,44 +727,27 @@
 ; Input
 ;---------------------------------------------------------------------------------------------
 
-(define-syntax read-char
-  (syntax-rules ()
-    [(_) (%rdc (%sip))]
-    [(_ p) (%rdc p)]
-    [(_ . args) (%residual-read-char . args)]
-    [_ %residual-read-char]))
 
-(define-syntax peek-char
-  (syntax-rules ()
-    [(_) (%rdac (%sip))]
-    [(_ p) (%rdac p)]
-    [(_ . args) (%residual-peek-char . args)]
-    [_ %residual-peek-char]))
+; (read-char (p (current-input-port)))
+; (peek-char (p (current-input-port)))
+; (char-ready? (p (current-input-port)))
 
-(define-syntax char-ready?
-  (syntax-rules ()
-    [(_) (%rdcr (%sip))]
-    [(_ p) (%rdcr p)]
-    [_ %residual-char-ready?]))
-
-(define (%read-line p)
-  (let ([op (%oos)])
+(define (read-line . ?p)
+  (let ([p (if (null? ?p) (current-input-port) (car ?p))]
+        [op (open-output-string)])
     (let loop ([read-nothing? #t])
-      (let ([c (%rdc p)])
-        (cond [(or (%eofp c) (char=? c #\newline))
-               (if (and (%eofp c) read-nothing?) c
-                   (let ([s (%gos op)]) (%cop op) s))]
+      (let ([c (read-char p)])
+        (cond [(or (eof-object? c) (char=? c #\newline))
+               (if (and (eof-object? c) read-nothing?) 
+                   c
+                   (let ([s (get-output-string op)]) 
+                     (close-output-port op) 
+                     s))]
               [(char=? c #\return) (loop #f)]
-              [else (%wrc c op) (loop #f)]))))) 
+              [else (write-char c op) (loop #f)]))))) 
 
-(define-syntax read-line
-  (syntax-rules ()
-    [(_) (%read-line (%sip))]
-    [(_ p) (%read-line p)]
-    [_ %residual-read-line]))
-
-(define-inline (eof-object? x) %residual-eof-object? (%eofp x))
-(define-inline (eof-object) %residual-eof-object (%eof))
+; (eof-object? x)
+; (eof-object)
 
 ;read
 ;read-string
@@ -809,56 +763,14 @@
 ; Output
 ;---------------------------------------------------------------------------------------------
 
-#| 
-(define-syntax write-char
-  (syntax-rules ()
-    [(_ x) (%wrc x (%sop))]
-    [(_ x p) (%wrc x p)]
-    [(_ . args) (%residual-write-char . args)]
-    [_ %residual-write-char]))
-
-(define-syntax write-string
-  (syntax-rules ()
-    [(_ x) (%wrs x (%sop))]
-    [(_ x p) (%wrs x p)]
-    [(_ . args) (%residual-write-string . args)]
-    [_ %residual-write-string]))
-
-(define-syntax display
-  (syntax-rules ()
-    [(_ x) (%wrcd x (%sop))]
-    [(_ x p) (%wrcd x p)]
-    [(_ . args) (%residual-display . args)]
-    [_ %residual-display]))
-
-(define-syntax write
-  (syntax-rules ()
-    [(_ x) (%wrcw x (%sop))]
-    [(_ x p) (%wrcw x p)]
-    [(_ . args) (%residual-write . args)]
-    [_ %residual-write]))
-
-(define-syntax newline
-  (syntax-rules ()
-    [(_)  (%wrnl (%sop))]
-    [(_ p) (%wrnl p)]
-    [(_ . args) (%residual-newline . args)]
-    [_ %residual-newline]))
-
-(define-syntax write-shared
-  (syntax-rules ()
-    [(_ x) (%wrhw x (%sop))]
-    [(_ x p) (%wrhw x p)]
-    [(_ . args) (%residual-write-shared . args)]
-    [_ %residual-write-shared]))
-
-(define-syntax write-simple
-  (syntax-rules ()
-    [(_ x) (%wriw x (%sop))]
-    [(_ x p) (%wriw x p)]
-    [(_ . args) (%residual-write-simple . args)]
-    [_ %residual-write-simple]))
-|#
+ 
+; (write-char c (p (current-output-port)))
+; (write-string s (p (current-output-port)))
+; (display x (p (current-output-port)))
+; (write x (p (current-output-port)))
+; (newline (p (current-output-port)))
+; (write-shared x (p (current-output-port)))
+; (write-simple x (p (current-output-port)))
 
 ;flush-output-port
 
@@ -969,9 +881,6 @@
                  x
                  (loop (f x (car args)) (cdr args))))))]))
 
-(define %residual-member (binary-ternary-adaptor member)) 
-(define %residual-assoc (binary-ternary-adaptor assoc))
-
 (define (%residual-list* x . l)
   (let loop ([x x] [l l])
     (if (null? l) x (cons x (loop (car l) (cdr l))))))
@@ -1010,22 +919,3 @@
 (define %residual-string-append (append-reducer string-append ""))
 (define %residual-vector-append (append-reducer vector-append '#()))
 
-#|
-(define %residual-number->string (unary-binary-adaptor number->string))
-(define %residual-string->number (unary-binary-adaptor string->number))
-|#
-
-(define %residual-read-char (nullary-unary-adaptor read-char))
-(define %residual-peek-char (nullary-unary-adaptor peek-char))
-(define %residual-char-ready? (nullary-unary-adaptor char-ready?))
-(define %residual-read-line (nullary-unary-adaptor read-line))
-
-#|
-(define %residual-write-char (unary-binary-adaptor write-char))
-(define %residual-write-string (unary-binary-adaptor write-string))
-(define %residual-newline (nullary-unary-adaptor newline))
-(define %residual-display (unary-binary-adaptor display))
-(define %residual-write (unary-binary-adaptor write))
-(define %residual-write-simple (unary-binary-adaptor write-simple))
-(define %residual-write-shared (unary-binary-adaptor write-shared))
-|#

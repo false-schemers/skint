@@ -105,7 +105,7 @@ char *t_code[] = {
   "@(y8:set-cdr!)@!(y16:binding-set-val!)",
 
   0,
-  "@(y14:%25residual-assq)@!(y16:find-top-binding)",
+  "@(y4:assq)@!(y16:find-top-binding)",
 
   0,
   "&0{%1,#0n,.2c.!0.0,&1{%0:0^]0}]2}@!(y6:new-id)",
@@ -140,17 +140,17 @@ char *t_code[] = {
   0,
   "&0{%3${.3,@(y3:id?)[01}?{${.4,.4,@(y9:xform-ref)[02},.0K0?{.1~}{f}?{.3"
   ",${.6,.6,.5[02},.3,@(y5:xform)[43}.0]4}.1p~?{.2,.2,@(y11:xform-quote)["
-  "32}.1a,.2d,${.6,.4,t,@(y5:xform)[03},.0,'(l1:y6:syntax;)%l,.1A1?{.2a]7"
-  "}'(l1:y5:quote;)%l,.1A1?{.6,.3a,@(y11:xform-quote)[72}'(l1:y4:set!;)%l"
-  ",.1A1?{.6,.3da,.4a,@(y10:xform-set!)[73}'(l1:y5:begin;)%l,.1A1?{.6,.3,"
-  "@(y11:xform-begin)[72}'(l1:y2:if;)%l,.1A1?{.6,.3,@(y8:xform-if)[72}'(l"
-  "1:y6:lambda;)%l,.1A1?{.6,.3,@(y12:xform-lambda)[72}'(l1:y7:lambda*;)%l"
-  ",.1A1?{.6,.3,@(y13:xform-lambda*)[72}'(l1:y5:letcc;)%l,.1A1?{.6,.3,@(y"
-  "11:xform-letcc)[72}'(l1:y6:withcc;)%l,.1A1?{.6,.3,@(y12:xform-withcc)["
-  "72}'(l1:y4:body;)%l,.1A1?{.6,.3,@(y10:xform-body)[72}'(l1:y6:define;)%"
-  "l,.1A1?{.6,.3da,.4a,@(y12:xform-define)[73}'(l1:y13:define-syntax;)%l,"
-  ".1A1?{.6,.3da,.4a,@(y19:xform-define-syntax)[73}t?{.1K0?{.6,${.9,.9,.6"
-  "[02},.6,@(y5:xform)[73}.6,.3,.3,@(y10:xform-call)[73}f]7}@!(y5:xform)",
+  "32}.1a,.2d,${.6,.4,t,@(y5:xform)[03},.0,'(l1:y6:syntax;),.1A1?{.2a]7}'"
+  "(l1:y5:quote;),.1A1?{.6,.3a,@(y11:xform-quote)[72}'(l1:y4:set!;),.1A1?"
+  "{.6,.3da,.4a,@(y10:xform-set!)[73}'(l1:y5:begin;),.1A1?{.6,.3,@(y11:xf"
+  "orm-begin)[72}'(l1:y2:if;),.1A1?{.6,.3,@(y8:xform-if)[72}'(l1:y6:lambd"
+  "a;),.1A1?{.6,.3,@(y12:xform-lambda)[72}'(l1:y7:lambda*;),.1A1?{.6,.3,@"
+  "(y13:xform-lambda*)[72}'(l1:y5:letcc;),.1A1?{.6,.3,@(y11:xform-letcc)["
+  "72}'(l1:y6:withcc;),.1A1?{.6,.3,@(y12:xform-withcc)[72}'(l1:y4:body;),"
+  ".1A1?{.6,.3,@(y10:xform-body)[72}'(l1:y6:define;),.1A1?{.6,.3da,.4a,@("
+  "y12:xform-define)[73}'(l1:y13:define-syntax;),.1A1?{.6,.3da,.4a,@(y19:"
+  "xform-define-syntax)[73}t?{.1K0?{.6,${.9,.9,.6[02},.6,@(y5:xform)[73}."
+  "6,.3,.3,@(y10:xform-call)[73}f]7}@!(y5:xform)",
 
   0,
   "&0{%2${.2,,#0.0,&1{%1${.2,@(y3:id?)[01}?{.0,@(y7:id->sym)[11}.0p?{${.2"
@@ -177,10 +177,10 @@ char *t_code[] = {
 
   0,
   "&0{%2.0L0?{.1,&1{%1:0,.1,f,@(y5:xform)[13},${.3,,#0.4,.1,&2{%1.0p?{${."
-  "2d,:0^[01},${.3a,:1[01}c]1}n]1}.!0.0^_1[01}_1,.0g,'(l1:i2;)%l,.1A1?{'("
-  "l1:l1:y5:begin;;),.2L6,'(y2:if)c]4}'(l1:i3;)%l,.1A1?{.1,'(y2:if)c]4}t?"
-  "{'(s17:malformed if form),'(y9:transform),@(y5:error)[42}f]4}'(s16:imp"
-  "roper if form),'(y9:transform),@(y5:error)[22}@!(y8:xform-if)",
+  "2d,:0^[01},${.3a,:1[01}c]1}n]1}.!0.0^_1[01}_1,.0g,'(l1:i2;),.1A1?{'(l1"
+  ":l1:y5:begin;;),.2L6,'(y2:if)c]4}'(l1:i3;),.1A1?{.1,'(y2:if)c]4}t?{'(s"
+  "17:malformed if form),'(y9:transform),@(y5:error)[42}f]4}'(s16:imprope"
+  "r if form),'(y9:transform),@(y5:error)[22}@!(y8:xform-if)",
 
   0,
   "&0{%3.1L0?{.2,&1{%1:0,.1,f,@(y5:xform)[13},${.4,,#0.4,.1,&2{%1.0p?{${."
@@ -216,15 +216,15 @@ char *t_code[] = {
 
   0,
   "&0{%2.0u?{n,'(y5:begin)c]2}.0,n,n,n,.5,,#0.0,&1{%5.4p?{.4ap}{f}?{.4d,."
-  "5a,.0a,${.5,.3,t,@(y5:xform)[03},.0,'(l1:y5:begin;)%l,.1A1?{.4,.4dL6,."
-  "9,.9,.9,.9,:0^[(i10)5}'(l1:y6:define;)%l,.1A1?{.3da,.4dda,${${.5,@(y7:"
-  "id->sym)[01},@(y6:gensym)[01},${.(i10),.3,.6,@(y7:add-var)[03},.8,.(i1"
-  "3),.3c,.(i13),.5c,.(i13),.7c,.4,:0^[(i14)5}'(l1:y13:define-syntax;)%l,"
-  ".1A1?{.3da,.4dda,${.9,'(l1:y9:undefined;),.5,@(y11:add-binding)[03},.7"
-  ",.(i12),tc,.(i12),.4c,.(i12),.6c,.4,:0^[(i13)5}t?{.1K0?{.4,${.8,.7,.6["
-  "02}c,.9,.9,.9,.9,:0^[(i10)5}.5,.(i10),.(i10)A8,.(i10)A8,.(i10)A8,@(y12"
-  ":xform-labels)[(i10)5}f](i10)}.0,.5,.5A8,.5A8,.5A8,@(y12:xform-labels)"
-  "[55}.!0.0^_1[25}@!(y10:xform-body)",
+  "5a,.0a,${.5,.3,t,@(y5:xform)[03},.0,'(l1:y5:begin;),.1A1?{.4,.4dL6,.9,"
+  ".9,.9,.9,:0^[(i10)5}'(l1:y6:define;),.1A1?{.3da,.4dda,${${.5,@(y7:id->"
+  "sym)[01},@(y6:gensym)[01},${.(i10),.3,.6,@(y7:add-var)[03},.8,.(i13),."
+  "3c,.(i13),.5c,.(i13),.7c,.4,:0^[(i14)5}'(l1:y13:define-syntax;),.1A1?{"
+  ".3da,.4dda,${.9,'(l1:y9:undefined;),.5,@(y11:add-binding)[03},.7,.(i12"
+  "),tc,.(i12),.4c,.(i12),.6c,.4,:0^[(i13)5}t?{.1K0?{.4,${.8,.7,.6[02}c,."
+  "9,.9,.9,.9,:0^[(i10)5}.5,.(i10),.(i10)A8,.(i10)A8,.(i10)A8,@(y12:xform"
+  "-labels)[(i10)5}f](i10)}.0,.5,.5A8,.5A8,.5A8,@(y12:xform-labels)[55}.!"
+  "0.0^_1[25}@!(y10:xform-body)",
 
   0,
   "&0{%5n,n,.4,.4,.4,,#0.0,.(i11),.(i11),&3{%5.0u?{:1,&1{%1:0,.1,f,@(y5:x"
