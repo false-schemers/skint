@@ -1223,7 +1223,7 @@ define_instruction(itos) {
 }
 
 define_instruction(stoi) {
-  char *e, *s; int radix = fixnum_from_obj(spop()); long l;
+  char *e, *s; long l, radix;
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = fixnum_from_obj(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
@@ -3593,6 +3593,16 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
       case 'x': {
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%!1.0,.2,,#0.0,&1{%%2.1u?{.0]2}.1d,.2a,.2%s,:0^[22}.!0.0^_1[22}", pe->enc);
+      } break;
+      case 'u': {
+        lcode = lbuf; assert(pe->enc); 
+        pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
+        sprintf(lbuf, "%%!0.0u?{%s%s]1}.0du?{.0a%s]1}%%%%", pe1, pe0, pe0);
+      } break;
+      case 'b': {
+        lcode = lbuf; assert(pe->enc); 
+        pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
+        sprintf(lbuf, "%%!1.0u?{%s,.2%s]2}.0du?{.0a,.2%s]2}%%%%", pe1, pe0, pe0);
       } break;
       default: assert(0); 
     }

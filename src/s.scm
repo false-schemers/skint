@@ -608,14 +608,12 @@
 ; Conversions
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (fixnum->string x r) %residual-fixnum->string (%itos x r))
+; (fixnum->string x (r 10))
+; (string->fixnum x (r 10))
+; (flonum->string x)
+; (string->flonum x)
 
-(define-inline (string->fixnum x r) %residual-string->fixnum (%stoi x r))
-
-(define-inline (flonum->string x) %residual-flonum->string (%jtos x))
-
-(define-inline (string->flonum x) %residual-string->flonum (%stoj x))
-
+#|
 (define-syntax number->string
   (syntax-rules ()
     [(_ x r) (%ntos x r)]
@@ -629,7 +627,7 @@
     [(_ x) (%ston x 10)]
     [(_ . args) (%residual-string->number . args)]
     [_ %residual-string->number]))
-
+ |#
 
 ;---------------------------------------------------------------------------------------------
 ; Control features
@@ -811,6 +809,7 @@
 ; Output
 ;---------------------------------------------------------------------------------------------
 
+#| 
 (define-syntax write-char
   (syntax-rules ()
     [(_ x) (%wrc x (%sop))]
@@ -859,6 +858,7 @@
     [(_ x p) (%wriw x p)]
     [(_ . args) (%residual-write-simple . args)]
     [_ %residual-write-simple]))
+|#
 
 ;flush-output-port
 
@@ -1010,14 +1010,17 @@
 (define %residual-string-append (append-reducer string-append ""))
 (define %residual-vector-append (append-reducer vector-append '#()))
 
+#|
 (define %residual-number->string (unary-binary-adaptor number->string))
 (define %residual-string->number (unary-binary-adaptor string->number))
+|#
 
 (define %residual-read-char (nullary-unary-adaptor read-char))
 (define %residual-peek-char (nullary-unary-adaptor peek-char))
 (define %residual-char-ready? (nullary-unary-adaptor char-ready?))
 (define %residual-read-line (nullary-unary-adaptor read-line))
 
+#|
 (define %residual-write-char (unary-binary-adaptor write-char))
 (define %residual-write-string (unary-binary-adaptor write-string))
 (define %residual-newline (nullary-unary-adaptor newline))
@@ -1025,3 +1028,4 @@
 (define %residual-write (unary-binary-adaptor write))
 (define %residual-write-simple (unary-binary-adaptor write-simple))
 (define %residual-write-shared (unary-binary-adaptor write-shared))
+|#

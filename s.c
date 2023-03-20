@@ -766,50 +766,6 @@ char *s_code[] = {
   0,
   "&0{%2.1,.1Si<!]2}@!(y19:%25residual-string>=?)",
 
-  "fixnum->string",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:r;;l3:y5:%25itos;y1:x;y1:r;;;"
-  "l2:py1:_;y12:syntax-rules;;py24:%25residual-fixnum->string;y12:syntax-"
-  "rules;;;l2:y1:_;y24:%25residual-fixnum->string;;",
-
-  0,
-  "&0{%2.1,.1X6]2}@!(y24:%25residual-fixnum->string)",
-
-  "string->fixnum",
-  "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:r;;l3:y5:%25stoi;y1:x;y1:r;;;"
-  "l2:py1:_;y12:syntax-rules;;py24:%25residual-string->fixnum;y12:syntax-"
-  "rules;;;l2:y1:_;y24:%25residual-string->fixnum;;",
-
-  0,
-  "&0{%2.1,.1X7]2}@!(y24:%25residual-string->fixnum)",
-
-  "flonum->string",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25jtos;y1:x;;;l2:py1:_;y"
-  "12:syntax-rules;;py24:%25residual-flonum->string;y12:syntax-rules;;;l2"
-  ":y1:_;y24:%25residual-flonum->string;;",
-
-  0,
-  "&0{%1.0E6]1}@!(y24:%25residual-flonum->string)",
-
-  "string->flonum",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25stoj;y1:x;;;l2:py1:_;y"
-  "12:syntax-rules;;py24:%25residual-string->flonum;y12:syntax-rules;;;l2"
-  ":y1:_;y24:%25residual-string->flonum;;",
-
-  0,
-  "&0{%1.0E7]1}@!(y24:%25residual-string->flonum)",
-
-  "number->string",
-  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:r;;l3:y5:%25ntos;y1:x;y1:r;;;"
-  "l2:l2:y1:_;y1:x;;l3:y5:%25ntos;y1:x;i10;;;l2:py1:_;y4:args;;py24:%25re"
-  "sidual-number->string;y4:args;;;l2:y1:_;y24:%25residual-number->string"
-  ";;",
-
-  "string->number",
-  "l6:y12:syntax-rules;n;l2:l3:y1:_;y1:x;y1:r;;l3:y5:%25ston;y1:x;y1:r;;;"
-  "l2:l2:y1:_;y1:x;;l3:y5:%25ston;y1:x;i10;;;l2:py1:_;y4:args;;py24:%25re"
-  "sidual-string->number;y4:args;;;l2:y1:_;y24:%25residual-string->number"
-  ";;",
-
   "procedure?",
   "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y5:%25funp;y1:x;;;l2:py1:_;y"
   "12:syntax-rules;;py20:%25residual-procedure?;y12:syntax-rules;;;l2:y1:"
@@ -1030,8 +986,8 @@ char *s_code[] = {
 
   0,
   "&0{%1P51,t,,#0.3,.3,.2,&3{%1:2R0,.0R8,.0?{.0}{'(c%0a),.2C=}_1?{.0R8?{."
-  "1}{f}?{.0]2}:1P9,:1P61.0]3}'(c%0d),.1C=?{f,:0^[21}:1,.1W0f,:0^[21}.!0."
-  "0^_1[21}@!(y10:%25read-line)",
+  "1}{f}?{.0]2}:1P9,:1P61.0]3}'(c%0d),.1C=?{f,:0^[21}${:1,.3,@(y4:%25wrc)"
+  "[02}f,:0^[21}.!0.0^_1[21}@!(y10:%25read-line)",
 
   "read-line",
   "l5:y12:syntax-rules;n;l2:l1:y1:_;;l2:y10:%25read-line;l1:y4:%25sip;;;;"
@@ -1053,45 +1009,6 @@ char *s_code[] = {
 
   0,
   "&0{%0R9]0}@!(y20:%25residual-eof-object)",
-
-  "write-char",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25wrc;y1:x;l1:y4:%25sop;"
-  ";;;l2:l3:y1:_;y1:x;y1:p;;l3:y4:%25wrc;y1:x;y1:p;;;l2:py1:_;y4:args;;py"
-  "20:%25residual-write-char;y4:args;;;l2:y1:_;y20:%25residual-write-char"
-  ";;",
-
-  "write-string",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y4:%25wrs;y1:x;l1:y4:%25sop;"
-  ";;;l2:l3:y1:_;y1:x;y1:p;;l3:y4:%25wrs;y1:x;y1:p;;;l2:py1:_;y4:args;;py"
-  "22:%25residual-write-string;y4:args;;;l2:y1:_;y22:%25residual-write-st"
-  "ring;;",
-
-  "display",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25wrcd;y1:x;l1:y4:%25sop"
-  ";;;;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wrcd;y1:x;y1:p;;;l2:py1:_;y4:args;;"
-  "py17:%25residual-display;y4:args;;;l2:y1:_;y17:%25residual-display;;",
-
-  "write",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25wrcw;y1:x;l1:y4:%25sop"
-  ";;;;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wrcw;y1:x;y1:p;;;l2:py1:_;y4:args;;"
-  "py15:%25residual-write;y4:args;;;l2:y1:_;y15:%25residual-write;;",
-
-  "newline",
-  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l2:y5:%25wrnl;l1:y4:%25sop;;;;l2:l2:"
-  "y1:_;y1:p;;l2:y5:%25wrnl;y1:p;;;l2:py1:_;y4:args;;py17:%25residual-new"
-  "line;y4:args;;;l2:y1:_;y17:%25residual-newline;;",
-
-  "write-shared",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25wrhw;y1:x;l1:y4:%25sop"
-  ";;;;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wrhw;y1:x;y1:p;;;l2:py1:_;y4:args;;"
-  "py22:%25residual-write-shared;y4:args;;;l2:y1:_;y22:%25residual-write-"
-  "shared;;",
-
-  "write-simple",
-  "l6:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25wriw;y1:x;l1:y4:%25sop"
-  ";;;;l2:l3:y1:_;y1:x;y1:p;;l3:y5:%25wriw;y1:x;y1:p;;;l2:py1:_;y4:args;;"
-  "py22:%25residual-write-simple;y4:args;;;l2:y1:_;y22:%25residual-write-"
-  "simple;;",
 
   0,
   "&0{%!0.0]1}@!(y14:%25residual-list)",
@@ -1157,12 +1074,6 @@ char *s_code[] = {
   "0.0^_1[11}@!(y23:%25residual-vector-append)",
 
   0,
-  "&0{%!1.0u?{'(i10),.2E8]2}.0a,.2E8]2}@!(y24:%25residual-number->string)",
-
-  0,
-  "&0{%!1.0u?{'(i10),.2E9]2}.0a,.2E9]2}@!(y24:%25residual-string->number)",
-
-  0,
   "&0{%!0.0u?{P10R0]1}.0aR0]1}@!(y19:%25residual-read-char)",
 
   0,
@@ -1174,27 +1085,6 @@ char *s_code[] = {
   0,
   "&0{%!0.0u?{P10,@(y10:%25read-line)[11}.0a,@(y10:%25read-line)[11}@!(y1"
   "9:%25residual-read-line)",
-
-  0,
-  "&0{%!1.0u?{P11,.2W0]2}.0a,.2W0]2}@!(y20:%25residual-write-char)",
-
-  0,
-  "&0{%!1.0u?{P11,.2W1]2}.0a,.2W1]2}@!(y22:%25residual-write-string)",
-
-  0,
-  "&0{%!0.0u?{P11W6]1}.0aW6]1}@!(y17:%25residual-newline)",
-
-  0,
-  "&0{%!1.0u?{P11,.2W4]2}.0a,.2W4]2}@!(y17:%25residual-display)",
-
-  0,
-  "&0{%!1.0u?{P11,.2W5]2}.0a,.2W5]2}@!(y15:%25residual-write)",
-
-  0,
-  "&0{%!1.0u?{P11,.2W8]2}.0a,.2W8]2}@!(y22:%25residual-write-simple)",
-
-  0,
-  "&0{%!1.0u?{P11,.2W7]2}.0a,.2W7]2}@!(y22:%25residual-write-shared)",
 
   0, 0
 };
