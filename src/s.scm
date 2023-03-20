@@ -126,6 +126,7 @@
 ; (fl>? x y z ...)
 ; (fl>=? x y z ...)
 ; (fl=? x y z ...)
+; (fl!=? x y)
 ; (flmin x y)
 ; (flmax x y)
 ; (flonum->fixnum x)
@@ -135,9 +136,10 @@
 ; Numbers (fixnums or flonums)
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (number? x) %residual-number? (%nump x))
-
-(define-inline (integer? x) %residual-integer? (%intp x))
+; integrables:
+;
+; (number? x)
+; (integer? x)
 
 (define-syntax complex? number?)
 
@@ -151,115 +153,36 @@
 
 (define-inline (inexact? x) %residual-inexact? (flonum? (%ckn x)))
 
-(define-inline (finite? x) %residual-finite? (%finp x)) 
+; (finite? x)
+; (infinite? x)
+; (nan? x)
+; (zero? x)
+; (positive? x)
+; (negative? x)
+; (even? x)
+; (odd? x)
 
-(define-inline (infinite? x) %residual-infinite? (%infp x)) 
+; (+ x ...)
+; (* x ...)
+; (- x y ...)
+; (/ x y ...)
 
-(define-inline (nan? x) %residual-nan? (%nanp x)) 
+; (< x y z ...)
+; (<= x y z ...)
+; (> x y z ...)
+; (>= x y z ...)
+; (= x y z ...)
 
-(define-inline (zero? x) %residual-zero? (%zerop x))
+; (abs x)
 
-(define-inline (positive? x) %residual-positive? (%posp x))
-
-(define-inline (negative? x) %residual-negative? (%negp x))
-
-(define-inline (even? x) %residual-even? (%evnp x))
-
-(define-inline (odd? x) %residual-odd? (%oddp x))
-
-(define-syntax min
-  (syntax-rules ()
-    [(_ x) x]
-    [(_ x y) (%min x y)]
-    [(_ x y z ...) (min (min x y) z ...)]
-    [(_ . args) (%residual-min . args)]
-    [_ %residual-min]))
-
-(define-syntax max
-  (syntax-rules ()
-    [(_ x) x]
-    [(_ x y) (%max x y)]
-    [(_ x y z ...) (max (max x y) z ...)]
-    [(_ . args) (%residual-max . args)]
-    [_ %residual-max]))
-
-(define-syntax + 
-  (syntax-rules ()
-    [(_) 0] 
-    [(_ x) (%ckn x)]
-    [(_ x y) (%add x y)]
-    [(_ x y z ...) (+ (+ x y) z ...)]
-    [_ %residual+]))
-
-(define-syntax *
-  (syntax-rules ()
-    [(_) 1]
-    [(_ x) (%ckn x)]
-    [(_ x y) (%mul x y)]
-    [(_ x y z ...) (* (* x y) z ...)]
-    [_ %residual*]))
-
-(define-syntax -
-  (syntax-rules ()
-    [(_ x) (%neg x)]
-    [(_ x y) (%sub x y)]
-    [(_ x y z ...) (- (- x y) z ...)]
-    [(_ . args) (%residual- . args)]
-    [_ %residual-]))
-
-(define-syntax /
-  (syntax-rules ()
-    [(_ x) (%div 1 x)]
-    [(_ x y) (%div x y)]
-    [(_ x y z ...) (/ (/ x y) z ...)]
-    [(_ . args) (%residual/ . args)]
-    [_ %residual/]))
-
-(define-syntax =
-  (syntax-rules ()
-    [(_ x y) (%eq x y)] 
-    [(_ x y z ...) (let ([t y]) (and (= x t) (= t z ...)))]
-    [(_ . args) (%residual= . args)]
-    [_ %residual=]))
-
-(define-syntax <
-  (syntax-rules ()
-    [(_ x y) (%lt x y)]
-    [(_ x y z ...) (let ([t y]) (and (< x t) (< t z ...)))]
-    [(_ . args) (%residual< . args)]
-    [_ %residual<]))
-
-(define-syntax >
-  (syntax-rules ()
-    [(_ x y) (%gt x y)]
-    [(_ x y z ...) (let ([t y]) (and (> x t) (> t z ...)))]
-    [(_ . args) (%residual> . args)]
-    [_ %residual>]))
-
-(define-syntax <=
-  (syntax-rules ()
-    [(_ x y) (%le x y)]
-    [(_ x y z ...) (let ([t y]) (and (<= x t) (<= t z ...)))]
-    [(_ . args) (%residual<= . args)]
-    [_ %residual<=]))
-
-(define-syntax >=
-  (syntax-rules ()
-    [(_ x y) (%ge x y)]
-    [(_ x y z ...) (let ([t y]) (and (>= x t) (>= t z ...)))]
-    [(_ . args) (%residual>= . args)]
-    [_ %residual>=]))
-
-(define-inline (abs x) %residual-abs (%abs x))
-
-(define-inline (quotient x y) %residual-quotient (%quo x y))
-(define-inline (remainder x y) %residual-remainder (%rem x y))
+; (quotient x y)
+; (remainder x y)
 
 (define-syntax truncate-quotient quotient)
 (define-syntax truncate-remainder remainder)
 
-(define-inline (modquo x y) %residual-modquo (%mqu x y))
-(define-inline (modulo x y) %residual-modulo (%mlo x y))
+; (modquo x y) %residual-modquo (%mqu x y))
+; (modulo x y) %residual-modulo (%mlo x y))
 
 (define-syntax floor-quotient modquo)
 (define-syntax floor-remainder modulo)
@@ -1015,12 +938,6 @@
 (define %residual-make-vector (unary-binary-adaptor make-vector))
 (define %residual-make-string (unary-binary-adaptor make-string))
 
-(define %residual= (cmp-reducer =))  
-(define %residual< (cmp-reducer <))
-(define %residual> (cmp-reducer >))
-(define %residual<= (cmp-reducer <=))
-(define %residual>= (cmp-reducer >=))
-
 (define-syntax minmax-reducer
   (syntax-rules ()
     [(_ f)
@@ -1029,9 +946,6 @@
          (if (null? args)
              x
              (loop (f x (car args)) (cdr args)))))]))
-
-(define %residual-min (minmax-reducer min))
-(define %residual-max (minmax-reducer max))
 
 (define-syntax addmul-reducer
   (syntax-rules ()
@@ -1044,9 +958,6 @@
                  x
                  (loop (f x (car args)) (cdr args))))))]))
 
-(define %residual+ (addmul-reducer + 0))
-(define %residual* (addmul-reducer * 1))
-
 (define-syntax subdiv-reducer
   (syntax-rules ()
     [(_ f)
@@ -1057,9 +968,6 @@
              (if (null? args)
                  x
                  (loop (f x (car args)) (cdr args))))))]))
-
-(define %residual- (subdiv-reducer -))
-(define %residual/ (subdiv-reducer /))
 
 (define %residual-member (binary-ternary-adaptor member)) 
 (define %residual-assoc (binary-ternary-adaptor assoc))
