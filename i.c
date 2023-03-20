@@ -3590,6 +3590,10 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%!0.0u,.0?{.0]2}.1d,.2a,,#0.0,&1{%%2.1u,.0?{.0]3}.2a,.0,.3%s?{.3d,.1,:0^[42}f]4}.!0.0^_1[22", pe->enc);
       } break;
+      case 'x': {
+        lcode = lbuf; assert(pe->enc);
+        sprintf(lbuf, "%%!1.0,.2,,#0.0,&1{%%2.1u?{.0]2}.1d,.2a,.2%s,:0^[22}.!0.0^_1[22}", pe->enc);
+      } break;
       default: assert(0); 
     }
     if (!lcode || *lcode == 0) continue;

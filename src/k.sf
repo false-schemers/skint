@@ -356,14 +356,14 @@
 
 (define (integrable-argc-match? igt n)
   (case igt
-    [(#\0) (=  n 0)] [(#\1) (=  n 1)] [(#\2) (=  n 2)] [(#\3) (= n 3)] 
-    [(#\p) (>= n 0)] [(#\m) (>= n 1)] [(#\c) (>= n 2)]
+    [(#\0) (=  n 0)] [(#\1) (=  n 1)] [(#\2) (=  n 2)] [(#\3) (=  n 3)] 
+    [(#\p) (>= n 0)] [(#\m) (>= n 1)] [(#\c) (>= n 2)] [(#\x) (>= n 1)]
     [else #f])) 
 
 (define (xform-integrable ig tail env)
   (if (integrable-argc-match? (integrable-type ig) (length tail))
       (cons 'integrable (cons ig (map (lambda (sexp) (xform #f sexp env)) tail)))
-      (error 'transform "improper integrable application" (integrable-global ig))))
+      (xform-call (list 'ref (integrable-global ig)) tail env)))
 
 (define (xform-lambda tail env)
   (if (and (list1+? tail) (idslist? (car tail)))
@@ -1134,6 +1134,14 @@
                  (unless (null? (cdr args)) (write-char #\, port) (write-char #\, port)))
                (do ([i 0 (fx+ i 1)]) [(fx>=? i opc)]
                  (unless (fxzero? i) (write-char #\; port)) 
+                 (write-string igc0 port)))]
+            [(#\x) ; (length args) >= 1
+             (let ([opc (fx- (length args) 1)])
+               (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
+                 [(null? args)]
+                 (codegen (car args) l f s g #f port)
+                 (unless (null? (cdr args)) (write-char #\, port)))
+               (do ([i 0 (fx+ i 1)]) [(fx>=? i opc)]
                  (write-string igc0 port)))]
             [else (error 'codegen "NYI: unsupported integrable type" igty)]))
        (when k (write-char #\] port) (write-serialized-arg k port))]
