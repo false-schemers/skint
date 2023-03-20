@@ -440,19 +440,42 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"integrable entry"); musttail return cxi_failactype(IARGS); } } while (0)
 
 
-define_instruction(halt) { unwindi(0); }
+define_instruction(halt) { 
+  unwindi(0); 
+}
 
-define_instruction(lit) { ac = *ip++; gonexti(); }
+define_instruction(lit) { 
+  ac = *ip++; 
+  gonexti();
+}
 
-define_instruction(sref) { int i = fixnum_from_obj(*ip++); ac = sref(i); gonexti(); }  
+define_instruction(sref) {
+  int i = fixnum_from_obj(*ip++);
+  ac = sref(i);
+  gonexti();
+}  
 
-define_instruction(dref) { int i = fixnum_from_obj(*ip++); ac = dref(i); gonexti(); }
+define_instruction(dref) {
+  int i = fixnum_from_obj(*ip++);
+  ac = dref(i); 
+  gonexti();
+}
 
-define_instruction(gref) { obj p = *ip++; ac = gref(p); gonexti(); }
+define_instruction(gref) {
+  obj p = *ip++; 
+  ac = gref(p);
+  gonexti();
+}
 
-define_instruction(iref) { ac = boxref(ac); gonexti(); }
+define_instruction(iref) {
+  ac = boxref(ac);
+  gonexti();
+}
 
-define_instruction(iset) { boxref(ac) = spop(); gonexti(); }
+define_instruction(iset) {
+  boxref(ac) = spop();
+  gonexti();
+}
 
 define_instruction(dclose) {
   int i, n = fixnum_from_obj(*ip++), c = n+1; 
@@ -473,11 +496,33 @@ define_instruction(sbox) {
   gonexti();
 }
 
-define_instruction(br) { int dx = fixnum_from_obj(*ip++); ip += dx; gonexti(); }
+define_instruction(br) { 
+  int dx = fixnum_from_obj(*ip++); 
+  ip += dx; 
+  gonexti(); 
+}
 
-define_instruction(brt) { int dx = fixnum_from_obj(*ip++); if (ac) ip += dx; gonexti(); }
+define_instruction(brt) { 
+  int dx = fixnum_from_obj(*ip++);
+  if (ac) ip += dx; 
+  gonexti(); 
+}
 
-define_instruction(brnot) { int dx = fixnum_from_obj(*ip++); if (!ac) ip += dx; gonexti(); }
+define_instruction(brnot) { 
+  int dx = fixnum_from_obj(*ip++);
+  if (!ac) ip += dx; 
+  gonexti(); 
+}
+
+define_instruction(andbo) {
+  if (ac) { /* go to next binary instruction w/2 args */
+    ac = spop();
+  } else { /* skip the next instruction, drop its args */
+    sdrop(2);
+    ip += 1;
+  }
+  gonexti(); 
+}
 
 define_instruction(sseti) {
   int i = fixnum_from_obj(*ip++);
@@ -723,7 +768,10 @@ define_instruction(adrop) {
   gonexti();
 }
 
-define_instruction(pop) { ac = spop(); gonexti(); }
+define_instruction(pop) { 
+  ac = spop(); 
+  gonexti();
+}
 
 define_instruction(atest) {
   obj no = *ip++;
@@ -751,7 +799,7 @@ define_instruction(shrarg) {
     sdrop(c-n);
     spush(l); 
   }
-  /* ac = obj_from_fixnum(n+1); */
+  ac = obj_from_fixnum(n+1);
   gonexti();
 }
 
@@ -760,8 +808,17 @@ define_instruction(aerr) {
   gonexti();
 }
 
-define_instruction(shlit) { spush(ac); ac = *ip++; gonexti(); }
-define_instruction(shi0)  { spush(ac); ac = obj_from_fixnum(0); gonexti(); }
+define_instruction(shlit) { 
+  spush(ac); 
+  ac = *ip++; 
+  gonexti();
+}
+
+define_instruction(shi0) { 
+  spush(ac);
+  ac = obj_from_fixnum(0);
+  gonexti();
+}
 
 
 /* type checks */
@@ -2649,11 +2706,30 @@ define_instruction(sreturn4) {
   retfromi(); 
 }
 
-define_instruction(atest0) { if (unlikely(ac != obj_from_fixnum(0))) fail("argument count error on entry"); gonexti(); }
-define_instruction(atest1) { if (unlikely(ac != obj_from_fixnum(1))) fail("argument count error on entry"); gonexti(); }
-define_instruction(atest2) { if (unlikely(ac != obj_from_fixnum(2))) fail("argument count error on entry"); gonexti(); }
-define_instruction(atest3) { if (unlikely(ac != obj_from_fixnum(3))) fail("argument count error on entry"); gonexti(); }
-define_instruction(atest4) { if (unlikely(ac != obj_from_fixnum(4))) fail("argument count error on entry"); gonexti(); }
+define_instruction(atest0) {
+  if (unlikely(ac != obj_from_fixnum(0))) fail("argument count error on entry");
+  gonexti();
+}
+
+define_instruction(atest1) {
+  if (unlikely(ac != obj_from_fixnum(1))) fail("argument count error on entry");
+  gonexti();
+}
+
+define_instruction(atest2) {
+  if (unlikely(ac != obj_from_fixnum(2))) fail("argument count error on entry");
+  gonexti();
+}
+
+define_instruction(atest3) {
+  if (unlikely(ac != obj_from_fixnum(3))) fail("argument count error on entry");
+  gonexti();
+}
+
+define_instruction(atest4) {
+  if (unlikely(ac != obj_from_fixnum(4))) fail("argument count error on entry");
+  gonexti();
+}
 
 define_instruction(scall1) {
   int m = 1, n = fixnum_from_obj(*ip++);
@@ -2948,23 +3024,14 @@ static const char *integrable_global(struct intgtab_entry *pi)
 
 static const char *integrable_code(struct intgtab_entry *pi, int n)
 {
-  static char buf[60]; char *ps, *code = NULL;
-  int it = pi->igtype;
+  char *ps, *code = NULL; int it = pi->igtype;
   if (it >= ' ') {
-    ps = pi->enc;
+    ps = pi->enc; assert(ps);
     while (ps && n-- > 0) {
-      ps = strchr(ps, '\t');
-      if (ps) ps += 1;
+      ps += strlen(ps) + 1; /* \0 terminates each field */
+      assert(*ps);
     }
-    if (ps) {
-      code = ps; ps = strchr(ps, '\t');
-      if (ps) {
-        assert(ps-code < sizeof(buf));
-        strncpy(buf, code, ps-code);
-        buf[ps-code] = 0;
-        code = buf;
-      }
-    }
+    code = ps;
   }
   return code;
 }
@@ -3371,6 +3438,19 @@ more:
         *--hp = obj_from_size(PAIR_BTAG); sref(0) = hendblk(3);
         goto more;
       } break;
+      case 'a': { /* andbo */
+        hreserve(hbsz(3), sp-r);
+        *--hp = sref(0); *--hp = pbr->g;  
+        *--hp = obj_from_size(PAIR_BTAG); sref(0) = hendblk(3);
+        c = iportpeekc(sref(1));
+        if (c == EOF || c == '}') { ra = mkeof(); goto out; }
+        pbr = rds_prefix(sref(1));
+        if (pbr->g == 0 || pbr->etyp != 0) { ra = mkeof(); goto out; }
+        hreserve(hbsz(3), sp-r);
+        *--hp = sref(0); *--hp = pbr->g;  
+        *--hp = obj_from_size(PAIR_BTAG); sref(0) = hendblk(3);
+        goto more;
+      } break;
       case 's': { /* save */
         fixnum_t n;
         ra = sref(1); hp = rds_block(r, sp, hp);
@@ -3390,9 +3470,7 @@ more:
       case 'd': { /* dclose */
         fixnum_t n;
         ra = sref(1); hp = rds_arg(r, sp, hp);
-        if (!is_fixnum_obj(ra)) { 
-          ra = mkeof(); goto out; 
-        }
+        if (!is_fixnum_obj(ra)) { ra = mkeof(); goto out; }
         n = fixnum_from_obj(ra);
         ra = sref(1); hp = rds_block(r, sp, hp);
         if (iseof(ra)) goto out;
@@ -3475,7 +3553,7 @@ static obj *rds_stoc(obj *r, obj *sp, obj *hp)
 static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
 {
   int i, n = sizeof(intgtab)/sizeof(intgtab[0]);
-  char lbuf[60], *lcode;
+  char lbuf[200], *lcode, *pe0, *pe1;
   if (!intgtab_sorted) sort_intgtab(n);
   for (i = 0; i < n; ++i) {
     struct intgtab_entry *pe = &intgtab[i];
@@ -3488,16 +3566,26 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
         break; 
       case 1: case '1':
         lcode = lbuf; assert(pe->enc);
-        sprintf(lbuf, "%%1_!%s]0", pe->enc);   // "%%1.0%s]1"
+        sprintf(lbuf, "%%1_!%s]0", pe->enc);
         break;
       case 2: case '2':
         lcode = lbuf; assert(pe->enc);
-        sprintf(lbuf, "%%2_!%s]0", pe->enc);  // %%2.1,.1%s]2
+        sprintf(lbuf, "%%2_!%s]0", pe->enc);
         break;
       case 3: case '3':
         lcode = lbuf; assert(pe->enc); 
-        sprintf(lbuf, "%%3_!%s]0", pe->enc); // %%3.2,.2,.2%s]3
+        sprintf(lbuf, "%%3_!%s]0", pe->enc);
         break;
+      case 'p': {
+        lcode = lbuf; assert(pe->enc); 
+        pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
+        sprintf(lbuf, "%%!0.0u?{%s]1}.0d,.1a,,#0.0,&1{%%2.1u?{.0]2}.1d,.2a,.2%s,:0^[22}.!0.0^_1[12", pe1, pe0);
+      } break;
+      case 'm': {
+        lcode = lbuf; assert(pe->enc); 
+        pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
+        sprintf(lbuf, "%%!1.0u?{.1%s]2}.0,.2,,#0.0,&1{%%2.1u?{.0]2}.1d,.2a,.2%s,:0^[22}.!0.0^_1[22", pe1, pe0);
+      } break;
       default: assert(0); 
     }
     if (!lcode || *lcode == 0) continue;

@@ -46,139 +46,89 @@
 ;---------------------------------------------------------------------------------------------
 ; Equivalence predicates
 ;---------------------------------------------------------------------------------------------
-#|
-(define-inline (eq? x y) %residual-eq? (%isq x y))
 
-(define-inline (eqv? x y) %residual-eqv? (%isv x y))
+; integrables:
+;
+; (eq? x y)
+; (eqv? x y)
+; (equal? x y)
 
-(define-inline (equal? x y) %residual-equal? (%ise x y))
-|#
 
 ;---------------------------------------------------------------------------------------------
 ; Boxes, aka cells
 ;---------------------------------------------------------------------------------------------
 
-#|
-(define-inline (box? x) %residual-box? (%boxp x))
+; integrables:
+;
+; (box? x)
+; (box x)
+; (unbox x)
+; (set-box! x y)
 
-(define-inline (box x) %residual-box (%box x))
-
-(define-inline (unbox x) %residual-unbox (%unbox x))
-
-(define-inline (set-box! x y) %residual-set-box! (%setbox x y))
-|#
 
 ;---------------------------------------------------------------------------------------------
 ; Exact integer numbers (fixnums)
 ;---------------------------------------------------------------------------------------------
 
-#|
+; integrables:
+;
+; (fixnum? x)
+; (fxzero? x)
+; (fxpositive? x)
+; (fxnegative? x)
+; (fx+ x y)
+; (fx* x y)
+; (fx- x y)
+; (fx/ x y)
+; (fxquotient x y)
+; (fxremainder x y)
+; (fxmodquo x y) 
+; (fxmodulo x y) 
+; (fxeucquo x y) a.k.a. euclidean-quotient
+; (fxeucrem x y) a.k.a. euclidean-remainder
+; (fxneg x)
+; (fxabs x)
+; (fx<? x y)
+; (fx<=? x y)
+; (fx>? x y)
+; (fx>=? x y)
+; (fx=? x y)
+; (fxmin x y)
+; (fxmax x y)
+; (fixnum->flonum x)
 
-(define-inline (fixnum? x) %residual-fixnum? (%fixp x))
-
-(define-inline (fxzero? x) %residual-fxzero? (%izerop x))
-
-(define-inline (fxpositive? x) %residual-fxpositive? (%iposp x))
-
-(define-inline (fxnegative? x) %residual-fxnegative? (%inegp x))
-
-(define-inline (fx+ x y) %residual-fx+ (%iadd x y))
-
-(define-inline (fx* x y) %residual-fx* (%imul x y))
-
-(define-inline (fx- x y) %residual-fx- (%isub x y))
-
-(define-inline (fx/ x y) %residual-fx/ (%idiv x y))
-
-(define-inline (fxquotient x y) %residual-fxquotient (%iquo x y))
-
-(define-inline (fxremainder x y) %residual-fxremainder (%irem x y))
-
-(define-inline (fxmodquo x y) %residual-fxmodquo (%imqu x y))
-
-(define-inline (fxmodulo x y) %residual-fxmodulo (%imlo x y))
-
-(define-inline (fxeucquo x y) %residual-fxeucquo (%ieuq x y)) ;euclidean-quotient
-
-(define-inline (fxeucrem x y) %residual-fxeucrem (%ieur x y)) ;euclidean-remainder
-
-(define-inline (fxneg x) %residual-fxneg (%ineg x))
-
-(define-inline (fxabs x) %residual-fxabs (%iabs x))
-
-(define-inline (fx<? x y) %residual-fx<? (%ilt x y))
-
-(define-inline (fx<=? x y) %residual-fx<=? (%ile x y))
-
-(define-inline (fx>? x y) %residual-fx>? (%igt x y))
-
-(define-inline (fx>=? x y) %residual-fx>=? (%ige x y))
-
-(define-inline (fx=? x y) %residual-fx=? (%ieq x y))
-
-(define-inline (fxmin x y) %residual-fxmin (%imin x y))
-
-(define-inline (fxmax x y) %residual-fxmax (%imax x y))
-
-(define-inline (fixnum->flonum x) %residual-fixnum->flonum (%itoj x))
-
-|#
 
 ;---------------------------------------------------------------------------------------------
 ; Inexact floating-point numbers (flonums)
 ;---------------------------------------------------------------------------------------------
 
-#|
+; integrables:
+;
+; (flonum? x)
+; (flzero? x)
+; (flpositive? x)
+; (flnegative? x)
+; (flinteger? x)
+; (flnan? x)
+; (flinfinite? x)
+; (flfinite? x)
+; (fleven? x)
+; (flodd? x)
+; (fl+ x y)
+; (fl- x y)
+; (fl* x y)
+; (fl/ x y)
+; (flneg x)
+; (flabs x)
+; (fl<? x y)
+; (fl<=? x y)
+; (fl>? x y)
+; (fl>=? x y)
+; (fl=? x y)
+; (flmin x y)
+; (flmax x y)
+; (flonum->fixnum x)
 
-(define-inline (flonum? x) %residual-flonum? (%flop x))
-
-(define-inline (flzero? x) %residual-flzero? (%jzerop x))
-
-(define-inline (flpositive? x) %residual-flpositive? (%jposp x))
-
-(define-inline (flnegative? x) %residual-flnegative? (%jnegp x))
-
-(define-inline (flinteger? x) %residual-flinteger? (%jintp x)) 
-
-(define-inline (flnan? x) %residual-flnan? (%jnanp x)) 
-
-(define-inline (flinfinite? x) %residual-flinfinite? (%jinfp x)) 
-
-(define-inline (flfinite? x) %residual-flfinite? (%jfinp x)) 
-
-(define-inline (fleven? x) %residual-fleven? (%jevnp x))
-
-(define-inline (flodd? x) %residual-flodd? (%joddp x))
-
-(define-inline (fl+ x y) %residual-fl+ (%jadd x y))
-
-(define-inline (fl- x y) %residual-fl- (%jsub x y))
-
-(define-inline (fl* x y) %residual-fl* (%jmul x y))
-
-(define-inline (fl/ x y) %residual-fl/ (%jdiv x y))
-
-(define-inline (flneg x) %residual-flneg (%jneg x))
-
-(define-inline (flabs x) %residual-flabs (%jabs x))
-
-(define-inline (fl<? x y) %residual-fl<? (%jlt x y))
-
-(define-inline (fl<=? x y) %residual-fl<=? (%jle x y))
-
-(define-inline (fl>? x y) %residual-fl>? (%jgt x y))
-
-(define-inline (fl>=? x y) %residual-fl>=? (%jge x y))
-
-(define-inline (fl=? x y) %residual-fl=? (%jeq x y))
-
-(define-inline (flmin x y) %residual-flmin (%jmin x y))
-
-(define-inline (flmax x y) %residual-flmax (%jmax x y))
-
-(define-inline (flonum->fixnum x) %residual-flonum->fixnum (%jtoi x))
-
-|#
 
 ;---------------------------------------------------------------------------------------------
 ; Numbers (fixnums or flonums)
@@ -324,13 +274,11 @@
 ; Booleans
 ;---------------------------------------------------------------------------------------------
 
-#|
+; integrables:
+;
+; (boolean? x)
+; (not x)
 
-(define-inline (boolean? x) %residual-boolean? (%boolp x))
-
-(define-inline (not x) %residual-not (%not x))
-
-|#
 
 ;---------------------------------------------------------------------------------------------
 ; Characters
@@ -382,60 +330,16 @@
 ; Null and Pairs
 ;---------------------------------------------------------------------------------------------
 
-#|
-(define-inline (null? x) %residual-null? (%nullp x))
-
-(define-inline (pair? x) %residual-pair? (%pairp x))
-
-(define-inline (car x) %residual-car (%car x))
-
-(define-inline (set-car! x v) %residual-set-car! (%setcar x v))
-
-(define-inline (cdr x) %residual-cdr (%cdr x))
-
-(define-inline (set-cdr! x v) %residual-set-cdr! (%setcdr x v))
-|#
-
-(define-syntax c?r
-  (syntax-rules (a d)
-    [(c?r x) x]
-    [(c?r a ? ... x) (car (c?r ? ... x))]
-    [(c?r d ? ... x) (cdr (c?r ? ... x))]))
-
-#|
-(define-inline (caar x) %residual-caar (c?r a a x))
-(define-inline (cadr x) %residual-cadr (c?r a d x))
-(define-inline (cdar x) %residual-cdar (c?r d a x))
-(define-inline (cddr x) %residual-cddr (c?r d d x))
-(define-inline (caaar x) %residual-caaar (c?r a a a x))
-(define-inline (caadr x) %residual-caadr (c?r a a d x))
-(define-inline (cadar x) %residual-cadar (c?r a d a x))
-(define-inline (caddr x) %residual-caddr (c?r a d d x))
-(define-inline (cdaar x) %residual-cdaar (c?r d a a x))
-(define-inline (cdadr x) %residual-cdadr (c?r d a d x))
-(define-inline (cddar x) %residual-cddar (c?r d d a x))
-(define-inline (cdddr x) %residual-cdddr (c?r d d d x))
-(define-inline (caaaar x) %residual-caaaar (c?r a a a a x))
-(define-inline (caaadr x) %residual-caaadr (c?r a a a d x))
-(define-inline (caadar x) %residual-caadar (c?r a a d a x))
-(define-inline (caaddr x) %residual-caaddr (c?r a a d d x))
-(define-inline (cadaar x) %residual-cadaar (c?r a d a a x))
-(define-inline (cadadr x) %residual-cadadr (c?r a d a d x))
-(define-inline (caddar x) %residual-caddar (c?r a d d a x))
-(define-inline (cadddr x) %residual-cadddr (c?r a d d d x))
-(define-inline (cdaaar x) %residual-cdaaar (c?r d a a a x))
-(define-inline (cdaadr x) %residual-cdaadr (c?r d a a d x))
-(define-inline (cdadar x) %residual-cdadar (c?r d a d a x))
-(define-inline (cdaddr x) %residual-cdaddr (c?r d a d d x))
-(define-inline (cddaar x) %residual-cddaar (c?r d d a a x))
-(define-inline (cddadr x) %residual-cddadr (c?r d d a d x))
-(define-inline (cdddar x) %residual-cdddar (c?r d d d a x))
-(define-inline (cddddr x) %residual-cddddr (c?r d d d d x))
-|#
-
-#|
-(define-inline (cons x y) %residual-cons (%cons x y))
-|#
+; integrables:
+;
+; (null? x)
+; (pair? x)
+; (car x)
+; (set-car! x v)
+; (cdr x)
+; (set-cdr! x v)
+; (caar x) ... (cddddr x)
+; (cons x y)
 
 
 ;---------------------------------------------------------------------------------------------
@@ -480,7 +384,7 @@
 (define-inline (memv v y) %residual-memv (%memv v (%ckl y)))  ; TODO: make sure memv checks list
 
 (define (%member x l eq)
-  (and (pair? l) (if (eq x (%car l)) l (%member x (%cdr l) eq))))
+  (and (pair? l) (if (eq x (car l)) l (%member x (cdr l) eq))))
 
 (define-syntax member
   (syntax-rules ()
