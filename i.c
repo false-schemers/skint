@@ -3560,22 +3560,22 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
     if (!pe->igname) continue; 
     lcode = pe->lcode;
     if (!lcode) switch (pe->igtype) {
-      case 0: case '0':
+      case 0: case '0': {
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%0%s]0", pe->enc); 
-        break; 
-      case 1: case '1':
+      } break; 
+      case 1: case '1': {
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%1_!%s]0", pe->enc);
-        break;
-      case 2: case '2':
+      } break;
+      case 2: case '2': {
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%2_!%s]0", pe->enc);
-        break;
-      case 3: case '3':
+      } break;
+      case 3: case '3': {
         lcode = lbuf; assert(pe->enc); 
         sprintf(lbuf, "%%3_!%s]0", pe->enc);
-        break;
+      } break;
       case 'p': {
         lcode = lbuf; assert(pe->enc); 
         pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
@@ -3585,6 +3585,10 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
         lcode = lbuf; assert(pe->enc); 
         pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
         sprintf(lbuf, "%%!1.0u?{.1%s]2}.0,.2,,#0.0,&1{%%2.1u?{.0]2}.1d,.2a,.2%s,:0^[22}.!0.0^_1[22", pe1, pe0);
+      } break;
+      case 'c': {
+        lcode = lbuf; assert(pe->enc);
+        sprintf(lbuf, "%%!0.0u,.0?{.0]2}.1d,.2a,,#0.0,&1{%%2.1u,.0?{.0]3}.2a,.0,.3%s?{.3d,.1,:0^[42}f]4}.!0.0^_1[22", pe->enc);
       } break;
       default: assert(0); 
     }
