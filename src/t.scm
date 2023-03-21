@@ -115,6 +115,9 @@
     (if (null? rest) x 
         (cons x (loop (car rest) (cdr rest))))))
 
+(define (andmap p l)
+  (if (pair? l) (and (p (car l)) (andmap p (cdr l))) #t))
+
 (define (list1? x) (and (pair? x) (null? (cdr x))))
 (define (list1+? x) (and (pair? x) (list? (cdr x))))
 (define (list2? x) (and (pair? x) (list1? (cdr x))))
@@ -128,6 +131,7 @@
 ;  <core> -> (quote <object>)
 ;  <core> -> (ref <id>)
 ;  <core> -> (set! <id> <core>)
+;  <core> -> (set& <id>)
 ;  <core> -> (lambda <ids> <core>) where <ids> -> (<id> ...) | (<id> ... . <id>) | <id>
 ;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>) 
 ;  <core> -> (letcc <id> <core>) 
@@ -135,12 +139,19 @@
 ;  <core> -> (begin <core> ...)
 ;  <core> -> (if <core> <core> <core>)
 ;  <core> -> (call <core> <core> ...) 
+;  <core> -> (integrable <ig> <core> ...) where <ig> is an index in the integrables table
 
 ;  NB: (begin) is legit, returns unspecified value
 ;  on top level, these two extra core forms are legal:
 
 ;  <core> -> (define <id> <core>)
 ;  <core> -> (define-syntax <id> <transformer>)
+
+(define idslist?
+  (lambda (x)
+    (cond [(null? x) #t]
+          [(pair? x) (and (id? (car x)) (idslist? (cdr x)))]
+          [else (id? x)])))
 
 (define normalize-arity
   (lambda (arity)
@@ -220,27 +231,35 @@
 (define (xform appos? sexp env)
   (cond [(id? sexp) 
          (let ([hval (xform-ref sexp env)])
-           (if (and (procedure? hval) (not appos?))
-               (xform appos? (hval sexp env) env) ; id-syntax
-               hval))]
-        [(not (pair? sexp)) (xform-quote sexp env)]
-        [else (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
-                (case hval
-                  [(syntax)        (car tail)]
-                  [(quote)         (xform-quote (car tail) env)]
-                  [(set!)          (xform-set! (car tail) (cadr tail) env)]
-                  [(begin)         (xform-begin tail env)]
-                  [(if)            (xform-if tail env)]
-                  [(lambda)        (xform-lambda tail env)]
-                  [(lambda*)       (xform-lambda* tail env)]
-                  [(letcc)         (xform-letcc tail env)]
-                  [(withcc)        (xform-withcc tail env)]
-                  [(body)          (xform-body tail env)]
-                  [(define)        (xform-define (car tail) (cadr tail) env)]
-                  [(define-syntax) (xform-define-syntax (car tail) (cadr tail) env)]
-                  [else            (if (procedure? hval)
-                                       (xform appos? (hval sexp env) env)
-                                       (xform-call hval tail env))]))]))
+           (cond [appos? hval]
+                 [(integrable? hval) ; integrable id-syntax
+                  (list 'ref (integrable-global hval))]
+                 [(procedure? hval) ; id-syntax
+                  (xform appos? (hval sexp env) env)]
+                 [else hval]))]
+        [(not (pair? sexp))
+         (xform-quote sexp env)]
+        [else 
+         (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
+           (case hval
+             [(syntax)        (car tail)] ; internal use only
+             [(quote)         (xform-quote (car tail) env)]
+             [(set!)          (xform-set! (car tail) (cadr tail) env)]
+             [(set&)          (xform-set& tail env)]
+             [(begin)         (xform-begin tail env)]
+             [(if)            (xform-if tail env)]
+             [(lambda)        (xform-lambda tail env)]
+             [(lambda*)       (xform-lambda* tail env)]
+             [(letcc)         (xform-letcc tail env)]
+             [(withcc)        (xform-withcc tail env)]
+             [(body)          (xform-body tail env)]
+             [(define)        (xform-define (car tail) (cadr tail) env)]
+             [(define-syntax) (xform-define-syntax (car tail) (cadr tail) env)]
+             [else            (if (integrable? hval)
+                                  (xform-integrable hval tail env)
+                                  (if (procedure? hval)
+                                      (xform appos? (hval sexp env) env)
+                                      (xform-call hval tail env)))]))]))
 
 (define (xform-quote sexp env)
   (list 'quote 
@@ -263,6 +282,17 @@
                   (if (eq? (car val) 'ref)
                       (list 'set! (cadr val) xexp)
                       (error 'transform "set! to non-identifier form")))])))
+
+(define (xform-set& tail env)
+  (if (list1? tail)
+      (let ([den (env (car tail))])      
+        (cond [(symbol? den) (list 'set& den)]
+              [(binding-special? den) (error 'transform "set& of a non-variable")]
+              [else (let ([val (binding-val den)])
+                      (if (eq? (car val) 'ref)
+                          (list 'set& (cadr val))
+                          (error 'transform "set& of a non-variable")))]))
+      (error 'transform "improper set& form")))
 
 (define (xform-begin tail env)
   (if (list? tail)
@@ -289,8 +319,21 @@
             (pair* 'call xexp xexps)))
       (error 'transform "improper application")))
 
+(define (integrable-argc-match? igt n)
+  (case igt
+    [(#\0) (=  n 0)]   [(#\1) (=  n 1)]   [(#\2) (=  n 2)]   [(#\3) (=  n 3)] 
+    [(#\p) (>= n 0)]   [(#\m) (>= n 1)]   [(#\c) (>= n 2)]   [(#\x) (>= n 1)]
+    [(#\u) (<= 0 n 1)] [(#\b) (<= 1 n 2)]
+    [(#\#) (>= n 0)]   [(#\@) #f]
+    [else #f])) 
+
+(define (xform-integrable ig tail env)
+  (if (integrable-argc-match? (integrable-type ig) (length tail))
+      (cons 'integrable (cons ig (map (lambda (sexp) (xform #f sexp env)) tail)))
+      (xform-call (list 'ref (integrable-global ig)) tail env)))
+
 (define (xform-lambda tail env)
-  (if (list? tail)
+  (if (and (list1+? tail) (idslist? (car tail)))
       (let loop ([vars (car tail)] [ienv env] [ipars '()])
         (cond [(pair? vars)
               (let* ([var (car vars)] [nvar (gensym (id->sym var))])
@@ -298,17 +341,19 @@
               [(null? vars)
               (list 'lambda (reverse ipars) (xform-body (cdr tail) ienv))]
               [else ; improper 
-              (let* ([var vars] [nvar (gensym (id->sym var))] 
+               (let* ([var vars] [nvar (gensym (id->sym var))] 
                       [ienv (add-var var nvar ienv)])
                 (list 'lambda (append (reverse ipars) nvar)
                   (xform-body (cdr tail) ienv)))]))
-      (error 'transform "improper lambda body")))
+      (error 'transform "improper lambda body" tail)))
 
 (define (xform-lambda* tail env)
   (if (list? tail)
       (cons 'lambda*
          (map (lambda (aexp)
-                 (if (list2? aexp)
+                 (if (and (list2? aexp) 
+                          (or (and (list2? (car aexp)) (fixnum? (caar aexp)) (boolean? (cadar aexp)))
+                              (idslist? (car aexp))))
                      (list (normalize-arity (car aexp))
                            (xform #f (cadr aexp) env))
                      (error 'transform "improper lambda* clause")))
@@ -395,6 +440,7 @@
     (make-binding 'define-syntax 'define-syntax)
     (make-binding 'quote 'quote)
     (make-binding 'set! 'set!)
+    (make-binding 'set& 'set&)
     (make-binding 'lambda 'lambda)
     (make-binding 'lambda* 'lambda*)
     (make-binding 'letcc 'letcc)
@@ -413,7 +459,7 @@
                  (binding-set-val! bnd (transform #t val))))
            bnd]
           [(symbol? id)
-           (let ([bnd (make-binding id (list 'ref id))])
+           (let ([bnd (make-binding id (or (lookup-integrable id) (list 'ref id)))])
              (set! *transformers* (cons bnd *transformers*))
              bnd)]
           [else (old-den id)])))
@@ -520,19 +566,23 @@
                     (assq tmpl new-literals)))]
           [(vector? tmpl)
            (list->vector (expand-part (vector->list tmpl)))]
-          [(pair? tmpl)
-           (if (ellipsis-pair? (cdr tmpl))
-               (let ([vars-to-iterate (list-ellipsis-vars (car tmpl))])
-                 (define (lookup var)
-                   (cdr (assq var bindings)))
-                 (define (expand-using-vals . vals)
-                   (expand (car tmpl)
-                     (map cons vars-to-iterate vals)))
+          [(and (pair? tmpl) (ellipsis-pair? (cdr tmpl)))
+           (let ([vars-to-iterate (list-ellipsis-vars (car tmpl))])
+             (define (lookup var)
+               (cdr (assq var bindings)))
+             (define (expand-using-vals . vals)
+               (expand (car tmpl)
+                 (map cons vars-to-iterate vals)))
+             (if (null? vars-to-iterate)
+                 ; ellipsis following non-repeatable part is an error, but we don't care
+                 (cons (expand-part (car tmpl)) (expand-part (cddr tmpl))) ; repeat once
+                 ; correct use of ellipsis
                  (let ([val-lists (map lookup vars-to-iterate)])
                    (append
                      (apply map (cons expand-using-vals val-lists))
-                     (expand-part (cddr tmpl)))))
-               (cons (expand-part (car tmpl)) (expand-part (cdr tmpl))))]
+                     (expand-part (cddr tmpl))))))]
+          [(pair? tmpl)
+           (cons (expand-part (car tmpl)) (expand-part (cdr tmpl)))]
           [else tmpl]))))
 
   (lambda (use use-env)
@@ -653,11 +703,6 @@
     [(_ (x . y) . d) (cons (quasiquote x . d) (quasiquote y . d))]
     [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
     [(_ x . d) 'x]))
-
-(install-sr-transformer! 'delay
-  (syntax-rules ()
-    [(_ exp)
-     (make-delayed (lambda () exp))]))
 
 (install-sr-transformer! 'when
   (syntax-rules ()

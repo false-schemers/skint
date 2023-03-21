@@ -12,7 +12,6 @@ extern obj cx_callmv_2Dadapter_2Dclosure;
 #define istagged(o, t) istagged_inlined(o, t) 
 
 /* forwards */
-static struct intgtab_entry *intgtab_find_encoding(int sym, int arity);
 static struct intgtab_entry *lookup_integrable(int sym);
 static int isintegrable(obj x);
 static struct intgtab_entry *integrabledata(obj x);
@@ -272,11 +271,7 @@ jump:
   case 4: /* find-integrable-encoding */
     /* r[0] = clo, r[1] = k, r[2] = id, r[3] = argc */
     { assert(rc == 4);
-    if (issymbol(r[2]) && is_fixnum_obj(r[3])) {
-      int sym = getsymbol(r[2]), argc = fixnum_from_obj(r[3]);
-      struct intgtab_entry *pe = intgtab_find_encoding(sym, argc);
-      r[2] = (obj)pe;
-    } else r[2] = 0;
+    r[2] = obj_from_bool(0);;
     r[0] = r[1]; r[1] = obj_from_ktrap();
     pc = objptr_from_obj(r[0])[0];
     rc = 3;
@@ -285,10 +280,7 @@ jump:
   case 5: /* encode-integrable */
     /* r[0] = clo, r[1] = k, r[2] = argc, r[3] = pe, r[4] = port */
     { assert(rc == 5);
-    if (is_fixnum_obj(r[2]) && isaptr(r[3]) && notobjptr(r[3]) && isoport(r[4])) {
-      int argc = fixnum_from_obj(r[2]);
-      wrs_integrable(argc, (struct intgtab_entry *)r[3], r[4]);
-    } else assert(0);
+    assert(0);
     r[0] = r[1]; r[1] = obj_from_ktrap();
     pc = objptr_from_obj(r[0])[0];
     rc = 3;
@@ -2536,13 +2528,6 @@ define_instruction(wriw) {
   gonexti();
 }
 
-define_instruction(fenc) {
-  obj y = ac, c = spop(); cky(y); ckc(c);
-  ac = (obj)intgtab_find_encoding(getsymbol(y), fixnum_from_obj(c));
-  gonexti(); 
-}
-
-
 define_instruction(igp) {
   ac = obj_from_bool(isintegrable(ac));
   gonexti(); 
@@ -2574,14 +2559,6 @@ define_instruction(igco) {
   n = fixnum_from_obj(spop());
   cs = integrable_code(integrabledata(ac), n);
   ac = cs ? hpushstr(sp-r, newstring((char*)cs)) : obj_from_bool(0);
-  gonexti(); 
-}
-
-
-define_instruction(wrsi) {
-  obj c = ac, e = spop(), p = spop(); cki(c);
-  assert(isaptr(e) && notobjptr(e) && isoport(p));
-  wrs_integrable(fixnum_from_obj(c), (struct intgtab_entry *)e, p);
   gonexti(); 
 }
 
@@ -2974,24 +2951,11 @@ static void sort_intgtab(int n)
   }
 } 
 
-static struct intgtab_entry *intgtab_find_encoding(int sym, int arity)
-{
-  struct intgtab_entry e, *pe;
-  int n = sizeof(intgtab)/sizeof(intgtab[0]);
-  if (!intgtab_sorted) sort_intgtab(n);
-  e.sym = sym; e.igtype = arity;
-  pe = bsearch(&e, &intgtab[0], n, sizeof(intgtab[0]), intgtab_cmp);
-  if (!pe) { e.igtype = -1; pe = bsearch(&e, &intgtab[0], n, sizeof(intgtab[0]), intgtab_cmp); }
-  return (pe && pe->igtype < ' ' && pe->enc) ? pe : NULL;
-}
-
-#define INTEGRABLE_ITAG 6
-
 static int isintegrable(obj o)
 {
   int n = sizeof(intgtab)/sizeof(intgtab[0]);
-  if (isimm(o, INTEGRABLE_ITAG)) {
-    int i = getimms(o, INTEGRABLE_ITAG);
+  if (is_fixnum_obj(o)) {
+    int i = fixnum_from_obj(o);
     if (i >= 0 && i < n) {  
       struct intgtab_entry *pe = &intgtab[i];
       return (pe && pe->igtype >= ' ' && pe->igname && pe->enc);
@@ -3003,7 +2967,7 @@ static int isintegrable(obj o)
 static struct intgtab_entry *integrabledata(obj o)
 {
   int n = sizeof(intgtab)/sizeof(intgtab[0]);
-  int i = getimms(o, INTEGRABLE_ITAG);
+  int i = fixnum_from_obj(o);
   struct intgtab_entry *pe = &intgtab[i];
   assert(i >= 0 && i < n);
   return pe;
@@ -3013,7 +2977,7 @@ static obj mkintegrable(struct intgtab_entry *pe)
 {
   int n = sizeof(intgtab)/sizeof(intgtab[0]);
   assert(pe >= &intgtab[0] && pe < &intgtab[n]); 
-  return mkimm((pe-intgtab), INTEGRABLE_ITAG);
+  return obj_from_fixnum(pe-intgtab);
 }
 
 static struct intgtab_entry *lookup_integrable(int sym)
@@ -3050,28 +3014,6 @@ static const char *integrable_code(struct intgtab_entry *pi, int n)
   }
   return code;
 }
-
-
-/* serialization machinery */
-static void wrs_int_arg(int arg, obj port)
-{
-  if (0 <= arg && arg <= 9) {
-    oportputc('0'+arg, port);
-  } else {
-    char buf[60];
-    sprintf(buf, "(i%d)", arg);
-    oportputs(buf, port);
-  } 
-}
-
-static void wrs_integrable(int argc, struct intgtab_entry *pe, obj port)
-{
-  assert(pe); assert(pe->enc);
-  if (pe->igtype == -1 && argc > 0) oportputc(',', port);
-  oportputs(pe->enc, port);
-  if (pe->igtype == -1) wrs_int_arg(argc, port);
-}
-
 
 /* deserialization machinery */
 
@@ -3575,19 +3517,19 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
     if (!pe->igname) continue; 
     lcode = pe->lcode;
     if (!lcode) switch (pe->igtype) {
-      case 0: case '0': {
+      case '0': {
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%0%s]0", pe->enc); 
       } break; 
-      case 1: case '1': {
+      case '1': {
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%1_!%s]0", pe->enc);
       } break;
-      case 2: case '2': {
+      case '2': {
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%2_!%s]0", pe->enc);
       } break;
-      case 3: case '3': {
+      case '3': {
         lcode = lbuf; assert(pe->enc); 
         sprintf(lbuf, "%%3_!%s]0", pe->enc);
       } break;

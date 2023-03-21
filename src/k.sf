@@ -174,7 +174,7 @@
 ;  <core> -> (begin <core> ...)
 ;  <core> -> (if <core> <core> <core>)
 ;  <core> -> (call <core> <core> ...)
-;  <core> -> (integrable <ienc> <core> ...) where <ienc> is a pointer to ig table entry
+;  <core> -> (integrable <ig> <core> ...) where <ig> is an index in the integrables table
 
 ;  NB: (begin) is legit, returns unspecified value
 ;  on top level, these two extra core forms are legal:
@@ -925,18 +925,6 @@
       [call (exp . args)
        (set-union (find-sets exp v) (find-sets* args v))])))
 
-
-(define find-integrable-encoding
-  (%prim "{ /* define find-integrable-encoding */
-    static obj c[] = { obj_from_objptr(vmcases+4) };
-    $return objptr(c); }"))
-
-(define encode-integrable
-  (%prim "{ /* define encode-integrable */
-    static obj c[] = { obj_from_objptr(vmcases+5) };
-    $return objptr(c); }"))
-
-
 (define codegen
   ; x: Scheme Core expression to compile
   ; l: local var list (with #f placeholders for nonvar slots)
@@ -1188,20 +1176,7 @@
                       (codegen exp newl f news g #f port)
                       (write-char #\_ port)
                       (write-serialized-arg (length args) port))))]
-             [(and (eq? (car exp) 'ref) 
-                   (not (posq (cadr exp) l)) (not (posq (cadr exp) f)) 
-                   (find-integrable-encoding (cadr exp) (length args))) =>
-              ; integrable function/procedure
-              (lambda (ienc)
-                ; regular convention is 1st arg in a, others on stack
-                (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
-                  [(null? args)]
-                  (codegen (car args) l f s g #f port)
-                  (unless (null? (cdr args)) (write-char #\, port)))
-                (encode-integrable (length args) ienc port)
-                (when k (write-char #\] port) (write-serialized-arg k port)))]
-             [k 
-              ; tail call with k elements under arguments
+             [k ; tail call with k elements under arguments
               (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
                 [(null? args) (codegen exp l f s g #f port)]
                 (codegen (car args) l f s g #f port)
@@ -1209,8 +1184,7 @@
               (write-char #\[ port)
               (write-serialized-arg k port)
               (write-serialized-arg (length args) port)]
-             [else
-              ; non-tail call; 'save' puts 2 extra elements on the stack!
+             [else ; non-tail call; 'save' puts 2 extra elements on the stack!
               (write-char #\$ port) (write-char #\{ port)
               (do ([args (reverse args) (cdr args)] [l (cons #f (cons #f l)) (cons #f l)]) 
                 [(null? args) (codegen exp l f s g #f port)]
