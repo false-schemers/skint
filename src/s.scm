@@ -180,10 +180,10 @@
 ; (modulo x y) = floor-remainder
 
 (define (floor/ x y)
-  (%sdmv (floor-quotient x y) (floor-remainder x y)))
+  (values (floor-quotient x y) (floor-remainder x y)))
 
 (define (truncate/ x y)
-  (%sdmv (truncate-quotient x y) (truncate-remainder x y)))
+  (values (truncate-quotient x y) (truncate-remainder x y)))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -261,30 +261,25 @@
 ;---------------------------------------------------------------------------------------------
 
 ; (list? x)
-
-(define (%make-list n i)
-  (let loop ([n (%ckk n)] [l '()])
-    (if (fx<=? n 0) l (loop (fx- n 1) (cons i l))))) 
-
-(define-syntax make-list
-  (syntax-rules ()
-    [(_ n) (%make-list n #f)]  ; #f > (void)
-    [(_ n i) (%make-list n i)]
-    [(_ . args) (%residual-make-list . args)]
-    [_ %residual-make-list]))
-
 ; (list x ...)
+; (make-list n (i #f))
 ; (length l)
 ; (list-ref l i)
 ; (list-set! l i x)
 ; (list-cat l1 l2)
+
+(define (%append . args)
+  (let loop ([args args])
+    (cond [(null? args) '()]
+          [(null? (cdr args)) (car args)]
+          [else (list-cat (car args) (loop (cdr args)))])))
 
 (define-syntax append
   (syntax-rules ()
     [(_) '()] [(_ x) x]
     [(_ x y) (list-cat x y)]
     [(_ x y z ...) (list-cat x (append y z ...))]
-    [_ %residual-append]))
+    [_ %append]))
 
 ; (memq v l)
 ; (memv v l)  ; TODO: make sure memv checks list
@@ -331,13 +326,17 @@
 ; (reverse l)
 ; (reverse! l)
 
+(define (%list* x . l)
+  (let loop ([x x] [l l])
+    (if (null? l) x (cons x (loop (car l) (cdr l))))))
+
 (define-syntax list*
   (syntax-rules ()
     [(_ x) x]
     [(_ x y) (cons x y)]
     [(_ x y z ...) (cons x (list* y z ...))]
-    [(_ . args) (%residual-list* . args)]
-    [_ %residual-list*]))
+    [(_ . args) (%list* . args)]
+    [_ %list*]))
 
 (define-syntax cons* list*)
 
@@ -361,13 +360,13 @@
 
 (define %vector->list
   (case-lambda
-     [(vec) (%vtol vec)]
+     [(vec) (%vector->list1 vec)]
      [(vec start) (subvector->list vec start (vector-length vec))]
      [(vec start end) (subvector->list vec start end)]))
 
 (define-syntax vector->list
   (syntax-rules ()
-    [(_ x) (%vtol x)]
+    [(_ x) (%vector->list1 x)]
     [(_ . r) (%vector->list . r)]
     [_ %vector->list]))
 
@@ -466,13 +465,13 @@
 
 (define %string->list
   (case-lambda
-     [(str) (%stol str)]
+     [(str) (%string->list1 str)]
      [(str start) (substring->list str start (string-length str))]
      [(str start end) (substring->list str start end)]))
 
 (define-syntax string->list
   (syntax-rules ()
-    [(_ x) (%stol x)]
+    [(_ x) (%string->list1 x)]
     [(_ . r) (%string->list . r)]
     [_ %string->list]))
 
@@ -582,38 +581,87 @@
 
 ; (procedure? x)
 
+(define (%apply p x . l)
+  (apply-to-list p 
+    (let loop ([x x] [l l])
+      (if (null? l) x (cons x (loop (car l) (cdr l)))))))
+
 (define-syntax apply
   (syntax-rules ()
-    [(_ p l) (%appl p l)]
-    [(_ p a b ... l) (%appl p (list* a b ... l))]
-    [(_ . args) (%residual-apply . args)]
-    [_ %residual-apply]))
+    [(_ p l) (apply-to-list p l)]
+    [(_ p a b ... l) (apply-to-list p (list* a b ... l))]
+    [(_ . args) (%apply . args)]
+    [_ %apply]))
 
-(define-inline (call/cc f) %residual-call/cc (letcc k (f k)))
+; (%call/cc p)
+
+(define-syntax call/cc
+  (syntax-rules ()
+    [(_ p) (letcc k (p k))]
+    [(_ . args) (%call/cc . args)]
+    [_ %call/cc])) 
 
 (define-syntax call-with-current-continuation call/cc)
 
-(define-syntax values %sdmv)
+; (values x ...)
+; (call-with-values thunk receiver)
 
-(define-syntax call-with-values %cwmv)
+(define (%map1 p l)
+  (let loop ([l l] [r '()])
+    (if (pair? l) 
+        (loop (cdr l) (cons (p (car l)) r)) 
+        (reverse! r))))
+
+(define (%map2 p l1 l2)
+  (let loop ([l1 l1] [l2 l2] [r '()])
+    (if (and (pair? l1) (pair? l2))
+        (loop (cdr l1) (cdr l2) (cons (p (car l1) (car l2)) r))
+        (reverse! r))))
+
+(define (%map p l . l*)
+  (cond [(null? l*) (%map1 p l)]
+        [(null? (cdr l*)) (%map2 p l (car l*))] 
+        [else
+         (let loop ([l* (cons l l*)] [r '()])
+           (if (let lp ([l* l*]) 
+                 (or (null? l*) (and (pair? (car l*)) (lp (cdr l*)))))
+               (loop (%map1 cdr l*) (cons (apply p (%map1 car l*)) r))
+               (reverse! r)))]))
 
 (define-syntax map
   (syntax-rules ()
-    [(_ fun lst)
-     (let ([f fun]) 
-       (let loop ([l lst]) 
-         (if (pair? l) (cons (f (car l)) (loop (cdr l))) '())))]
-    [(_ . args) (%residual-map . args)]
-    [_ %residual-map])) 
+    [(_ p l) (%map1 p l)]
+    [(_ p l1 l2) (%map2 p l1 l2)]
+    [(_ . args) (%map . args)]
+    [_ %map])) 
+
+(define (%for-each1 p l)
+  (let loop ([l l]) 
+    (if (pair? l) 
+        (begin (p (car l))
+               (loop (cdr l))))))
+
+(define (%for-each2 p l1 l2)
+  (let loop ([l1 l1] [l2 l2]) 
+    (if (and (pair? l1) (pair? l2)) 
+        (begin (p (car l1) (car l2)) 
+               (loop (cdr l1) (cdr l2))))))
+
+(define (%for-each p l . l*)
+  (cond [(null? l*) (%for-each1 p l)]
+        [(null? (cdr l*)) (%for-each2 p l (car l*))]
+        [else
+         (let loop ([l* (cons l l*)])
+           (if (let lp ([l* l*]) 
+                 (or (null? l*) (and (pair? (car l*)) (lp (cdr l*)))))
+               (begin (apply p (map car l*)) (loop (map cdr l*)))))]))
 
 (define-syntax for-each
   (syntax-rules ()
-    [(_ fun lst)
-     (let ([f fun]) 
-       (let loop ([l lst]) 
-         (if (pair? l) (begin (f (car l)) (loop (cdr l))))))]
-    [(_ . args) (%residual-for-each . args)]
-    [_ %residual-for-each]))
+    [(_ p l) (%for-each1 p l)]
+    [(_ p l1 l2) (%for-each2 p l1 l2)]
+    [(_ . args) (%for-each . args)]
+    [_ %for-each]))
 
 (define (string-map p s . s*)
   (if (null? s*)
@@ -807,8 +855,6 @@
                  (let ([y (car args)])
                    (and (f x y) (loop y (cdr args))))))))]))
 
-(define %residual-make-list (unary-binary-adaptor make-list))
-
 (define-syntax minmax-reducer
   (syntax-rules ()
     [(_ f)
@@ -839,31 +885,6 @@
              (if (null? args)
                  x
                  (loop (f x (car args)) (cdr args))))))]))
-
-(define (%residual-list* x . l)
-  (let loop ([x x] [l l])
-    (if (null? l) x (cons x (loop (car l) (cdr l))))))
-
-(define (%residual-apply f x . l)
-  (apply f 
-    (let loop ([x x] [l l])
-      (if (null? l) x (cons x (loop (car l) (cdr l)))))))
-
-(define (%residual-map p l . l*)
-  (if (null? l*) 
-      (let loop ([l l] [r '()])
-        (if (pair? l) (loop (cdr l) (cons (p (car l)) r)) (reverse! r)))
-      (let loop ([l* (cons l l*)] [r '()])
-        (if (let lp ([l* l*]) (or (null? l*) (and (pair? (car l*)) (lp (cdr l*)))))
-            (loop (map cdr l*) (cons (apply p (map car l*)) r))
-            (reverse! r)))))
-
-(define (%residual-for-each p l . l*)
-  (if (null? l*) 
-      (let loop ([l l]) (if (pair? l) (begin (p (car l)) (loop (cdr l)))))
-      (let loop ([l* (cons l l*)])
-        (if (let lp ([l* l*]) (or (null? l*) (and (pair? (car l*)) (lp (cdr l*)))))
-            (begin (apply p (map car l*)) (loop (map cdr l*)))))))
 
 (define-syntax append-reducer
   (syntax-rules ()

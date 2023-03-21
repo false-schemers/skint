@@ -918,6 +918,21 @@ define_instruction(list) {
   gonexti();
 }
 
+define_instruction(lmk) {
+  int i, n; obj v; ckk(ac);
+  n = fixnum_from_obj(ac); 
+  hp_reserve(hbsz(2+1)*n); v = sref(0);
+  ac = mknull();
+  for (i = 0; i < n; ++i) {
+    *--hp = ac; /* cdr */
+    *--hp = v;  /* car */
+    *--hp = obj_from_size(PAIR_BTAG);
+    ac = hendblk(2+1);
+  }
+  sdrop(1);
+  gonexti();
+}
+
 define_instruction(llen) {
   int n = 0;
   while (ispair(ac)) { ac = cdr(ac); ++n; }
@@ -1102,8 +1117,8 @@ define_instruction(vec) {
 
 define_instruction(vmk) {
   int i, n; obj v; ckk(ac);
-  n = fixnum_from_obj(ac); v = sref(0);
-  hp_reserve(hbsz(n+1));
+  n = fixnum_from_obj(ac); 
+  hp_reserve(hbsz(n+1)); v = sref(0);
   for (i = 0; i < n; ++i) *--hp = v;
   *--hp = obj_from_size(VECTOR_BTAG);
   ac = hendblk(n+1);
@@ -3605,6 +3620,8 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
         sprintf(lbuf, "%%!1.0u?{%s,.2%s]2}.0du?{.0a,.2%s]2}%%%%", pe1, pe0, pe0);
       } break;
       case '#': /* must have explicit lcode */
+        assert(0); 
+      case '@': /* must have explicit lcode */
         assert(0); 
       default:
         assert(0); 
