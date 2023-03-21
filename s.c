@@ -18,11 +18,6 @@ char *s_code[] = {
   "py19:%25residual-make-list;y4:args;;;l2:y1:_;y19:%25residual-make-list"
   ";;",
 
-  "list",
-  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l2:y5:quote;n;;;l2:l2:y1:_;y1:x;;l3:"
-  "y4:cons;y1:x;l2:y5:quote;n;;;;l2:l3:y1:_;y1:x;y3:...;;l3:y5:%25list;y1"
-  ":x;y3:...;;;l2:y1:_;y14:%25residual-list;;",
-
   "append",
   "l7:y12:syntax-rules;n;l2:l1:y1:_;;l2:y5:quote;n;;;l2:l2:y1:_;y1:x;;y1:"
   "x;;l2:l3:y1:_;y1:x;y1:y;;l3:y8:list-cat;y1:x;y1:y;;;l2:l5:y1:_;y1:x;y1"
@@ -62,10 +57,6 @@ char *s_code[] = {
   "cons*",
   "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py5:list*;y4:args;;;l2:y1:_;y5"
   ":list*;;",
-
-  "vector",
-  "l4:y12:syntax-rules;n;l2:py1:_;y4:args;;py4:%25vec;y4:args;;;l2:y1:_;y"
-  "4:%25vec;;",
 
   0,
   "&0{%3n,'1,.4I-,,#0.3,.1,.6,&3{%2:0,.1I<?{.1]2}.1,.1,:2V4c,'1,.2I-,:1^["
@@ -141,10 +132,6 @@ char *s_code[] = {
   "2:y4:%25ckv;y1:x;;;l2:l3:y1:_;y1:x;y1:y;;l3:y10:vector-cat;y1:x;y1:y;;"
   ";l2:py1:_;y1:r;;py14:%25vector-append;y1:r;;;l2:y1:_;y14:%25vector-app"
   "end;;",
-
-  "string",
-  "l4:y12:syntax-rules;n;l2:l3:y1:_;y1:c;y3:...;;l3:y4:%25str;y1:c;y3:..."
-  ";;;l2:y1:_;y16:%25residual-string;;",
 
   0,
   "&0{%3n,'1,.4I-,,#0.3,.1,.6,&3{%2:0,.1I<?{.1]2}.1,.1,:2S4c,'1,.2I-,:1^["
@@ -301,9 +288,6 @@ char *s_code[] = {
   "&0{%!0P51,.1u?{P10}{.1a},t,,#0.2,.4,.2,&3{%1:2R0,.0R8,.0?{.0}{'(c%0a),"
   ".2C=}_1?{.0R8?{.1}{f}?{.0]2}:1P9,:1P61.0]3}'(c%0d),.1C=?{f,:0^[21}:1,."
   "1W0f,:0^[21}.!0.0^_1[31}@!(y9:read-line)",
-
-  0,
-  "&0{%!0.0]1}@!(y14:%25residual-list)",
 
   0,
   "&0{%!1.0u?{f,.2,@(y10:%25make-list)[22}.0a,.2,@(y10:%25make-list)[22}@"

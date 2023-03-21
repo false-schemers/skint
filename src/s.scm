@@ -273,13 +273,7 @@
     [(_ . args) (%residual-make-list . args)]
     [_ %residual-make-list]))
 
-(define-syntax list 
-  (syntax-rules ()
-    [(_) '()]
-    [(_ x) (cons x '())]
-    [(_ x ...) (%list x ...)]
-    [_ %residual-list]))
-
+; (list x ...)
 ; (length l)
 ; (list-ref l i)
 ; (list-set! l i x)
@@ -353,9 +347,7 @@
 ;---------------------------------------------------------------------------------------------
 
 ; (vector? x)
-
-(define-syntax vector %vec)
-
+; (vector x ...)
 ; (make-vector n (i #f))
 ; (vector-length v)
 ; (vector-ref v i)
@@ -459,16 +451,11 @@
 ;---------------------------------------------------------------------------------------------
 
 ; (string? x)
-
-(define-syntax string
-  (syntax-rules ()
-    [(_ c ...) (%str c ...)]
-    [_ %residual-string]))
-
+; (string c ...)
 ; (make-string n (i #\space))
 ; (string-length s)
 ; (string-ref x i)
-; (string-set! x i v) %residual-string-set! (%sput x i v))
+; (string-set! x i v)
 ; (list->string l)
 ; (string-cat s1 s2)
 ; (substring s from to)
@@ -819,8 +806,6 @@
              (or (null? args)
                  (let ([y (car args)])
                    (and (f x y) (loop y (cdr args))))))))]))
-
-(define (%residual-list . l) l)
 
 (define %residual-make-list (unary-binary-adaptor make-list))
 

@@ -3604,7 +3604,10 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
         pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
         sprintf(lbuf, "%%!1.0u?{%s,.2%s]2}.0du?{.0a,.2%s]2}%%%%", pe1, pe0, pe0);
       } break;
-      default: assert(0); 
+      case '#': /* must have explicit lcode */
+        assert(0); 
+      default:
+        assert(0); 
     }
     if (!lcode || *lcode == 0) continue;
     ra = mksymbol(internsym(pe->igname));
