@@ -200,32 +200,32 @@
 ; Characters
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (char? x) %residual-char? (%charp x))
+; (char? x)
 
-(define-inline (char-cmp x y) %residual-char-cmp (%ccmp x y))
-(define-inline (char=? x y) %residual-char=? (%ceq x y))
-(define-inline (char<? x y) %residual-char<? (%clt x y))
-(define-inline (char<=? x y) %residual-char<=? (%cle x y))
-(define-inline (char>? x y) %residual-char>? (%cgt x y))
-(define-inline (char>=? x y) %residual-char>=? (%cge x y))
+; (char-cmp c1 c2)
+; (char=? c1 c2 c ...)
+; (char<? c1 c2 c ...)
+; (char>? c1 c2 c ...)
+; (char<=? c1 c2 c ...)
+; (char>=? c1 c2 c ...)
 
-(define-inline (char-ci-cmp x y) %residual-char-cmp (%cicmp x y))
-(define-inline (char-ci=? x y) %residual-char-ci=? (%cieq x y))
-(define-inline (char-ci<? x y) %residual-char-ci<? (%cilt x y))
-(define-inline (char-ci<=? x y) %residual-char-ci<=? (%cile x y))
-(define-inline (char-ci>? x y) %residual-char-ci>? (%cigt x y))
-(define-inline (char-ci>=? x y) %residual-char-ci>=? (%cige x y))
+; (char-ci-cmp c1 c2)
+; (char-ci=? c1 c2 c ...)
+; (char-ci<? c1 c2 c ...)
+; (char-ci>? c1 c2 c ...)
+; (char-ci<=? c1 c2 c ...)
+; (char-ci>=? c1 c2 c ...)
 
-(define-inline (char-alphabetic? x) %residual-char-alphabetic? (%calp x))
-(define-inline (char-numeric? x) %residual-char-numeric? (%cnup x))
-(define-inline (char-whitespace? x) %residual-char-whitespace? (%cwsp x))
-(define-inline (char-upper-case? x) %residual-char-upper-case? (%cucp x))
-(define-inline (char-lower-case? x) %residual-char-lower-case? (%clcp x))
-(define-inline (char-upcase x) %residual-char-upcase (%cupc x))
-(define-inline (char-downcase x) %residual-char-downcase (%cdnc x))
+; (char-alphabetic? c)
+; (char-numeric? x)
+; (char-whitespace? c)
+; (char-upper-case? c)
+; (char-lower-case? c)
+; (char-upcase c)
+; (char-downcase c)
 
-(define-inline (char->integer x) %residual-char->integer (%ctoi x))
-(define-inline (integer->char x) %residual-integer->char (%itoc x))
+; (char->integer c) 
+; (integer->char n)
 
 ;char-foldcase
 ;digit-value
@@ -235,11 +235,9 @@
 ; Symbols
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (symbol? x) %residual-symbol? (%symp x))
-
-(define-inline (symbol->string x) %residual-symbol->string (%ytos x))
-
-(define-inline (string->symbol x) %residual-string->symbol (%stoy x))
+; (symbol? x)
+; (symbol->string y)
+; (string->symbol s)
 
 
 ;---------------------------------------------------------------------------------------------
@@ -284,13 +282,14 @@
 
 ; (length l)
 ; (list-ref l i)
-; (list-set! l i v)
+; (list-set! l i x)
+; (list-cat l1 l2)
 
 (define-syntax append
   (syntax-rules ()
     [(_) '()] [(_ x) x]
-    [(_ x y) (%lcat x y)]
-    [(_ x y z ...) (%lcat x (append y z ...))]
+    [(_ x y) (list-cat x y)]
+    [(_ x y z ...) (list-cat x (append y z ...))]
     [_ %residual-append]))
 
 ; (memq v l)
@@ -353,40 +352,32 @@
 ; Vectors
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (vector? x) %residual-vector? (%vecp x))
+; (vector? x)
 
 (define-syntax vector %vec)
 
-(define-syntax make-vector
-  (syntax-rules ()
-    [(_ n) (%vmk n #f)]
-    [(_ n v) (%vmk n v)]
-    [(_ . args) (%residual-make-vector . args)]
-    [_ %residual-make-vector]))
-
-(define-inline (vector-length x) %residual-vector-length (%vlen x))
-
-(define-inline (vector-ref x i) %residual-vector-ref (%vget x i))
-
-(define-inline (vector-set! x i v) %residual-vector-set! (%vput x i v))
-
-(define-inline (list->vector x) %residual-list->vector (%ltov x))
+; (make-vector n (i #f))
+; (vector-length v)
+; (vector-ref v i)
+; (vector-set! v i x)
+; (list->vector x)
+; (vector-cat v1 v2)
 
 (define (subvector->list vec start end)
   (let loop ([i (fx- end 1)] [l '()])
     (if (fx<? i start) l (loop (fx- i 1) (cons (vector-ref vec i) l)))))
 
-(define-syntax vector->list
-  (syntax-rules ()
-    [(_ x) (%vtol x)]
-    [(_ . r) (%residual-vector->list . r)]
-    [_ %residual-vector->list]))
-
-(define %residual-vector->list
+(define %vector->list
   (case-lambda
      [(vec) (%vtol vec)]
      [(vec start) (subvector->list vec start (vector-length vec))]
      [(vec start end) (subvector->list vec start end)]))
+
+(define-syntax vector->list
+  (syntax-rules ()
+    [(_ x) (%vtol x)]
+    [(_ . r) (%vector->list . r)]
+    [_ %vector->list]))
 
 (define (subvector-copy! to at from start end)
   (let ([limit (fxmin end (fx+ start (fx- (vector-length to) at)))])
@@ -452,65 +443,51 @@
             (subvector-copy! to i vec 0 len)
             (loop vecs (fx+ i len)))))))  
 
-(define (%residual-vector-append . vecs)
+(define (%vector-append . vecs)
   (vectors-copy-into! (make-vector (vectors-sum-length vecs)) vecs))
 
 (define-syntax vector-append
   (syntax-rules ()
     [(_) '#()] [(_ x) (%ckv x)]
-    [(_ x y) (%vcat x y)]
-    [(_ . r) (%residual-vector-append . r)]
-    [_ %residual-vector-append]))
+    [(_ x y) (vector-cat x y)]
+    [(_ . r) (%vector-append . r)]
+    [_ %vector-append]))
 
 
 ;---------------------------------------------------------------------------------------------
 ; Strings
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (string? x) %residual-string? (%strp x))
+; (string? x)
 
 (define-syntax string
   (syntax-rules ()
     [(_ c ...) (%str c ...)]
     [_ %residual-string]))
 
-(define-syntax make-string
-  (syntax-rules ()
-    [(_ x) (%smk x #\space)]
-    [(_ x y) (%smk x y)]
-    [(_ . args) (%residual-make-string . args)]
-    [_ %residual-make-string]))
-
-(define-inline (string-length x) %residual-string-length (%slen x))
-
-(define-inline (string-ref x i) %residual-string-ref (%sget x i))
-
-(define-inline (string-set! x i v) %residual-string-set! (%sput x i v))
-
-(define-syntax string-append
-  (syntax-rules ()
-    [(_) ""] [(_ x) (%cks x)]
-    [(_ x y) (%scat x y)]
-    [(_ x y z ...) (string-append x (string-append y z ...))]
-    [_ %residual-string-append]))
-
-(define-inline (list->string x) %residual-list->string (%ltos x))
+; (make-string n (i #\space))
+; (string-length s)
+; (string-ref x i)
+; (string-set! x i v) %residual-string-set! (%sput x i v))
+; (list->string l)
+; (string-cat s1 s2)
+; (substring s from to)
 
 (define (substring->list str start end)
   (let loop ([i (fx- end 1)] [l '()])
     (if (fx<? i start) l (loop (fx- i 1) (cons (string-ref str i) l)))))
 
-(define-syntax string->list
-  (syntax-rules ()
-    [(_ x) (%stol x)]
-    [(_ . r) (%residual-string->list . r)]
-    [_ %residual-string->list]))
-
-(define %residual-string->list
+(define %string->list
   (case-lambda
      [(str) (%stol str)]
      [(str start) (substring->list str start (string-length str))]
      [(str start end) (substring->list str start end)]))
+
+(define-syntax string->list
+  (syntax-rules ()
+    [(_ x) (%stol x)]
+    [(_ . r) (%string->list . r)]
+    [_ %string->list]))
 
 (define (substring-copy! to at from start end)
   (let ([limit (fxmin end (fx+ start (fx- (string-length to) at)))])
@@ -527,8 +504,6 @@
      [(to at from) (substring-copy! to at from 0 (string-length from))]
      [(to at from start) (substring-copy! to at from start (string-length from))]
      [(to at from start end) (substring-copy! to at from start end)]))
-
-(define-inline (substring x s e) %residual-substring (%ssub x s e))
 
 (define string-copy 
   (case-lambda
@@ -573,28 +548,29 @@
             (substring-copy! to i str 0 len)
             (loop strs (fx+ i len)))))))  
 
-(define (%residual-string-append . strs)
+(define (%string-append . strs)
   (strings-copy-into! (make-string (strings-sum-length strs)) strs))
 
 (define-syntax string-append
   (syntax-rules ()
     [(_) ""] [(_ x) (%cks x)]
-    [(_ x y) (%scat x y)]
-    [(_ . r) (%residual-string-append . r)]
-    [_ %residual-string-append]))
+    [(_ x y) (string-cat x y)]
+    [(_ . r) (%string-append . r)]
+    [_ %string-append]))
 
-(define-inline (string-cmp x y) %residual-string-cmp (%scmp x y))
-(define-inline (string=? x y) %residual-string<? (%seq x y))
-(define-inline (string<? x y) %residual-string<? (%slt x y))
-(define-inline (string<=? x y) %residual-string<=? (%sle x y))
-(define-inline (string>? x y) %residual-string>? (%sgt x y))
-(define-inline (string>=? x y) %residual-string>=? (%sge x y))
-(define-inline (string-ci-cmp x y) %residual-string-cmp (%sicmp x y))
-(define-inline (string-ci=? x y) %residual-string<? (%sieq x y))
-(define-inline (string-ci<? x y) %residual-string<? (%silt x y))
-(define-inline (string-ci<=? x y) %residual-string<=? (%sile x y))
-(define-inline (string-ci>? x y) %residual-string>? (%sigt x y))
-(define-inline (string-ci>=? x y) %residual-string>=? (%sige x y))
+; (string-cmp s1 s2)
+; (string=? s1 s2 s ...)
+; (string<? s1 s2 s ...)
+; (string>? s1 s2 s ...)
+; (string<=? s1 s2 s ...)
+; (string>=? s1 s2 s ...)
+
+; (string-ci-cmp s1 s2)
+; (string-ci=? s1 s2 s ...)
+; (string-ci<? s1 s2 s ...)
+; (string-ci>? s1 s2 s ...)
+; (string-ci<=? s1 s2 s ...)
+; (string-ci>=? s1 s2 s ...)
 
 ;string-upcase
 ;string-downcase
@@ -617,7 +593,7 @@
 ; Control features
 ;---------------------------------------------------------------------------------------------
 
-(define-inline (procedure? x) %residual-procedure? (%funp x))
+; (procedure? x)
 
 (define-syntax apply
   (syntax-rules ()
@@ -847,8 +823,6 @@
 (define (%residual-list . l) l)
 
 (define %residual-make-list (unary-binary-adaptor make-list))
-(define %residual-make-vector (unary-binary-adaptor make-vector))
-(define %residual-make-string (unary-binary-adaptor make-string))
 
 (define-syntax minmax-reducer
   (syntax-rules ()
@@ -916,6 +890,3 @@
                [else (f (car args) (loop (cdr args)))])))]))
 
 (define %residual-append (append-reducer append '()))
-(define %residual-string-append (append-reducer string-append ""))
-(define %residual-vector-append (append-reducer vector-append '#()))
-
