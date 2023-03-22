@@ -491,7 +491,6 @@ declare_integrable(NULL,        "dddd",         0,  "cddddr",              '1', 
 declare_integrable(NULL,         NULL,          0,  "apply-to-list",       '@', "%2_!K3")
 declare_integrable(NULL,         NULL,          0,  "call-with-values",    '@', "%2_!K4")
 declare_integrable(NULL,         NULL,          0,  "values",              '@', "K6")
-declare_integrable(NULL,         NULL,          0,  "%call/cc",            '@', "%1k1,.0,.2[21")
 
 #undef declare_instruction
 #undef declare_instrshadow

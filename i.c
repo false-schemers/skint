@@ -3588,9 +3588,66 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
   /* make sure we are called in a clean vm state */
   assert(r == cxg_regs); assert(sp-r == VM_REGC); /* k, ra (for temp use) */
   /* go over module entries and install/execute */
-  for (ent = mod; ent[1] != NULL; ent += 2) {
+  for (ent = mod; ent[0] != NULL || ent[1] != NULL; ent += 2) {
     const char *name = ent[0], *data = ent[1];
     /* fprintf(stderr, "## initializing: %s\n%s\n", name?name:"NULL", data); */
+    if (name != 0 && name[0] == 'S' && name[1] == 0) {
+      /* 'syntax' entry: skip prefix */
+      ent += 1; name = ent[0], data = ent[1];
+      assert(name != 0); assert(data != 0);
+    } else if (name != 0 && name[0] == 'C' && name[1] == 0) {
+      /* 'command' entry: skip prefix */
+      ent += 1; name = ent[0], data = ent[1];
+      assert(name == 0); assert(data != 0);
+    } else if (name != 0 && name[0] == 'P' && name[1] == 0) {
+      /* 'procedure' entry: make closure and install */
+      ent += 1; name = ent[0], data = ent[1];
+      assert(name != 0); assert(data != 0);
+      /* install code */
+      ra = mksymbol(internsym((char*)name));
+      hp = rds_global_loc(r, sp, hp); /* ra->ra */
+      spush(ra); assert(isbox(ra));
+      ra = mkiport_string(sp-r, sialloc((char*)data, NULL));
+      hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
+      if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
+      if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
+      if (!iseof(ra)) boxref(spop()) = ra;
+      continue;
+    } else if (name != 0 && name[0] == 'A' && name[1] == 0) {
+      /* 'alias' entry: copy transformer */
+      obj oldsym, sym, oldbnd, bnd, al;
+      ent += 1; name = ent[0], data = ent[1];
+      assert(name != 0); assert(data != 0);
+      /* look for dst binding (we allow redefinition) */
+      oldsym = mksymbol(internsym((char*)data));
+      sym = mksymbol(internsym((char*)name));
+      for (oldbnd = 0, al = al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+        obj ael = car(al);
+        if (car(ael) != oldsym) continue;
+        oldbnd = ael; break;
+      }
+      assert(oldbnd); assert(ispair(oldbnd)); 
+      if (!oldbnd) continue;
+      /* look for existing binding (we allow redefinition) */
+      for (bnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+        obj ael = car(al);
+        if (car(ael) != sym) continue; 
+        bnd = ael; break;
+      }
+      /* or add new binding */
+      spush(oldbnd); /* protect from gc */
+      if (!bnd) { /* acons (sym . #f) */
+        hreserve(hbsz(3)*2, sp-r);
+        *--hp = obj_from_bool(0); *--hp = sym;
+        *--hp = obj_from_size(PAIR_BTAG); bnd = hendblk(3);
+        *--hp = cx__2Atransformers_2A; *--hp = bnd;
+        *--hp = obj_from_size(PAIR_BTAG); cx__2Atransformers_2A = hendblk(3);
+      }
+      oldbnd = spop();
+      cdr(bnd) = cdr(oldbnd);
+      continue;    
+    }
+    /* skipped prefix or no prefix */
     if (name != NULL) {
       /* install sexp-encoded syntax-rules as a transformer */
       obj sym = mksymbol(internsym((char*)name));

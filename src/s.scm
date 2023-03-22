@@ -8,6 +8,26 @@
 ; Derived expression types
 ;---------------------------------------------------------------------------------------------
 
+; builtins:
+;
+; (quote const)
+; (set! id expr)
+; (set& id)
+; (letcc id expr) 
+; (withcc expr expr ...) 
+; (if expr1 expr2)
+; (if expr1 expr2 expr3)
+; (begin expr ...)
+; (body expr ...) -- lexical scope for definitions
+; (lambda args expr ...)
+; (lambda* [arity expr] ...)
+; (define id expr)
+; (define (id . args) expr ...)
+; (define-syntax kw form)
+; (syntax-lambda (id ...) form ...) 
+; (syntax-rules (lit ...) [pat templ] ...) 
+; (syntax-rules ellipsis (lit ...) [pat templ] ...) 
+
 (define-syntax let-syntax
   (syntax-rules ()
     [(_ ([kw init] ...))
@@ -99,22 +119,12 @@
   (syntax-rules ()
     [(_ [args . body] ...) (lambda* [args (lambda args . body)] ...)]))
 
-;cond
-;case
-;and
-;or
-;when
-;unless
 ;cond-expand
 
-;let  -- including named let
-;let*
-;letrec
 ;letrec*
 ;let-values
 ;let*-values
 
-;do
 ;delay
 ;delay-force
 
@@ -220,10 +230,8 @@
 ; (real? x) == number? what about inf and nan?
 ; (rational? x) == number? what about inf and nan?
 ; (exact-integer? x) == fixnum?
-
 ; (exact? x)
 ; (inexact? x)
-
 ; (finite? x)
 ; (infinite? x)
 ; (nan? x)
@@ -232,25 +240,20 @@
 ; (negative? x)
 ; (even? x)
 ; (odd? x)
-
 ; (+ x ...)
 ; (* x ...)
 ; (- x y ...)
 ; (/ x y ...)
-
 ; (< x y z ...)
 ; (<= x y z ...)
 ; (> x y z ...)
 ; (>= x y z ...)
 ; (= x y z ...)
-
 ; (abs x)
-
 ; (truncate-quotient x y)
 ; (truncate-remainder x y)
 ; (quotient x y) == truncate-quotient
 ; (remainder x y) == truncate-remainder
-
 ; (floor-quotient x y)
 ; (floor-remainder x y)
 ; (modulo x y) = floor-remainder
@@ -276,22 +279,21 @@
 ; Characters
 ;---------------------------------------------------------------------------------------------
 
+; integrables:
+;
 ; (char? x)
-
 ; (char-cmp c1 c2)
 ; (char=? c1 c2 c ...)
 ; (char<? c1 c2 c ...)
 ; (char>? c1 c2 c ...)
 ; (char<=? c1 c2 c ...)
 ; (char>=? c1 c2 c ...)
-
 ; (char-ci-cmp c1 c2)
 ; (char-ci=? c1 c2 c ...)
 ; (char-ci<? c1 c2 c ...)
 ; (char-ci>? c1 c2 c ...)
 ; (char-ci<=? c1 c2 c ...)
 ; (char-ci>=? c1 c2 c ...)
-
 ; (char-alphabetic? c)
 ; (char-numeric? x)
 ; (char-whitespace? c)
@@ -299,7 +301,6 @@
 ; (char-lower-case? c)
 ; (char-upcase c)
 ; (char-downcase c)
-
 ; (char->integer c) 
 ; (integer->char n)
 
@@ -311,6 +312,8 @@
 ; Symbols
 ;---------------------------------------------------------------------------------------------
 
+; integrables:
+;
 ; (symbol? x)
 ; (symbol->string y)
 ; (string->symbol s)
@@ -336,6 +339,8 @@
 ; Lists
 ;---------------------------------------------------------------------------------------------
 
+; integrables:
+;
 ; (list? x)
 ; (list x ...)
 ; (make-list n (i #f))
@@ -343,6 +348,16 @@
 ; (list-ref l i)
 ; (list-set! l i x)
 ; (list-cat l1 l2)
+; (memq v l)
+; (memv v l)  ; TODO: make sure memv checks list
+; (meme v l)  ; TODO: make sure meme checks list
+; (assq v y)
+; (assv v y) ; TODO: make sure assv checks list
+; (asse v y) ; TODO: make sure asse checks list
+; (list-tail l i)
+; (last-pair l)
+; (reverse l)
+; (reverse! l)
 
 (define (%append . args)
   (let loop ([args args])
@@ -356,10 +371,6 @@
     [(_ x y) (list-cat x y)]
     [(_ x y z ...) (list-cat x (append y z ...))]
     [_ %append]))
-
-; (memq v l)
-; (memv v l)  ; TODO: make sure memv checks list
-; (meme v l)  ; TODO: make sure meme checks list
 
 (define (%member v l . ?eq)
   (if (null? ?eq) 
@@ -375,10 +386,6 @@
     [(_ v l) (meme v l)] 
     [(_ . args) (%member . args)]
     [_ %member]))
-
-; (assq v y)
-; (assv v y) ; TODO: make sure assv checks list
-; (asse v y) ; TODO: make sure asse checks list
 
 (define (%assoc v al . ?eq)
   (if (null? ?eq) 
@@ -401,11 +408,6 @@
         (cons (car obj) (loop (cdr obj)))
         obj)))
 
-; (list-tail l i)
-; (last-pair l)
-; (reverse l)
-; (reverse! l)
-
 (define (%list* x . l)
   (let loop ([x x] [l l])
     (if (null? l) x (cons x (loop (car l) (cdr l))))))
@@ -425,6 +427,8 @@
 ; Vectors
 ;---------------------------------------------------------------------------------------------
 
+; integrables:
+;
 ; (vector? x)
 ; (vector x ...)
 ; (make-vector n (i #f))
@@ -529,6 +533,8 @@
 ; Strings
 ;---------------------------------------------------------------------------------------------
 
+; integrables:
+;
 ; (string? x)
 ; (string c ...)
 ; (make-string n (i #\space))
@@ -538,6 +544,18 @@
 ; (list->string l)
 ; (string-cat s1 s2)
 ; (substring s from to)
+; (string-cmp s1 s2)
+; (string=? s1 s2 s ...)
+; (string<? s1 s2 s ...)
+; (string>? s1 s2 s ...)
+; (string<=? s1 s2 s ...)
+; (string>=? s1 s2 s ...)
+; (string-ci-cmp s1 s2)
+; (string-ci=? s1 s2 s ...)
+; (string-ci<? s1 s2 s ...)
+; (string-ci>? s1 s2 s ...)
+; (string-ci<=? s1 s2 s ...)
+; (string-ci>=? s1 s2 s ...)
 
 (define (substring->list str start end)
   (let loop ([i (fx- end 1)] [l '()])
@@ -624,19 +642,6 @@
     [(_ . r) (%string-append . r)]
     [_ %string-append]))
 
-; (string-cmp s1 s2)
-; (string=? s1 s2 s ...)
-; (string<? s1 s2 s ...)
-; (string>? s1 s2 s ...)
-; (string<=? s1 s2 s ...)
-; (string>=? s1 s2 s ...)
-
-; (string-ci-cmp s1 s2)
-; (string-ci=? s1 s2 s ...)
-; (string-ci<? s1 s2 s ...)
-; (string-ci>? s1 s2 s ...)
-; (string-ci<=? s1 s2 s ...)
-; (string-ci>=? s1 s2 s ...)
 
 ;string-upcase
 ;string-downcase
@@ -647,6 +652,8 @@
 ; Conversions
 ;---------------------------------------------------------------------------------------------
 
+; integrables:
+;
 ; (fixnum->string x (r 10))
 ; (string->fixnum s (r 10))
 ; (flonum->string x)
@@ -659,7 +666,11 @@
 ; Control features
 ;---------------------------------------------------------------------------------------------
 
+; integrables:
+;
 ; (procedure? x)
+; (values x ...)
+; (call-with-values thunk receiver)
 
 (define (%apply p x . l)
   (apply-to-list p 
@@ -673,7 +684,7 @@
     [(_ . args) (%apply . args)]
     [_ %apply]))
 
-; (%call/cc p)
+(define (%call/cc p) (letcc k (p k)))
 
 (define-syntax call/cc
   (syntax-rules ()
@@ -682,9 +693,6 @@
     [_ %call/cc])) 
 
 (define-syntax call-with-current-continuation call/cc)
-
-; (values x ...)
-; (call-with-values thunk receiver)
 
 (define (%map1 p l)
   (let loop ([l l] [r '()])
@@ -774,6 +782,8 @@
 ; I/O Ports
 ;---------------------------------------------------------------------------------------------
 
+; integrables:
+;
 ; (input-port? x)
 ; (output-port? x)
 ; (input-port-open? p)
@@ -818,10 +828,13 @@
 ; Input
 ;---------------------------------------------------------------------------------------------
 
-
+; integrables:
+;
 ; (read-char (p (current-input-port)))
 ; (peek-char (p (current-input-port)))
 ; (char-ready? (p (current-input-port)))
+; (eof-object? x)
+; (eof-object)
 
 (define (read-line . ?p)
   (let ([p (if (null? ?p) (current-input-port) (car ?p))]
@@ -837,9 +850,6 @@
               [(char=? c #\return) (loop #f)]
               [else (write-char c op) (loop #f)]))))) 
 
-; (eof-object? x)
-; (eof-object)
-
 ;read
 ;read-string
 ;read-u8
@@ -849,12 +859,12 @@
 ;read-bytevector!
 
 
-
 ;---------------------------------------------------------------------------------------------
 ; Output
 ;---------------------------------------------------------------------------------------------
-
  
+; integrables:
+;
 ; (write-char c (p (current-output-port)))
 ; (write-string s (p (current-output-port)))
 ; (display x (p (current-output-port)))
@@ -883,96 +893,3 @@
 ;jiffies-per-second
 ;features
 
-
-;---------------------------------------------------------------------------------------------
-; Residual versions of vararg procedures
-;---------------------------------------------------------------------------------------------
-
-(define-syntax nullary-unary-adaptor
-  (syntax-rules ()
-    [(_ f)
-     (lambda args
-       (if (null? args) (f) (f (car args))))]))
-
-(define-syntax nullary-unary-binary-adaptor
-  (syntax-rules ()
-    [(_ f)
-     (lambda args
-       (if (null? args) (f) (if (null? (cdr args)) (f (car args)) (f (car args) (cadr args)))))])) 
-
-(define-syntax unary-binary-adaptor
-  (syntax-rules ()
-    [(_ f)
-     (lambda (x . args)
-       (if (null? args) (f x) (f x (car args))))]))
-
-(define-syntax unary-binary-ternary-adaptor
-  (syntax-rules ()
-    [(_ f)
-     (lambda (x . args)
-       (if (null? args) (f x) (if (null? (cdr args)) (f x (car args)) (f x (car args) (cadr args)))))])) 
-
-(define-syntax unary-binary-ternary-quaternary-adaptor
-  (syntax-rules ()
-    [(_ f)
-     (lambda (x . args)
-       (if (null? args) (f x) (if (null? (cdr args)) (f x (car args)) 
-         (if (null? (cddr args)) (f x (car args) (cadr args)) (f x (car args) (cadr args) (caddr args))))))])) 
-
-(define-syntax binary-ternary-adaptor
-  (syntax-rules ()
-    [(_ f)
-     (lambda (x y . args)
-       (if (null? args) (f x y) (f x y (car args))))]))
-
-(define-syntax cmp-reducer
-  (syntax-rules ()
-    [(_ f)
-     (lambda args
-       (or (null? args)
-           (let loop ([x (car args)] [args (cdr args)])
-             (or (null? args)
-                 (let ([y (car args)])
-                   (and (f x y) (loop y (cdr args))))))))]))
-
-(define-syntax minmax-reducer
-  (syntax-rules ()
-    [(_ f)
-     (lambda (x . args)
-       (let loop ([x x] [args args])
-         (if (null? args)
-             x
-             (loop (f x (car args)) (cdr args)))))]))
-
-(define-syntax addmul-reducer
-  (syntax-rules ()
-    [(_ f s)
-     (lambda args
-       (if (null? args)
-           s
-           (let loop ([x (car args)] [args (cdr args)])
-             (if (null? args)
-                 x
-                 (loop (f x (car args)) (cdr args))))))]))
-
-(define-syntax subdiv-reducer
-  (syntax-rules ()
-    [(_ f)
-     (lambda (x . args)
-       (if (null? args)
-           (f x)
-           (let loop ([x x] [args args])
-             (if (null? args)
-                 x
-                 (loop (f x (car args)) (cdr args))))))]))
-
-(define-syntax append-reducer
-  (syntax-rules ()
-    [(_ f s)
-     (lambda args
-       (let loop ([args args])
-         (cond [(null? args) s]
-               [(null? (cdr args)) (car args)]
-               [else (f (car args) (loop (cdr args)))])))]))
-
-(define %residual-append (append-reducer append '()))

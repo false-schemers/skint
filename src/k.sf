@@ -1167,12 +1167,7 @@
 ; File processor (Scheme => Serialized code)
 ;---------------------------------------------------------------------------------------------
 
-(define *hide-refs* '(
-  define-inline nullary-unary-adaptor nullary-unary-binary-adaptor
-  unary-binary-adaptor unary-binary-ternary-adaptor 
-  unary-binary-ternary-quaternary-adaptor binary-ternary-adaptor
-  cmp-reducer addmul-reducer subdiv-reducer append-reducer
-))
+(define *hide-refs* '())
 
 (define (display-code cstr oport)
   (let loop ([i 0] [l (string-length cstr)])
@@ -1188,30 +1183,25 @@
              (loop (fx+ i 70) l)]))))  
 
 
-(define (process-define-syntax id xval oport)
+(define (process-syntax id xval oport)
   (newline oport)
-  (display "  \"" oport) (display id oport) (display "\",\n" oport)
-  ; hack xval's define-inline leftovers
-  (set! xval 
-    (let hack ([v xval])
-      (cond [(procedure? v) 'syntax-rules]
-            [(eq? v 'define-inline) '_]
-            [(pair? v) (cons (hack (car v)) (hack (cdr v)))]
-            [else v])))
-  ; wrap symbolic definitions so init code can use them
-  (when (symbol? xval)
-    (set! xval (list 'syntax-rules '() (list '(_ . args) (cons xval 'args)) (list '_ xval))))
+  (display "  \"S\", \"" oport) (display id oport) (display "\",\n" oport)
   (let ([p (open-output-string)]) (write-serialized-sexp xval p)
     (display-code (get-output-string p) oport) (newline oport)))
 
-(define (process-statement xval oport)
+(define (process-alias id oldid oport)
+  (newline oport)
+  (display "  \"A\", \"" oport) (display id oport) (display "\"," oport)
+  (display " \"" oport) (display oldid oport) (display "\",\n" oport))
+
+(define (process-command xval oport)
   (define cstr (compile-to-string xval))
   (newline oport)
-  (display "  0,\n" oport)
+  (display "  \"C\", 0,\n" oport)
   (display-code cstr oport) (newline oport))
 
 (define (process-define id xlam oport)
-  (process-statement (list 'set! id xlam) oport))
+  (process-command (list 'set! id xlam) oport))
 
 (define (scan-top-form x)
   (cond 
@@ -1253,17 +1243,19 @@
          [(eq? hval 'define-syntax)
           (let ([xval (transform #t (caddr x))])
             (install-transformer! (cadr x) xval)
-            (unless (memq (cadr x) *hide-refs*)  
-              (process-define-syntax (cadr x) (caddr x) oport)))]
+            (unless (memq (cadr x) *hide-refs*) 
+              (if (symbol? (caddr x))
+                  (process-alias (cadr x) (caddr x) oport)
+                  (process-syntax (cadr x) (caddr x) oport))))]
          [(eq? hval 'define)
           (let ([xval (transform #f (caddr x))])
             (process-define (cadr x) xval oport))]
          [(procedure? hval)
           (process-top-form (hval x top-transformer-env) oport)]
          [else
-          (process-statement (transform #f x) oport)]))]
+          (process-command (transform #f x) oport)]))]
     [else
-     (process-statement (transform #f x) oport)]))
+     (process-command (transform #f x) oport)]))
 
 (define (path-strip-directory filename)
   (let loop ([l (reverse (string->list filename))] [r '()])
