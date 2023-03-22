@@ -168,7 +168,8 @@
 ;  <core> -> (set! <id> <core>)
 ;  <core> -> (set& <id>)
 ;  <core> -> (lambda <ids> <core>) where <ids> -> (<id> ...) | (<id> ... . <id>) | <id>
-;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>) 
+;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>)
+;  <core> -> (syntax-lambda (<id> ...) <core>)
 ;  <core> -> (letcc <id> <core>) 
 ;  <core> -> (withcc <core> <core>) 
 ;  <core> -> (begin <core> ...)
@@ -229,8 +230,9 @@
 ; <binding>     ->  (<symbol> . <value>)
 ; <value>       ->  <special> | <core>
 ; <special>     ->  <builtin> | <transformer>
-; <builtin>     ->  syntax | define | define-syntax |
-;                   quote | set! | begin | if | lambda | body
+; <builtin>     ->  syntax | quote | set! | set& | begin | if | lambda | 
+;                   lambda* | syntax-lambda | letcc | withcc | body | 
+;                   define | define-syntax ; top-level only
 ; <transformer> ->  <procedure of exp and env returning exp>
 
 (define-inline (val-core? val)            (pair? val))
@@ -260,7 +262,7 @@
   (extend-xenv env var (make-binding (id->sym var) (list 'ref val))))
 
 (define (x-error msg . args)
-  (apply error (cons (string-append "transformer: " msg) args)))
+  (error* (string-append "transformer: " msg) args))
 
 ; xform receives Scheme s-expressions and returns either Core Scheme <core>
 ; (always a pair) or special-form, which is either a builtin (a symbol) or
@@ -289,6 +291,7 @@
              [(if)            (xform-if            tail env)]
              [(lambda)        (xform-lambda        tail env)]
              [(lambda*)       (xform-lambda*       tail env)]
+             [(syntax-lambda) (xform-syntax-lambda tail env)]
              [(letcc)         (xform-letcc         tail env)]
              [(withcc)        (xform-withcc        tail env)]
              [(body)          (xform-body          tail env)]
@@ -379,15 +382,15 @@
   (if (and (list1+? tail) (idslist? (car tail)))
       (let loop ([vars (car tail)] [ienv env] [ipars '()])
         (cond [(pair? vars)
-              (let* ([var (car vars)] [nvar (gensym (id->sym var))])
-                (loop (cdr vars) (add-var var nvar ienv) (cons nvar ipars)))]
+               (let* ([var (car vars)] [nvar (gensym (id->sym var))])
+                 (loop (cdr vars) (add-var var nvar ienv) (cons nvar ipars)))]
               [(null? vars)
-              (list 'lambda (reverse ipars) (xform-body (cdr tail) ienv))]
+               (list 'lambda (reverse ipars) (xform-body (cdr tail) ienv))]
               [else ; improper 
                (let* ([var vars] [nvar (gensym (id->sym var))] 
                       [ienv (add-var var nvar ienv)])
-                (list 'lambda (append (reverse ipars) nvar)
-                  (xform-body (cdr tail) ienv)))]))
+                 (list 'lambda (append (reverse ipars) nvar)
+                   (xform-body (cdr tail) ienv)))]))
       (x-error "improper lambda body" (cons 'lambda tail))))
 
 (define (xform-lambda* tail env)
@@ -395,13 +398,30 @@
       (cons 'lambda*
          (map (lambda (aexp)
                  (if (and (list2? aexp) 
-                          (or (and (list2? (car aexp)) (fixnum? (caar aexp)) (boolean? (cadar aexp)))
+                          (or (and (list2? (car aexp)) 
+                                   (fixnum? (caar aexp)) 
+                                   (boolean? (cadar aexp)))
                               (idslist? (car aexp))))
                      (list (normalize-arity (car aexp))
                            (xform #f (cadr aexp) env))
                      (x-error "improper lambda* clause" aexp)))
               tail))
       (x-error "improper lambda* form" (cons 'lambda* tail))))
+
+(define (xform-syntax-lambda tail env)
+  (if (and (list2+? tail) (andmap id? (car tail)))
+      (let ([vars (car tail)] [macenv env] [forms (cdr tail)])
+        ; return a transformer that wraps xformed body in (syntax ...)
+        (lambda (use useenv)
+          (if (and (list1+? use) (fx=? (length vars) (length (cdr use))))
+              (let loop ([vars vars] [exps (cdr use)] [env macenv])
+                (if (null? vars)
+                    (list 'syntax (xform-body forms env))
+                    (loop (cdr vars) (cdr exps)
+                      (add-binding (car vars) 
+                        (xform #t (car exps) useenv) env))))  
+              (x-error "invalif syntax-lambda application" use))))  
+      (x-error "improper syntax-lambda body" (cons 'syntax-lambda tail))))
 
 (define (xform-letcc tail env)
   (if (and (list2+? tail) (id? (car tail)))
@@ -486,6 +506,7 @@
     (make-binding 'set& 'set&)
     (make-binding 'lambda 'lambda)
     (make-binding 'lambda* 'lambda*)
+    (make-binding 'syntax-lambda 'syntax-lambda)
     (make-binding 'letcc 'letcc)
     (make-binding 'withcc 'withcc)
     (make-binding 'begin 'begin)
@@ -785,7 +806,7 @@
 ;---------------------------------------------------------------------------------------------
 
 (define (c-error msg . args)
-  (apply error (cons (string-append "compiler: " msg) args)))
+  (error* (string-append "compiler: " msg) args))
 
 (define (write-serialized-char x port)
   (cond [(or (char=? x #\%) (char=? x #\") (char=? x #\\) (char<? x #\space) (char>? x #\~))
@@ -1535,6 +1556,16 @@
 
 (define *verbose* #f)
 
+(define *reset* #f)
+
+(define (error* msg args)
+  (if (procedure? *reset*)
+      (let ([p (current-error-port)])
+        (display msg p) (newline p)
+        (for-each (lambda (arg) (write arg p) (newline p)) args)
+        (*reset* #f))
+      (apply error (cons msg args)))) 
+     
 (define (run-tests)
   (define start (current-jiffy))
   (display "Running tests ...") (newline)
@@ -1547,20 +1578,22 @@
   (display " ms.") (newline))
 
 (define (repl-eval x)
-  (let ([xexp (transform #f x)])
-    (when *verbose* (display "TRANSFORM =>") (newline) (write xexp) (newline))
-    (if (eq? (car xexp) 'define) (set-car! xexp 'set!))
-    (when *verbose* (display "COMPILE-TO-STRING =>") (newline))
-    (let ([cstr (compile-to-string xexp)] [start #f])
-      (when *verbose* 
-        (display cstr) (newline)
-        (display "DECODE+EXECUTE =>") (newline)
-        (set! start (current-jiffy)))
-      (let* ([thunk (decode cstr)] [res (execute thunk)])
-        (write res) (newline))
-      (when *verbose* 
-        (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
-        (display " ms.") (newline)))))
+  (letcc catch
+    (set! *reset* catch)
+    (let ([xexp (transform #f x)])
+      (when *verbose* (display "TRANSFORM =>") (newline) (write xexp) (newline))
+      (if (eq? (car xexp) 'define) (set-car! xexp 'set!))
+      (when *verbose* (display "COMPILE-TO-STRING =>") (newline))
+      (let ([cstr (compile-to-string xexp)] [start #f])
+        (when *verbose* 
+          (display cstr) (newline)
+          (display "DECODE+EXECUTE =>") (newline)
+          (set! start (current-jiffy)))
+        (let* ([thunk (decode cstr)] [res (execute thunk)])
+          (write res) (newline))
+        (when *verbose* 
+          (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
+          (display " ms.") (newline))))))
 
 (define (repl-eval-top-form x)
   (cond 

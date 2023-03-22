@@ -1,27 +1,111 @@
 
 ;---------------------------------------------------------------------------------------------
-; Scheme library functions
+; SCHEME LIBRARY FUNCTIONS
 ;---------------------------------------------------------------------------------------------
-
-;---------------------------------------------------------------------------------------------
-; helpers
-;---------------------------------------------------------------------------------------------
-
-(define-syntax define-inline
-  (syntax-rules ()
-    [(_ (id v ...) rid expr)
-     (begin
-       (define-syntax id
-         (syntax-rules ()
-           [(_ v ...) expr] ; NB: do not use the same var twice!
-           [(_ . r) (rid . r)] ; NB: use syntax-error?
-           [_ rid]))
-       (define rid (lambda (v ...) expr)))]))
 
 
 ;---------------------------------------------------------------------------------------------
 ; Derived expression types
 ;---------------------------------------------------------------------------------------------
+
+#|
+(define-syntax let-syntax
+  (syntax-rules ()
+    [(_ ([kw init] ...))
+     (begin)]
+    [(_ ([kw init] ...) . forms)
+     ((syntax-lambda (kw ...) . forms)
+      init ...)]))
+
+(define-syntax syntax-lambda
+  (let-syntax ([org-sl syntax-lambda])
+    (syntax-rules ()
+      [(_ (v ...) form) (org-sl (v ...) form)]
+      [(_ (v ...) . forms) (org-sl (v ...) (block . forms))])))
+
+(define-syntax letrec-syntax
+  (syntax-rules ()
+    [(_ ([key trans] ...) . forms) ; non-splicing!
+     (body (define-syntax key trans) ... . forms)]))
+
+(define-syntax letrec
+  (syntax-rules ()
+    [(_ ([var init] ...) . forms)
+     (body (define var init) ... . forms)]))
+
+(define-syntax let
+  (syntax-rules ()
+    [(_ ([var init] ...) . forms)
+     ((lambda (var ...) . forms) init ...)]
+    [(_ name ([var init] ...) . forms)
+     ((letrec ((name (lambda (var ...) . forms))) name) init ...)]))
+
+(define-syntax let*
+  (syntax-rules ()
+    [(_ () . forms) 
+     (body . forms)]
+    [(_ (first . more) . forms)
+     (let (first) (let* more . forms))]))
+
+(define-syntax and
+  (syntax-rules ()
+    [(_) #t]
+    [(_ test) test]
+    [(_ test . tests) (if test (and . tests) #f)]))
+
+(define-syntax or
+  (syntax-rules ()
+    [(_) #f]
+    [(_ test) test]
+    [(_ test . tests) (let ([x test]) (if x x (or . tests)))]))
+
+(define-syntax cond
+  (syntax-rules (else =>)
+    [(_) #f]
+    [(_ (else . exps)) (begin . exps)]
+    [(_ (x) . rest) (or x (cond . rest))]
+    [(_ (x => proc) . rest) (let ([tmp x]) (cond [tmp (proc tmp)] . rest))]
+    [(_ (x . exps) . rest) (if x (begin . exps) (cond . rest))]))
+
+(define-syntax case-test
+  (syntax-rules (else) 
+    [(_ k else) #t]
+    [(_ k atoms) (memv k 'atoms)]))
+
+(define-syntax case
+  (syntax-rules ()
+    [(_ x (test . exprs) ...)
+     (let ([key x]) (cond ((case-test key test) . exprs) ...))]))
+
+(define-syntax do
+  (syntax-rules ()
+    [(_ ((var init . step) ...) ending expr ...)
+     (let loop ([var init] ...)
+       (cond ending [else expr ... (loop (begin var . step) ...)]))]))
+
+(define-syntax quasiquote
+  (syntax-rules (unquote unquote-splicing quasiquote)
+    [(_ ,x) x]
+    [(_ (,@x . y)) (append x `y)]
+    [(_ `x . d) (cons 'quasiquote (quasiquote (x) d))]
+    [(_ ,x   d) (cons 'unquote (quasiquote (x) . d))]
+    [(_ ,@x  d) (cons 'unquote-splicing (quasiquote (x) . d))]
+    [(_ (x . y) . d) (cons (quasiquote x . d) (quasiquote y . d))]
+    [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
+    [(_ x . d) 'x]))
+
+(define-syntax when
+  (syntax-rules ()
+    [(_ test . rest) (if test (begin . rest))]))
+
+(define-syntax unless
+  (syntax-rules ()
+    [(_ test . rest) (if (not test) (begin . rest))]))
+
+(define-syntax case-lambda
+  (syntax-rules ()
+    [(_ [args . body] ...) (lambda* [args (lambda args . body)] ...)]))
+|#
 
 ;cond
 ;case
@@ -319,7 +403,11 @@
     [(_ . args) (%assoc . args)]
     [_ %assoc]))
 
-(define-inline (list-copy x) %residual-list-copy (%lcat x '()))
+(define (list-copy obj)
+  (let loop ([obj obj])
+    (if (pair? obj)
+        (cons (car obj) (loop (cdr obj)))
+        obj)))
 
 ; (list-tail l i)
 ; (last-pair l)
