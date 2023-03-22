@@ -277,6 +277,8 @@
                   (list 'ref (integrable-global hval))]
                  [(procedure? hval) ; id-syntax
                   (xform appos? (hval sexp env) env)]
+                 [(not (pair? hval)) 
+                  (x-error "improper use of syntax form" hval)]
                  [else hval]))]
         [(not (pair? sexp))
          (xform-quote (list sexp) env)]
@@ -676,109 +678,6 @@
        (define name (lambda args . forms))]
       [(_ name exp)
        (define name exp)]))))
-
-; Remaining transformers are made with the help of syntax-rules*
-; NB: order of installation is important -- each transformer can
-; be self-recursive but can't use transformers defined later!
-
-(define-syntax install-sr-transformer!
-  (syntax-rules (quote syntax-rules)
-    [(_ 'name (syntax-rules (lit ...) . rules))
-     (install-transformer-rules! 'name #f '(lit ...) 'rules)]
-    [(_ 'name (syntax-rules ellipsis (lit ...) . rules))
-     (install-transformer-rules! 'name 'ellipsis '(lit ...) 'rules)]))    
-
-(install-sr-transformer! 'letrec-syntax
-  (syntax-rules ()
-    [(_ ([key trans] ...) . forms) ; non-splicing!
-     (body (define-syntax key trans) ... . forms)]))
-
-(install-sr-transformer! 'let-syntax
-  (syntax-rules ()
-    [(_ () . forms) 
-     (body . forms)]
-    [(_ ([key trans] . bindings) . forms)
-     (letrec-syntax ([temp trans])
-       (let-syntax bindings 
-         (letrec-syntax ([key temp]) . forms)))]))
-
-(install-sr-transformer! 'letrec
-  (syntax-rules ()
-    [(_ ([var init] ...) . forms)
-     (body (define var init) ... . forms)]))
-
-(install-sr-transformer! 'let
-  (syntax-rules ()
-    [(_ ([var init] ...) . forms)
-     ((lambda (var ...) . forms) init ...)]
-    [(_ name ([var init] ...) . forms)
-     ((letrec ((name (lambda (var ...) . forms))) name) init ...)]))
-
-(install-sr-transformer! 'let*
-  (syntax-rules ()
-    [(_ () . forms) 
-     (body . forms)]
-    [(_ (first . more) . forms)
-     (let (first) (let* more . forms))]))
-
-(install-sr-transformer! 'and
-  (syntax-rules ()
-    [(_) #t]
-    [(_ test) test]
-    [(_ test . tests) (if test (and . tests) #f)]))
-
-(install-sr-transformer! 'or
-  (syntax-rules ()
-    [(_) #f]
-    [(_ test) test]
-    [(_ test . tests) (let ([x test]) (if x x (or . tests)))]))
-
-(install-sr-transformer! 'cond
-  (syntax-rules (else =>)
-    [(_) #f]
-    [(_ (else . exps)) (begin . exps)]
-    [(_ (x) . rest) (or x (cond . rest))]
-    [(_ (x => proc) . rest) (let ([tmp x]) (cond [tmp (proc tmp)] . rest))]
-    [(_ (x . exps) . rest) (if x (begin . exps) (cond . rest))]))
-
-(install-sr-transformer! 'case-test
-  (syntax-rules (else) 
-    [(_ k else) #t]
-    [(_ k atoms) (memv k 'atoms)]))
-
-(install-sr-transformer! 'case
-  (syntax-rules ()
-    [(_ x (test . exprs) ...)
-     (let ([key x]) (cond ((case-test key test) . exprs) ...))]))
-
-(install-sr-transformer! 'do
-  (syntax-rules ()
-    [(_ ((var init . step) ...) ending expr ...)
-     (let loop ([var init] ...)
-       (cond ending [else expr ... (loop (begin var . step) ...)]))]))
-
-(install-sr-transformer! 'quasiquote
-  (syntax-rules (unquote unquote-splicing quasiquote)
-    [(_ ,x) x]
-    [(_ (,@x . y)) (append x `y)]
-    [(_ `x . d) (cons 'quasiquote (quasiquote (x) d))]
-    [(_ ,x   d) (cons 'unquote (quasiquote (x) . d))]
-    [(_ ,@x  d) (cons 'unquote-splicing (quasiquote (x) . d))]
-    [(_ (x . y) . d) (cons (quasiquote x . d) (quasiquote y . d))]
-    [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
-    [(_ x . d) 'x]))
-
-(install-sr-transformer! 'when
-  (syntax-rules ()
-    [(_ test . rest) (if test (begin . rest))]))
-
-(install-sr-transformer! 'unless
-  (syntax-rules ()
-    [(_ test . rest) (if (not test) (begin . rest))]))
-
-(install-sr-transformer! 'case-lambda
-  (syntax-rules ()
-    [(_ [args . body] ...) (lambda* [args (lambda args . body)] ...)]))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1582,6 +1481,7 @@
     (set! *reset* catch)
     (let ([xexp (transform #f x)])
       (when *verbose* (display "TRANSFORM =>") (newline) (write xexp) (newline))
+      (unless (pair? xexp) (x-error "unexpected transformed output" xexp))
       (if (eq? (car xexp) 'define) (set-car! xexp 'set!))
       (when *verbose* (display "COMPILE-TO-STRING =>") (newline))
       (let ([cstr (compile-to-string xexp)] [start #f])

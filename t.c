@@ -145,63 +145,68 @@ char *t_code[] = {
   ".1,.4,@(y11:extend-xenv)[33}@!(y7:add-var)",
 
   0,
-  "&0{%3${.3,@(y3:id?)[01}?{${.4,.4,@(y9:xform-ref)[02},.1?{.0]4}.0U0?{.0"
-  "U7,'(y3:ref),l2]4}.0K0?{.3,${.6,.6,.5[02},.3,@(y5:xform)[43}.0]4}.1p~?"
-  "{.2,.2,@(y11:xform-quote)[32}.1a,.2d,${.6,.4,t,@(y5:xform)[03},.0,'(l1"
-  ":y6:syntax;),.1A1?{.2a]7}'(l1:y5:quote;),.1A1?{.6,.3a,@(y11:xform-quot"
-  "e)[72}'(l1:y4:set!;),.1A1?{.6,.3da,.4a,@(y10:xform-set!)[73}'(l1:y4:se"
-  "t&;),.1A1?{.6,.3,@(y10:xform-set&)[72}'(l1:y5:begin;),.1A1?{.6,.3,@(y1"
-  "1:xform-begin)[72}'(l1:y2:if;),.1A1?{.6,.3,@(y8:xform-if)[72}'(l1:y6:l"
-  "ambda;),.1A1?{.6,.3,@(y12:xform-lambda)[72}'(l1:y7:lambda*;),.1A1?{.6,"
-  ".3,@(y13:xform-lambda*)[72}'(l1:y5:letcc;),.1A1?{.6,.3,@(y11:xform-let"
-  "cc)[72}'(l1:y6:withcc;),.1A1?{.6,.3,@(y12:xform-withcc)[72}'(l1:y4:bod"
-  "y;),.1A1?{.6,.3,@(y10:xform-body)[72}'(l1:y6:define;),.1A1?{.6,.3da,.4"
-  "a,@(y12:xform-define)[73}'(l1:y13:define-syntax;),.1A1?{.6,.3da,.4a,@("
-  "y19:xform-define-syntax)[73}t?{.1U0?{.6,.3,.3,@(y16:xform-integrable)["
-  "73}.1K0?{.6,${.9,.9,.6[02},.6,@(y5:xform)[73}.6,.3,.3,@(y10:xform-call"
-  ")[73}f]7}@!(y5:xform)",
+  "&0{%!1.0,.2,'(s13:transformer: )S6,@(y6:error*)[22}@!(y7:x-error)",
 
   0,
-  "&0{%2${.2,,#0.0,&1{%1${.2,@(y3:id?)[01}?{.0,@(y7:id->sym)[11}.0p?{${.2"
-  "d,:0^[01},${.3a,:0^[01}c]1}.0V0?{${.2X0,:0^,@(y5:%25map1)[02}X1]1}.0]1"
-  "}.!0.0^_1[01},'(y5:quote),l2]2}@!(y11:xform-quote)",
+  "&0{%3${.3,@(y3:id?)[01}?{${.4,.4,@(y9:xform-ref)[02},.1?{.0]4}.0U0?{.0"
+  "U7,'(y3:ref),l2]4}.0K0?{.3,${.6,.6,.5[02},.3,@(y5:xform)[43}.0p~?{.0,'"
+  "(s27:improper use of syntax form),@(y7:x-error)[42}.0]4}.1p~?{.2,.2,l1"
+  ",@(y11:xform-quote)[32}.1a,.2d,${.6,.4,t,@(y5:xform)[03},.0,'(l1:y6:sy"
+  "ntax;),.1A1?{.2a]7}'(l1:y5:quote;),.1A1?{.6,.3,@(y11:xform-quote)[72}'"
+  "(l1:y4:set!;),.1A1?{.6,.3,@(y10:xform-set!)[72}'(l1:y4:set&;),.1A1?{.6"
+  ",.3,@(y10:xform-set&)[72}'(l1:y5:begin;),.1A1?{.6,.3,@(y11:xform-begin"
+  ")[72}'(l1:y2:if;),.1A1?{.6,.3,@(y8:xform-if)[72}'(l1:y6:lambda;),.1A1?"
+  "{.6,.3,@(y12:xform-lambda)[72}'(l1:y7:lambda*;),.1A1?{.6,.3,@(y13:xfor"
+  "m-lambda*)[72}'(l1:y13:syntax-lambda;),.1A1?{.6,.3,@(y19:xform-syntax-"
+  "lambda)[72}'(l1:y5:letcc;),.1A1?{.6,.3,@(y11:xform-letcc)[72}'(l1:y6:w"
+  "ithcc;),.1A1?{.6,.3,@(y12:xform-withcc)[72}'(l1:y4:body;),.1A1?{.6,.3,"
+  "@(y10:xform-body)[72}'(l1:y6:define;),.1A1?{.6,.3,@(y12:xform-define)["
+  "72}'(l1:y13:define-syntax;),.1A1?{.6,.3,@(y19:xform-define-syntax)[72}"
+  "t?{.1U0?{.6,.3,.3,@(y16:xform-integrable)[73}.1K0?{.6,${.9,.9,.6[02},."
+  "6,@(y5:xform)[73}.6,.3,.3,@(y10:xform-call)[73}f]7}@!(y5:xform)",
 
   0,
   "&0{%2${.2,.4[01},.0Y0?{.0,'(y3:ref),l2]3}.0,@(y11:binding-val)[31}@!(y"
   "9:xform-ref)",
 
   0,
-  "&0{%3${.4,.4,f,@(y5:xform)[03},${.3,.6[01},.0Y0?{.1,.1,'(y4:set!),l3]5"
-  "}${.2,@(y16:binding-special?)[01}?{${.3,.3,@(y16:binding-set-val!)[02}"
-  "'(l1:y5:begin;)]5}${.2,@(y11:binding-val)[01},'(y3:ref),.1aq?{.2,.1da,"
-  "'(y4:set!),l3]6}'(s27:set! to non-identifier form),'(y9:transform),@(y"
-  "5:error)[62}@!(y10:xform-set!)",
+  "&0{%2${.2,@(y6:list1?)[01}?{${.2a,,#0.0,&1{%1${.2,@(y3:id?)[01}?{.0,@("
+  "y7:id->sym)[11}.0p?{${.2d,:0^[01},${.3a,:0^[01}c]1}.0V0?{${.2X0,:0^,@("
+  "y5:%25map1)[02}X1]1}.0]1}.!0.0^_1[01},'(y5:quote),l2]2}.0,'(y5:quote)c"
+  ",'(s19:improper quote form),@(y7:x-error)[22}@!(y11:xform-quote)",
+
+  0,
+  "&0{%2${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,f,@(y5:"
+  "xform)[03},${.3a,.5[01},.0Y0?{.1,.1,'(y4:set!),l3]4}${.2,@(y16:binding"
+  "-special?)[01}?{${.3,.3,@(y16:binding-set-val!)[02}'(l1:y5:begin;)]4}$"
+  "{.2,@(y11:binding-val)[01},'(y3:ref),.1aq?{.2,.1da,'(y4:set!),l3]5}'(s"
+  "27:set! to non-identifier form),@(y7:x-error)[51}.0,'(y4:set!)c,'(s18:"
+  "improper set! form),@(y7:x-error)[22}@!(y10:xform-set!)",
 
   0,
   "&0{%2${.2,@(y6:list1?)[01}?{${.2a,.4[01},.0Y0?{.0,'(y4:set&),l2]3}${.2"
-  ",@(y16:binding-special?)[01}?{'(s22:set& of a non-variable),'(y9:trans"
-  "form),@(y5:error)[32}${.2,@(y11:binding-val)[01},'(y3:ref),.1aq?{.0da,"
-  "'(y4:set&),l2]4}'(s22:set& of a non-variable),'(y9:transform),@(y5:err"
-  "or)[42}'(s18:improper set& form),'(y9:transform),@(y5:error)[22}@!(y10"
-  ":xform-set&)",
+  ",@(y16:binding-special?)[01}?{'(s22:set& of a non-variable),@(y7:x-err"
+  "or)[31}${.2,@(y11:binding-val)[01},'(y3:ref),.1aq?{.0da,'(y4:set&),l2]"
+  "4}'(s22:set& of a non-variable),@(y7:x-error)[41}.0,'(y4:set&)c,'(s18:"
+  "improper set& form),@(y7:x-error)[22}@!(y10:xform-set&)",
 
   0,
   "&0{%2.0L0?{${.2,.4,&1{%1:0,.1,f,@(y5:xform)[13},@(y5:%25map1)[02},.0p?"
-  "{.0du}{f}?{.0a]3}.0,'(y5:begin)c]3}'(s19:improper begin form),'(y9:tra"
-  "nsform),@(y5:error)[22}@!(y11:xform-begin)",
+  "{.0du}{f}?{.0a]3}.0,'(y5:begin)c]3}.0,'(y6:begin!)c,'(s19:improper beg"
+  "in form),@(y7:x-error)[22}@!(y11:xform-begin)",
 
   0,
   "&0{%2.0L0?{${.2,.4,&1{%1:0,.1,f,@(y5:xform)[13},@(y5:%25map1)[02},.0g,"
   "'(l1:i2;),.1A1?{'(l1:l1:y5:begin;;),.2L6,'(y2:if)c]4}'(l1:i3;),.1A1?{."
-  "1,'(y2:if)c]4}t?{'(s17:malformed if form),'(y9:transform),@(y5:error)["
-  "42}f]4}'(s16:improper if form),'(y9:transform),@(y5:error)[22}@!(y8:xf"
-  "orm-if)",
+  "1,'(y2:if)c]4}t?{.2,'(y2:if)c,'(s17:malformed if form),@(y7:x-error)[4"
+  "2}f]4}.0,'(y2:if)c,'(s16:improper if form),@(y7:x-error)[22}@!(y8:xfor"
+  "m-if)",
 
   0,
   "&0{%3.1L0?{${.3,.5,&1{%1:0,.1,f,@(y5:xform)[13},@(y5:%25map1)[02},.0u?"
   "{'(y6:lambda),.2aq?{.1dau}{f}}{f}?{.1dda]4}.0,.2,'(y4:call),@(y5:pair*"
-  ")[43}'(s20:improper application),'(y9:transform),@(y5:error)[32}@!(y10"
-  ":xform-call)",
+  ")[43}.1,.1c,'(s20:improper application),@(y7:x-error)[32}@!(y10:xform-"
+  "call)",
 
   0,
   "&0{%2.0,'(l1:c0;),.1A1?{'0,.3=]3}'(l1:c1;),.1A1?{'1,.3=]3}'(l1:c2;),.1"
@@ -222,27 +227,36 @@ char *t_code[] = {
   "${.6,.4,.6,@(y7:add-var)[03},.4d,:0^[53}.0u?{${.3,:1d,@(y10:xform-body"
   ")[02},.3A8,'(y6:lambda),l3]3}.0,${${.4,@(y7:id->sym)[01},@(y6:gensym)["
   "01},${.5,.3,.5,@(y7:add-var)[03},${.2,:1d,@(y10:xform-body)[02},.2,.7A"
-  "8L6,'(y6:lambda),l3]6}.!0.0^_1[23}.0,'(s20:improper lambda body),'(y9:"
-  "transform),@(y5:error)[23}@!(y12:xform-lambda)",
+  "8L6,'(y6:lambda),l3]6}.!0.0^_1[23}.0,'(y6:lambda)c,'(s20:improper lamb"
+  "da body),@(y7:x-error)[22}@!(y12:xform-lambda)",
 
   0,
   "&0{%2.0L0?{${.2,.4,&1{%1${.2,@(y6:list2?)[01}?{${.2a,@(y6:list2?)[01}?"
   "{.0aaI0?{.0adaY1}{f}}{f},.0?{.0}{${.3a,@(y8:idslist?)[01}}_1}{f}?{${:0"
-  ",.3da,f,@(y5:xform)[03},${.3a,@(y15:normalize-arity)[01},l2]1}'(s23:im"
-  "proper lambda* clause),'(y9:transform),@(y5:error)[12},@(y5:%25map1)[0"
-  "2},'(y7:lambda*)c]2}'(s21:improper lambda* form),'(y9:transform),@(y5:"
-  "error)[22}@!(y13:xform-lambda*)",
+  ",.3da,f,@(y5:xform)[03},${.3a,@(y15:normalize-arity)[01},l2]1}.0,'(s23"
+  ":improper lambda* clause),@(y7:x-error)[12},@(y5:%25map1)[02},'(y7:lam"
+  "bda*)c]2}.0,'(y7:lambda*)c,'(s21:improper lambda* form),@(y7:x-error)["
+  "22}@!(y13:xform-lambda*)",
+
+  0,
+  "&0{%2${.2,@(y7:list2+?)[01}?{${.2a,@(y3:id?),@(y6:andmap)[02}}{f}?{.0d"
+  ",.2,.2a,.2,.1,.3,&3{%2${.2,@(y7:list1+?)[01}?{.0dg,:1gI=}{f}?{:0,.1d,:"
+  "1,,#0.5,.1,:2,&3{%3.0u?{${.4,:0,@(y10:xform-body)[02},'(y6:syntax),l2]"
+  "3}${.4,${:2,.7a,t,@(y5:xform)[03},.4a,@(y11:add-binding)[03},.2d,.2d,:"
+  "1^[33}.!0.0^_1[23}.0,'(s33:invalif syntax-lambda application),@(y7:x-e"
+  "rror)[22}]5}.0,'(y13:syntax-lambda)c,'(s27:improper syntax-lambda body"
+  "),@(y7:x-error)[22}@!(y19:xform-syntax-lambda)",
 
   0,
   "&0{%2${.2,@(y7:list2+?)[01}?{${.2a,@(y3:id?)[01}}{f}?{.0a,${${.4,@(y7:"
   "id->sym)[01},@(y6:gensym)[01},${${.7,.5,.7,@(y7:add-var)[03},.5d,@(y10"
-  ":xform-body)[02},.1,'(y5:letcc),l3]4}'(s19:improper letcc form),'(y9:t"
-  "ransform),@(y5:error)[22}@!(y11:xform-letcc)",
+  ":xform-body)[02},.1,'(y5:letcc),l3]4}.0,'(y5:letcc)c,'(s19:improper le"
+  "tcc form),@(y7:x-error)[22}@!(y11:xform-letcc)",
 
   0,
   "&0{%2${.2,@(y7:list2+?)[01}?{${.3,.3d,@(y10:xform-body)[02},${.4,.4a,f"
-  ",@(y5:xform)[03},'(y6:withcc),l3]2}'(s20:improper withcc form),'(y9:tr"
-  "ansform),@(y5:error)[22}@!(y12:xform-withcc)",
+  ",@(y5:xform)[03},'(y6:withcc),l3]2}.0,'(y6:withcc)c,'(s20:improper wit"
+  "hcc form),@(y7:x-error)[22}@!(y12:xform-withcc)",
 
   0,
   "&0{%2.0u?{'(y5:begin),l1]2}.0,n,n,n,.5,,#0.0,&1{%5.4p?{.4ap}{f}?{.4d,."
@@ -261,36 +275,38 @@ char *t_code[] = {
   "(y5:xform)[13},@(y5:%25map1)[02},.4A8L6,.0p?{.0du}{f}?{.0a}{.0,'(y5:be"
   "gin)c},.6u?{.0]7}${.8,&0{%1'(l1:y5:begin;)]1},@(y5:%25map1)[02},.1,.8A"
   "8,'(y6:lambda),l3,'(y4:call),@(y5:pair*)[73}.2aY0?{.4,.3ac,.4,${:1,.6a"
-  ",.6a,@(y10:xform-set!)[03}c,.4d,.4d,.4d,:2^[55}${${:1,.6a,t,@(y5:xform"
-  ")[03},${.5a,:1[01},@(y16:binding-set-val!)[02}.4,.4,.4d,.4d,.4d,:2^[55"
-  "}.!0.0^_1[55}@!(y12:xform-labels)",
+  ",.6a,l2,@(y10:xform-set!)[02}c,.4d,.4d,.4d,:2^[55}${${:1,.6a,t,@(y5:xf"
+  "orm)[03},${.5a,:1[01},@(y16:binding-set-val!)[02}.4,.4,.4d,.4d,.4d,:2^"
+  "[55}.!0.0^_1[55}@!(y12:xform-labels)",
 
   0,
-  "&0{%3${.2,@(y3:id?)[01}?{${.4,.4,f,@(y5:xform)[03},${.3,@(y7:id->sym)["
-  "01},'(y6:define),l3]3}'(s29:define of non-identifier form),'(y9:transf"
-  "orm),@(y5:error)[32}@!(y12:xform-define)",
+  "&0{%2${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,f,@(y5:"
+  "xform)[03},${.3a,@(y7:id->sym)[01},'(y6:define),l3]2}.0,'(y6:define)c,"
+  "'(s20:improper define form),@(y7:x-error)[22}@!(y12:xform-define)",
 
   0,
-  "&0{%3${.2,@(y3:id?)[01}?{${.4,.4,t,@(y5:xform)[03},${.3,@(y7:id->sym)["
-  "01},'(y13:define-syntax),l3]3}'(s36:define-syntax of non-identifier fo"
-  "rm),'(y9:transform),@(y5:error)[32}@!(y19:xform-define-syntax)",
+  "&0{%2${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,t,@(y5:"
+  "xform)[03},${.3a,@(y7:id->sym)[01},'(y13:define-syntax),l3]2}.0,'(y13:"
+  "define-syntax)c,'(s27:improper define-syntax form),@(y7:x-error)[22}@!"
+  "(y19:xform-define-syntax)",
 
   0,
-  "${&0{%2.0,'(y3:...),@(y5:error)[22},'(y3:...),@(y12:make-binding)[02}@"
-  "!(y30:denotation-of-default-ellipsis)",
+  "${&0{%2.0,'(s19:improper use of ...),@(y7:x-error)[22},'(y3:...),@(y12"
+  ":make-binding)[02}@!(y30:denotation-of-default-ellipsis)",
 
   0,
   "@(y30:denotation-of-default-ellipsis),${'(y4:body),'(y4:body),@(y12:ma"
   "ke-binding)[02},${'(y2:if),'(y2:if),@(y12:make-binding)[02},${'(y5:beg"
   "in),'(y5:begin),@(y12:make-binding)[02},${'(y6:withcc),'(y6:withcc),@("
   "y12:make-binding)[02},${'(y5:letcc),'(y5:letcc),@(y12:make-binding)[02"
-  "},${'(y7:lambda*),'(y7:lambda*),@(y12:make-binding)[02},${'(y6:lambda)"
-  ",'(y6:lambda),@(y12:make-binding)[02},${'(y4:set&),'(y4:set&),@(y12:ma"
-  "ke-binding)[02},${'(y4:set!),'(y4:set!),@(y12:make-binding)[02},${'(y5"
-  ":quote),'(y5:quote),@(y12:make-binding)[02},${'(y13:define-syntax),'(y"
-  "13:define-syntax),@(y12:make-binding)[02},${'(y6:define),'(y6:define),"
-  "@(y12:make-binding)[02},${'(y6:syntax),'(y6:syntax),@(y12:make-binding"
-  ")[02},l(i14)@!(y14:*transformers*)",
+  "},${'(y13:syntax-lambda),'(y13:syntax-lambda),@(y12:make-binding)[02},"
+  "${'(y7:lambda*),'(y7:lambda*),@(y12:make-binding)[02},${'(y6:lambda),'"
+  "(y6:lambda),@(y12:make-binding)[02},${'(y4:set&),'(y4:set&),@(y12:make"
+  "-binding)[02},${'(y4:set!),'(y4:set!),@(y12:make-binding)[02},${'(y5:q"
+  "uote),'(y5:quote),@(y12:make-binding)[02},${'(y13:define-syntax),'(y13"
+  ":define-syntax),@(y12:make-binding)[02},${'(y6:define),'(y6:define),@("
+  "y12:make-binding)[02},${'(y6:syntax),'(y6:syntax),@(y12:make-binding)["
+  "02},l(i15)@!(y14:*transformers*)",
 
   0,
   "&0{%1${@(y14:*transformers*),.3,@(y16:find-top-binding)[02},${.2,@(y8:"
@@ -339,9 +355,9 @@ char *t_code[] = {
   "c]4}${.4,.3^,@(y5:%25map1)[02},${.6dd,:6^[01},${.3,.6^c,@(y4:%25map),@"
   "(y13:apply-to-list)[02}L6]5}.0p?{${.2d,:6^[01},${.3a,:6^[01}c]1}.0]1}."
   "!0.0^_1[21}.!0.0^_1[62}.!6.(i10),.7,.7,&3{%2:2,,#0:0,.3,.5,:1,.4,&5{%1"
-  ".0u?{${:3,'(s14:invalid syntax),'(y9:transform),@(y5:error)[03}}.0a,.0"
-  "a,.1da,${:2,:3,.5,:4^[03},.0?{.0,.0,.3,.5,:1^[63}.4d,:0^[51}.!0.0^_1[2"
-  "1}](i11)}@!(y13:syntax-rules*)",
+  ".0u?{${:3,'(s14:invalid syntax),@(y7:x-error)[02}}.0a,.0a,.1da,${:2,:3"
+  ",.5,:4^[03},.0?{.0,.0,.3,.5,:1^[63}.4d,:0^[51}.!0.0^_1[21}](i11)}@!(y1"
+  "3:syntax-rules*)",
 
   0,
   "${&0{%2,#0${${'(y6:syntax),'(y6:syntax),@(y12:make-binding)[02},@(y6:n"
@@ -371,11 +387,10 @@ char *t_code[] = {
   "letrec-syntax),@(y26:install-transformer-rules!)[04}",
 
   0,
-  "${'(l2:l2:py1:_;pn;y5:forms;;;py4:body;y5:forms;;;l2:py1:_;ppl2:y3:key"
-  ";y5:trans;;y8:bindings;;y5:forms;;;l3:y13:letrec-syntax;l1:l2:y4:temp;"
-  "y5:trans;;;l3:y10:let-syntax;y8:bindings;py13:letrec-syntax;pl1:l2:y3:"
-  "key;y4:temp;;;y5:forms;;;;;;),n,f,'(y10:let-syntax),@(y26:install-tran"
-  "sformer-rules!)[04}",
+  "${'(l2:l2:py1:_;pn;y5:forms;;;py4:body;y5:forms;;;l2:py1:_;pl2:l2:y3:k"
+  "ey;y5:trans;;y3:...;;y5:forms;;;l3:py13:syntax-lambda;pl2:y3:key;y3:.."
+  ".;;y5:forms;;;y5:trans;y3:...;;;),n,f,'(y10:let-syntax),@(y26:install-"
+  "transformer-rules!)[04}",
 
   0,
   "${'(l1:l2:py1:_;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms;;;py4:body;pl3"

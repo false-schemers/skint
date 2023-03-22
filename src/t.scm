@@ -134,6 +134,7 @@
 ;  <core> -> (set& <id>)
 ;  <core> -> (lambda <ids> <core>) where <ids> -> (<id> ...) | (<id> ... . <id>) | <id>
 ;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>) 
+;  <core> -> (syntax-lambda (<id> ...) <core>)
 ;  <core> -> (letcc <id> <core>) 
 ;  <core> -> (withcc <core> <core>) 
 ;  <core> -> (begin <core> ...)
@@ -194,8 +195,9 @@
 ; <binding>     ->  (<symbol> . <value>)
 ; <value>       ->  <special> | <core>
 ; <special>     ->  <builtin> | <transformer>
-; <builtin>     ->  syntax | define | define-syntax |
-;                   quote | set! | begin | if | lambda | body
+; <builtin>     ->  syntax | quote | set! | set& | begin | if | lambda | 
+;                   lambda* | syntax-lambda | letcc | withcc | body | 
+;                   define | define-syntax ; top-level only
 ; <transformer> ->  <procedure of exp and env returning exp>
 
 (define        val-core?                  pair?)
@@ -224,9 +226,13 @@
 (define (add-var var val env) ; adds renamed var as <core>
   (extend-xenv env var (make-binding (id->sym var) (list 'ref val))))
 
+(define (x-error msg . args)
+  (error* (string-append "transformer: " msg) args))
+
 ; xform receives Scheme s-expressions and returns either Core Scheme <core>
 ; (always a pair) or special-form, which is either a builtin (a symbol) or
-; a transformer (a procedure)
+; a transformer (a procedure). Appos? flag is true when the context can
+; allow xform to return a transformer; otherwise, only <core> is accepted. 
 
 (define (xform appos? sexp env)
   (cond [(id? sexp) 
@@ -236,63 +242,70 @@
                   (list 'ref (integrable-global hval))]
                  [(procedure? hval) ; id-syntax
                   (xform appos? (hval sexp env) env)]
+                 [(not (pair? hval)) 
+                  (x-error "improper use of syntax form" hval)]
                  [else hval]))]
         [(not (pair? sexp))
-         (xform-quote sexp env)]
+         (xform-quote (list sexp) env)]
         [else 
          (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
            (case hval
              [(syntax)        (car tail)] ; internal use only
-             [(quote)         (xform-quote (car tail) env)]
-             [(set!)          (xform-set! (car tail) (cadr tail) env)]
-             [(set&)          (xform-set& tail env)]
-             [(begin)         (xform-begin tail env)]
-             [(if)            (xform-if tail env)]
-             [(lambda)        (xform-lambda tail env)]
-             [(lambda*)       (xform-lambda* tail env)]
-             [(letcc)         (xform-letcc tail env)]
-             [(withcc)        (xform-withcc tail env)]
-             [(body)          (xform-body tail env)]
-             [(define)        (xform-define (car tail) (cadr tail) env)]
-             [(define-syntax) (xform-define-syntax (car tail) (cadr tail) env)]
+             [(quote)         (xform-quote         tail env)]
+             [(set!)          (xform-set!          tail env)]
+             [(set&)          (xform-set&          tail env)]
+             [(begin)         (xform-begin         tail env)]
+             [(if)            (xform-if            tail env)]
+             [(lambda)        (xform-lambda        tail env)]
+             [(lambda*)       (xform-lambda*       tail env)]
+             [(syntax-lambda) (xform-syntax-lambda tail env)]
+             [(letcc)         (xform-letcc         tail env)]
+             [(withcc)        (xform-withcc        tail env)]
+             [(body)          (xform-body          tail env)]
+             [(define)        (xform-define        tail env)]
+             [(define-syntax) (xform-define-syntax tail env)]
              [else            (if (integrable? hval)
                                   (xform-integrable hval tail env)
                                   (if (procedure? hval)
                                       (xform appos? (hval sexp env) env)
                                       (xform-call hval tail env)))]))]))
 
-(define (xform-quote sexp env)
-  (list 'quote 
-    (let conv ([sexp sexp])
-      (cond [(id? sexp) (id->sym sexp)]
-            [(pair? sexp) (cons (conv (car sexp)) (conv (cdr sexp)))]
-            [(vector? sexp) (list->vector (map conv (vector->list sexp)))]
-            [else sexp]))))
-
 (define (xform-ref id env)
   (let ([den (env id)])
     (cond [(symbol? den) (list 'ref den)]
           [else (binding-val den)])))
 
-(define (xform-set! id exp env)
-  (let ([den (env id)] [xexp (xform #f exp env)])
-    (cond [(symbol? den) (list 'set! den xexp)]
-          [(binding-special? den) (binding-set-val! den xexp) '(begin)]
-          [else (let ([val (binding-val den)])
-                  (if (eq? (car val) 'ref)
-                      (list 'set! (cadr val) xexp)
-                      (error 'transform "set! to non-identifier form")))])))
+(define (xform-quote tail env)
+  (if (list1? tail)
+      (list 'quote 
+        (let conv ([sexp (car tail)])
+          (cond [(id? sexp) (id->sym sexp)]
+                [(pair? sexp) (cons (conv (car sexp)) (conv (cdr sexp)))]
+                [(vector? sexp) (list->vector (map conv (vector->list sexp)))]
+                [else sexp])))
+      (x-error "improper quote form" (cons 'quote tail))))
+
+(define (xform-set! tail env)
+  (if (and (list2? tail) (id? (car tail)))
+      (let ([den (env (car tail))] [xexp (xform #f (cadr tail) env)])
+        (cond [(symbol? den) (list 'set! den xexp)]
+              [(binding-special? den) (binding-set-val! den xexp) '(begin)]
+              [else (let ([val (binding-val den)])
+                      (if (eq? (car val) 'ref)
+                          (list 'set! (cadr val) xexp)
+                          (x-error "set! to non-identifier form")))]))
+      (x-error "improper set! form" (cons 'set! tail))))
 
 (define (xform-set& tail env)
   (if (list1? tail)
       (let ([den (env (car tail))])      
         (cond [(symbol? den) (list 'set& den)]
-              [(binding-special? den) (error 'transform "set& of a non-variable")]
+              [(binding-special? den) (x-error "set& of a non-variable")]
               [else (let ([val (binding-val den)])
                       (if (eq? (car val) 'ref)
                           (list 'set& (cadr val))
-                          (error 'transform "set& of a non-variable")))]))
-      (error 'transform "improper set& form")))
+                          (x-error "set& of a non-variable")))]))
+      (x-error "improper set& form" (cons 'set& tail))))
 
 (define (xform-begin tail env)
   (if (list? tail)
@@ -300,7 +313,7 @@
         (if (and (pair? xexps) (null? (cdr xexps)))
             (car xexps) ; (begin x) => x
             (cons 'begin xexps)))
-      (error 'transform "improper begin form")))
+      (x-error "improper begin form" (cons 'begin! tail))))
 
 (define (xform-if tail env)
   (if (list? tail)
@@ -308,8 +321,8 @@
         (case (length xexps)
           [(2) (cons 'if (append xexps '((begin))))]
           [(3) (cons 'if xexps)]
-          [else (error 'transform "malformed if form")]))
-      (error 'transform "improper if form")))
+          [else (x-error "malformed if form" (cons 'if tail))]))
+      (x-error "improper if form" (cons 'if tail))))
 
 (define (xform-call xexp tail env)
   (if (list? tail)
@@ -317,7 +330,7 @@
         (if (and (null? xexps) (eq? (car xexp) 'lambda) (null? (cadr xexp)))
             (caddr xexp) ; ((let () x)) => x
             (pair* 'call xexp xexps)))
-      (error 'transform "improper application")))
+      (x-error "improper application" (cons xexp tail))))
 
 (define (integrable-argc-match? igt n)
   (case igt
@@ -336,42 +349,59 @@
   (if (and (list1+? tail) (idslist? (car tail)))
       (let loop ([vars (car tail)] [ienv env] [ipars '()])
         (cond [(pair? vars)
-              (let* ([var (car vars)] [nvar (gensym (id->sym var))])
-                (loop (cdr vars) (add-var var nvar ienv) (cons nvar ipars)))]
+               (let* ([var (car vars)] [nvar (gensym (id->sym var))])
+                 (loop (cdr vars) (add-var var nvar ienv) (cons nvar ipars)))]
               [(null? vars)
-              (list 'lambda (reverse ipars) (xform-body (cdr tail) ienv))]
+               (list 'lambda (reverse ipars) (xform-body (cdr tail) ienv))]
               [else ; improper 
                (let* ([var vars] [nvar (gensym (id->sym var))] 
                       [ienv (add-var var nvar ienv)])
-                (list 'lambda (append (reverse ipars) nvar)
-                  (xform-body (cdr tail) ienv)))]))
-      (error 'transform "improper lambda body" tail)))
+                 (list 'lambda (append (reverse ipars) nvar)
+                   (xform-body (cdr tail) ienv)))]))
+      (x-error "improper lambda body" (cons 'lambda tail))))
 
 (define (xform-lambda* tail env)
   (if (list? tail)
       (cons 'lambda*
          (map (lambda (aexp)
                  (if (and (list2? aexp) 
-                          (or (and (list2? (car aexp)) (fixnum? (caar aexp)) (boolean? (cadar aexp)))
+                          (or (and (list2? (car aexp)) 
+                                   (fixnum? (caar aexp)) 
+                                   (boolean? (cadar aexp)))
                               (idslist? (car aexp))))
                      (list (normalize-arity (car aexp))
                            (xform #f (cadr aexp) env))
-                     (error 'transform "improper lambda* clause")))
+                     (x-error "improper lambda* clause" aexp)))
               tail))
-      (error 'transform "improper lambda* form")))
+      (x-error "improper lambda* form" (cons 'lambda* tail))))
+
+(define (xform-syntax-lambda tail env)
+  (if (and (list2+? tail) (andmap id? (car tail)))
+      (let ([vars (car tail)] [macenv env] [forms (cdr tail)])
+        ; return a transformer that wraps xformed body in (syntax ...)
+        (lambda (use useenv)
+          (if (and (list1+? use) (fx=? (length vars) (length (cdr use))))
+              (let loop ([vars vars] [exps (cdr use)] [env macenv])
+                (if (null? vars)
+                    (list 'syntax (xform-body forms env))
+                    (loop (cdr vars) (cdr exps)
+                      (add-binding (car vars) 
+                        (xform #t (car exps) useenv) env))))  
+              (x-error "invalif syntax-lambda application" use))))  
+      (x-error "improper syntax-lambda body" (cons 'syntax-lambda tail))))
 
 (define (xform-letcc tail env)
   (if (and (list2+? tail) (id? (car tail)))
       (let* ([var (car tail)] [nvar (gensym (id->sym var))])
         (list 'letcc nvar 
           (xform-body (cdr tail) (add-var var nvar env))))
-      (error 'transform "improper letcc form")))
+      (x-error "improper letcc form" (cons 'letcc tail))))
 
 (define (xform-withcc tail env)
   (if (list2+? tail)
       (list 'withcc (xform #f (car tail) env)
         (xform-body (cdr tail) env))
-      (error 'transform "improper withcc form")))
+      (x-error "improper withcc form" (cons 'withcc tail))))
 
 (define (xform-body tail env)
   (if (null? tail)
@@ -411,27 +441,27 @@
                    (map (lambda (lid) '(begin)) lids))))]
           [(symbol? (car nids)) ; define
            (loop (cdr ids) (cdr inits) (cdr nids)
-             (cons (xform-set! (car ids) (car inits) env) sets)
+             (cons (xform-set! (list (car ids) (car inits)) env) sets)
              (cons (car nids) lids))]
           [else ; define-syntax
            (binding-set-val! (env (car ids)) (xform #t (car inits) env))
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
-(define (xform-define id exp env) ; top-level only
-  (if (id? id)
-      (list 'define (id->sym id) (xform #f exp env))
-      (error 'transform "define of non-identifier form")))
+(define (xform-define tail env) ; top-level only
+  (if (and (list2? tail) (id? (car tail)))
+      (list 'define (id->sym (car tail)) (xform #f (cadr tail) env))
+      (x-error "improper define form" (cons 'define tail))))
 
-(define (xform-define-syntax id exp env) ; top-level only
-  (if (id? id)
-      (list 'define-syntax (id->sym id) (xform #t exp env))
-      (error 'transform "define-syntax of non-identifier form")))
+(define (xform-define-syntax tail env) ; top-level only
+  (if (and (list2? tail) (id? (car tail)))
+      (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))
+      (x-error "improper define-syntax form" (cons 'define-syntax tail))))
 
 
 ; ellipsis denotation is used for comparisons only
 
 (define denotation-of-default-ellipsis 
-  (make-binding '... (lambda (sexp env) (error '... sexp))))
+  (make-binding '... (lambda (sexp env) (x-error "improper use of ..." sexp))))
 
 (define *transformers* 
   (list
@@ -443,6 +473,7 @@
     (make-binding 'set& 'set&)
     (make-binding 'lambda 'lambda)
     (make-binding 'lambda* 'lambda*)
+    (make-binding 'syntax-lambda 'syntax-lambda)
     (make-binding 'letcc 'letcc)
     (make-binding 'withcc 'withcc)
     (make-binding 'begin 'begin)
@@ -587,7 +618,7 @@
 
   (lambda (use use-env)
     (let loop ([rules rules])
-      (if (null? rules) (error 'transform "invalid syntax" use))
+      (if (null? rules) (x-error "invalid syntax" use))
       (let* ([rule (car rules)] [pat (car rule)] [tmpl (cadr rule)])
         (cond [(match-pattern pat use use-env) =>
                (lambda (bindings) (expand-template pat tmpl bindings))]
@@ -633,10 +664,8 @@
   (syntax-rules ()
     [(_ () . forms) 
      (body . forms)]
-    [(_ ([key trans] . bindings) . forms)
-     (letrec-syntax ([temp trans])
-       (let-syntax bindings 
-         (letrec-syntax ([key temp]) . forms)))]))
+    [(_ ([key trans] ...) . forms)
+     ((syntax-lambda (key ...) . forms) trans ...)]))
 
 (install-sr-transformer! 'letrec
   (syntax-rules ()

@@ -1,6 +1,6 @@
 
 ;---------------------------------------------------------------------------------------------
-; SCHEME LIBRARY FUNCTIONS
+; SCHEME LIBRARY
 ;---------------------------------------------------------------------------------------------
 
 
@@ -8,7 +8,6 @@
 ; Derived expression types
 ;---------------------------------------------------------------------------------------------
 
-#|
 (define-syntax let-syntax
   (syntax-rules ()
     [(_ ([kw init] ...))
@@ -17,15 +16,9 @@
      ((syntax-lambda (kw ...) . forms)
       init ...)]))
 
-(define-syntax syntax-lambda
-  (let-syntax ([org-sl syntax-lambda])
-    (syntax-rules ()
-      [(_ (v ...) form) (org-sl (v ...) form)]
-      [(_ (v ...) . forms) (org-sl (v ...) (block . forms))])))
-
 (define-syntax letrec-syntax
   (syntax-rules ()
-    [(_ ([key trans] ...) . forms) ; non-splicing!
+    [(_ ([key trans] ...) . forms) 
      (body (define-syntax key trans) ... . forms)]))
 
 (define-syntax letrec
@@ -105,7 +98,6 @@
 (define-syntax case-lambda
   (syntax-rules ()
     [(_ [args . body] ...) (lambda* [args (lambda args . body)] ...)]))
-|#
 
 ;cond
 ;case

@@ -2,6 +2,90 @@
 
 char *s_code[] = {
 
+  "let-syntax",
+  "l4:y12:syntax-rules;n;l2:l2:y1:_;l2:l2:y2:kw;y4:init;;y3:...;;;l1:y5:b"
+  "egin;;;l2:py1:_;pl2:l2:y2:kw;y4:init;;y3:...;;y5:forms;;;l3:py13:synta"
+  "x-lambda;pl2:y2:kw;y3:...;;y5:forms;;;y4:init;y3:...;;;",
+
+  "letrec-syntax",
+  "l3:y12:syntax-rules;n;l2:py1:_;pl2:l2:y3:key;y5:trans;;y3:...;;y5:form"
+  "s;;;py4:body;pl3:y13:define-syntax;y3:key;y5:trans;;py3:...;y5:forms;;"
+  ";;;",
+
+  "letrec",
+  "l3:y12:syntax-rules;n;l2:py1:_;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms"
+  ";;;py4:body;pl3:y6:define;y3:var;y4:init;;py3:...;y5:forms;;;;;",
+
+  "let",
+  "l4:y12:syntax-rules;n;l2:py1:_;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms"
+  ";;;l3:py6:lambda;pl2:y3:var;y3:...;;y5:forms;;;y4:init;y3:...;;;l2:py1"
+  ":_;py4:name;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms;;;;l3:l3:y6:letrec"
+  ";l1:l2:y4:name;py6:lambda;pl2:y3:var;y3:...;;y5:forms;;;;;y4:name;;y4:"
+  "init;y3:...;;;",
+
+  "let*",
+  "l4:y12:syntax-rules;n;l2:py1:_;pn;y5:forms;;;py4:body;y5:forms;;;l2:py"
+  "1:_;ppy5:first;y4:more;;y5:forms;;;l3:y3:let;l1:y5:first;;py4:let*;py4"
+  ":more;y5:forms;;;;;",
+
+  "and",
+  "l5:y12:syntax-rules;n;l2:l1:y1:_;;t;;l2:l2:y1:_;y4:test;;y4:test;;l2:p"
+  "y1:_;py4:test;y5:tests;;;l4:y2:if;y4:test;py3:and;y5:tests;;f;;;",
+
+  "or",
+  "l5:y12:syntax-rules;n;l2:l1:y1:_;;f;;l2:l2:y1:_;y4:test;;y4:test;;l2:p"
+  "y1:_;py4:test;y5:tests;;;l3:y3:let;l1:l2:y1:x;y4:test;;;l4:y2:if;y1:x;"
+  "y1:x;py2:or;y5:tests;;;;;",
+
+  "cond",
+  "l7:y12:syntax-rules;l2:y4:else;y2:=>;;l2:l1:y1:_;;f;;l2:l2:y1:_;py4:el"
+  "se;y4:exps;;;py5:begin;y4:exps;;;l2:py1:_;pl1:y1:x;;y4:rest;;;l3:y2:or"
+  ";y1:x;py4:cond;y4:rest;;;;l2:py1:_;pl3:y1:x;y2:=>;y4:proc;;y4:rest;;;l"
+  "3:y3:let;l1:l2:y3:tmp;y1:x;;;py4:cond;pl2:y3:tmp;l2:y4:proc;y3:tmp;;;y"
+  "4:rest;;;;;l2:py1:_;ppy1:x;y4:exps;;y4:rest;;;l4:y2:if;y1:x;py5:begin;"
+  "y4:exps;;py4:cond;y4:rest;;;;",
+
+  "case-test",
+  "l4:y12:syntax-rules;l1:y4:else;;l2:l3:y1:_;y1:k;y4:else;;t;;l2:l3:y1:_"
+  ";y1:k;y5:atoms;;l3:y4:memv;y1:k;l2:y5:quote;y5:atoms;;;;",
+
+  "case",
+  "l3:y12:syntax-rules;n;l2:l4:y1:_;y1:x;py4:test;y5:exprs;;y3:...;;l3:y3"
+  ":let;l1:l2:y3:key;y1:x;;;l3:y4:cond;pl3:y9:case-test;y3:key;y4:test;;y"
+  "5:exprs;;y3:...;;;;",
+
+  "do",
+  "l3:y12:syntax-rules;n;l2:l5:y1:_;l2:py3:var;py4:init;y4:step;;;y3:...;"
+  ";y6:ending;y4:expr;y3:...;;l4:y3:let;y4:loop;l2:l2:y3:var;y4:init;;y3:"
+  "...;;l3:y4:cond;y6:ending;l4:y4:else;y4:expr;y3:...;l3:y4:loop;py5:beg"
+  "in;py3:var;y4:step;;;y3:...;;;;;;",
+
+  "quasiquote",
+  "l10:y12:syntax-rules;l3:y7:unquote;y16:unquote-splicing;y10:quasiquote"
+  ";;l2:l2:y1:_;l2:y7:unquote;y1:x;;;y1:x;;l2:l2:y1:_;pl2:y16:unquote-spl"
+  "icing;y1:x;;y1:y;;;l3:y6:append;y1:x;l2:y10:quasiquote;y1:y;;;;l2:py1:"
+  "_;pl2:y10:quasiquote;y1:x;;y1:d;;;l3:y4:cons;l2:y5:quote;y10:quasiquot"
+  "e;;l3:y10:quasiquote;l1:y1:x;;y1:d;;;;l2:l3:y1:_;l2:y7:unquote;y1:x;;y"
+  "1:d;;l3:y4:cons;l2:y5:quote;y7:unquote;;py10:quasiquote;pl1:y1:x;;y1:d"
+  ";;;;;l2:l3:y1:_;l2:y16:unquote-splicing;y1:x;;y1:d;;l3:y4:cons;l2:y5:q"
+  "uote;y16:unquote-splicing;;py10:quasiquote;pl1:y1:x;;y1:d;;;;;l2:py1:_"
+  ";ppy1:x;y1:y;;y1:d;;;l3:y4:cons;py10:quasiquote;py1:x;y1:d;;;py10:quas"
+  "iquote;py1:y;y1:d;;;;;l2:py1:_;pv2:y1:x;y3:...;;y1:d;;;l2:y12:list->ve"
+  "ctor;py10:quasiquote;pl2:y1:x;y3:...;;y1:d;;;;;l2:py1:_;py1:x;y1:d;;;l"
+  "2:y5:quote;y1:x;;;",
+
+  "when",
+  "l3:y12:syntax-rules;n;l2:py1:_;py4:test;y4:rest;;;l3:y2:if;y4:test;py5"
+  ":begin;y4:rest;;;;",
+
+  "unless",
+  "l3:y12:syntax-rules;n;l2:py1:_;py4:test;y4:rest;;;l3:y2:if;l2:y3:not;y"
+  "4:test;;py5:begin;y4:rest;;;;",
+
+  "case-lambda",
+  "l3:y12:syntax-rules;n;l2:l3:y1:_;py4:args;y4:body;;y3:...;;l3:y7:lambd"
+  "a*;l2:y4:args;py6:lambda;py4:args;y4:body;;;;y3:...;;;",
+
   0,
   "&0{%2.1,.1G4,.2,.2G3,@(y6:values)[22}@!(y6:floor/)",
 
@@ -34,13 +118,9 @@ char *s_code[] = {
   "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:v;y2:al;;l3:y4:asse;y1:v;y2:al;;;l"
   "2:py1:_;y4:args;;py6:%25assoc;y4:args;;;l2:y1:_;y6:%25assoc;;",
 
-  "list-copy",
-  "l5:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l3:y5:%25lcat;y1:x;l2:y5:quote;"
-  "n;;;;l2:py1:_;y12:syntax-rules;;py19:%25residual-list-copy;y12:syntax-"
-  "rules;;;l2:y1:_;y19:%25residual-list-copy;;",
-
   0,
-  "&0{%1n,.1,@(y5:%25lcat)[12}@!(y19:%25residual-list-copy)",
+  "&0{%1.0,,#0.0,&1{%1.0p?{${.2d,:0^[01},.1ac]1}.0]1}.!0.0^_1[11}@!(y9:li"
+  "st-copy)",
 
   0,
   "&0{%!1.0,.2,,#0.0,&1{%2.1u?{.0]2}${.3d,.4a,:0^[02},.1c]2}.!0.0^_1[22}@"
