@@ -200,16 +200,15 @@
 ;                   define | define-syntax ; top-level only
 ; <transformer> ->  <procedure of exp and env returning exp>
 
-(define        val-core?                  pair?)
-(define        (val-special? val)         (not (pair? val)))
-
-(define        binding?                   pair?)
-(define        make-binding               cons)
-(define        binding-val                cdr)
-(define        (binding-special? bnd)     (val-special? (cdr bnd)))
-(define        binding-sym                car)
-(define        binding-set-val!           set-cdr!)
-(define        find-top-binding           assq)
+(define-syntax   val-core?               pair?)
+(define          (val-special? val)      (not (pair? val)))
+(define-syntax   binding?                pair?)
+(define-syntax   make-binding            cons)
+(define-syntax   binding-val             cdr)
+(define          (binding-special? bnd)  (val-special? (cdr bnd)))
+(define-syntax   binding-sym             car)
+(define-syntax   binding-set-val!        set-cdr!)
+(define-syntax   find-top-binding        assq)
 
 (define (new-id den)               (define p (list den)) (lambda () p))
 (define (old-den id)               (car (id)))

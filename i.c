@@ -19,7 +19,6 @@ static obj mkintegrable(struct intgtab_entry *);
 static int integrable_type(struct intgtab_entry *pi);
 static const char *integrable_global(struct intgtab_entry *pi);
 static const char *integrable_code(struct intgtab_entry *pi, int n);
-static void wrs_integrable(int argc, struct intgtab_entry *pe, obj port);
 static obj *rds_intgtab(obj *r, obj *sp, obj *hp);
 static obj *rds_stox(obj *r, obj *sp, obj *hp);
 static obj *rds_stoc(obj *r, obj *sp, obj *hp);
@@ -3615,19 +3614,25 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       continue;
     } else if (name != 0 && name[0] == 'A' && name[1] == 0) {
       /* 'alias' entry: copy transformer */
-      obj oldsym, sym, oldbnd, bnd, al;
+      obj oldsym, sym, oldbnd, oldden, bnd, al;
+      struct intgtab_entry *pe;
       ent += 1; name = ent[0], data = ent[1];
       assert(name != 0); assert(data != 0);
       /* look for dst binding (we allow redefinition) */
       oldsym = mksymbol(internsym((char*)data));
       sym = mksymbol(internsym((char*)name));
-      for (oldbnd = 0, al = al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+      for (oldbnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
         obj ael = car(al);
         if (car(ael) != oldsym) continue;
         oldbnd = ael; break;
       }
-      assert(oldbnd); assert(ispair(oldbnd)); 
-      if (!oldbnd) continue;
+      oldden = oldbnd ? cdr(oldbnd) : 0;
+      /* missing binding could be an auto-installed integrable */
+      if (!oldden && (pe = lookup_integrable(getsymbol(oldsym)))) {
+        oldden = mkintegrable(pe);
+      }
+      /* we should have it now */
+      assert(oldden); if (!oldden) continue;
       /* look for existing binding (we allow redefinition) */
       for (bnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
         obj ael = car(al);
@@ -3635,7 +3640,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
         bnd = ael; break;
       }
       /* or add new binding */
-      spush(oldbnd); /* protect from gc */
+      spush(oldden); /* protect from gc */
       if (!bnd) { /* acons (sym . #f) */
         hreserve(hbsz(3)*2, sp-r);
         *--hp = obj_from_bool(0); *--hp = sym;
@@ -3643,8 +3648,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
         *--hp = cx__2Atransformers_2A; *--hp = bnd;
         *--hp = obj_from_size(PAIR_BTAG); cx__2Atransformers_2A = hendblk(3);
       }
-      oldbnd = spop();
-      cdr(bnd) = cdr(oldbnd);
+      cdr(bnd) = spop(); /* oldden */
       continue;    
     }
     /* skipped prefix or no prefix */

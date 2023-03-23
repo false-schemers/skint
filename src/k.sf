@@ -1201,7 +1201,18 @@
   (display-code cstr oport) (newline oport))
 
 (define (process-define id xlam oport)
-  (process-command (list 'set! id xlam) oport))
+  (define cstr (compile-to-string xlam))
+  (let ([len (string-length cstr)])
+    (cond [(and (eq? (car xlam) 'lambda)
+                (> len 4) 
+                (char=? (string-ref cstr 0) #\&) 
+                (char=? (string-ref cstr 1) #\0) 
+                (char=? (string-ref cstr 2) #\{)
+                (char=? (string-ref cstr (fx- len 1)) #\}))
+           (newline oport)
+           (display "  \"P\", \"" oport) (display id oport) (display "\",\n" oport)
+           (display-code (substring cstr 3 (fx- len 1)) oport) (newline oport)]
+          [else (process-command (list 'set! id xlam) oport)])))
 
 (define (scan-top-form x)
   (cond 
@@ -1285,7 +1296,7 @@
     (unless (eof-object? x)
       (process-top-form x oport)
       (loop (read iport))))
-  (display "\n  0, 0\n};\n" oport)
+  (display "\n  0, 0, 0\n};\n" oport)
   (close-input-port iport))
 
 
