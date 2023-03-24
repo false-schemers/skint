@@ -439,41 +439,53 @@
       (x-error "improper withcc form" (cons 'withcc tail))))
 
 (define (xform-body tail env)
-  (if (null? tail)
-      (list 'begin)
-      (let loop ([env env] [ids '()] [inits '()] [nids '()] [body tail])
-        (if (and (pair? body) (pair? (car body)))
-            (let ([first (car body)] [rest (cdr body)])
-              (let* ([head (car first)] [hval (xform #t head env)])
-                (case hval
-                  [(begin)
-                   (loop env ids inits nids (append (cdr first) rest))]
-                  [(define)
-                   (let* ([id (cadr first)] [init (caddr first)]
-                          [nid (gensym (id->sym id))] [env (add-var id nid env)])
-                     (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
-                  [(define-syntax)
-                   (let* ([id (cadr first)] [init (caddr first)]
-                          [env (add-binding id '(undefined) env)])
-                     (loop env (cons id ids) (cons init inits) (cons #t nids) rest))]
-                  [else
-                   (if (procedure? hval)
-                       (loop env ids inits nids (cons (hval first env) rest))
-                       (xform-labels (reverse ids) (reverse inits) (reverse nids) body env))])))
-            (xform-labels (reverse ids) (reverse inits) (reverse nids) body env)))))
+  (cond
+    [(null? tail) 
+     (list 'begin)]
+    [(not (list? tail))
+     (x-error "improper body form" (cons 'body tail))]
+    [else
+     (let loop ([env env] [ids '()] [inits '()] [nids '()] [body tail])
+       (if (and (pair? body) (pair? (car body)))
+           (let ([first (car body)] [rest (cdr body)])
+             (let* ([head (car first)] [tail (cdr first)] [hval (xform #t head env)])
+               (case hval
+                 [(begin)
+                  (if (list? tail) 
+                      (loop env ids inits nids (append tail rest))
+                      (x-error "improper begin form" first))]
+                 [(define)
+                  (if (and (list2? tail) (null? (car tail))) 
+                      (let ([init (cadr tail)]) ; idless
+                        (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))
+                      (if (and (list2? tail) (id? (car tail)))
+                          (let* ([id (car tail)] [init (cadr tail)]
+                                 [nid (gensym (id->sym id))] [env (add-var id nid env)])
+                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))
+                      (x-error "improper define form" first)))]
+                 [(define-syntax)
+                  (if (and (list2? tail) (id? (car tail))) 
+                      (let* ([id (car tail)] [init (cadr tail)]
+                             [env (add-binding id '(undefined) env)])
+                        (loop env (cons id ids) (cons init inits) (cons #t nids) rest))
+                      (x-error "improper define-syntax form" first))]
+                 [else
+                  (if (procedure? hval)
+                      (loop env ids inits nids (cons (hval first env) rest))
+                      (xform-labels (reverse ids) (reverse inits) (reverse nids) body env))])))
+           (xform-labels (reverse ids) (reverse inits) (reverse nids) body env)))]))
 
 (define (xform-labels ids inits nids body env)
   (let loop ([ids ids] [inits inits] [nids nids] [sets '()] [lids '()])
     (cond [(null? ids) 
-           (let* ([xexps (append (reverse sets)
-                           (map (lambda (sexp) (xform #f sexp env)) body))]
-                  [xexp (if (and (pair? xexps) (null? (cdr xexps)))
-                            (car xexps)
-                            (cons 'begin xexps))])
-             (if (null? lids)
-                 xexp
+           (let* ([xexps (append (reverse sets) (map (lambda (x) (xform #f x env)) body))]
+                  [xexp (if (list1? xexps) (car xexps) (cons 'begin xexps))])
+             (if (null? lids) xexp
                  (pair* 'call (list 'lambda (reverse lids) xexp)
                    (map (lambda (lid) '(begin)) lids))))]
+          [(not (car ids)) ; idless define
+           (loop (cdr ids) (cdr inits) (cdr nids)
+             (cons (xform #f (car inits) env) sets) lids)]
           [(symbol? (car nids)) ; define
            (loop (cdr ids) (cdr inits) (cdr nids)
              (cons (xform-set! (list (car ids) (car inits)) env) sets)
@@ -483,9 +495,11 @@
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
 (define (xform-define tail env) ; top-level only
-  (if (and (list2? tail) (id? (car tail)))
-      (list 'define (id->sym (car tail)) (xform #f (cadr tail) env))
-      (x-error "improper define form" (cons 'define tail))))
+  (if (and (list2? tail) (null? (car tail))) ; idless
+      (xform #f (cadr tail) env)
+      (if (and (list2? tail) (id? (car tail)))
+          (list 'define (id->sym (car tail)) (xform #f (cadr tail) env))
+          (x-error "improper define form" (cons 'define tail)))))
 
 (define (xform-define-syntax tail env) ; top-level only
   (if (and (list2? tail) (id? (car tail)))
@@ -674,6 +688,8 @@
 (install-transformer! 'define
   (let ([env (add-binding 'define 'define top-transformer-env)])
     (syntax-rules* env #f '() '(
+      [(_ () exp) ; idless
+       (define () exp)]
       [(_ (name . args) . forms)
        (define name (lambda args . forms))]
       [(_ name exp)
@@ -813,7 +829,9 @@
       [integrable (ig . args)
        (find-free* args b)]
       [call (exp . args)
-       (set-union (find-free exp b) (find-free* args b))])))
+       (set-union (find-free exp b) (find-free* args b))]
+      [define tail
+       (c-error "misplaced define form" x)])))
 
 (define find-sets*
   (lambda (x* v)
@@ -853,7 +871,9 @@
       [integrable (ig . args)
        (find-sets* args v)]
       [call (exp . args)
-       (set-union (find-sets exp v) (find-sets* args v))])))
+       (set-union (find-sets exp v) (find-sets* args v))]
+      [define tail
+       (c-error "misplaced define form" x)])))
 
 (define codegen
   ; x: Scheme Core expression to compile
@@ -1123,7 +1143,9 @@
               (write-char #\[ port)
               (write-serialized-arg 0 port)
               (write-serialized-arg (length args) port)
-              (write-char #\} port)])])))
+              (write-char #\} port)])]
+      [define tail
+       (c-error "misplaced define form" x)])))
 
 (define (compile-to-string x)
   (let ([p (open-output-string)])

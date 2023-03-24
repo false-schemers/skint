@@ -16,6 +16,11 @@ char *s_code[] = {
   "l3:y12:syntax-rules;n;l2:py1:_;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms"
   ";;;py4:body;pl3:y6:define;y3:var;y4:init;;py3:...;y5:forms;;;;;",
 
+  "S", "letrec*",
+  "l3:y12:syntax-rules;n;l2:py1:_;pl2:l2:y3:var;y4:expr;;y3:...;;y5:forms"
+  ";;;l5:y3:let;l2:l2:y3:var;f;;y3:...;;l3:y4:set!;y3:var;y4:expr;;y3:..."
+  ";py4:body;y5:forms;;;;",
+
   "S", "let",
   "l4:y12:syntax-rules;n;l2:py1:_;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms"
   ";;;l3:py6:lambda;pl2:y3:var;y3:...;;y5:forms;;;y4:init;y3:...;;;l2:py1"
@@ -27,6 +32,49 @@ char *s_code[] = {
   "l4:y12:syntax-rules;n;l2:py1:_;pn;y5:forms;;;py4:body;y5:forms;;;l2:py"
   "1:_;ppy5:first;y4:more;;y5:forms;;;l3:y3:let;l1:y5:first;;py4:let*;py4"
   ":more;y5:forms;;;;;",
+
+  "S", "let*-values",
+  "l5:y12:syntax-rules;n;l2:py1:_;pn;y5:forms;;;py4:body;y5:forms;;;l2:py"
+  "1:_;ppl2:l1:y1:a;;y1:x;;y2:b*;;y5:forms;;;l3:y3:let;l1:l2:y1:a;y1:x;;;"
+  "py11:let*-values;py2:b*;y5:forms;;;;;l2:py1:_;ppl2:y2:aa;y1:x;;y2:b*;;"
+  "y5:forms;;;l3:y16:call-with-values;l3:y6:lambda;n;y1:x;;l3:y6:lambda;y"
+  "2:aa;py11:let*-values;py2:b*;y5:forms;;;;;;",
+
+  "S", "%let-values-loop",
+  "l6:y12:syntax-rules;n;l2:py1:_;pl2:y5:new-b;y3:...;;py6:new-aa;py1:x;p"
+  "y6:map-b*;pn;pn;y5:forms;;;;;;;;l3:y11:let*-values;l3:y5:new-b;y3:...;"
+  "l2:y6:new-aa;y1:x;;;py3:let;py6:map-b*;y5:forms;;;;;l2:py1:_;pl2:y5:ne"
+  "w-b;y3:...;;py6:new-aa;py5:old-x;py6:map-b*;pn;ppl2:y2:aa;y1:x;;y2:b*;"
+  ";y5:forms;;;;;;;;py16:%25let-values-loop;pl3:y5:new-b;y3:...;l2:y6:new"
+  "-aa;y5:old-x;;;pn;py1:x;py6:map-b*;py2:aa;py2:b*;y5:forms;;;;;;;;;l2:p"
+  "y1:_;py6:new-b*;pl2:y5:new-a;y3:...;;py1:x;pl2:y5:map-b;y3:...;;ppy1:a"
+  ";y2:aa;;py2:b*;y5:forms;;;;;;;;py16:%25let-values-loop;py6:new-b*;pl3:"
+  "y5:new-a;y3:...;y5:tmp-a;;py1:x;pl3:y5:map-b;y3:...;l2:y1:a;y5:tmp-a;;"
+  ";py2:aa;py2:b*;y5:forms;;;;;;;;;l2:py1:_;py6:new-b*;pl2:y5:new-a;y3:.."
+  ".;;py1:x;pl2:y5:map-b;y3:...;;py1:a;py2:b*;y5:forms;;;;;;;;py16:%25let"
+  "-values-loop;py6:new-b*;ppy5:new-a;py3:...;y5:tmp-a;;;py1:x;pl3:y5:map"
+  "-b;y3:...;l2:y1:a;y5:tmp-a;;;pn;py2:b*;y5:forms;;;;;;;;;",
+
+  "S", "let-values",
+  "l4:y12:syntax-rules;n;l2:py1:_;pn;y5:forms;;;py3:let;pn;y5:forms;;;;l2"
+  ":py1:_;ppl2:y2:aa;y1:x;;y2:b*;;y5:forms;;;py16:%25let-values-loop;pn;p"
+  "n;py1:x;pn;py2:aa;py2:b*;y5:forms;;;;;;;;;",
+
+  "S", "%define-values-loop",
+  "l5:y12:syntax-rules;n;l2:l5:y1:_;y6:new-aa;l2:l2:y1:a;y5:tmp-a;;y3:..."
+  ";;n;y1:x;;l4:y5:begin;l3:y6:define;y1:a;l1:y5:begin;;;y3:...;l3:y6:def"
+  "ine;n;l3:y16:call-with-values;l3:y6:lambda;n;y1:x;;l4:y6:lambda;y6:new"
+  "-aa;l3:y4:set!;y1:a;y5:tmp-a;;y3:...;;;;;;l2:l5:y1:_;l2:y5:new-a;y3:.."
+  ".;;l2:y5:map-a;y3:...;;py1:a;y2:aa;;y1:x;;l5:y19:%25define-values-loop"
+  ";l3:y5:new-a;y3:...;y5:tmp-a;;l3:y5:map-a;y3:...;l2:y1:a;y5:tmp-a;;;y2"
+  ":aa;y1:x;;;l2:l5:y1:_;l2:y5:new-a;y3:...;;l2:y5:map-a;y3:...;;y1:a;y1:"
+  "x;;l5:y19:%25define-values-loop;py5:new-a;py3:...;y5:tmp-a;;;l3:y5:map"
+  "-a;y3:...;l2:y1:a;y5:tmp-a;;;n;y1:x;;;",
+
+  "S", "define-values",
+  "l4:y12:syntax-rules;n;l2:l3:y1:_;n;y1:x;;l3:y6:define;n;l3:y16:call-wi"
+  "th-values;l3:y6:lambda;n;y1:x;;l2:y6:lambda;n;;;;;l2:l3:y1:_;y2:aa;y1:"
+  "x;;l5:y19:%25define-values-loop;n;n;y2:aa;y1:x;;;",
 
   "S", "and",
   "l5:y12:syntax-rules;n;l2:l1:y1:_;;t;;l2:l2:y1:_;y4:test;;y4:test;;l2:p"
@@ -45,14 +93,14 @@ char *s_code[] = {
   "4:rest;;;;;l2:py1:_;ppy1:x;y4:exps;;y4:rest;;;l4:y2:if;y1:x;py5:begin;"
   "y4:exps;;py4:cond;y4:rest;;;;",
 
-  "S", "case-test",
+  "S", "%case-test",
   "l4:y12:syntax-rules;l1:y4:else;;l2:l3:y1:_;y1:k;y4:else;;t;;l2:l3:y1:_"
   ";y1:k;y5:atoms;;l3:y4:memv;y1:k;l2:y5:quote;y5:atoms;;;;",
 
   "S", "case",
   "l3:y12:syntax-rules;n;l2:l4:y1:_;y1:x;py4:test;y5:exprs;;y3:...;;l3:y3"
-  ":let;l1:l2:y3:key;y1:x;;;l3:y4:cond;pl3:y9:case-test;y3:key;y4:test;;y"
-  "5:exprs;;y3:...;;;;",
+  ":let;l1:l2:y3:key;y1:x;;;l3:y4:cond;pl3:y10:%25case-test;y3:key;y4:tes"
+  "t;;y5:exprs;;y3:...;;;;",
 
   "S", "do",
   "l3:y12:syntax-rules;n;l2:l5:y1:_;l2:py3:var;py4:init;y4:step;;;y3:...;"
@@ -83,8 +131,8 @@ char *s_code[] = {
   "4:test;;py5:begin;y4:rest;;;;",
 
   "S", "case-lambda",
-  "l3:y12:syntax-rules;n;l2:l3:y1:_;py4:args;y4:body;;y3:...;;l3:y7:lambd"
-  "a*;l2:y4:args;py6:lambda;py4:args;y4:body;;;;y3:...;;;",
+  "l3:y12:syntax-rules;n;l2:l3:y1:_;py4:args;y5:forms;;y3:...;;l3:y7:lamb"
+  "da*;l2:y4:args;py6:lambda;py4:args;y5:forms;;;;y3:...;;;",
 
   "P", "floor/",
   "%2.1,.1G4,.2,.2G3,@(y6:values)[22",

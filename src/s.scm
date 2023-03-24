@@ -13,14 +13,14 @@
 ; (quote const)
 ; (set! id expr)
 ; (set& id)
-; (letcc id expr) 
-; (withcc expr expr ...) 
 ; (if expr1 expr2)
 ; (if expr1 expr2 expr3)
 ; (begin expr ...)
-; (body expr ...) -- lexical scope for definitions
 ; (lambda args expr ...)
 ; (lambda* [arity expr] ...)
+; (body expr ...) -- lexical scope for definitions
+; (letcc id expr) 
+; (withcc expr expr ...) 
 ; (define id expr)
 ; (define (id . args) expr ...)
 ; (define-syntax kw form)
@@ -46,6 +46,14 @@
     [(_ ([var init] ...) . forms)
      (body (define var init) ... . forms)]))
 
+(define-syntax letrec*
+  (syntax-rules ()
+    [(_ ([var expr] ...) . forms)
+     (let ([var #f] ...)
+       (set! var expr)
+       ...
+       (body . forms))]))
+
 (define-syntax let
   (syntax-rules ()
     [(_ ([var init] ...) . forms)
@@ -59,6 +67,45 @@
      (body . forms)]
     [(_ (first . more) . forms)
      (let (first) (let* more . forms))]))
+
+(define-syntax let*-values
+  (syntax-rules ()
+    [(_ () . forms) (body . forms)]
+    [(_ ([(a) x] . b*) . forms) (let ([a x]) (let*-values b* . forms))]
+    [(_ ([aa x] . b*) . forms) (call-with-values (lambda () x) (lambda aa (let*-values b* . forms)))]))
+
+(define-syntax %let-values-loop
+  (syntax-rules ()
+    [(_ (new-b ...) new-aa x map-b* () () . forms)
+     (let*-values (new-b ... [new-aa x]) (let map-b* . forms))]
+    [(_ (new-b ...) new-aa old-x map-b* () ([aa x] . b*) . forms)
+     (%let-values-loop (new-b ... [new-aa old-x]) () x map-b* aa b* . forms)]
+    [(_ new-b* (new-a ...) x (map-b ...) (a . aa) b* . forms)
+     (%let-values-loop new-b* (new-a ... tmp-a) x (map-b ... [a tmp-a]) aa b* . forms)]
+    [(_ new-b* (new-a ...) x (map-b ...) a b* . forms) 
+     (%let-values-loop new-b* (new-a ... . tmp-a) x (map-b ... [a tmp-a]) () b* . forms)]))
+
+(define-syntax let-values
+  (syntax-rules ()
+    [(_ () . forms) (let () . forms)]
+    [(_ ([aa x] . b*) . forms)
+     (%let-values-loop () () x () aa b* . forms)]))
+
+(define-syntax %define-values-loop
+  (syntax-rules ()
+    [(_ new-aa ([a tmp-a] ...) () x)
+     (begin
+       (define a (begin)) ...
+       (define () (call-with-values (lambda () x) (lambda new-aa (set! a tmp-a) ...))))]
+    [(_ (new-a ...) (map-a ...) (a . aa) x) 
+     (%define-values-loop (new-a ... tmp-a) (map-a ... [a tmp-a]) aa x)]
+    [(_ (new-a ...) (map-a ...) a x) 
+     (%define-values-loop (new-a ... . tmp-a) (map-a ... [a tmp-a]) () x)]))
+
+(define-syntax define-values
+  (syntax-rules ()
+    [(_ () x) (define () (call-with-values (lambda () x) (lambda ())))] ; use idless define
+    [(_ aa x) (%define-values-loop () () aa x)]))
 
 (define-syntax and
   (syntax-rules ()
@@ -80,7 +127,7 @@
     [(_ (x => proc) . rest) (let ([tmp x]) (cond [tmp (proc tmp)] . rest))]
     [(_ (x . exps) . rest) (if x (begin . exps) (cond . rest))]))
 
-(define-syntax case-test
+(define-syntax %case-test
   (syntax-rules (else) 
     [(_ k else) #t]
     [(_ k atoms) (memv k 'atoms)]))
@@ -88,7 +135,7 @@
 (define-syntax case
   (syntax-rules ()
     [(_ x (test . exprs) ...)
-     (let ([key x]) (cond ((case-test key test) . exprs) ...))]))
+     (let ([key x]) (cond ((%case-test key test) . exprs) ...))]))
 
 (define-syntax do
   (syntax-rules ()
@@ -117,7 +164,7 @@
 
 (define-syntax case-lambda
   (syntax-rules ()
-    [(_ [args . body] ...) (lambda* [args (lambda args . body)] ...)]))
+    [(_ [args . forms] ...) (lambda* [args (lambda args . forms)] ...)]))
 
 ;cond-expand
 
