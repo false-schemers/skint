@@ -1281,7 +1281,7 @@ case 0: /* load module */
     *--hp = obj_from_size(PAIR_BTAG); 
     cx__231747 = (hendblk(3)); }
     cx__231824 = (hpushstr(0, newstring("compiler: ")));
-    cx__231863 = (hpushstr(0, newstring("cannot encode literal: ~s")));
+    cx__231863 = (hpushstr(0, newstring("cannot encode literal")));
     cx__231943 = (hpushstr(0, newstring("0123456789")));
     cx__231964 = (hpushstr(0, newstring("misplaced define form")));
     cx__232311 = (hpushstr(0, newstring("unsupported integrable type")));

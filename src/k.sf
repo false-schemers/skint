@@ -777,7 +777,7 @@
            (write-serialized-size (string-length x) port)
            (do ([i 0 (fx+ i 1)]) [(fx=? i (string-length x))]
              (write-serialized-char (string-ref x i) port)))]
-        [else (c-error "cannot encode literal: ~s" x)]))
+        [else (c-error "cannot encode literal" x)]))
 
 (define (write-serialized-arg arg port)
   (if (and (number? arg) (exact? arg) (fx<=? 0 arg) (fx<=? arg 9))

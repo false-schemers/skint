@@ -1136,6 +1136,7 @@ define_instruction(vput) {
   obj x = spop(), y = spop(); int i; 
   ckv(ac); ckk(x);
   i = fixnum_from_obj(x);
+  if (i >= vectorlen(ac)) failtype(x, "valid vector index");
   vectorref(ac, i) = y;
   gonexti();
 }
@@ -1145,8 +1146,9 @@ define_instruction(vcat) {
   ckv(x); ckv(y);
   n1 = vectorlen(x), n2 = vectorlen(y), n = n1 + n2;
   hp_reserve(hbsz(n+1));
-  hp -= n2; memcpy(hp, &vectorref(y, 0), n2*sizeof(obj));
-  hp -= n1; memcpy(hp, &vectorref(x, 0), n1*sizeof(obj));
+  /* NB: vectorref fails to return pointer to empty vector's start */
+  hp -= n2; if (n2) memcpy(hp, &vectorref(y, 0), n2*sizeof(obj));
+  hp -= n1; if (n1) memcpy(hp, &vectorref(x, 0), n1*sizeof(obj));
   *--hp = obj_from_size(VECTOR_BTAG);
   ac = hendblk(n+1);
   sdrop(1);
@@ -2125,7 +2127,7 @@ define_instruction(ntoi) {
 }
 
 define_instruction(ntoj) {
-  if (likely(is_fixnum_obj(ac))) ac = obj_from_flonum(sp-r, (flonum_t)flonum_from_obj(ac));
+  if (likely(is_fixnum_obj(ac))) ac = obj_from_flonum(sp-r, (flonum_t)fixnum_from_obj(ac));
   else if (likely(is_flonum_obj(ac))) /* keep ac as-is */ ;
   else failactype("number");
   gonexti(); 
@@ -2834,7 +2836,7 @@ define_instruction(scall34) {
 }
 
 define_instruction(scall4) {
-  int m = 3, n = fixnum_from_obj(*ip++);
+  int m = 4, n = fixnum_from_obj(*ip++);
   ckx(ac); rd = ac; rx = obj_from_fixnum(0); 
   ac = obj_from_fixnum(n);
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
@@ -3043,16 +3045,22 @@ static int rds_int(obj port)
 
 static double rds_real(obj port)
 {
-  char buf[60], *p = buf, *e = p+59;
+  char buf[60], *p = buf, *e = p+59, *s; double d;
   while (p < e) {
     int c = iportpeekc(port);
-    if (c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E' || (c >= '0' && c <= '9')) {
+    if (c == '-' || c == '+' || c == '.' || isalnum(c)) {
       iportgetc(port);
       *p++ = c;
     } else break;
   } 
   *p = 0;
-  return strtod(buf, NULL);
+  errno = 0; s = buf; e = "";
+  if (*s != '+' && *s != '-') d = strtod(s, &e);
+  else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
+  else if (strcmp_ci(s+1, "nan.0") == 0) d = HUGE_VAL - HUGE_VAL; 
+  else d = strtod(s, &e);
+  if (errno || e == s || *e) assert(0);
+  return d;
 }
 
 static size_t rds_size(obj port)

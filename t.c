@@ -161,7 +161,7 @@ char *t_code[] = {
   "P", "xform-set!",
   "%2${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,f,@(y5:xfo"
   "rm)[03},${.3a,.5[01},.0Y0?{.1,.1,'(y4:set!),l3]4}${.2,@(y16:binding-sp"
-  "ecial?)[01}?{.1,.1d!'(l1:y5:begin;)]4}.0d,'(y3:ref),.1aq?{.2,.1da,'(y4"
+  "ecial?)[01}?{.1,.1sd'(l1:y5:begin;)]4}.0d,'(y3:ref),.1aq?{.2,.1da,'(y4"
   ":set!),l3]5}'(s27:set! to non-identifier form),@(y7:x-error)[51}.0,'(y"
   "4:set!)c,'(s18:improper set! form),@(y7:x-error)[22",
 
@@ -254,7 +254,7 @@ char *t_code[] = {
   ")c},.6u?{.0]7}${.8,&0{%1'(l1:y5:begin;)]1},@(y5:%25map1)[02},.1,.8A8,'"
   "(y6:lambda),l3,'(y4:call),@(y5:pair*)[73}.2aY0?{.4,.3ac,.4,${:1,.6a,.6"
   "a,l2,@(y10:xform-set!)[02}c,.4d,.4d,.4d,:2^[55}${:1,.4a,t,@(y5:xform)["
-  "03},${.3a,:1[01}d!.4,.4,.4d,.4d,.4d,:2^[55}.!0.0^_1[55",
+  "03},${.3a,:1[01}sd.4,.4,.4d,.4d,.4d,:2^[55}.!0.0^_1[55",
 
   "P", "xform-define",
   "%2${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,f,@(y5:xfo"
@@ -281,12 +281,12 @@ char *t_code[] = {
 
   "P", "top-transformer-env",
   "%1@(y14:*transformers*),.1A3,.0p?{.0d,.0p?{'(y12:syntax-rules),.1aq}{f"
-  "}?{${.2,t,@(y9:transform)[02},.2d!}_1.0]2}.1Y0?{.1U5,.0?{.0}{.2,'(y3:r"
+  "}?{${.2,t,@(y9:transform)[02},.2sd}_1.0]2}.1Y0?{.1U5,.0?{.0}{.2,'(y3:r"
   "ef),l2}_1,.2c,@(y14:*transformers*),.1c@!(y14:*transformers*).0]3}.1,@"
   "(y7:old-den)[21",
 
   "P", "install-transformer!",
-  "%2.1,${.3,@(y19:top-transformer-env)[01}d!]2",
+  "%2.1,${.3,@(y19:top-transformer-env)[01}sd]2",
 
   "P", "install-transformer-rules!",
   "%4${.5,.5,.5,@(y19:top-transformer-env),@(y13:syntax-rules*)[04},.1,@("
