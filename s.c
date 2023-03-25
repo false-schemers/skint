@@ -151,10 +151,10 @@ char *s_code[] = {
   "da*;l2:y4:args;py6:lambda;py4:args;y5:forms;;;;y3:...;;;",
 
   "P", "floor/",
-  "%2.1,.1G4,.2,.2G3,@(y6:values)[22",
+  "%2.1,.1Gm,.2,.2Gl,@(y6:values)[22",
 
   "P", "truncate/",
-  "%2.1,.1G6,.2,.2G5,@(y6:values)[22",
+  "%2.1,.1Gr,.2,.2Gq,@(y6:values)[22",
 
   "P", "%append",
   "%!0.0,,#0.0,&1{%1.0u?{n]1}.0du?{.0a]1}${.2d,:0^[01},.1aL6]1}.!0.0^_1[1"
