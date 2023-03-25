@@ -300,6 +300,13 @@
 ; (fl/ x y ...)
 ; (flneg x)
 ; (flabs x)
+; (flgcd x y)
+; (flexpt x y)
+; (flsqrt x)
+; (flfloor x)
+; (flceiling x)
+; (fltruncate x)
+; (flround x)
 ; (fl<? x y z ...)
 ; (fl<=? x y z ...)
 ; (fl>? x y z ...)
@@ -353,6 +360,13 @@
 ; (floor-quotient x y)
 ; (floor-remainder x y)
 ; (modulo x y) = floor-remainder
+; (gcd x y)
+; (floor x)
+; (ceiling x)
+; (truncate x)
+; (round x)
+; (sqrt x)
+; (expt x y)
 ; (inexact x)
 ; (exact x)
 ; (number->string x (radix 10))
@@ -364,15 +378,19 @@
 (define (truncate/ x y)
   (values (truncate-quotient x y) (truncate-remainder x y)))
 
-;gcd
-;lcm
-;numerator
-;denominator
-;floor
-;ceiling
-;truncate
-;round
-;rationalize
+(define (lcm . args)
+  (if (null? args) 1
+      (let loop ([x (car args)] [args (cdr args)])
+        (if (null? args) x
+            (let* ([y (car args)] [g (gcd x y)])
+              (loop (if (zero? g) g (* (quotient (abs x) g) (abs y))) (cdr args)))))))
+
+(define (numerator n) n)
+
+(define (denominator n) 1)
+
+(define (rationalize n d) n)
+
 ;exp
 ;log 1-and-2-arg
 ;sin
@@ -381,10 +399,10 @@
 ;asin
 ;acos
 ;atan 1-and-2-arg
-;square
-;sqrt
+
+(define (square x) (* x x))
+
 ;exact-integer-sqrt
-;expt
 ;make-rectangular
 ;make-polar
 ;real-part
