@@ -128,20 +128,46 @@
     [(_ (x . exps) . rest) (if x (begin . exps) (cond . rest))]))
 
 (define-syntax %case-test
-  (syntax-rules (else) 
-    [(_ k else) #t]
-    [(_ k atoms) (memv k 'atoms)]))
+  (syntax-rules () 
+    [(_ k ()) #f]
+    [(_ k (datum)) (eqv? k 'datum)] 
+    [(_ k data) (memv k 'data)]))
+
+(define-syntax %case
+  (syntax-rules (else =>)
+    [(_ key) (begin)]
+    [(_ key (else => resproc))
+     (resproc key)]
+    [(_ key (else expr ...))
+     (begin expr ...)]
+    [(_ key ((datum ...) => resproc) . clauses)
+     (if (%case-test key (datum ...))
+         (resproc key)
+         (%case key . clauses))]
+    [(_ key ((datum ...) expr ...) . clauses)
+     (if (%case-test key (datum ...))
+         (begin expr ...)
+         (%case key . clauses))]))
 
 (define-syntax case
   (syntax-rules ()
-    [(_ x (test . exprs) ...)
-     (let ([key x]) (cond ((%case-test key test) . exprs) ...))]))
+    [(_ x . clauses) (let ([key x]) (%case key . clauses))]))
+
+(define-syntax %do-step 
+  (syntax-rules () 
+    [(_ x) x] [(_ x y) y]))
 
 (define-syntax do
   (syntax-rules ()
-    [(_ ((var init . step) ...) ending expr ...)
+    [(_ ([var init step ...] ...)
+       [test expr ...]
+       command ...)
      (let loop ([var init] ...)
-       (cond ending [else expr ... (loop (begin var . step) ...)]))]))
+       (if test
+           (begin expr ...)
+           (let () command ...
+             (loop (%do-step var step ...) ...))))]))
+
 
 (define-syntax quasiquote
   (syntax-rules (unquote unquote-splicing quasiquote)
@@ -167,10 +193,6 @@
     [(_ [args . forms] ...) (lambda* [args (lambda args . forms)] ...)]))
 
 ;cond-expand
-
-;letrec*
-;let-values
-;let*-values
 
 ;delay
 ;delay-force
@@ -205,10 +227,12 @@
 
 ; integrables:
 ;
-; (fixnum? x)
+; (fixnum? o)
 ; (fxzero? x)
 ; (fxpositive? x)
 ; (fxnegative? x)
+; (fxeven? x)
+; (fxodd? x)
 ; (fx+ x ...)
 ; (fx* x ...)
 ; (fx- x y ...)
@@ -229,8 +253,30 @@
 ; (fx!=? x y)
 ; (fxmin x y)
 ; (fxmax x y)
+; (fxneg x)
+; (fxabs x)
+; (fxgcd x y)
+; (fxexpt x y)
+; (fxsqrt x)
+; (fxnot x)
+; (fxand x ...)
+; (fxior x ...)
+; (fxxor x ...)
+; (fxsll x y)
+; (fxsrl x y)
 ; (fixnum->flonum x)
 
+;fx-width
+;fx-greatest
+;fx-least
+;fxarithmetic-shift-right
+;fxarithmetic-shift-left
+;fxlength cf. integer-length (+ 1 (integer-length i)) 
+;  is the number of bits needed to represent i in a signed twos-complement representation
+;  0 => 0, 1 => 1, -1 => 0, 7 => 3, -7 => 3, 8 => 4, -8 => 3
+;fxbit-count cf. bit-count
+;  Returns the population count of 1's (i >= 0) or 0's (i < 0)
+;  0 => 0, -1 => 0, 7 => 3, 13 => 3, -13 => 2  
 
 ;---------------------------------------------------------------------------------------------
 ; Inexact floating-point numbers (flonums)
@@ -238,7 +284,7 @@
 
 ; integrables:
 ;
-; (flonum? x)
+; (flonum? o)
 ; (flzero? x)
 ; (flpositive? x)
 ; (flnegative? x)
@@ -264,6 +310,7 @@
 ; (flmax x y)
 ; (flonum->fixnum x)
 
+;....
 
 ;---------------------------------------------------------------------------------------------
 ; Numbers (fixnums or flonums)
@@ -272,13 +319,13 @@
 ; integrables:
 ;
 ; (number? x)
-; (integer? x)
 ; (complex? x) == number? what about inf and nan?
 ; (real? x) == number? what about inf and nan?
 ; (rational? x) == number? what about inf and nan?
-; (exact-integer? x) == fixnum?
+; (integer? x)
 ; (exact? x)
 ; (inexact? x)
+; (exact-integer? x) == fixnum?
 ; (finite? x)
 ; (infinite? x)
 ; (nan? x)
@@ -287,6 +334,8 @@
 ; (negative? x)
 ; (even? x)
 ; (odd? x)
+; (min x y ...) 
+; (max x y ...) 
 ; (+ x ...)
 ; (* x ...)
 ; (- x y ...)
@@ -304,12 +353,44 @@
 ; (floor-quotient x y)
 ; (floor-remainder x y)
 ; (modulo x y) = floor-remainder
+; (inexact x)
+; (exact x)
+; (number->string x (radix 10))
+; (string->number x (radix 10))
 
 (define (floor/ x y)
   (values (floor-quotient x y) (floor-remainder x y)))
 
 (define (truncate/ x y)
   (values (truncate-quotient x y) (truncate-remainder x y)))
+
+;gcd
+;lcm
+;numerator
+;denominator
+;floor
+;ceiling
+;truncate
+;round
+;rationalize
+;exp
+;log 1-and-2-arg
+;sin
+;cos
+;tan
+;asin
+;acos
+;atan 1-and-2-arg
+;square
+;sqrt
+;exact-integer-sqrt
+;expt
+;make-rectangular
+;make-polar
+;real-part
+;imag-part
+;magnitude
+;angle
 
 
 ;---------------------------------------------------------------------------------------------
@@ -320,50 +401,6 @@
 ;
 ; (boolean? x)
 ; (not x)
-
-
-;---------------------------------------------------------------------------------------------
-; Characters
-;---------------------------------------------------------------------------------------------
-
-; integrables:
-;
-; (char? x)
-; (char-cmp c1 c2)
-; (char=? c1 c2 c ...)
-; (char<? c1 c2 c ...)
-; (char>? c1 c2 c ...)
-; (char<=? c1 c2 c ...)
-; (char>=? c1 c2 c ...)
-; (char-ci-cmp c1 c2)
-; (char-ci=? c1 c2 c ...)
-; (char-ci<? c1 c2 c ...)
-; (char-ci>? c1 c2 c ...)
-; (char-ci<=? c1 c2 c ...)
-; (char-ci>=? c1 c2 c ...)
-; (char-alphabetic? c)
-; (char-numeric? x)
-; (char-whitespace? c)
-; (char-upper-case? c)
-; (char-lower-case? c)
-; (char-upcase c)
-; (char-downcase c)
-; (char->integer c) 
-; (integer->char n)
-
-;char-foldcase
-;digit-value
-
-
-;---------------------------------------------------------------------------------------------
-; Symbols
-;---------------------------------------------------------------------------------------------
-
-; integrables:
-;
-; (symbol? x)
-; (symbol->string y)
-; (string->symbol s)
 
 
 ;---------------------------------------------------------------------------------------------
@@ -471,109 +508,47 @@
 
 
 ;---------------------------------------------------------------------------------------------
-; Vectors
+; Symbols
 ;---------------------------------------------------------------------------------------------
 
 ; integrables:
 ;
-; (vector? x)
-; (vector x ...)
-; (make-vector n (i #f))
-; (vector-length v)
-; (vector-ref v i)
-; (vector-set! v i x)
-; (list->vector x)
-; (vector-cat v1 v2)
+; (symbol? x)
+; (symbol->string y)
+; (string->symbol s)
 
-(define (subvector->list vec start end)
-  (let loop ([i (fx- end 1)] [l '()])
-    (if (fx<? i start) l (loop (fx- i 1) (cons (vector-ref vec i) l)))))
 
-(define %vector->list
-  (case-lambda
-     [(vec) (%vector->list1 vec)]
-     [(vec start) (subvector->list vec start (vector-length vec))]
-     [(vec start end) (subvector->list vec start end)]))
+;---------------------------------------------------------------------------------------------
+; Characters
+;---------------------------------------------------------------------------------------------
 
-(define-syntax vector->list
-  (syntax-rules ()
-    [(_ x) (%vector->list1 x)]
-    [(_ . r) (%vector->list . r)]
-    [_ %vector->list]))
+; integrables:
+;
+; (char? x)
+; (char-cmp c1 c2)
+; (char=? c1 c2 c ...)
+; (char<? c1 c2 c ...)
+; (char>? c1 c2 c ...)
+; (char<=? c1 c2 c ...)
+; (char>=? c1 c2 c ...)
+; (char-ci-cmp c1 c2)
+; (char-ci=? c1 c2 c ...)
+; (char-ci<? c1 c2 c ...)
+; (char-ci>? c1 c2 c ...)
+; (char-ci<=? c1 c2 c ...)
+; (char-ci>=? c1 c2 c ...)
+; (char-alphabetic? c)
+; (char-numeric? x)
+; (char-whitespace? c)
+; (char-upper-case? c)
+; (char-lower-case? c)
+; (char-upcase c)
+; (char-downcase c)
+; (char->integer c) 
+; (integer->char n)
 
-(define (subvector-copy! to at from start end)
-  (let ([limit (fxmin end (fx+ start (fx- (vector-length to) at)))])
-    (if (fx<=? at start)
-        (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
-          [(fx>=? j limit)]
-          (vector-set! to i (vector-ref from j)))
-        (do ([i (fx+ at (fx- (fx- end start) 1)) (fx- i 1)] [j (fx- limit 1) (fx- j 1)])
-          [(fx<? j start)]
-          (vector-set! to i (vector-ref from j))))))
-
-(define vector-copy!
-  (case-lambda
-     [(to at from) (subvector-copy! to at from 0 (vector-length from))]
-     [(to at from start) (subvector-copy! to at from start (vector-length from))]
-     [(to at from start end) (subvector-copy! to at from start end)]))
-
-(define (subvector vec start end)  ; TODO: %vsub?
-  (let ([v (make-vector (fx- end start))])
-    (subvector-copy! v 0 vec start end)
-    v))
-
-(define vector-copy
-  (case-lambda
-     [(vec) (subvector vec 0 (vector-length vec))] ; TODO: %vcpy ?
-     [(vec start) (subvector vec start (vector-length vec))]
-     [(vec start end) (subvector vec start end)]))
-
-(define (subvector-fill! vec x start end)
-  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (vector-set! vec i x)))
-
-(define vector-fill!
-  (case-lambda
-     [(vec x) (subvector-fill! vec x 0 (vector-length vec))]
-     [(vec x start) (subvector-fill! vec x start (vector-length vec))]
-     [(vec x start end) (subvector-fill! vec x start end)]))
-
-(define (subvector-string-copy! to at from start end)
-  (let ([limit (fxmin end (fx+ start (fx- (string-length to) at)))])
-    (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
-      [(fx>=? j limit) to]
-      (string-set! to i (vector-ref from j)))))
-
-(define (subvector->string vec start end)
-  (subvector-string-copy! (make-string (fx- end start)) 0 vec start end))
-
-(define vector->string
-  (case-lambda
-     [(vec) (subvector->string vec 0 (vector-length vec))]
-     [(vec start) (subvector->string vec start (vector-length vec))]
-     [(vec start end) (subvector->string vec start end)]))
-
-(define (vectors-sum-length vecs)
-  (let loop ([vecs vecs] [l 0])
-    (if (null? vecs) l (loop (cdr vecs) (fx+ l (vector-length (car vecs)))))))
-
-(define (vectors-copy-into! to vecs)
-  (let loop ([vecs vecs] [i 0])
-    (if (null? vecs)
-        to
-        (let ([vec (car vecs)] [vecs (cdr vecs)])
-          (let ([len (vector-length vec)])
-            (subvector-copy! to i vec 0 len)
-            (loop vecs (fx+ i len)))))))  
-
-(define (%vector-append . vecs)
-  (vectors-copy-into! (make-vector (vectors-sum-length vecs)) vecs))
-
-(define-syntax vector-append
-  (syntax-rules ()
-    [(_) '#()] [(_ x) (%ckv x)]
-    [(_ x y) (vector-cat x y)]
-    [(_ . r) (%vector-append . r)]
-    [_ %vector-append]))
+;char-foldcase
+;digit-value
 
 
 ;---------------------------------------------------------------------------------------------
@@ -589,6 +564,7 @@
 ; (string-ref x i)
 ; (string-set! x i v)
 ; (list->string l)
+; (%string->list1 s)
 ; (string-cat s1 s2)
 ; (substring s from to)
 ; (string-cmp s1 s2)
@@ -693,6 +669,113 @@
 ;string-upcase
 ;string-downcase
 ;string-foldcase
+
+
+;---------------------------------------------------------------------------------------------
+; Vectors
+;---------------------------------------------------------------------------------------------
+
+; integrables:
+;
+; (vector? x)
+; (vector x ...)
+; (make-vector n (i #f))
+; (vector-length v)
+; (vector-ref v i)
+; (vector-set! v i x)
+; (%vector->list1 v)
+; (list->vector l)
+; (vector-cat v1 v2)
+
+(define (subvector->list vec start end)
+  (let loop ([i (fx- end 1)] [l '()])
+    (if (fx<? i start) l (loop (fx- i 1) (cons (vector-ref vec i) l)))))
+
+(define %vector->list
+  (case-lambda
+     [(vec) (%vector->list1 vec)]
+     [(vec start) (subvector->list vec start (vector-length vec))]
+     [(vec start end) (subvector->list vec start end)]))
+
+(define-syntax vector->list
+  (syntax-rules ()
+    [(_ x) (%vector->list1 x)]
+    [(_ . r) (%vector->list . r)]
+    [_ %vector->list]))
+
+(define (subvector-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (vector-length to) at)))])
+    (if (fx<=? at start)
+        (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+          [(fx>=? j limit)]
+          (vector-set! to i (vector-ref from j)))
+        (do ([i (fx+ at (fx- (fx- end start) 1)) (fx- i 1)] [j (fx- limit 1) (fx- j 1)])
+          [(fx<? j start)]
+          (vector-set! to i (vector-ref from j))))))
+
+(define vector-copy!
+  (case-lambda
+     [(to at from) (subvector-copy! to at from 0 (vector-length from))]
+     [(to at from start) (subvector-copy! to at from start (vector-length from))]
+     [(to at from start end) (subvector-copy! to at from start end)]))
+
+(define (subvector vec start end)  ; TODO: %vsub?
+  (let ([v (make-vector (fx- end start))])
+    (subvector-copy! v 0 vec start end)
+    v))
+
+(define vector-copy
+  (case-lambda
+     [(vec) (subvector vec 0 (vector-length vec))] ; TODO: %vcpy ?
+     [(vec start) (subvector vec start (vector-length vec))]
+     [(vec start end) (subvector vec start end)]))
+
+(define (subvector-fill! vec x start end)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (vector-set! vec i x)))
+
+(define vector-fill!
+  (case-lambda
+     [(vec x) (subvector-fill! vec x 0 (vector-length vec))]
+     [(vec x start) (subvector-fill! vec x start (vector-length vec))]
+     [(vec x start end) (subvector-fill! vec x start end)]))
+
+(define (subvector-string-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (string-length to) at)))])
+    (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+      [(fx>=? j limit) to]
+      (string-set! to i (vector-ref from j)))))
+
+(define (subvector->string vec start end)
+  (subvector-string-copy! (make-string (fx- end start)) 0 vec start end))
+
+(define vector->string
+  (case-lambda
+     [(vec) (subvector->string vec 0 (vector-length vec))]
+     [(vec start) (subvector->string vec start (vector-length vec))]
+     [(vec start end) (subvector->string vec start end)]))
+
+(define (vectors-sum-length vecs)
+  (let loop ([vecs vecs] [l 0])
+    (if (null? vecs) l (loop (cdr vecs) (fx+ l (vector-length (car vecs)))))))
+
+(define (vectors-copy-into! to vecs)
+  (let loop ([vecs vecs] [i 0])
+    (if (null? vecs)
+        to
+        (let ([vec (car vecs)] [vecs (cdr vecs)])
+          (let ([len (vector-length vec)])
+            (subvector-copy! to i vec 0 len)
+            (loop vecs (fx+ i len)))))))  
+
+(define (%vector-append . vecs)
+  (vectors-copy-into! (make-vector (vectors-sum-length vecs)) vecs))
+
+(define-syntax vector-append
+  (syntax-rules ()
+    [(_) '#()] [(_ x) (%ckv x)]
+    [(_ x y) (vector-cat x y)]
+    [(_ . r) (%vector-append . r)]
+    [_ %vector-append]))
 
 
 ;---------------------------------------------------------------------------------------------
