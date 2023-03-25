@@ -1672,6 +1672,24 @@ define_instruction(jabs) {
   gonexti(); 
 }
 
+define_instruction(jgcd) {
+  obj x = ac, y = spop(); ckj(x); ckj(y);
+  ac = obj_from_flonum(sp-r, flgcd(flonum_from_obj(x), flonum_from_obj(y)));
+  gonexti(); 
+}
+
+define_instruction(jpow) {
+  obj x = ac, y = spop(); ckj(x); ckj(y);
+  ac = obj_from_flonum(sp-r, pow(flonum_from_obj(x), flonum_from_obj(y)));
+  gonexti(); 
+}
+
+define_instruction(jsqrt) {
+  ckj(ac);
+  ac = obj_from_flonum(sp-r, sqrt(flonum_from_obj(ac)));
+  gonexti(); 
+}
+
 define_instruction(jtoi) {
   ckj(ac);
   ac = obj_from_fixnum(fxflo(flonum_from_obj(ac)));
@@ -2025,6 +2043,52 @@ define_instruction(max) {
   gonexti(); 
 }
 
+define_instruction(gcd) {
+  obj x = ac, y = spop();
+  if (likely(are_fixnum_objs(x, y))) {
+    ac = obj_from_fixnum(fxgcd(fixnum_from_obj(x), fixnum_from_obj(y)));
+  } else {
+    double dx, dy;
+    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
+    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
+    ac = obj_from_flonum(sp-r, flgcd(dx, dy));
+  }
+  gonexti(); 
+}
+
+define_instruction(pow) {
+  obj x = ac, y = spop();
+  if (likely(are_fixnum_objs(x, y))) {
+    /* fixme: this will either overflow, or fail on negative y */
+    ac = obj_from_fixnum(fxpow(fixnum_from_obj(x), fixnum_from_obj(y)));
+  } else {
+    double dx, dy;
+    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
+    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    else failtype(x, "number");
+    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
+    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    else failtype(y, "number");
+    ac = obj_from_flonum(sp-r, pow(dx, dy));
+  }
+  gonexti(); 
+}
+
+define_instruction(sqrt) {
+  if (likely(is_flonum_obj(ac))) {
+    ac = obj_from_flonum(sp-r, sqrt(flonum_from_obj(ac)));
+  } else if (likely(is_fixnum_obj(ac))) {
+    long x = fixnum_from_obj(ac), y;
+    if (x < 0) ac = obj_from_flonum(sp-r, (HUGE_VAL - HUGE_VAL));   
+    else if (y = fxsqrt(x), y*y == x) ac = obj_from_fixnum(y);
+    else ac = obj_from_flonum(sp-r, sqrt((double)x)); 
+  } else failactype("number");
+  gonexti(); 
+}
 
 define_instruction(neg) {
   if (likely(is_fixnum_obj(ac))) {
@@ -2041,6 +2105,44 @@ define_instruction(abs) {
   } else if (likely(is_flonum_obj(ac))) {
     ac = obj_from_flonum(sp-r, fabs(flonum_from_obj(ac)));
   } else failactype("number");
+  gonexti(); 
+}
+
+define_instruction(floor) {
+  if (likely(is_flonum_obj(ac))) {
+    ac = obj_from_flonum(sp-r, floor(flonum_from_obj(ac)));
+  } else if (unlikely(!is_fixnum_obj(ac))) {
+    failactype("number");
+  }
+  gonexti(); 
+}
+
+define_instruction(ceil) {
+  if (likely(is_flonum_obj(ac))) {
+    ac = obj_from_flonum(sp-r, ceil(flonum_from_obj(ac)));
+  } else if (unlikely(!is_fixnum_obj(ac))) {
+    failactype("number");
+  }
+  gonexti(); 
+}
+
+define_instruction(trunc) {
+  if (likely(is_flonum_obj(ac))) {
+    double x = flonum_from_obj(ac);
+    double i; modf(x,  &i);
+    ac = obj_from_flonum(sp-r, i);
+  } else if (unlikely(!is_fixnum_obj(ac))) {
+    failactype("number");
+  }
+  gonexti(); 
+}
+
+define_instruction(round) {
+  if (likely(is_flonum_obj(ac))) {
+    ac = obj_from_flonum(sp-r, flround(flonum_from_obj(ac)));
+  } else if (unlikely(!is_fixnum_obj(ac))) {
+    failactype("number");
+  }
   gonexti(); 
 }
 
