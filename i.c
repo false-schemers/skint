@@ -1740,6 +1740,65 @@ define_instruction(jround) {
   gonexti(); 
 }
 
+define_instruction(jexp) {
+  ckj(ac);
+  ac = obj_from_flonum(sp-r, exp(flonum_from_obj(ac)));
+  gonexti(); 
+}
+
+define_instruction(jlog) {
+  obj x = ac, y = spop(); ckj(ac);
+  if (likely(!y)) {
+    ac = obj_from_flonum(sp-r, log(flonum_from_obj(ac)));
+  } else {
+    double b; ckj(y); b = flonum_from_obj(y);
+    if (likely(b == 10.0)) ac = obj_from_flonum(sp-r, log10(flonum_from_obj(ac)));
+    else ac = obj_from_flonum(sp-r, log(flonum_from_obj(ac))/log(b));
+  }
+  gonexti(); 
+}
+
+define_instruction(jsin) {
+  ckj(ac);
+  ac = obj_from_flonum(sp-r, sin(flonum_from_obj(ac)));
+  gonexti(); 
+}
+
+define_instruction(jcos) {
+  ckj(ac);
+  ac = obj_from_flonum(sp-r, cos(flonum_from_obj(ac)));
+  gonexti(); 
+}
+
+define_instruction(jtan) {
+  ckj(ac);
+  ac = obj_from_flonum(sp-r, tan(flonum_from_obj(ac)));
+  gonexti(); 
+}
+
+define_instruction(jasin) {
+  ckj(ac);
+  ac = obj_from_flonum(sp-r, asin(flonum_from_obj(ac)));
+  gonexti(); 
+}
+
+define_instruction(jacos) {
+  ckj(ac);
+  ac = obj_from_flonum(sp-r, acos(flonum_from_obj(ac)));
+  gonexti(); 
+}
+
+define_instruction(jatan) {
+  obj x = ac, y = spop(); ckj(ac);
+  if (likely(!y)) {
+    ac = obj_from_flonum(sp-r, atan(flonum_from_obj(x)));
+  } else {
+    ckj(y); 
+    ac = obj_from_flonum(sp-r, atan2(flonum_from_obj(x), flonum_from_obj(y)));
+  }
+  gonexti(); 
+}
+
 
 define_instruction(zerop) {
   obj x = ac;
@@ -2085,8 +2144,109 @@ define_instruction(sqrt) {
     long x = fixnum_from_obj(ac), y;
     if (x < 0) ac = obj_from_flonum(sp-r, (HUGE_VAL - HUGE_VAL));   
     else if (y = fxsqrt(x), y*y == x) ac = obj_from_fixnum(y);
-    else ac = obj_from_flonum(sp-r, sqrt((double)x)); 
+    else ac = obj_from_flonum(sp-r, sqrt((double)x));
   } else failactype("number");
+  gonexti(); 
+}
+
+define_instruction(exp) {
+  double x;
+  if (unlikely(is_fixnum_obj(ac))) x = (double)fixnum_from_obj(ac);
+  else if (likely(is_flonum_obj(ac))) x = flonum_from_obj(ac);
+  else failactype("number");
+  ac = obj_from_flonum(sp-r, exp(x));
+  gonexti(); 
+}
+
+define_instruction(log) {
+  double x; obj y = spop();
+  if (unlikely(is_fixnum_obj(ac))) x = (double)fixnum_from_obj(ac);
+  else if (likely(is_flonum_obj(ac))) x = flonum_from_obj(ac);
+  else failactype("number");
+  if (likely(!y)) {
+    ac = obj_from_flonum(sp-r, log(x));
+  } else if (likely(y == obj_from_fixnum(10))) {
+    ac = obj_from_flonum(sp-r, log10(x));
+  } else {
+    double b; 
+    if (unlikely(is_fixnum_obj(y))) b = (double)fixnum_from_obj(y);
+    else if (likely(is_flonum_obj(y))) b = flonum_from_obj(y);
+    else failtype(y, "number");
+    if (likely(b == 10.0)) ac = obj_from_flonum(sp-r, log10(x));
+    else ac = obj_from_flonum(sp-r, log(x)/log(b));
+  }
+  gonexti(); 
+}
+
+define_instruction(sin) {
+  double x;
+  if (unlikely(is_fixnum_obj(ac))) {
+    x = (double)fixnum_from_obj(ac);
+  } else if (likely(is_flonum_obj(ac))) {
+    x = flonum_from_obj(ac);
+  } else failactype("number");
+  ac = obj_from_flonum(sp-r, sin(x));
+  gonexti(); 
+}
+
+define_instruction(cos) {
+  double x;
+  if (unlikely(is_fixnum_obj(ac))) {
+    x = (double)fixnum_from_obj(ac);
+  } else if (likely(is_flonum_obj(ac))) {
+    x = flonum_from_obj(ac);
+  } else failactype("number");
+  ac = obj_from_flonum(sp-r, cos(x));
+  gonexti(); 
+}
+
+define_instruction(tan) {
+  double x;
+  if (unlikely(is_fixnum_obj(ac))) {
+    x = (double)fixnum_from_obj(ac);
+  } else if (likely(is_flonum_obj(ac))) {
+    x = flonum_from_obj(ac);
+  } else failactype("number");
+  ac = obj_from_flonum(sp-r, tan(x));
+  gonexti(); 
+}
+
+define_instruction(asin) {
+  double x;
+  if (unlikely(is_fixnum_obj(ac))) {
+    x = (double)fixnum_from_obj(ac);
+  } else if (likely(is_flonum_obj(ac))) {
+    x = flonum_from_obj(ac);
+  } else failactype("number");
+  ac = obj_from_flonum(sp-r, asin(x));
+  gonexti(); 
+}
+
+define_instruction(acos) {
+  double x;
+  if (unlikely(is_fixnum_obj(ac))) {
+    x = (double)fixnum_from_obj(ac);
+  } else if (likely(is_flonum_obj(ac))) {
+    x = flonum_from_obj(ac);
+  } else failactype("number");
+  ac = obj_from_flonum(sp-r, acos(x));
+  gonexti(); 
+}
+
+define_instruction(atan) {
+  double x; obj y = spop();
+  if (unlikely(is_fixnum_obj(ac))) x = (double)fixnum_from_obj(ac);
+  else if (likely(is_flonum_obj(ac))) x = flonum_from_obj(ac);
+  else failactype("number");
+  if (likely(!y)) {
+    ac = obj_from_flonum(sp-r, atan(x));
+  } else {
+    double b; 
+    if (unlikely(is_fixnum_obj(y))) b = (double)fixnum_from_obj(y);
+    else if (likely(is_flonum_obj(y))) b = flonum_from_obj(y);
+    else failtype(y, "number");
+    ac = obj_from_flonum(sp-r, atan2(x, b));
+  }
   gonexti(); 
 }
 
