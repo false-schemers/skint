@@ -455,6 +455,7 @@ declare_instruction(ois,        "P50",          0,  "open-input-string",   '1', 
 declare_instruction(oos,        "P51",          0,  "open-output-string",  '0', AUTOGL)
 declare_instruction(cip,        "P60",          0,  "close-input-port",    '1', AUTOGL)
 declare_instruction(cop,        "P61",          0,  "close-output-port",   '1', AUTOGL)
+declare_instruction(fop,        "P71",          0,  "flush-output-port",   '1', AUTOGL)
 declare_instruction(gos,        "P9",           0,  "get-output-string",   '1', AUTOGL)
 declare_instruction(rdc,        "R0\0P10",      0,  "read-char",           'u', AUTOGL)
 declare_instruction(rdac,       "R1\0P10",      0,  "peek-char",           'u', AUTOGL)
@@ -468,6 +469,7 @@ declare_instruction(wrcw,       "W5\0P11",      0,  "write",               'b', 
 declare_instruction(wrnl,       "W6\0P11",      0,  "newline",             'u', AUTOGL)
 declare_instruction(wrhw,       "W7\0P11",      0,  "write-shared",        'b', AUTOGL)
 declare_instruction(wriw,       "W8\0P11",      0,  "write-simple",        'b', AUTOGL)
+declare_instruction(panic,      "Z7",           0,  "%panic",              '2', AUTOGL)
                                                                  
 /* serialization and deserialization instructions */             
 declare_instruction(igp,        "U0",           0,  "integrable?",         '1', AUTOGL)

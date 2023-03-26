@@ -419,18 +419,18 @@
 (define (make-rectangular r i)
   (if (= i 0) r (error "make-rectangular: nonzero imag part not supported" i)))
 
-(inline (make-polar m a)
+(define (make-polar m a)
   (cond [(= a 0) m]
         [(= a 3.141592653589793238462643) (- m)]
         [else (error "make-polar: angle not supported" a)]))
 
-(define-inline (real-part x) x)
+(define (real-part x) x)
 
-(define-inline (imag-part x) 0)
+(define (imag-part x) 0)
 
-(define-inline (magnitude x) (abs x))
+(define (magnitude x) (abs x))
 
-(define-inline (angle x) (if (negative? x) 3.141592653589793238462643 0))
+(define (angle x) (if (negative? x) 3.141592653589793238462643 0))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -956,12 +956,14 @@
 ;with-exception-handler
 ;raise
 ;raise-continuable
-;error
 ;error-object?
 ;error-object-message
 ;error-object-irritants
 ;read-error?
 ;file-error?
+
+(define (error msg . args) (%panic msg args)) ; should work for now
+
 
 ;---------------------------------------------------------------------------------------------
 ; Environments and evaluation
@@ -1049,7 +1051,32 @@
               [else (write-char c op) (loop #f)]))))) 
 
 ;read
-;read-string
+
+(define (read-substring! str start end p)
+  (let loop ([i start])
+    (if (fx>=? i end) (fx- i start)
+        (let ([c (read-char p)])
+          (cond [(eof-object? c) (if (fx=? i start) c (fx- i start))]
+                [else (string-set! str i c) (loop (fx+ i 1))])))))
+
+(define (read-substring k p)
+  (let ([str (make-string k)])
+    (let ([r (read-substring! str 0 k p)])
+      (if (eof-object? r) r
+          (if (fx=? r k) str (substring str 0 r))))))
+
+(define read-string!
+  (case-lambda
+    [(str) (read-substring! str 0 (string-length str) (current-input-port))]
+    [(str p) (read-substring! str 0 (string-length str) p)]
+    [(str p start) (read-substring! str start (string-length str) p)]
+    [(str p start end) (read-substring! str start end p)]))
+
+(define read-string
+  (case-lambda
+    [(k) (read-substring k (current-input-port))]
+    [(k p) (read-substring k p)]))
+
 ;read-u8
 ;peek-u8
 ;u8-ready?
@@ -1070,8 +1097,7 @@
 ; (newline (p (current-output-port)))
 ; (write-shared x (p (current-output-port)))
 ; (write-simple x (p (current-output-port)))
-
-;flush-output-port
+; (flush-output-port p)
 
 
 ;---------------------------------------------------------------------------------------------

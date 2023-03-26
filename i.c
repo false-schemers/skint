@@ -171,6 +171,7 @@ static void _sck(obj *s) {
 /* small object representation extras */
 #define bool_obj(b) obj_from_bool(b)
 #define char_obj(b) obj_from_char(b)
+#define void_obj() obj_from_void(0)
 #define null_obj() mknull()
 #define eof_obj() mkeof()
 #define fixnum_obj(x) obj_from_fixnum(x)
@@ -413,7 +414,8 @@ jump:
 /* instructions for basic vm machinery */
 
 define_instrhelper(cxi_fail) { 
-  fprintf(stderr, "run-time failure: %s\n", (char*)ac); 
+  fprintf(stderr, "run-time failure: %s\n", (char*)ac);
+  ac = void_obj();
   unwindi(0); 
 }
 
@@ -424,6 +426,7 @@ define_instrhelper(cxi_failactype) {
   oportputcircular(ac, p, 0);
   fputc('\n', stderr);
   spop();
+  ac = void_obj();
   unwindi(0); 
 }
 
@@ -466,6 +469,22 @@ define_instrhelper(cxi_failactype) {
 define_instruction(halt) { 
   unwindi(0); 
 }
+
+define_instruction(panic) {
+  obj l, p; cks(ac); ckl(sref(0));
+  p = oport_file_obj(stderr);  
+  fprintf(stderr, "error: %s", stringchars(ac));
+  if (ispair(sref(0))) fputs(":\n", stderr); 
+  else fputs("\n", stderr);
+  for (l = sref(0); ispair(l); l = cdr(l)) {
+    oportputcircular(car(l), p, 0);
+    fputc('\n', stderr);
+  }
+  sdrop(1);
+  ac = void_obj();
+  unwindi(0); 
+}
+
 
 define_instruction(lit) { 
   ac = *ip++; 
@@ -2739,6 +2758,12 @@ define_instruction(cop) {
   gonexti();
 }
 
+define_instruction(fop) {
+  ckw(ac);
+  oportflush(ac);
+  gonexti();
+}
+
 define_instruction(gos) {
   cxtype_oport_t *vt; ckw(ac);
   vt = ckoportvt(ac);
@@ -2789,42 +2814,49 @@ define_instruction(eof) {
 define_instruction(wrc) {
   obj x = ac, y = spop(); ckc(x); ckw(y);
   oportputc(char_from_obj(x), y);
+  ac = void_obj();
   gonexti();
 }
 
 define_instruction(wrs) {
   obj x = ac, y = spop(); cks(x); ckw(y);
   oportputs(stringchars(x), y);
+  ac = void_obj();
   gonexti();
 }
 
 define_instruction(wrcd) {
   obj x = ac, y = spop(); ckw(y);
   oportputcircular(x, y, 1);
+  ac = void_obj();
   gonexti();
 }
 
 define_instruction(wrcw) {
   obj x = ac, y = spop(); ckw(y);
   oportputcircular(x, y, 0);
+  ac = void_obj();
   gonexti();
 }
 
 define_instruction(wrnl) {
   ckw(ac);
   oportputc('\n', ac);
+  ac = void_obj();
   gonexti();
 }
 
 define_instruction(wrhw) {
   obj x = ac, y = spop(); ckw(y);
   oportputshared(x, y, 0);
+  ac = void_obj();
   gonexti();
 }
 
 define_instruction(wriw) {
   obj x = ac, y = spop(); ckw(y);
   oportputsimple(x, y, 0);
+  ac = void_obj();
   gonexti();
 }
 
