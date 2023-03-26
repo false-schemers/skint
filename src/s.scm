@@ -1155,7 +1155,7 @@
 
 (define (%read port simple?)
   (define-syntax r-error
-    (syntax-rules () [(_ p msg a ...) (read-error msg a ... 'port: p)])) ; see read-error below
+    (syntax-rules () [(_ p msg a ...) (read-error msg a ... 'port: p)]))
 
   (define shared '())
   (define (make-shared-ref loc) (lambda () (unbox loc)))

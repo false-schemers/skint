@@ -422,6 +422,7 @@ extern void oportputshared(obj x, obj p, int disp);
 #include "i.h"
 
 /* cx globals */
+extern obj cx__25read; /* %read */
 extern obj cx__25residual_2Dcadr; /* %residual-cadr */
 extern obj cx__25residual_2Dcdr; /* %residual-cdr */
 extern obj cx__25residual_2Dcons; /* %residual-cons */
@@ -438,7 +439,6 @@ extern obj cx_error; /* error */
 extern obj cx_file_2Derror; /* file-error */
 extern obj cx_fixnum_2D_3Estring; /* fixnum->string */
 extern obj cx_flonum_2D_3Estring; /* flonum->string */
-extern obj cx_read_2Ddatum; /* read-datum */
 extern obj cx_write_2Dserialized_2Dsexp; /* write-serialized-sexp */
 obj cx__25residual_2Dbinding_2Dset_2Dval_21; /* %residual-binding-set-val! */
 obj cx__25residual_2Dbinding_2Dspecial_3F; /* %residual-binding-special? */
@@ -21403,13 +21403,14 @@ s_l_v10593: /* ek r k */
     *--hp = r[1];  
     *--hp = obj_from_case(463);
     r[3] = (hendblk(2+1));
-    r[4+0] = (cx_read_2Ddatum);
+    r[4+0] = (cx__25read);
     pc = objptr_from_obj(r[4+0])[0];
     r[4+1] = r[3];  
     r[4+2] = r[1];  
+    r[4+3] = obj_from_bool(0);
     r += 4; /* shift reg wnd */
     rreserve(MAX_HOSTREGS);
-    rc = 3;
+    rc = 4;
     goto jump;
 
 case 463: /* clo ek r */
@@ -21473,12 +21474,13 @@ case 465: /* clo ek . */
     *--hp = r[3];  
     *--hp = obj_from_case(466);
     r[5] = (hendblk(2+1));
-    r[0] = (cx_read_2Ddatum);
+    r[0] = (cx__25read);
     pc = objptr_from_obj(r[0])[0];
     r[1] = r[5];  
     /* r[2] */    
+    r[3] = obj_from_bool(0);
     rreserve(MAX_HOSTREGS);
-    rc = 3;
+    rc = 4;
     goto jump;
 
 case 466: /* clo ek r */
@@ -21748,13 +21750,14 @@ s_l_v10515: /* ek r k */
     *--hp = r[1];  
     *--hp = obj_from_case(476);
     r[3] = (hendblk(2+1));
-    r[4+0] = (cx_read_2Ddatum);
+    r[4+0] = (cx__25read);
     pc = objptr_from_obj(r[4+0])[0];
     r[4+1] = r[3];  
     r[4+2] = r[1];  
+    r[4+3] = obj_from_bool(0);
     r += 4; /* shift reg wnd */
     rreserve(MAX_HOSTREGS);
-    rc = 3;
+    rc = 4;
     goto jump;
 
 case 476: /* clo ek r */
@@ -21818,12 +21821,13 @@ case 478: /* clo ek . */
     *--hp = r[3];  
     *--hp = obj_from_case(479);
     r[5] = (hendblk(2+1));
-    r[0] = (cx_read_2Ddatum);
+    r[0] = (cx__25read);
     pc = objptr_from_obj(r[0])[0];
     r[1] = r[5];  
     /* r[2] */    
+    r[3] = obj_from_bool(0);
     rreserve(MAX_HOSTREGS);
-    rc = 3;
+    rc = 4;
     goto jump;
 
 case 479: /* clo ek r */
@@ -22649,12 +22653,13 @@ case 505: /* clo ek r */
     *--hp = r[2];  
     *--hp = obj_from_case(506);
     r[6] = (hendblk(3+1));
-    r[0] = (cx_read_2Ddatum);
+    r[0] = (cx__25read);
     pc = objptr_from_obj(r[0])[0];
     r[1] = r[6];  
     r[2] = (objptr_from_obj(r[2])[0]);
+    r[3] = obj_from_bool(0);
     rreserve(MAX_HOSTREGS);
-    rc = 3;
+    rc = 4;
     goto jump;
 
 case 506: /* clo ek r */
@@ -22726,12 +22731,13 @@ case 508: /* clo ek . */
     *--hp = r[3];  
     *--hp = obj_from_case(509);
     r[5] = (hendblk(2+1));
-    r[0] = (cx_read_2Ddatum);
+    r[0] = (cx__25read);
     pc = objptr_from_obj(r[0])[0];
     r[1] = r[5];  
     r[2] = (objptr_from_obj(r[2])[0]);
+    r[3] = obj_from_bool(0);
     rreserve(MAX_HOSTREGS);
-    rc = 3;
+    rc = 4;
     goto jump;
 
 case 509: /* clo ek r */
@@ -23534,13 +23540,14 @@ case 540: /* repl-read k iport */
     r += 1; /* shift reg. wnd */
 gs_repl_2Dread: /* k iport */
     (void)(((r[1]) == (cx__2Acurrent_2Dinput_2Dport_2A)) ? (void)(oportputcircular((cx__234830), (cx__2Acurrent_2Doutput_2Dport_2A), 1)) : (void)(0));
-    r[2+0] = (cx_read_2Ddatum);
+    r[2+0] = (cx__25read);
     pc = objptr_from_obj(r[2+0])[0];
     r[2+1] = r[0];  
     r[2+2] = r[1];  
+    r[2+3] = obj_from_bool(0);
     r += 2; /* shift reg wnd */
     rreserve(MAX_HOSTREGS);
-    rc = 3;
+    rc = 4;
     goto jump;
 
 case 541: /* repl-from-port k iport */
