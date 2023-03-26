@@ -731,6 +731,11 @@
            (write-string s port))]
         [else (write-char x port)]))
 
+(define (write-serialized-byte x port)
+  (let ([s (fixnum->string x 16)])
+    (if (fx=? (string-length s) 1) (write-char #\0 port))
+    (write-string s port)))
+
 (define (write-serialized-size n port)         
   (write-string (fixnum->string n 10) port)
   (write-char #\: port))
@@ -771,6 +776,11 @@
          (write-serialized-size (string-length x) port)
          (do ([i 0 (fx+ i 1)]) [(fx=? i (string-length x))]
            (write-serialized-char (string-ref x i) port))]
+        [(bytevector? x)
+         (write-char #\b port)
+         (write-serialized-size (bytevector-length x) port)
+         (do ([i 0 (fx+ i 1)]) [(fx=? i (bytevector-length x))]
+           (write-serialized-byte (bytevector-u8-ref x i) port))]
         [(symbol? x)
          (write-char #\y port)
          (let ([x (symbol->string x)])

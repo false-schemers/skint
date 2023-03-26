@@ -826,7 +826,18 @@
 ; Bytevectors
 ;---------------------------------------------------------------------------------------------
 
-;TBD
+; (bytevector? x)
+; (make-bytevector n (u8 0))
+; (bytevector u8 ...)
+; (bytevector-length b)
+; (bytevector-u8-ref b i)
+; (bytevector-u8-set! b i u8)
+
+;bytevector-copy
+;bytevector-copy!
+;bytevector-append
+;utf8->string
+;string->utf8
 
 
 ;---------------------------------------------------------------------------------------------
@@ -962,7 +973,11 @@
 ;read-error?
 ;file-error?
 
-(define (error msg . args) (%panic msg args)) ; should work for now
+(define (error msg . args) 
+  (%panic msg args)) ; should work for now
+
+(define (read-error msg . args)
+  (%panic msg args)) ; should work for now
 
 
 ;---------------------------------------------------------------------------------------------

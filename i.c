@@ -177,6 +177,7 @@ static void _sck(obj *s) {
 #define fixnum_obj(x) obj_from_fixnum(x)
 #define flonum_obj(x) hp_pushptr(dupflonum(x), FLONUM_NTAG)
 #define string_obj(s) hp_pushptr((s), STRING_NTAG)
+#define bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
 #define iport_file_obj(fp) hp_pushptr((fp), IPORT_FILE_NTAG)
 #define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
 #define iport_string_obj(fp) hp_pushptr((fp), IPORT_STRING_NTAG)
@@ -438,12 +439,16 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"pair"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckl(x) do { obj _x = (x); if (unlikely(!islist(_x))) \
   { ac = _x; spush((obj)"list"); musttail return cxi_failactype(IARGS); } } while (0)
+#define cku(x) do { obj _x = (x); if (unlikely(!isnull(_x))) \
+  { ac = _x; spush((obj)"proper list"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckv(x) do { obj _x = (x); if (unlikely(!isvector(_x))) \
   { ac = _x; spush((obj)"vector"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckc(x) do { obj _x = (x); if (unlikely(!is_char_obj(_x))) \
   { ac = _x; spush((obj)"char"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cks(x) do { obj _x = (x); if (unlikely(!isstring(_x))) \
   { ac = _x; spush((obj)"string"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckb(x) do { obj _x = (x); if (unlikely(!isbytevector(_x))) \
+  { ac = _x; spush((obj)"bytevector"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cki(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x))) \
   { ac = _x; spush((obj)"fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckj(x) do { obj _x = (x); if (unlikely(!is_flonum_obj(_x))) \
@@ -452,6 +457,8 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"number"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckk(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x) || fixnum_from_obj(_x) < 0)) \
   { ac = _x; spush((obj)"nonnegative fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ck8(x) do { obj _x = (x); if (unlikely(!is_byte_obj(_x))) \
+  { ac = _x; spush((obj)"byte"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cky(x) do { obj _x = (x); if (unlikely(!issymbol(_x))) \
   { ac = _x; spush((obj)"symbol"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckr(x) do { obj _x = (x); if (unlikely(!isiport(_x))) \
@@ -1136,6 +1143,56 @@ define_instruction(ssub) {
   gonexti();
 }
 
+
+define_instruction(bvecp) {
+  ac = bool_obj(isbytevector(ac));
+  gonexti();
+}
+
+define_instruction(bvec) {
+  int i, n = fixnum_from_obj(*ip++);
+  obj o = bytevector_obj(allocbytevector(n, 0));
+  unsigned char *s = (unsigned char *)bytevectorbytes(o);
+  for (i = 0; i < n; ++i) {
+    obj x = sref(i); ck8(x); s[i] = byte_from_obj(x);
+  }
+  sdrop(n); ac = o;
+  gonexti();
+}
+
+define_instruction(bmk) {
+  int n, b; obj x = spop(); 
+  ckk(ac); ck8(x);
+  n = fixnum_from_obj(ac), b = byte_from_obj(x);
+  ac = bytevector_obj(allocbytevector(n, b)); 
+  gonexti();
+}
+
+define_instruction(blen) {
+  ckb(ac);
+  ac = fixnum_obj(bytevectorlen(ac));
+  gonexti();
+}
+
+define_instruction(bget) {
+  obj x = spop(); int i; 
+  ckb(ac); ckk(x); 
+  i = fixnum_from_obj(x); 
+  if (i >= bytevectorlen(ac)) failtype(x, "valid bytevector index");
+  ac = fixnum_obj(*bytevectorref(ac, i));
+  gonexti();
+}
+
+define_instruction(bput) {
+  obj x = spop(), y = spop(); int i; 
+  ckb(ac); ckk(x); ck8(y); 
+  i = fixnum_from_obj(x); 
+  if (i >= bytevectorlen(ac)) failtype(x, "valid bytevector index");
+  *bytevectorref(ac, i) = byte_from_obj(y);
+  gonexti();
+}
+
+
 define_instruction(vecp) {
   ac = bool_obj(isvector(ac));
   gonexti();
@@ -1212,10 +1269,23 @@ define_instruction(vtol) {
 
 define_instruction(ltov) {
   obj l = ac; int n = 0, i;
-  while (ispair(l)) { l = cdr(l); ++n; }
+  while (ispair(l)) { l = cdr(l); ++n; } cku(l);
   hp_reserve(vecbsz(n));
   for (l = ac, i = 0, hp -= n; i < n; ++i, l = cdr(l)) hp[i] = car(l);
   ac = hend_vec(n);
+  gonexti();
+}
+
+define_instruction(ltob) {
+  obj l = ac, o; int n = 0, i; unsigned char *s;
+  while (ispair(l)) { l = cdr(l); ++n; } cku(l);
+  o = bytevector_obj(allocbytevector(n, 0));
+  s = bytevectorbytes(o);
+  for (i = 0, l = ac; i < n; ++i, l = cdr(l)) {
+    obj x = car(l); ck8(x);
+    s[i] = byte_from_obj(x);
+  } 
+  ac = o;
   gonexti();
 }
 
@@ -3366,6 +3436,14 @@ static int rds_char(obj port)
   return c;
 }
 
+static int rds_byte(obj port)
+{
+  char buf[3]; int b;
+  buf[0] = iportgetc(port); buf[1] = iportgetc(port); buf[2] = 0;
+  b = (int)strtoul(buf, NULL, 16);
+  return b;
+}
+
 static int rds_int(obj port)
 {
   char buf[60], *p = buf, *e = p+59;
@@ -3483,6 +3561,16 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
       }
       if (c == 's') ra = hpushstr(sp-r, newstring(cbdata(pcb)));
       else ra = mksymbol(internsym(cbdata(pcb)));
+      freecb(pcb);
+    } break;
+    case 'b': {
+      cbuf_t *pcb = newcb();
+      size_t n = rds_size(port), i;
+      for (i = 0; i < n; ++i) {
+        int x = rds_byte(port);
+        cbputc(x, pcb);
+      }
+      ra = hpushu8v(sp-r, newbytevector((unsigned char *)cbdata(pcb), (int)cblen(pcb)));
       freecb(pcb);
     }
   }  
