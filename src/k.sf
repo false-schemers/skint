@@ -1555,6 +1555,12 @@
         (repl-eval-top-form x)
         (loop (repl-read iport)))))
 
+(define (repl-file fname)
+  (define iport (open-input-file fname))
+  (repl-from-port iport)
+  (close-input-port iport))
+
+
 (define (run-repl)
   (repl-from-port (current-input-port)))
 
@@ -1563,6 +1569,8 @@
     (cond
       [(syntax-match? '("-c" *) args)
        (process-file (cadr args))]
+      [(syntax-match? '("-l" *) args)
+       (repl-file (cadr args))]
       [(syntax-match? '("-t") args)
        (run-tests)]
       [(syntax-match? '("-v") args)

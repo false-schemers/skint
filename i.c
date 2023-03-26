@@ -171,6 +171,7 @@ static void _sck(obj *s) {
 /* small object representation extras */
 #define bool_obj(b) obj_from_bool(b)
 #define char_obj(b) obj_from_char(b)
+#define null_obj() mknull()
 #define eof_obj() mkeof()
 #define fixnum_obj(x) obj_from_fixnum(x)
 #define flonum_obj(x) hp_pushptr(dupflonum(x), FLONUM_NTAG)
@@ -436,7 +437,7 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"list"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckv(x) do { obj _x = (x); if (unlikely(!isvector(_x))) \
   { ac = _x; spush((obj)"vector"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckc(x) do { obj _x = (x); if (unlikely(!ischar(_x))) \
+#define ckc(x) do { obj _x = (x); if (unlikely(!is_char_obj(_x))) \
   { ac = _x; spush((obj)"char"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cks(x) do { obj _x = (x); if (unlikely(!isstring(_x))) \
   { ac = _x; spush((obj)"string"); musttail return cxi_failactype(IARGS); } } while (0)
@@ -806,9 +807,9 @@ define_instruction(shrarg) {
   if (unlikely(m < 0)) {
     fail("argument count error on entry (not enough arguments)");
   } else if (unlikely(m == 0)) {
-    spush(mknull());
+    spush(null_obj());
   } else {
-    obj l = mknull();
+    obj l = null_obj();
     hp_reserve(pairbsz()*m);
     while (m > 0) { 
       *--hp = l; *--hp = sref(n + m - 1);
@@ -926,7 +927,7 @@ define_instruction(listp) {
 define_instruction(list) {
   int i, n = fixnum_from_obj(*ip++);
   hp_reserve(pairbsz()*n);
-  for (ac = mknull(), i = n-1; i >= 0; --i) {
+  for (ac = null_obj(), i = n-1; i >= 0; --i) {
     *--hp = ac;      /* cdr */
     *--hp = sref(i); /* car */
     ac = hend_pair();
@@ -939,7 +940,7 @@ define_instruction(lmk) {
   int i, n; obj v; ckk(ac);
   n = fixnum_from_obj(ac); 
   hp_reserve(pairbsz()*n); v = sref(0);
-  ac = mknull();
+  ac = null_obj();
   for (i = 0; i < n; ++i) {
     *--hp = ac; /* cdr */
     *--hp = v;  /* car */
@@ -1026,10 +1027,10 @@ define_instruction(lpair) {
 }
 
 define_instruction(lrev) {
-  obj l = ac, o = mknull(); int n = 0;
+  obj l = ac, o = null_obj(); int n = 0;
   while (ispair(ac)) { ac = cdr(ac); ++n; }
   hp_reserve(pairbsz()*n);
-  for (ac = l; ac != mknull(); ac = cdr(ac)) { 
+  for (ac = l; ac != null_obj(); ac = cdr(ac)) { 
     *--hp = o; *--hp = car(ac);
     o = hend_pair(); 
   }
@@ -1038,14 +1039,14 @@ define_instruction(lrev) {
 }
 
 define_instruction(lrevi) {
-  obj t, v = mknull();
+  obj t, v = null_obj();
   while (ispair(ac)) t = cdr(ac), cdr(ac) = v, v = ac, ac = t;
   ac = v;
   gonexti();
 }
 
 define_instruction(charp) {
-  ac = bool_obj(ischar(ac));
+  ac = bool_obj(is_char_obj(ac));
   gonexti();
 }
 
@@ -1178,7 +1179,7 @@ define_instruction(vcat) {
 }
 
 define_instruction(vtol) {
-  obj l = mknull(); int n;
+  obj l = null_obj(); int n;
   ckv(ac); n = vectorlen(ac);
   hp_reserve(pairbsz()*n);
   while (n > 0) {
@@ -1200,7 +1201,7 @@ define_instruction(ltov) {
 }
 
 define_instruction(stol) {
-  obj l = mknull(); int n;
+  obj l = null_obj(); int n;
   cks(ac); n = stringlen(ac);
   hp_reserve(pairbsz()*n);
   while (n > 0) {
@@ -2885,10 +2886,10 @@ define_instruction(rdsc) {
 
 define_instruction(litf) { ac = bool_obj(0); gonexti(); }  
 define_instruction(litt) { ac = bool_obj(1); gonexti(); }  
-define_instruction(litn) { ac = mknull(); gonexti(); }  
+define_instruction(litn) { ac = null_obj(); gonexti(); }  
 define_instruction(pushlitf) { ac = bool_obj(0); spush(ac); gonexti(); }  
 define_instruction(pushlitt) { ac = bool_obj(1); spush(ac); gonexti(); }  
-define_instruction(pushlitn) { ac = mknull(); spush(ac); gonexti(); }  
+define_instruction(pushlitn) { ac = null_obj(); spush(ac); gonexti(); }  
 
 define_instruction(lit0) { ac = fixnum_obj(0); gonexti(); }  
 define_instruction(lit1) { ac = fixnum_obj(1); gonexti(); }  
