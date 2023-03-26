@@ -265,6 +265,8 @@
 ; (fxsll x y)
 ; (fxsrl x y)
 ; (fixnum->flonum x)
+; (fixnum->string x (radix 10))
+; (string->fixnum s (radix 10))
 
 ;fx-width
 ;fx-greatest
@@ -307,6 +309,14 @@
 ; (flceiling x)
 ; (fltruncate x)
 ; (flround x)
+; (flexp x)
+; (fllog x (base fl-e))
+; (flsin x)
+; (flcos x)
+; (fltan x)
+; (flasin x)
+; (flacos x)
+; (flatan (y) x)
 ; (fl<? x y z ...)
 ; (fl<=? x y z ...)
 ; (fl>? x y z ...)
@@ -316,8 +326,9 @@
 ; (flmin x y)
 ; (flmax x y)
 ; (flonum->fixnum x)
+; (flonum->string x)
+; (string->flonum s)
 
-;....
 
 ;---------------------------------------------------------------------------------------------
 ; Numbers (fixnums or flonums)
@@ -336,35 +347,43 @@
 ; (finite? x)
 ; (infinite? x)
 ; (nan? x)
+; (= x y z ...)
+; (< x y z ...)
+; (> x y z ...)
+; (<= x y z ...)
+; (>= x y z ...)
 ; (zero? x)
 ; (positive? x)
 ; (negative? x)
-; (even? x)
 ; (odd? x)
-; (min x y ...) 
+; (even? x)
 ; (max x y ...) 
+; (min x y ...) 
 ; (+ x ...)
 ; (* x ...)
 ; (- x y ...)
 ; (/ x y ...)
-; (< x y z ...)
-; (<= x y z ...)
-; (> x y z ...)
-; (>= x y z ...)
-; (= x y z ...)
 ; (abs x)
+; (floor-quotient x y)
+; (floor-remainder x y)
 ; (truncate-quotient x y)
 ; (truncate-remainder x y)
 ; (quotient x y) == truncate-quotient
 ; (remainder x y) == truncate-remainder
-; (floor-quotient x y)
-; (floor-remainder x y)
-; (modulo x y) = floor-remainder
+; (modulo x y) == floor-remainder
 ; (gcd x y)
 ; (floor x)
 ; (ceiling x)
 ; (truncate x)
 ; (round x)
+; (exp x)
+; (log x (base fl-e))
+; (sin x)
+; (cos x)
+; (tan x)
+; (asin x)
+; (acos x)
+; (atan (y) x)
 ; (sqrt x)
 ; (expt x y)
 ; (inexact x)
@@ -391,24 +410,27 @@
 
 (define (rationalize n d) n)
 
-;exp
-;log 1-and-2-arg
-;sin
-;cos
-;tan
-;asin
-;acos
-;atan 1-and-2-arg
-
 (define (square x) (* x x))
 
-;exact-integer-sqrt
-;make-rectangular
-;make-polar
-;real-part
-;imag-part
-;magnitude
-;angle
+(define (exact-integer-sqrt x)
+  (let ([r (fxsqrt x)])
+    (values r (- x (* r r)))))
+
+(define (make-rectangular r i)
+  (if (= i 0) r (error "make-rectangular: nonzero imag part not supported" i)))
+
+(inline (make-polar m a)
+  (cond [(= a 0) m]
+        [(= a 3.141592653589793238462643) (- m)]
+        [else (error "make-polar: angle not supported" a)]))
+
+(define-inline (real-part x) x)
+
+(define-inline (imag-part x) 0)
+
+(define-inline (magnitude x) (abs x))
+
+(define-inline (angle x) (if (negative? x) 3.141592653589793238462643 0))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -419,6 +441,7 @@
 ;
 ; (boolean? x)
 ; (not x)
+; (boolean=? x y z ...)
 
 
 ;---------------------------------------------------------------------------------------------
@@ -429,12 +452,14 @@
 ;
 ; (null? x)
 ; (pair? x)
-; (car x)
-; (set-car! x v)
-; (cdr x)
-; (set-cdr! x v)
-; (caar x) ... (cddddr x)
 ; (cons x y)
+; (car p)
+; (cdr p)
+; (set-car! p v)
+; (set-cdr! p v)
+; (caar p)
+; ...
+; (cddddr p)
 
 
 ;---------------------------------------------------------------------------------------------
@@ -449,17 +474,17 @@
 ; (length l)
 ; (list-ref l i)
 ; (list-set! l i x)
-; (list-cat l1 l2)
+; (list-cat l1 l2)  + 2-arg append
 ; (memq v l)
 ; (memv v l)  ; TODO: make sure memv checks list
-; (meme v l)  ; TODO: make sure meme checks list
-; (assq v y)
+; (meme v l)  + 2-arg member; TODO: make sure meme checks list
+; (assq v y)   
 ; (assv v y) ; TODO: make sure assv checks list
-; (asse v y) ; TODO: make sure asse checks list
+; (asse v y) + 2-arg assoc; TODO: make sure asse checks list
 ; (list-tail l i)
 ; (last-pair l)
 ; (reverse l)
-; (reverse! l)
+; (reverse! l) +
 
 (define (%append . args)
   (let loop ([args args])
@@ -524,6 +549,8 @@
 
 (define-syntax cons* list*)
 
+;list-copy
+
 
 ;---------------------------------------------------------------------------------------------
 ; Symbols
@@ -534,6 +561,7 @@
 ; (symbol? x)
 ; (symbol->string y)
 ; (string->symbol s)
+; (symbol=? x y z ...)
 
 
 ;---------------------------------------------------------------------------------------------
@@ -543,13 +571,13 @@
 ; integrables:
 ;
 ; (char? x)
-; (char-cmp c1 c2)
+; (char-cmp c1 c2) +
 ; (char=? c1 c2 c ...)
 ; (char<? c1 c2 c ...)
 ; (char>? c1 c2 c ...)
 ; (char<=? c1 c2 c ...)
 ; (char>=? c1 c2 c ...)
-; (char-ci-cmp c1 c2)
+; (char-ci-cmp c1 c2) +
 ; (char-ci=? c1 c2 c ...)
 ; (char-ci<? c1 c2 c ...)
 ; (char-ci>? c1 c2 c ...)
@@ -562,11 +590,10 @@
 ; (char-lower-case? c)
 ; (char-upcase c)
 ; (char-downcase c)
+; (char-foldcase c)
+; (digit-value c)
 ; (char->integer c) 
 ; (integer->char n)
-
-;char-foldcase
-;digit-value
 
 
 ;---------------------------------------------------------------------------------------------
@@ -582,16 +609,16 @@
 ; (string-ref x i)
 ; (string-set! x i v)
 ; (list->string l)
-; (%string->list1 s)
-; (string-cat s1 s2)
+; (%string->list1 s) + 
+; (string-cat s1 s2) +
 ; (substring s from to)
-; (string-cmp s1 s2)
+; (string-cmp s1 s2) +
 ; (string=? s1 s2 s ...)
 ; (string<? s1 s2 s ...)
 ; (string>? s1 s2 s ...)
 ; (string<=? s1 s2 s ...)
 ; (string>=? s1 s2 s ...)
-; (string-ci-cmp s1 s2)
+; (string-ci-cmp s1 s2) +
 ; (string-ci=? s1 s2 s ...)
 ; (string-ci<? s1 s2 s ...)
 ; (string-ci>? s1 s2 s ...)
@@ -683,7 +710,6 @@
     [(_ . r) (%string-append . r)]
     [_ %string-append]))
 
-
 ;string-upcase
 ;string-downcase
 ;string-foldcase
@@ -701,9 +727,9 @@
 ; (vector-length v)
 ; (vector-ref v i)
 ; (vector-set! v i x)
-; (%vector->list1 v)
+; (%vector->list1 v) +
 ; (list->vector l)
-; (vector-cat v1 v2)
+; (vector-cat v1 v2) +
 
 (define (subvector->list vec start end)
   (let loop ([i (fx- end 1)] [l '()])
@@ -797,17 +823,10 @@
 
 
 ;---------------------------------------------------------------------------------------------
-; Conversions
+; Bytevectors
 ;---------------------------------------------------------------------------------------------
 
-; integrables:
-;
-; (fixnum->string x (r 10))
-; (string->fixnum s (r 10))
-; (flonum->string x)
-; (string->flonum s)
-; (number->string x (r 10))
-; (string->number s (r 10))
+;TBD
 
 
 ;---------------------------------------------------------------------------------------------

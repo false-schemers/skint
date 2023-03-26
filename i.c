@@ -2526,6 +2526,24 @@ define_instruction(cdnc) {
   gonexti(); 
 }
 
+define_instruction(cflc) {
+  ckc(ac);
+  ac = obj_from_char(tolower(char_from_obj(ac))); /* stub */
+  gonexti(); 
+}
+
+define_instruction(cdgv) {
+  int ch; ckc(ac);
+  ch = char_from_obj(ac);
+  if (likely('0' <= ch && ch <= '9')) ac = obj_from_fixnum(ch - '0');  
+  /* R7RS won't allow hex and any larger radix digits
+  else if (likely('a' <= ch && ch <= 'z')) ac = obj_from_fixnum(10 + ch - 'a');  
+  else if (likely('A' <= ch && ch <= 'Z')) ac = obj_from_fixnum(10 + ch - 'A'); */
+  else ac = obj_from_bool(0);
+  gonexti(); 
+}
+
+
 define_instruction(scmp) {
   obj x = ac, y = spop(); int cmp; cks(x); cks(y);
   cmp = strcmp(stringchars(x), stringchars(y));
