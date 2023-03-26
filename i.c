@@ -2015,7 +2015,7 @@ define_instruction(div) {
     long i; double d;
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
     if (fxifdv(get_fixnum_unchecked(x), get_fixnum_unchecked(y), &i, &d)) ac = fixnum_obj(i);
-    else flonum_obj(d);
+    else ac = flonum_obj(d);
   } else {
     double dx, dy;
     if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
