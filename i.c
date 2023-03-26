@@ -1192,6 +1192,23 @@ define_instruction(bput) {
   gonexti();
 }
 
+define_instruction(bsub) {
+  obj x = spop(), y = spop(); int is, ie, *d; 
+  ckb(ac); ckk(x); ckk(y); 
+  is = fixnum_from_obj(x), ie = fixnum_from_obj(y);
+  if (is > ie) failtype(x, "valid start bytevector index");
+  if (ie > bytevectorlen(ac)) failtype(y, "valid end bytevector index");
+  d = subbytevector(bytevectordata(ac), is, ie);
+  ac = bytevector_obj(d);
+  gonexti();
+}
+
+define_instruction(beq) {
+  obj x = ac, y = spop(); ckb(x); ckb(y);
+  ac = bool_obj(bytevectoreq(bytevectordata(x), bytevectordata(y)));
+  gonexti(); 
+}
+
 
 define_instruction(vecp) {
   ac = bool_obj(isvector(ac));

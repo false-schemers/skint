@@ -832,10 +832,66 @@
 ; (bytevector-length b)
 ; (bytevector-u8-ref b i)
 ; (bytevector-u8-set! b i u8)
+; (list->bytevector l)
+; (subbytevector b from to)
+; (bytevector=? b1 b2 b ...)
 
-;bytevector-copy
-;bytevector-copy!
-;bytevector-append
+(define (subbytevector->list bvec start end)
+  (let loop ([i (fx- end 1)] [l '()])
+    (if (fx<? i start) l (loop (fx- i 1) (cons (bytevector-u8-ref bvec i) l)))))
+
+(define bytevector->list
+  (case-lambda
+     [(bvec) (subbytevector->list bvec 0 (bytevector-length bvec))]
+     [(bvec start) (subbytevector->list bvec start (bytevector-length bvec))]
+     [(bvec start end) (subbytevector->list bvec start end)]))
+
+(define (subbytevector-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (bytevector-length to) at)))])
+    (if (fx<=? at start)
+        (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+          [(fx>=? j limit)]
+          (bytevector-u8-set! to i (bytevector-u8-ref from j)))
+        (do ([i (fx+ at (fx- end start 1)) (fx- i 1)] [j (fx- limit 1) (fx- j 1)])
+          [(fx<? j start)]
+          (bytevector-u8-set! to i (bytevector-u8-ref from j))))))
+
+(define bytevector-copy!
+  (case-lambda
+     [(to at from) (subbytevector-copy! to at from 0 (bytevector-length from))]
+     [(to at from start) (subbytevector-copy! to at from start (bytevector-length from))]
+     [(to at from start end) (subbytevector-copy! to at from start end)]))
+
+(define bytevector-copy
+  (case-lambda
+     [(bvec) (subbytevector bvec 0 (bytevector-length bvec))]
+     [(bvec start) (subbytevector bvec start (bytevector-length bvec))]
+     [(bvec start end) (subbytevector bvec start end)]))
+
+(define (subbytevector-fill! bvec b start end)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (bytevector-u8-set! bvec i b)))
+
+(define bytevector-fill!
+  (case-lambda
+     [(bvec b) (subbytevector-fill! bvec b 0 (bytevector-length bvec))]
+     [(bvec b start) (subbytevector-fill! bvec b start (bytevector-length bvec))]
+     [(bvec b start end) (subbytevector-fill! bvec b start end)]))
+
+(define (%bytevectors-sum-length bvecs)
+  (let loop ([bvecs bvecs] [l 0])
+    (if (null? bvecs) l (loop (cdr bvecs) (fx+ l (bytevector-length (car bvecs)))))))
+
+(define (%bytevectors-copy-into! to bvecs)
+  (let loop ([bvecs bvecs] [i 0])
+    (if (null? bvecs) to
+        (let ([bvec (car bvecs)] [bvecs (cdr bvecs)])
+          (let ([len (bytevector-length bvec)])
+            (subbytevector-copy! to i bvec 0 len)
+            (loop bvecs (fx+ i len)))))))  
+
+(define (bytevector-append . bvecs)
+  (%bytevectors-copy-into! (make-bytevector (%bytevectors-sum-length bvecs)) bvecs))
+
 ;utf8->string
 ;string->utf8
 

@@ -426,6 +426,8 @@ declare_instruction(bmk,        "B2\0'0",       0,  "make-bytevector",     'b', 
 declare_instruction(blen,       "B3",           0,  "bytevector-length",   '1', AUTOGL)
 declare_instruction(bget,       "B4",           0,  "bytevector-u8-ref",   '2', AUTOGL)
 declare_instruction(bput,       "B5",           0,  "bytevector-u8-set!",  '3', AUTOGL)
+declare_instruction(bsub,       "B7",           0,  "subbytevector",       '3', AUTOGL)
+declare_instruction(beq,        "B=",           0,  "bytevector=?",        'c', AUTOGL)
 declare_instruction(vtol,       "X0",           0,  "%vector->list1",      '1', AUTOGL)
 declare_instruction(ltov,       "X1",           0,  "list->vector",        '1', AUTOGL)
 declare_instruction(stol,       "X2",           0,  "%string->list1",      '1', AUTOGL)
