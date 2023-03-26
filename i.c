@@ -1143,6 +1143,14 @@ define_instruction(ssub) {
   gonexti();
 }
 
+define_instruction(spos) {
+  obj x = ac, y = spop(); char *s, *p;
+  ckc(x); cks(y);
+  s = stringchars(y), p = strchr(s, char_from_obj(x));
+  ac = p ? fixnum_obj(p-s) : bool_obj(0);
+  gonexti();
+}
+
 
 define_instruction(bvecp) {
   ac = bool_obj(isbytevector(ac));

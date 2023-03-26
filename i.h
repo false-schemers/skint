@@ -403,6 +403,7 @@ declare_instruction(sget,       "S4",           0,  "string-ref",          '2', 
 declare_instruction(sput,       "S5",           0,  "string-set!",         '3', AUTOGL)
 declare_instruction(scat,       "S6",           0,  "string-cat",          '2', AUTOGL)
 declare_instruction(ssub,       "S7",           0,  "substring",           '3', AUTOGL)
+declare_instruction(spos,       "S8",           0,  "string-position",     '2', AUTOGL)
 declare_instruction(seq,        "S=",           0,  "string=?",            'c', AUTOGL)
 declare_instruction(slt,        "S<",           0,  "string<?",            'c', AUTOGL)
 declare_instruction(sgt,        "S>",           0,  "string>?",            'c', AUTOGL)
