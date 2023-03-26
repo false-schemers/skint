@@ -861,6 +861,8 @@
 
 (define-syntax call-with-current-continuation call/cc)
 
+;dynamic-wind
+
 (define (%map1 p l)
   (let loop ([l l] [r '()])
     (if (pair? l) 
@@ -943,6 +945,35 @@
       (let ([len (vector-length v)])
         (do ([i 0 (fx+ i 1)]) [(fx>=? i len)] (p (vector-ref v i))))
       (apply for-each p (map vector->list (cons v v*)))))
+
+
+;---------------------------------------------------------------------------------------------
+; Exceptions
+;---------------------------------------------------------------------------------------------
+
+;TBD:
+;
+;with-exception-handler
+;raise
+;raise-continuable
+;error
+;error-object?
+;error-object-message
+;error-object-irritants
+;read-error?
+;file-error?
+
+;---------------------------------------------------------------------------------------------
+; Environments and evaluation
+;---------------------------------------------------------------------------------------------
+
+;TBD:
+;
+;environment
+;scheme-report-environment
+;null-environment
+;interaction-environment
+;eval
 
 
 ;---------------------------------------------------------------------------------------------
