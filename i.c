@@ -3340,6 +3340,55 @@ define_instruction(pushsub) {
   gonexti(); 
 }
 
+define_instruction(fexis) {
+  FILE *f; cks(ac);
+  f = fopen(stringchars(ac), "r"); /* todo: pile #ifdefs here */
+  if (f != NULL) fclose(f);
+  ac = bool_obj(f != NULL);
+  gonexti(); 
+}
+
+define_instruction(frem) {
+  int res; cks(ac);
+  res = remove(stringchars(ac));
+  ac = bool_obj(res == 0);
+  gonexti(); 
+}
+
+define_instruction(fren) {
+  int res; cks(ac); cks(sref(0));
+  res = rename(stringchars(ac), stringchars(sref(0)));
+  spop();
+  ac = bool_obj(res == 0);
+  gonexti(); 
+}
+
+define_instruction(getenv) {
+  char *v; cks(ac);
+  v = getenv(stringchars(ac));
+  if (v) ac = string_obj(newstring(v));
+  else ac = bool_obj(0);
+  gonexti(); 
+}
+
+define_instruction(clock) {
+  double d = (double)clock();
+  ac = flonum_obj(d);
+  gonexti(); 
+}
+
+define_instruction(clops) {
+  double d = (double)CLOCKS_PER_SEC;
+  ac = flonum_obj(d);
+  gonexti(); 
+}
+
+define_instruction(cursec) {
+  double d = difftime(time(NULL), 0) + 37.0;
+  ac = flonum_obj(d);
+  gonexti(); 
+}
+
 
 #define VM_GEN_DEFGLOBAL
 #include "i.h"

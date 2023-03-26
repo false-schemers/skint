@@ -1511,15 +1511,16 @@
 ;---------------------------------------------------------------------------------------------
 
 ;load
-;file-exists?
-;delete-file
+; (file-exists? s)
+; (delete-file s)
+; (rename-file sold snew) +
 ;command-line
 ;exit
 ;emergency-exit
 ;get-environment-variable
 ;get-environment-variables
-;current-second
-;current-jiffy
-;jiffies-per-second
+; (current-second)
+; (current-jiffy)
+; (jiffies-per-second)
 ;features
 
