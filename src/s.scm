@@ -893,8 +893,29 @@
 (define (bytevector-append . bvecs)
   (%bytevectors-copy-into! (make-bytevector (%bytevectors-sum-length bvecs)) bvecs))
 
-;utf8->string
-;string->utf8
+(define (subutf8->string vec start end)
+  (let ([p (open-output-string)])
+    (write-subbytevector vec start end p)
+    ; todo: make a single operation: get-final-output-string (can reuse cbuf?)
+    (let ([s (get-output-string p)]) (close-output-port p) s)))
+
+(define utf8->string
+  (case-lambda
+    [(bvec) (subutf8->string bvec 0 (bytevector-length bvec))]
+    [(bvec start) (subutf8->string bvec start (bytevector-length bvec))]
+    [(bvec start end) (subutf8->string bvec start end)]))
+
+(define (substring->utf8 str start end)
+  (let ([p (open-output-bytevector)])
+    (write-substring str start end p)
+    ; todo: make a single operation: get-final-output-bytevector (can reuse cbuf?)
+    (let ([v (get-output-bytevector p)]) (close-output-port p) v)))
+
+(define string->utf8
+  (case-lambda
+    [(str) (substring->utf8 str 0 (string-length str))]
+    [(str start) (substring->utf8 str start (string-length str))]
+    [(str start end) (substring->utf8 str start end)]))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1060,18 +1081,25 @@
 ; (output-port? x)
 ; (input-port-open? p)
 ; (output-port-open? p)
-; (current-input-port)
-; (current-output-port)
-; (current-error-port)
-; (open-output-string)
+; (current-input-port)   ; need to be made into a parameter
+; (current-output-port)  ; need to be made into a parameter
+; (current-error-port)   ; need to be made into a parameter
 ; (open-input-file s)
+; (open-binary-input-file s)
 ; (open-output-file x)
-; (open-input-string x)
-; (close-input-port x)
-; (close-output-port x)
-; (get-output-string x)
+; (open-binary-output-file x)
+; (close-input-port p)
+; (close-output-port p)
+; (open-input-string s)
+; (open-output-string)
+; (get-output-string p)
+; (open-input-bytevector b)
+; (open-output-bytevector)
+; (get-output-bytevector p)
 
 (define (port? x) (or (input-port? x) (output-port? x)))
+(define textual-port? port?) ; all ports are bimodal
+(define binary-port? port?)  ; all ports are bimodal
 
 (define (close-port p)
   (if (input-port? p) (close-input-port p))
@@ -1089,11 +1117,6 @@
 
 ;with-input-from-file  -- requires parameterize
 ;with-output-to-file   -- requires parameterize
-;open-binary-input-file
-;open-binary-output-file
-;open-input-bytevector
-;open-output-bytevector
-;get-output-bytevector
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1105,6 +1128,9 @@
 ; (read-char (p (current-input-port)))
 ; (peek-char (p (current-input-port)))
 ; (char-ready? (p (current-input-port)))
+; (read-u8 (p (current-input-port)))
+; (peek-u8 (p (current-input-port)))
+; (u8-ready? (p (current-input-port)))
 ; (eof-object? x)
 ; (eof-object)
 
@@ -1147,11 +1173,30 @@
     [(k) (read-substring k (current-input-port))]
     [(k p) (read-substring k p)]))
 
-;read-u8
-;peek-u8
-;u8-ready?
-;read-bytevector
-;read-bytevector!
+(define (read-subbytevector! bvec start end p)
+  (let loop ([i start])
+    (if (fx>=? i end) (fx- i start)
+        (let ([u8 (read-u8 p)])
+          (cond [(eof-object? u8) (if (fx=? i start) u8 (fx- i start))]
+                [else (bytevector-u8-set! bvec i u8) (loop (fx+ i 1))])))))
+
+(define (read-subbytevector k p)
+  (let ([bvec (make-bytevector k)])
+    (let ([r (read-subbytevector! bvec 0 k p)])
+      (if (eof-object? r) r
+          (if (fx=? r k) bvec (subbytevector bvec 0 r))))))
+
+(define read-bytevector!
+  (case-lambda
+    [(bvec) (read-subbytevector! bvec 0 (bytevector-length bvec) (current-input-port))]
+    [(bvec p) (read-subbytevector! bvec 0 (bytevector-length bvec) p)]
+    [(bvec p start) (read-subbytevector! bvec start (bytevector-length bvec) p)]
+    [(bvec p start end) (read-subbytevector! bvec start end p)]))
+
+(define read-bytevector
+  (case-lambda
+    [(k) (read-subbytevector k (current-input-port))]
+    [(k p) (read-subbytevector k p)]))
 
 (define (%read port simple?)
   (define-syntax r-error
@@ -1496,14 +1541,36 @@
  
 ; integrables:
 ;
-; (write-char c (p (current-output-port)))
-; (write-string s (p (current-output-port)))
-; (display x (p (current-output-port)))
 ; (write x (p (current-output-port)))
-; (newline (p (current-output-port)))
 ; (write-shared x (p (current-output-port)))
 ; (write-simple x (p (current-output-port)))
-; (flush-output-port p)
+; (display x (p (current-output-port)))
+; (newline (p (current-output-port)))
+; (write-char c (p (current-output-port)))
+; (%write-string1 s p) +
+; (write-u8 u8 (p (current-output-port)))
+; (%write-bytevector1 b p) +
+; (flush-output-port (p (current-output-port)))
+
+(define (write-substring from start end p)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (write-char (string-ref from i) p)))
+
+(define write-string
+  (case-lambda
+    [(str) (%write-string1 str (current-output-port))]
+    [(str p) (%write-string1 str p)]
+    [(str p start) (write-substring str start (string-length str) p)]
+    [(str p start end) (write-substring str start end p)]))
+
+(define (write-subbytevector from start end p)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (write-u8 (bytevector-u8-ref from i) p)))
+
+(define write-bytevector
+  (case-lambda
+    [(bvec) (%write-bytevector1 bvec (current-output-port))]
+    [(bvec p) (%write-bytevector1 bvec p)]
+    [(bvec p start) (write-subbytevector bvec start (bytevector-length bvec) p)]
+    [(bvec p start end) (write-subbytevector bvec start end p)]))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1517,7 +1584,7 @@
 ;command-line
 ;exit
 ;emergency-exit
-;get-environment-variable
+;(get-environment-variable s)
 ;get-environment-variables
 ; (current-second)
 ; (current-jiffy)

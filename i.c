@@ -186,6 +186,7 @@ static void _sck(obj *s) {
 #define are_fixnums(o1, o2) are_fixnum_objs(o1, o2)
 #define get_fixnum(o) get_fixnum_unchecked(o)
 #define is_byte(o) is_byte_obj(o)
+#define byte_obj(x) obj_from_fixnum((unsigned char)(x))
 #define get_byte(o) ((unsigned char)get_fixnum_unchecked(o))
 #define flonum_obj(x) hp_pushptr(dupflonum(x), FLONUM_NTAG)
 #define is_flonum(o) is_flonum_obj(o)
@@ -205,6 +206,8 @@ static void _sck(obj *s) {
 #define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
 #define iport_string_obj(fp) hp_pushptr((fp), IPORT_STRING_NTAG)
 #define oport_string_obj(fp) hp_pushptr((fp), OPORT_STRING_NTAG)
+#define iport_bytevector_obj(fp) hp_pushptr((fp), IPORT_BYTEVECTOR_NTAG)
+#define oport_bytevector_obj(fp) hp_pushptr((fp), OPORT_BYTEVECTOR_NTAG)
 #define is_iport(o) isiport(o)
 #define is_oport(o) isoport(o)
 #define is_box(o) isbox(o)
@@ -2850,16 +2853,30 @@ define_instruction(opop) {
   gonexti();
 }
 
-define_instruction(otip) {
+define_instruction(oif) {
   FILE *fp = fopen(stringchars(ac), "r");
   if (fp == NULL) fail("can't open input file");
   ac = iport_file_obj(fp);
   gonexti();
 }
 
-define_instruction(otop) {
+define_instruction(oof) {
   FILE *fp = fopen(stringchars(ac), "w");
   if (fp == NULL) fail("can't open output file");
+  ac = oport_file_obj(fp);
+  gonexti();
+}
+
+define_instruction(obif) {
+  FILE *fp = fopen(stringchars(ac), "rb");
+  if (fp == NULL) fail("can't open binary input file");
+  ac = iport_file_obj(fp);
+  gonexti();
+}
+
+define_instruction(obof) {
+  FILE *fp = fopen(stringchars(ac), "wb");
+  if (fp == NULL) fail("can't open binary output file");
   ac = oport_file_obj(fp);
   gonexti();
 }
@@ -2873,6 +2890,19 @@ define_instruction(ois) {
 
 define_instruction(oos) {
   ac = oport_string_obj(newcb());
+  gonexti();
+}
+
+define_instruction(oib) {
+  int *d; unsigned char *p, *e; ckb(ac);
+  d = dupbytevector(bytevectordata(ac));
+  p = bvdatabytes(d), e = p + *d;
+  ac = iport_bytevector_obj(bvialloc(p, e, d));
+  gonexti();
+}
+
+define_instruction(oob) {
+  ac = oport_bytevector_obj(newcb());
   gonexti();
 }
 
@@ -2911,6 +2941,19 @@ define_instruction(gos) {
   gonexti();
 }
 
+define_instruction(gob) {
+  cxtype_oport_t *vt; ckw(ac);
+  vt = ckoportvt(ac);
+  if (vt != (cxtype_oport_t *)OPORT_BYTEVECTOR_NTAG &&
+      vt != (cxtype_oport_t *)OPORT_STRING_NTAG) {
+    ac = eof_obj();
+  } else {
+    cbuf_t *pcb = oportdata(ac);
+    int len = (int)(pcb->fill - pcb->buf);
+    ac = bytevector_obj(newbytevector((unsigned char *)pcb->buf, len));
+  }
+  gonexti();
+}
 
 define_instruction(rdc) {
   int c; ckr(ac);
@@ -2934,6 +2977,29 @@ define_instruction(rdcr) {
   gonexti();
 }
 
+define_instruction(rd8) {
+  int c; ckr(ac);
+  c = iportgetc(ac);
+  if (unlikely(c == EOF)) ac = eof_obj();
+  else ac = byte_obj(c);
+  gonexti();
+}
+
+define_instruction(rda8) {
+  int c; ckr(ac);
+  c = iportpeekc(ac);
+  if (unlikely(c == EOF)) ac = eof_obj();
+  else ac = byte_obj(c);
+  gonexti();
+}
+
+define_instruction(rd8r) {
+  ckr(ac);
+  ac = bool_obj(1); /* no portable way to detect hanging? */
+  gonexti();
+}
+
+
 define_instruction(eofp) {
   ac = bool_obj(is_eof(ac));
   gonexti();
@@ -2955,6 +3021,21 @@ define_instruction(wrc) {
 define_instruction(wrs) {
   obj x = ac, y = spop(); cks(x); ckw(y);
   oportputs(stringchars(x), y);
+  ac = void_obj();
+  gonexti();
+}
+
+define_instruction(wr8) {
+  obj x = ac, y = spop(); ck8(x); ckw(y);
+  oportputc(get_byte(x), y);
+  ac = void_obj();
+  gonexti();
+}
+
+define_instruction(wrb) {
+  obj x = ac, y = spop(); int *d; ckb(x); ckw(y);
+  d = bytevectordata(x);
+  oportwrite((char *)bvdatabytes(d), *d, y);
   ac = void_obj();
   gonexti();
 }
