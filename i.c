@@ -168,20 +168,48 @@ static void _sck(obj *s) {
 #define hp_pushptr(p, pt) \
   (hp_reserve_inline(2), *--hp = (obj)(p), *--hp = (obj)(pt), (obj)(hp+1))   
 
-/* small object representation extras */
+/* object representation extras */
 #define bool_obj(b) obj_from_bool(b)
+#define is_bool(o) is_bool_obj(o)
+#define get_bool(o) bool_from_obj(o)
 #define char_obj(b) obj_from_char(b)
+#define is_char(o) is_char_obj(o)
+#define get_char(o) char_from_obj(o)
 #define void_obj() obj_from_void(0)
+#define is_void(o) is_void_obj(o)
 #define null_obj() mknull()
+#define is_null(o) isnull(o)
 #define eof_obj() mkeof()
+#define is_eof(o) ((o) == mkeof())
 #define fixnum_obj(x) obj_from_fixnum(x)
+#define is_fixnum(o) is_fixnum_obj(o)
+#define are_fixnums(o1, o2) are_fixnum_objs(o1, o2)
+#define get_fixnum(o) get_fixnum_unchecked(o)
+#define is_byte(o) is_byte_obj(o)
+#define get_byte(o) ((unsigned char)get_fixnum_unchecked(o))
 #define flonum_obj(x) hp_pushptr(dupflonum(x), FLONUM_NTAG)
+#define is_flonum(o) is_flonum_obj(o)
+#define get_flonum(o) flonum_from_obj(o)
+#define is_symbol(o) issymbol(o)
+#define get_symbol(o) getsymbol(o)
+#define is_pair(o) ispair(o)
+#define pair_car(o) car(o)
+#define pair_cdr(o) cdr(o)
+#define is_list(o) islist(o)
+#define is_vector(o) isvector(o)
 #define string_obj(s) hp_pushptr((s), STRING_NTAG)
+#define is_string(o) isstring(o)
 #define bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
+#define is_bytevector(o) isbytevector(o)
 #define iport_file_obj(fp) hp_pushptr((fp), IPORT_FILE_NTAG)
 #define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
 #define iport_string_obj(fp) hp_pushptr((fp), IPORT_STRING_NTAG)
 #define oport_string_obj(fp) hp_pushptr((fp), OPORT_STRING_NTAG)
+#define is_iport(o) isiport(o)
+#define is_oport(o) isoport(o)
+#define is_box(o) isbox(o)
+#define is_proc(o) isvmclo(o)
+#define is_tuple(o) istuple(o)
 
 /* cxi instructions protocol; retval is new hp: */
 typedef obj* regcall (*ins_t)(IPARAMS);
@@ -395,8 +423,8 @@ jump:
   case 12: /* integrable-code */
     /* r[0] = clo, r[1] = k, r[2] = ig, r[3] = i */
     { assert(rc == 4);
-    if (isintegrable(r[2]) && is_fixnum_obj(r[3])) {
-      const char *cs = integrable_code(integrabledata(r[2]), fixnum_from_obj(r[3]));
+    if (isintegrable(r[2]) && is_fixnum(r[3])) {
+      const char *cs = integrable_code(integrabledata(r[2]), get_fixnum(r[3]));
       r[2] = cs ? hpushstr(3, newstring((char*)cs)) : obj_from_bool(0);
     } else r[2] = obj_from_bool(0);
     r[0] = r[1]; r[1] = obj_from_ktrap();
@@ -435,39 +463,39 @@ define_instrhelper(cxi_failactype) {
 #define failtype(x, msg) do { ac = (x); spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
 #define failactype(msg) do { spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
 
-#define ckp(x) do { obj _x = (x); if (unlikely(!ispair(_x))) \
+#define ckp(x) do { obj _x = (x); if (unlikely(!is_pair(_x))) \
   { ac = _x; spush((obj)"pair"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckl(x) do { obj _x = (x); if (unlikely(!islist(_x))) \
+#define ckl(x) do { obj _x = (x); if (unlikely(!is_list(_x))) \
   { ac = _x; spush((obj)"list"); musttail return cxi_failactype(IARGS); } } while (0)
-#define cku(x) do { obj _x = (x); if (unlikely(!isnull(_x))) \
+#define cku(x) do { obj _x = (x); if (unlikely(!is_null(_x))) \
   { ac = _x; spush((obj)"proper list"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckv(x) do { obj _x = (x); if (unlikely(!isvector(_x))) \
+#define ckv(x) do { obj _x = (x); if (unlikely(!is_vector(_x))) \
   { ac = _x; spush((obj)"vector"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckc(x) do { obj _x = (x); if (unlikely(!is_char_obj(_x))) \
+#define ckc(x) do { obj _x = (x); if (unlikely(!is_char(_x))) \
   { ac = _x; spush((obj)"char"); musttail return cxi_failactype(IARGS); } } while (0)
-#define cks(x) do { obj _x = (x); if (unlikely(!isstring(_x))) \
+#define cks(x) do { obj _x = (x); if (unlikely(!is_string(_x))) \
   { ac = _x; spush((obj)"string"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckb(x) do { obj _x = (x); if (unlikely(!isbytevector(_x))) \
+#define ckb(x) do { obj _x = (x); if (unlikely(!is_bytevector(_x))) \
   { ac = _x; spush((obj)"bytevector"); musttail return cxi_failactype(IARGS); } } while (0)
-#define cki(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x))) \
+#define cki(x) do { obj _x = (x); if (unlikely(!is_fixnum(_x))) \
   { ac = _x; spush((obj)"fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckj(x) do { obj _x = (x); if (unlikely(!is_flonum_obj(_x))) \
+#define ckj(x) do { obj _x = (x); if (unlikely(!is_flonum(_x))) \
   { ac = _x; spush((obj)"flonum"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckn(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x) && !is_flonum_obj(_x))) \
+#define ckn(x) do { obj _x = (x); if (unlikely(!is_fixnum(_x) && !is_flonum(_x))) \
   { ac = _x; spush((obj)"number"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckk(x) do { obj _x = (x); if (unlikely(!is_fixnum_obj(_x) || fixnum_from_obj(_x) < 0)) \
+#define ckk(x) do { obj _x = (x); if (unlikely(!is_fixnum(_x) || get_fixnum(_x) < 0)) \
   { ac = _x; spush((obj)"nonnegative fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ck8(x) do { obj _x = (x); if (unlikely(!is_byte_obj(_x))) \
+#define ck8(x) do { obj _x = (x); if (unlikely(!is_byte(_x))) \
   { ac = _x; spush((obj)"byte"); musttail return cxi_failactype(IARGS); } } while (0)
-#define cky(x) do { obj _x = (x); if (unlikely(!issymbol(_x))) \
+#define cky(x) do { obj _x = (x); if (unlikely(!is_symbol(_x))) \
   { ac = _x; spush((obj)"symbol"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckr(x) do { obj _x = (x); if (unlikely(!isiport(_x))) \
+#define ckr(x) do { obj _x = (x); if (unlikely(!is_iport(_x))) \
   { ac = _x; spush((obj)"input port"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckw(x) do { obj _x = (x); if (unlikely(!isoport(_x))) \
+#define ckw(x) do { obj _x = (x); if (unlikely(!is_oport(_x))) \
   { ac = _x; spush((obj)"output port"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckx(x) do { obj _x = (x); if (unlikely(!isvmclo(_x))) \
+#define ckx(x) do { obj _x = (x); if (unlikely(!is_proc(_x))) \
   { ac = _x; spush((obj)"procedure"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckz(x) do { obj _x = (x); if (unlikely(!isbox(_x))) \
+#define ckz(x) do { obj _x = (x); if (unlikely(!is_box(_x))) \
   { ac = _x; spush((obj)"box, cell, or promise"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckg(x) do { obj _x = (x); if (unlikely(!isintegrable(_x))) \
   { ac = _x; spush((obj)"integrable entry"); musttail return cxi_failactype(IARGS); } } while (0)
@@ -481,10 +509,10 @@ define_instruction(panic) {
   obj l, p; cks(ac); ckl(sref(0));
   p = oport_file_obj(stderr);  
   fprintf(stderr, "error: %s", stringchars(ac));
-  if (ispair(sref(0))) fputs(":\n", stderr); 
+  if (is_pair(sref(0))) fputs(":\n", stderr); 
   else fputs("\n", stderr);
-  for (l = sref(0); ispair(l); l = cdr(l)) {
-    oportputcircular(car(l), p, 0);
+  for (l = sref(0); is_pair(l); l = pair_cdr(l)) {
+    oportputcircular(pair_car(l), p, 0);
     fputc('\n', stderr);
   }
   sdrop(1);
@@ -499,13 +527,13 @@ define_instruction(lit) {
 }
 
 define_instruction(sref) {
-  int i = fixnum_from_obj(*ip++);
+  int i = get_fixnum(*ip++);
   ac = sref(i);
   gonexti();
 }  
 
 define_instruction(dref) {
-  int i = fixnum_from_obj(*ip++);
+  int i = get_fixnum(*ip++);
   ac = dref(i); 
   gonexti();
 }
@@ -527,7 +555,7 @@ define_instruction(iset) {
 }
 
 define_instruction(dclose) {
-  int i, n = fixnum_from_obj(*ip++), c = n+1; 
+  int i, n = get_fixnum(*ip++), c = n+1; 
   hp_reserve(vmclobsz(c));
   for (i = n-1; i >= 0; --i) *--hp = sref(i); /* display */
   *--hp = *ip++; /* code */
@@ -537,7 +565,7 @@ define_instruction(dclose) {
 }
 
 define_instruction(sbox) {
-  int i = fixnum_from_obj(*ip++); 
+  int i = get_fixnum(*ip++); 
   hp_reserve(boxbsz());
   *--hp = sref(i);  
   sref(i) = hend_box();
@@ -545,19 +573,19 @@ define_instruction(sbox) {
 }
 
 define_instruction(br) { 
-  int dx = fixnum_from_obj(*ip++); 
+  int dx = get_fixnum(*ip++); 
   ip += dx; 
   gonexti(); 
 }
 
 define_instruction(brt) { 
-  int dx = fixnum_from_obj(*ip++);
+  int dx = get_fixnum(*ip++);
   if (ac) ip += dx; 
   gonexti(); 
 }
 
 define_instruction(brnot) { 
-  int dx = fixnum_from_obj(*ip++);
+  int dx = get_fixnum(*ip++);
   if (!ac) ip += dx; 
   gonexti(); 
 }
@@ -573,13 +601,13 @@ define_instruction(andbo) {
 }
 
 define_instruction(sseti) {
-  int i = fixnum_from_obj(*ip++);
+  int i = get_fixnum(*ip++);
   boxref(sref(i)) = ac;
   gonexti();
 }
 
 define_instruction(dseti) {
-  int i = fixnum_from_obj(*ip++);
+  int i = get_fixnum(*ip++);
   boxref(dref(i)) = ac;
   gonexti();
 }
@@ -597,8 +625,8 @@ define_instruction(gset) {
 
 define_instruction(appl) {
   int n, i; obj l = spop(), t = l;
-  for (n = 0; ispair(t); t = cdr(t)) ++n; sgrow(n);
-  for (i = 0; i < n; ++i, l = cdr(l)) sref(i) = car(l);
+  for (n = 0; is_pair(t); t = pair_cdr(t)) ++n; sgrow(n);
+  for (i = 0; i < n; ++i, l = pair_cdr(l)) sref(i) = pair_car(l);
   ckx(ac); rd = ac; rx = fixnum_obj(0);
   ac = fixnum_obj(n); /* argc */
   callsubi();
@@ -647,7 +675,7 @@ define_instruction(sdmv) {
     retfromi();
   } else {
     /* can only pseudo-return to rcmv */
-    int n = fixnum_from_obj(ac), m = 3, i;
+    int n = get_fixnum(ac), m = 3, i;
     if (sref(n) == fixnum_obj(0) && sref(n+1) == cx_callmv_2Dadapter_2Dclosure) {
       /* tail-call the consumer with the produced values */
       rd = sref(n+2); rx = fixnum_obj(0); /* cns */
@@ -667,7 +695,7 @@ define_instruction(sdmv) {
 }
 
 define_instruction(lck) {
-  int m = fixnum_from_obj(*ip++);
+  int m = get_fixnum(*ip++);
   int n; cki(sref(m)); ckx(sref(m+1));
   n = (int)(sp-m-(r+VM_REGC));
   hp_reserve(vmclobsz(n+1));
@@ -722,7 +750,7 @@ define_instruction(rck) {
     ac = rd; 
     goi(wckr);
   } else { /* multiple results case */
-    int c = fixnum_from_obj(ac), n = vmclolen(rd) - 1, i;
+    int c = get_fixnum(ac), n = vmclolen(rd) - 1, i;
     obj *ks = &vmcloref(rd, 1), *ke = ks + n;
     if (ke-ks > 3 && *--ke == fixnum_obj(0) && *--ke == cx_callmv_2Dadapter_2Dclosure) {
       obj *sb = r + VM_REGC;
@@ -745,7 +773,7 @@ define_instruction(rck) {
 }
 
 define_instruction(save) {
-  int dx = fixnum_from_obj(*ip++); 
+  int dx = get_fixnum(*ip++); 
   spush(rd);
   spush(fixnum_obj(ip + dx - &vectorref(vmcloref(rd, 0), 0)));  
   gonexti();
@@ -756,7 +784,7 @@ define_instruction(push) { spush(ac); gonexti(); }
 define_instruction(jdceq) {
   obj v = *ip++, i = *ip++;
   if (ac == v) {
-    rd = dref(fixnum_from_obj(i));
+    rd = dref(get_fixnum(i));
     rx = fixnum_obj(0);
     callsubi();
   }
@@ -766,7 +794,7 @@ define_instruction(jdceq) {
 define_instruction(jdcge) {
   obj v = *ip++, i = *ip++;
   if (ac >= v) { /* unsigned tagged fixnums can be compared as-is */
-    rd = dref(fixnum_from_obj(i));
+    rd = dref(get_fixnum(i));
     rx = fixnum_obj(0);
     callsubi();
   }
@@ -774,21 +802,21 @@ define_instruction(jdcge) {
 }
 
 define_instruction(jdref) {
-  int i = fixnum_from_obj(*ip++); 
+  int i = get_fixnum(*ip++); 
   rd = dref(i); 
   rx = fixnum_obj(0);
   callsubi();
 }
 
 define_instruction(call) {
-  int n = fixnum_from_obj(*ip++); 
+  int n = get_fixnum(*ip++); 
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n); /* argc */
   callsubi();
 }
 
 define_instruction(scall) {
-  int m = fixnum_from_obj(*ip++), n = fixnum_from_obj(*ip++);
+  int m = get_fixnum(*ip++), n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n); /* argc */
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
@@ -803,7 +831,7 @@ define_instruction(return) {
 }
 
 define_instruction(sreturn) {
-  int n = fixnum_from_obj(*ip++); 
+  int n = get_fixnum(*ip++); 
   sdrop(n);
   rx = spop();
   rd = spop();
@@ -811,7 +839,7 @@ define_instruction(sreturn) {
 }
 
 define_instruction(adrop) {
-  int n = fixnum_from_obj(*ip++); 
+  int n = get_fixnum(*ip++); 
   sdrop(n);
   gonexti();
 }
@@ -828,7 +856,7 @@ define_instruction(atest) {
 }
 
 define_instruction(shrarg) {
-  int n = fixnum_from_obj(*ip++), c = fixnum_from_obj(ac), m = c-n; 
+  int n = get_fixnum(*ip++), c = get_fixnum(ac), m = c-n; 
   /* rest arg ends up on top */
   if (unlikely(m < 0)) {
     fail("argument count error on entry (not enough arguments)");
@@ -916,24 +944,24 @@ define_instruction(box) {
   gonexti();
 }
 
-define_instruction(car) { ckp(ac); ac = car(ac); gonexti(); }
-define_instruction(cdr) { ckp(ac); ac = cdr(ac); gonexti(); }
-define_instruction(setcar) { ckp(ac); car(ac) = spop(); gonexti(); }
-define_instruction(setcdr) { ckp(ac); cdr(ac) = spop(); gonexti(); }
+define_instruction(car) { ckp(ac); ac = pair_car(ac); gonexti(); }
+define_instruction(cdr) { ckp(ac); ac = pair_cdr(ac); gonexti(); }
+define_instruction(setcar) { ckp(ac); pair_car(ac) = spop(); gonexti(); }
+define_instruction(setcdr) { ckp(ac); pair_cdr(ac) = spop(); gonexti(); }
 
-define_instruction(caar) { ckp(ac); ac = car(ac); ckp(ac); ac = car(ac); gonexti(); }
-define_instruction(cadr) { ckp(ac); ac = cdr(ac); ckp(ac); ac = car(ac); gonexti(); }
-define_instruction(cdar) { ckp(ac); ac = car(ac); ckp(ac); ac = cdr(ac); gonexti(); }
-define_instruction(cddr) { ckp(ac); ac = cdr(ac); ckp(ac); ac = cdr(ac); gonexti(); }
+define_instruction(caar) { ckp(ac); ac = pair_car(ac); ckp(ac); ac = pair_car(ac); gonexti(); }
+define_instruction(cadr) { ckp(ac); ac = pair_cdr(ac); ckp(ac); ac = pair_car(ac); gonexti(); }
+define_instruction(cdar) { ckp(ac); ac = pair_car(ac); ckp(ac); ac = pair_cdr(ac); gonexti(); }
+define_instruction(cddr) { ckp(ac); ac = pair_cdr(ac); ckp(ac); ac = pair_cdr(ac); gonexti(); }
 
 
 define_instruction(nullp) {
-  ac = bool_obj(isnull(ac));
+  ac = bool_obj(is_null(ac));
   gonexti();
 }
 
 define_instruction(pairp) {
-  ac = bool_obj(ispair(ac));
+  ac = bool_obj(is_pair(ac));
   gonexti();
 }
 
@@ -946,12 +974,12 @@ define_instruction(cons) {
 }
 
 define_instruction(listp) {
-  ac = bool_obj(islist(ac));
+  ac = bool_obj(is_list(ac));
   gonexti();
 }
 
 define_instruction(list) {
-  int i, n = fixnum_from_obj(*ip++);
+  int i, n = get_fixnum(*ip++);
   hp_reserve(pairbsz()*n);
   for (ac = null_obj(), i = n-1; i >= 0; --i) {
     *--hp = ac;      /* cdr */
@@ -964,7 +992,7 @@ define_instruction(list) {
 
 define_instruction(lmk) {
   int i, n; obj v; ckk(ac);
-  n = fixnum_from_obj(ac); 
+  n = get_fixnum(ac); 
   hp_reserve(pairbsz()*n); v = sref(0);
   ac = null_obj();
   for (i = 0; i < n; ++i) {
@@ -978,32 +1006,32 @@ define_instruction(lmk) {
 
 define_instruction(llen) {
   int n = 0;
-  while (ispair(ac)) { ac = cdr(ac); ++n; }
+  while (is_pair(ac)) { ac = pair_cdr(ac); ++n; }
   ac = fixnum_obj(n);
   gonexti();
 }
 
 define_instruction(lget) {
   obj x = spop(); int c;
-  ckk(x); c = fixnum_from_obj(x);
-  while (c-- > 0) { ckp(ac); ac = cdr(ac); }
-  ckp(ac); ac = car(ac);
+  ckk(x); c = get_fixnum(x);
+  while (c-- > 0) { ckp(ac); ac = pair_cdr(ac); }
+  ckp(ac); ac = pair_car(ac);
   gonexti();
 }
 
 define_instruction(lput) {
   obj x = spop(); int c;
-  ckk(x); c = fixnum_from_obj(x);
-  while (c-- > 0) { ckp(ac); ac = cdr(ac); }
-  ckp(ac); car(ac) = spop();
+  ckk(x); c = get_fixnum(x);
+  while (c-- > 0) { ckp(ac); ac = pair_cdr(ac); }
+  ckp(ac); pair_car(ac) = spop();
   gonexti();
 }
 
 
 define_instruction(memq) {
   obj l = spop(); 
-  for (; ispair(l); l = cdr(l)) {
-    if (car(l) == ac) { ac = l; gonexti(); }
+  for (; is_pair(l); l = pair_cdr(l)) {
+    if (pair_car(l) == ac) { ac = l; gonexti(); }
   }
   ac = bool_obj(0);
   gonexti();
@@ -1021,8 +1049,8 @@ define_instruction(meme) {
 
 define_instruction(assq) {
   obj l = spop(); 
-  for (; ispair(l); l = cdr(l)) {
-    obj p = car(l); if (ispair(p) && car(p) == ac) { ac = p; gonexti(); }
+  for (; is_pair(l); l = pair_cdr(l)) {
+    obj p = pair_car(l); if (is_pair(p) && pair_car(p) == ac) { ac = p; gonexti(); }
   }
   ac = bool_obj(0);
   gonexti();
@@ -1040,24 +1068,24 @@ define_instruction(asse) {
 
 define_instruction(ltail) {
   obj x = spop(); int c;
-  ckk(x); c = fixnum_from_obj(x);
-  while (c-- > 0) { ckp(ac); ac = cdr(ac); }
+  ckk(x); c = get_fixnum(x);
+  while (c-- > 0) { ckp(ac); ac = pair_cdr(ac); }
   gonexti();
 }
 
 define_instruction(lpair) {
   obj l = bool_obj(0);
-  while (ispair(ac)) { l = ac; ac = cdr(ac); }
+  while (is_pair(ac)) { l = ac; ac = pair_cdr(ac); }
   ac = l;
   gonexti();
 }
 
 define_instruction(lrev) {
   obj l = ac, o = null_obj(); int n = 0;
-  while (ispair(ac)) { ac = cdr(ac); ++n; }
+  while (is_pair(ac)) { ac = pair_cdr(ac); ++n; }
   hp_reserve(pairbsz()*n);
-  for (ac = l; ac != null_obj(); ac = cdr(ac)) { 
-    *--hp = o; *--hp = car(ac);
+  for (ac = l; ac != null_obj(); ac = pair_cdr(ac)) { 
+    *--hp = o; *--hp = pair_car(ac);
     o = hend_pair(); 
   }
   ac = o;
@@ -1066,27 +1094,27 @@ define_instruction(lrev) {
 
 define_instruction(lrevi) {
   obj t, v = null_obj();
-  while (ispair(ac)) t = cdr(ac), cdr(ac) = v, v = ac, ac = t;
+  while (is_pair(ac)) t = pair_cdr(ac), pair_cdr(ac) = v, v = ac, ac = t;
   ac = v;
   gonexti();
 }
 
 define_instruction(charp) {
-  ac = bool_obj(is_char_obj(ac));
+  ac = bool_obj(is_char(ac));
   gonexti();
 }
 
 define_instruction(strp) {
-  ac = bool_obj(isstring(ac));
+  ac = bool_obj(is_string(ac));
   gonexti();
 }
 
 define_instruction(str) {
-  int i, n = fixnum_from_obj(*ip++);
+  int i, n = get_fixnum(*ip++);
   obj o = string_obj(allocstring(n, ' '));
   unsigned char *s = (unsigned char *)stringchars(o);
   for (i = 0; i < n; ++i) {
-    obj x = sref(i); ckc(x); s[i] = char_from_obj(x);
+    obj x = sref(i); ckc(x); s[i] = get_char(x);
   }
   sdrop(n); ac = o;
   gonexti();
@@ -1095,7 +1123,7 @@ define_instruction(str) {
 define_instruction(smk) {
   int n, c; obj x = spop(); 
   ckk(ac); ckc(x);
-  n = fixnum_from_obj(ac), c = char_from_obj(x);
+  n = get_fixnum(ac), c = get_char(x);
   ac = string_obj(allocstring(n, c)); 
   gonexti();
 }
@@ -1109,7 +1137,7 @@ define_instruction(slen) {
 define_instruction(sget) {
   obj x = spop(); int i; 
   cks(ac); ckk(x); 
-  i = fixnum_from_obj(x); 
+  i = get_fixnum(x); 
   if (i >= stringlen(ac)) failtype(x, "valid string index");
   ac = char_obj(*stringref(ac, i));
   gonexti();
@@ -1118,9 +1146,9 @@ define_instruction(sget) {
 define_instruction(sput) {
   obj x = spop(), y = spop(); int i; 
   cks(ac); ckk(x); ckc(y); 
-  i = fixnum_from_obj(x); 
+  i = get_fixnum(x); 
   if (i >= stringlen(ac)) failtype(x, "valid string index");
-  *stringref(ac, i) = char_from_obj(y);
+  *stringref(ac, i) = get_char(y);
   gonexti();
 }
 
@@ -1135,7 +1163,7 @@ define_instruction(scat) {
 define_instruction(ssub) {
   obj x = spop(), y = spop(); int is, ie, *d; 
   cks(ac); ckk(x); ckk(y); 
-  is = fixnum_from_obj(x), ie = fixnum_from_obj(y);
+  is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start string index");
   if (ie > stringlen(ac)) failtype(y, "valid end string index");
   d = substring(stringdata(ac), is, ie);
@@ -1146,19 +1174,19 @@ define_instruction(ssub) {
 define_instruction(spos) {
   obj x = ac, y = spop(); char *s, *p;
   ckc(x); cks(y);
-  s = stringchars(y), p = strchr(s, char_from_obj(x));
+  s = stringchars(y), p = strchr(s, get_char(x));
   ac = p ? fixnum_obj(p-s) : bool_obj(0);
   gonexti();
 }
 
 
 define_instruction(bvecp) {
-  ac = bool_obj(isbytevector(ac));
+  ac = bool_obj(is_bytevector(ac));
   gonexti();
 }
 
 define_instruction(bvec) {
-  int i, n = fixnum_from_obj(*ip++);
+  int i, n = get_fixnum(*ip++);
   obj o = bytevector_obj(allocbytevector(n, 0));
   unsigned char *s = (unsigned char *)bytevectorbytes(o);
   for (i = 0; i < n; ++i) {
@@ -1171,7 +1199,7 @@ define_instruction(bvec) {
 define_instruction(bmk) {
   int n, b; obj x = spop(); 
   ckk(ac); ck8(x);
-  n = fixnum_from_obj(ac), b = byte_from_obj(x);
+  n = get_fixnum(ac), b = byte_from_obj(x);
   ac = bytevector_obj(allocbytevector(n, b)); 
   gonexti();
 }
@@ -1185,7 +1213,7 @@ define_instruction(blen) {
 define_instruction(bget) {
   obj x = spop(); int i; 
   ckb(ac); ckk(x); 
-  i = fixnum_from_obj(x); 
+  i = get_fixnum(x); 
   if (i >= bytevectorlen(ac)) failtype(x, "valid bytevector index");
   ac = fixnum_obj(*bytevectorref(ac, i));
   gonexti();
@@ -1194,7 +1222,7 @@ define_instruction(bget) {
 define_instruction(bput) {
   obj x = spop(), y = spop(); int i; 
   ckb(ac); ckk(x); ck8(y); 
-  i = fixnum_from_obj(x); 
+  i = get_fixnum(x); 
   if (i >= bytevectorlen(ac)) failtype(x, "valid bytevector index");
   *bytevectorref(ac, i) = byte_from_obj(y);
   gonexti();
@@ -1203,7 +1231,7 @@ define_instruction(bput) {
 define_instruction(bsub) {
   obj x = spop(), y = spop(); int is, ie, *d; 
   ckb(ac); ckk(x); ckk(y); 
-  is = fixnum_from_obj(x), ie = fixnum_from_obj(y);
+  is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start bytevector index");
   if (ie > bytevectorlen(ac)) failtype(y, "valid end bytevector index");
   d = subbytevector(bytevectordata(ac), is, ie);
@@ -1219,12 +1247,12 @@ define_instruction(beq) {
 
 
 define_instruction(vecp) {
-  ac = bool_obj(isvector(ac));
+  ac = bool_obj(is_vector(ac));
   gonexti();
 }
 
 define_instruction(vec) {
-  int i, n = fixnum_from_obj(*ip++);
+  int i, n = get_fixnum(*ip++);
   hp_reserve(vecbsz(n));
   for (i = n-1; i >= 0; --i) *--hp = sref(i);
   ac = hend_vec(n);
@@ -1234,7 +1262,7 @@ define_instruction(vec) {
 
 define_instruction(vmk) {
   int i, n; obj v; ckk(ac);
-  n = fixnum_from_obj(ac); 
+  n = get_fixnum(ac); 
   hp_reserve(vecbsz(n)); v = sref(0);
   for (i = 0; i < n; ++i) *--hp = v;
   ac = hend_vec(n);
@@ -1251,7 +1279,7 @@ define_instruction(vlen) {
 define_instruction(vget) {
   obj x = spop(); int i; 
   ckv(ac); ckk(x); 
-  i = fixnum_from_obj(x);
+  i = get_fixnum(x);
   if (i >= vectorlen(ac)) failtype(x, "valid vector index");
   ac = vectorref(ac, i);
   gonexti();
@@ -1260,7 +1288,7 @@ define_instruction(vget) {
 define_instruction(vput) {
   obj x = spop(), y = spop(); int i; 
   ckv(ac); ckk(x);
-  i = fixnum_from_obj(x);
+  i = get_fixnum(x);
   if (i >= vectorlen(ac)) failtype(x, "valid vector index");
   vectorref(ac, i) = y;
   gonexti();
@@ -1294,21 +1322,21 @@ define_instruction(vtol) {
 
 define_instruction(ltov) {
   obj l = ac; int n = 0, i;
-  while (ispair(l)) { l = cdr(l); ++n; } cku(l);
+  while (is_pair(l)) { l = pair_cdr(l); ++n; } cku(l);
   hp_reserve(vecbsz(n));
-  for (l = ac, i = 0, hp -= n; i < n; ++i, l = cdr(l)) hp[i] = car(l);
+  for (l = ac, i = 0, hp -= n; i < n; ++i, l = pair_cdr(l)) hp[i] = pair_car(l);
   ac = hend_vec(n);
   gonexti();
 }
 
 define_instruction(ltob) {
   obj l = ac, o; int n = 0, i; unsigned char *s;
-  while (ispair(l)) { l = cdr(l); ++n; } cku(l);
+  while (is_pair(l)) { l = pair_cdr(l); ++n; } cku(l);
   o = bytevector_obj(allocbytevector(n, 0));
   s = bytevectorbytes(o);
-  for (i = 0, l = ac; i < n; ++i, l = cdr(l)) {
-    obj x = car(l); ck8(x);
-    s[i] = byte_from_obj(x);
+  for (i = 0, l = ac; i < n; ++i, l = pair_cdr(l)) {
+    obj x = pair_car(l); ck8(x);
+    s[i] = get_byte(x);
   } 
   ac = o;
   gonexti();
@@ -1329,17 +1357,17 @@ define_instruction(stol) {
 
 define_instruction(ltos) {
   obj l = ac; int n = 0, i, *d;
-  while (ispair(l)) { l = cdr(l); ++n; }
+  while (is_pair(l)) { l = pair_cdr(l); ++n; }
   d = allocstring(n, ' ');
-  for (i = 0; i < n; ac = cdr(ac), ++i)
-    sdatachars(d)[i] = char_from_obj(car(ac));
+  for (i = 0; i < n; ac = pair_cdr(ac), ++i)
+    sdatachars(d)[i] = get_char(pair_car(ac));
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(ytos) {
   cky(ac);
-  ac = string_obj(newstring(symbolname(getsymbol(ac))));
+  ac = string_obj(newstring(symbolname(get_symbol(ac))));
   gonexti();
 }
 
@@ -1353,7 +1381,7 @@ define_instruction(itos) {
   char buf[35], *s = buf + sizeof(buf) - 1; 
   int neg = 0; long num, radix;
   obj x = ac, y = spop(); cki(x); ckk(y);
-  num = fixnum_from_obj(x), radix = fixnum_from_obj(y);
+  num = get_fixnum(x), radix = get_fixnum(y);
   if (num < 0) { neg = 1; num = -num; }
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
   *s = 0;
@@ -1367,7 +1395,7 @@ define_instruction(itos) {
 define_instruction(stoi) {
   char *e, *s; long l, radix;
   obj x = ac, y = spop(); cks(x); ckk(y);
-  s = stringchars(x); radix = fixnum_from_obj(y);
+  s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
   if (s[0] == '#' && (s[1] == 'b' || s[1] == 'B')) s += 2, radix = 2;
   else if (s[0] == '#' && (s[1] == 'o' || s[1] == 'O')) s += 2, radix = 8;
@@ -1381,19 +1409,19 @@ define_instruction(stoi) {
 
 define_instruction(ctoi) {
   ckc(ac);
-  ac = fixnum_obj(char_from_obj(ac));
+  ac = fixnum_obj(get_char(ac));
   gonexti();
 }
 
 define_instruction(itoc) {
   cki(ac); /* TODO: range check? */
-  ac = char_obj(fixnum_from_obj(ac));
+  ac = char_obj(get_fixnum(ac));
   gonexti();
 }
 
 define_instruction(jtos) {
   char buf[30], *s; double d; ckj(ac);
-  d = flonum_from_obj(ac); sprintf(buf, "%.15g", d);
+  d = get_flonum(ac); sprintf(buf, "%.15g", d);
   for (s = buf; *s != 0; s++) if (strchr(".eE", *s)) break;
   if (d != d) strcpy(buf, "+nan.0"); else if (d <= -HUGE_VAL) strcpy(buf, "-inf.0");
   else if (d >= HUGE_VAL) strcpy(buf, "+inf.0"); else if (*s == 'E') *s = 'e'; 
@@ -1415,7 +1443,7 @@ define_instruction(stoj) {
 }
 
 define_instruction(ntos) {
-  if (is_fixnum_obj(ac)) goi(itos);
+  if (is_fixnum(ac)) goi(itos);
   if (unlikely(spop() != fixnum_obj(10))) fail("non-10 radix in flonum conversion");
   goi(jtos);
 }
@@ -1423,7 +1451,7 @@ define_instruction(ntos) {
 define_instruction(ston) {
   char *s; int radix; long l; double d;
   obj x = ac, y = spop(); cks(x); ckk(y);
-  s = stringchars(x); radix = fixnum_from_obj(y);
+  s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
   switch (strtofxfl(s, radix, &l, &d)) {
     case 'e': ac = fixnum_obj(l); break;
@@ -1446,200 +1474,200 @@ define_instruction(izerop) {
 
 define_instruction(iposp) {
   cki(ac);
-  ac = bool_obj(fixnum_from_obj(ac) > 0);
+  ac = bool_obj(get_fixnum(ac) > 0);
   gonexti(); 
 }
 
 define_instruction(inegp) {
   cki(ac);
-  ac = bool_obj(fixnum_from_obj(ac) < 0);
+  ac = bool_obj(get_fixnum(ac) < 0);
   gonexti(); 
 }
 
 define_instruction(ievnp) {
   cki(ac);
-  ac = bool_obj((fixnum_from_obj(ac) & 1) == 0);
+  ac = bool_obj((get_fixnum(ac) & 1) == 0);
   gonexti(); 
 }
 
 define_instruction(ioddp) {
   cki(ac);
-  ac = bool_obj((fixnum_from_obj(ac) & 1) != 0);
+  ac = bool_obj((get_fixnum(ac) & 1) != 0);
   gonexti(); 
 }
 
 define_instruction(iadd) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fxadd(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxadd(get_fixnum(x), get_fixnum(y)));
   gonexti(); 
 }
 
 define_instruction(isub) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fxsub(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxsub(get_fixnum(x), get_fixnum(y)));
   gonexti(); 
 }
 
 define_instruction(imul) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fxmul(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxmul(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(iquo) {
   obj x = ac, y = spop(); cki(x); cki(y);
   if (y == fixnum_obj(0)) fail("division by zero");
-  ac = fixnum_obj(fxquo(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxquo(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(irem) {
   obj x = ac, y = spop(); cki(x); cki(y);
   if (y == fixnum_obj(0)) fail("division by zero");
-  ac = fixnum_obj(fxrem(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxrem(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(imin) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_from_obj(x) < fixnum_from_obj(y) ? x : y;
+  ac = get_fixnum(x) < get_fixnum(y) ? x : y;
   gonexti(); 
 }
 
 define_instruction(imax) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_from_obj(x) > fixnum_from_obj(y) ? x : y;
+  ac = get_fixnum(x) > get_fixnum(y) ? x : y;
   gonexti(); 
 }
 
 define_instruction(ineg) {
   cki(ac);
-  ac = fixnum_obj(fxneg(fixnum_from_obj(ac)));
+  ac = fixnum_obj(fxneg(get_fixnum(ac)));
   gonexti();
 }
 
 define_instruction(iabs) {
   cki(ac);
-  ac = fixnum_obj(fxabs(fixnum_from_obj(ac)));
+  ac = fixnum_obj(fxabs(get_fixnum(ac)));
   gonexti();
 }
 
 define_instruction(itoj) {
   cki(ac);
-  ac = flonum_obj((double)fixnum_from_obj(ac));
+  ac = flonum_obj((double)get_fixnum(ac));
   gonexti();
 }
 
 define_instruction(idiv) {
   obj x = ac, y = spop(); cki(x); cki(y);
   if (y == fixnum_obj(0)) fail("division by zero");
-  ac = fixnum_obj(fxdiv(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxdiv(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(imqu) {
   obj x = ac, y = spop(); cki(x); cki(y);
   if (y == fixnum_obj(0)) fail("division by zero");
-  ac = fixnum_obj(fxmqu(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxmqu(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(imlo) {
   obj x = ac, y = spop(); cki(x); cki(y);
   if (y == fixnum_obj(0)) fail("division by zero");
-  ac = fixnum_obj(fxmlo(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxmlo(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(ieuq) {
   obj x = ac, y = spop(); cki(x); cki(y);
   if (y == fixnum_obj(0)) fail("division by zero");
-  ac = fixnum_obj(fxeuq(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxeuq(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(ieur) {
   obj x = ac, y = spop(); cki(x); cki(y);
   if (y == fixnum_obj(0)) fail("division by zero");
-  ac = fixnum_obj(fxeur(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxeur(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(igcd) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fxgcd(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxgcd(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(ipow) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fxpow(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxpow(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(isqrt) {
   cki(ac); /* TODO: check for negative */
-  ac = fixnum_obj(fxsqrt(fixnum_from_obj(ac)));
+  ac = fixnum_obj(fxsqrt(get_fixnum(ac)));
   gonexti();
 }
 
 define_instruction(inot) {
   cki(ac);
-  ac = fixnum_obj(~fixnum_from_obj(ac));
+  ac = fixnum_obj(~get_fixnum(ac));
   gonexti();
 }
 
 define_instruction(iand) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fixnum_from_obj(x) & fixnum_from_obj(y));
+  ac = fixnum_obj(get_fixnum(x) & get_fixnum(y));
   gonexti();
 }
 
 define_instruction(iior) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fixnum_from_obj(x) | fixnum_from_obj(y));
+  ac = fixnum_obj(get_fixnum(x) | get_fixnum(y));
   gonexti();
 }
 
 define_instruction(ixor) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fixnum_from_obj(x) ^ fixnum_from_obj(y));
+  ac = fixnum_obj(get_fixnum(x) ^ get_fixnum(y));
   gonexti();
 }
 
 define_instruction(iasl) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fxasl(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxasl(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(iasr) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fxasr(fixnum_from_obj(x), fixnum_from_obj(y)));
+  ac = fixnum_obj(fxasr(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
 define_instruction(ilt) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(fixnum_from_obj(x) < fixnum_from_obj(y));
+  ac = bool_obj(get_fixnum(x) < get_fixnum(y));
   gonexti(); 
 }
 
 define_instruction(igt) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(fixnum_from_obj(x) > fixnum_from_obj(y));
+  ac = bool_obj(get_fixnum(x) > get_fixnum(y));
   gonexti(); 
 }
 
 define_instruction(ile) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(fixnum_from_obj(x) <= fixnum_from_obj(y));
+  ac = bool_obj(get_fixnum(x) <= get_fixnum(y));
   gonexti(); 
 }
 
 define_instruction(ige) {
   obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(fixnum_from_obj(x) >= fixnum_from_obj(y));
+  ac = bool_obj(get_fixnum(x) >= get_fixnum(y));
   gonexti(); 
 }
 
@@ -1658,211 +1686,211 @@ define_instruction(ine) {
 
 define_instruction(jzerop) {
   ckj(ac);
-  ac = bool_obj(flonum_from_obj(ac) == 0.0);
+  ac = bool_obj(get_flonum(ac) == 0.0);
   gonexti();
 }
 
 define_instruction(jposp) {
   ckj(ac);
-  ac = bool_obj(flonum_from_obj(ac) > 0.0);
+  ac = bool_obj(get_flonum(ac) > 0.0);
   gonexti(); 
 }
 
 define_instruction(jnegp) {
   ckj(ac);
-  ac = bool_obj(flonum_from_obj(ac) < 0.0);
+  ac = bool_obj(get_flonum(ac) < 0.0);
   gonexti(); 
 }
 
 define_instruction(jevnp) {
   double f; ckj(ac);
-  f = flonum_from_obj(ac);
+  f = get_flonum(ac);
   ac = bool_obj(flisint(f / 2.0));
   gonexti(); 
 }
 
 define_instruction(joddp) {
   double f; ckj(ac);
-  f = flonum_from_obj(ac);
+  f = get_flonum(ac);
   ac = bool_obj(flisint((f + 1.0) / 2.0));
   gonexti(); 
 }
 
 define_instruction(jintp) {
   double f; ckj(ac);
-  f = flonum_from_obj(ac);
+  f = get_flonum(ac);
   ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL && f == floor(f));
   gonexti(); 
 }
 
 define_instruction(jnanp) {
   double f; ckj(ac);
-  f = flonum_from_obj(ac);
+  f = get_flonum(ac);
   ac = bool_obj(f != f);
   gonexti(); 
 }
 
 define_instruction(jfinp) {
   double f; ckj(ac);
-  f = flonum_from_obj(ac);
+  f = get_flonum(ac);
   ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
   gonexti(); 
 }
 
 define_instruction(jinfp) {
   double f; ckj(ac);
-  f = flonum_from_obj(ac);
+  f = get_flonum(ac);
   ac = bool_obj(f <= -HUGE_VAL || f >= HUGE_VAL);
   gonexti(); 
 }
 
 define_instruction(jadd) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flonum_from_obj(x) + flonum_from_obj(y));
+  ac = flonum_obj(get_flonum(x) + get_flonum(y));
   gonexti(); 
 }
 
 define_instruction(jsub) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flonum_from_obj(x) - flonum_from_obj(y));
+  ac = flonum_obj(get_flonum(x) - get_flonum(y));
   gonexti(); 
 }
 
 define_instruction(jmul) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flonum_from_obj(x) * flonum_from_obj(y));
+  ac = flonum_obj(get_flonum(x) * get_flonum(y));
   gonexti();
 }
 
 define_instruction(jdiv) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flonum_from_obj(x) / flonum_from_obj(y));
+  ac = flonum_obj(get_flonum(x) / get_flonum(y));
   gonexti();
 }
 
 define_instruction(jrem) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flrem(flonum_from_obj(x), flonum_from_obj(y)));
+  ac = flonum_obj(flrem(get_flonum(x), get_flonum(y)));
   gonexti();
 }
 
 define_instruction(jlt) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = bool_obj(flonum_from_obj(x) < flonum_from_obj(y));
+  ac = bool_obj(get_flonum(x) < get_flonum(y));
   gonexti(); 
 }
 
 define_instruction(jgt) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = bool_obj(flonum_from_obj(x) > flonum_from_obj(y));
+  ac = bool_obj(get_flonum(x) > get_flonum(y));
   gonexti(); 
 }
 
 define_instruction(jle) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = bool_obj(flonum_from_obj(x) <= flonum_from_obj(y));
+  ac = bool_obj(get_flonum(x) <= get_flonum(y));
   gonexti(); 
 }
 
 define_instruction(jge) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = bool_obj(flonum_from_obj(x) >= flonum_from_obj(y));
+  ac = bool_obj(get_flonum(x) >= get_flonum(y));
   gonexti(); 
 }
 
 define_instruction(jeq) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = bool_obj(flonum_from_obj(x) == flonum_from_obj(y));
+  ac = bool_obj(get_flonum(x) == get_flonum(y));
   gonexti(); 
 }
 
 define_instruction(jne) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = bool_obj(flonum_from_obj(x) != flonum_from_obj(y));
+  ac = bool_obj(get_flonum(x) != get_flonum(y));
   gonexti(); 
 }
 
 define_instruction(jmin) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_from_obj(x) < flonum_from_obj(y) ? x : y;
+  ac = get_flonum(x) < get_flonum(y) ? x : y;
   gonexti(); 
 }
 
 define_instruction(jmax) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_from_obj(x) > flonum_from_obj(y) ? x : y;
+  ac = get_flonum(x) > get_flonum(y) ? x : y;
   gonexti(); 
 }
 
 define_instruction(jneg) {
   ckj(ac);
-  ac = flonum_obj(-flonum_from_obj(ac));
+  ac = flonum_obj(-get_flonum(ac));
   gonexti(); 
 }
 
 define_instruction(jabs) {
   ckj(ac);
-  ac = flonum_obj(fabs(flonum_from_obj(ac)));
+  ac = flonum_obj(fabs(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jgcd) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flgcd(flonum_from_obj(x), flonum_from_obj(y)));
+  ac = flonum_obj(flgcd(get_flonum(x), get_flonum(y)));
   gonexti(); 
 }
 
 define_instruction(jpow) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(pow(flonum_from_obj(x), flonum_from_obj(y)));
+  ac = flonum_obj(pow(get_flonum(x), get_flonum(y)));
   gonexti(); 
 }
 
 define_instruction(jsqrt) {
   ckj(ac);
-  ac = flonum_obj(sqrt(flonum_from_obj(ac)));
+  ac = flonum_obj(sqrt(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jtoi) {
   ckj(ac);
-  ac = fixnum_obj(fxflo(flonum_from_obj(ac)));
+  ac = fixnum_obj(fxflo(get_flonum(ac)));
   gonexti();
 }
 
 define_instruction(jquo) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flquo(flonum_from_obj(x), flonum_from_obj(y)));
+  ac = flonum_obj(flquo(get_flonum(x), get_flonum(y)));
   gonexti(); 
 }
 
 define_instruction(jmqu) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flmqu(flonum_from_obj(x), flonum_from_obj(y)));
+  ac = flonum_obj(flmqu(get_flonum(x), get_flonum(y)));
   gonexti(); 
 }
 
 define_instruction(jmlo) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flmlo(flonum_from_obj(x), flonum_from_obj(y)));
+  ac = flonum_obj(flmlo(get_flonum(x), get_flonum(y)));
   gonexti(); 
 }
 
 define_instruction(jfloor) {
   ckj(ac);
-  ac = flonum_obj(floor(flonum_from_obj(ac)));
+  ac = flonum_obj(floor(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jceil) {
   ckj(ac);
-  ac = flonum_obj(ceil(flonum_from_obj(ac)));
+  ac = flonum_obj(ceil(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jtrunc) {
   double f, i; ckj(ac);
-  f = flonum_from_obj(ac);
+  f = get_flonum(ac);
   modf(f,  &i);
   ac = flonum_obj(i);
   gonexti(); 
@@ -1870,65 +1898,65 @@ define_instruction(jtrunc) {
 
 define_instruction(jround) {
   ckj(ac);
-  ac = flonum_obj(flround(flonum_from_obj(ac)));
+  ac = flonum_obj(flround(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jexp) {
   ckj(ac);
-  ac = flonum_obj(exp(flonum_from_obj(ac)));
+  ac = flonum_obj(exp(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jlog) {
   obj x = ac, y = spop(); ckj(ac);
   if (likely(!y)) {
-    ac = flonum_obj(log(flonum_from_obj(ac)));
+    ac = flonum_obj(log(get_flonum(ac)));
   } else {
-    double b; ckj(y); b = flonum_from_obj(y);
-    if (likely(b == 10.0)) ac = flonum_obj(log10(flonum_from_obj(ac)));
-    else ac = flonum_obj(log(flonum_from_obj(ac))/log(b));
+    double b; ckj(y); b = get_flonum(y);
+    if (likely(b == 10.0)) ac = flonum_obj(log10(get_flonum(ac)));
+    else ac = flonum_obj(log(get_flonum(ac))/log(b));
   }
   gonexti(); 
 }
 
 define_instruction(jsin) {
   ckj(ac);
-  ac = flonum_obj(sin(flonum_from_obj(ac)));
+  ac = flonum_obj(sin(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jcos) {
   ckj(ac);
-  ac = flonum_obj(cos(flonum_from_obj(ac)));
+  ac = flonum_obj(cos(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jtan) {
   ckj(ac);
-  ac = flonum_obj(tan(flonum_from_obj(ac)));
+  ac = flonum_obj(tan(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jasin) {
   ckj(ac);
-  ac = flonum_obj(asin(flonum_from_obj(ac)));
+  ac = flonum_obj(asin(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jacos) {
   ckj(ac);
-  ac = flonum_obj(acos(flonum_from_obj(ac)));
+  ac = flonum_obj(acos(get_flonum(ac)));
   gonexti(); 
 }
 
 define_instruction(jatan) {
   obj x = ac, y = spop(); ckj(ac);
   if (likely(!y)) {
-    ac = flonum_obj(atan(flonum_from_obj(x)));
+    ac = flonum_obj(atan(get_flonum(x)));
   } else {
     ckj(y); 
-    ac = flonum_obj(atan2(flonum_from_obj(x), flonum_from_obj(y)));
+    ac = flonum_obj(atan2(get_flonum(x), get_flonum(y)));
   }
   gonexti(); 
 }
@@ -1936,39 +1964,42 @@ define_instruction(jatan) {
 
 define_instruction(zerop) {
   obj x = ac;
-  if (likely(is_fixnum_obj(x))) {
+  if (likely(is_fixnum(x))) {
     ac = bool_obj(x == fixnum_obj(0));
-  } else if (likely(is_flonum_obj(x))) {
-    ac = bool_obj(flonum_from_obj(x) == 0.0);
+  } else if (likely(is_flonum(x))) {
+    ac = bool_obj(get_flonum(x) == 0.0);
   } else failactype("number");
   gonexti();
 }
 
 define_instruction(posp) {
-  if (likely(is_fixnum_obj(ac))) ac = bool_obj(get_fixnum_unchecked(ac) > 0);
-  else if (likely(is_flonum_obj(ac))) ac = bool_obj(flonum_from_obj(ac) > 0.0);
+  if (likely(is_fixnum(ac))) ac = bool_obj(get_fixnum(ac) > 0);
+  else if (likely(is_flonum(ac))) ac = bool_obj(get_flonum(ac) > 0.0);
   else failactype("number");
   gonexti(); 
 }
 
 define_instruction(negp) {
-  if (likely(is_fixnum_obj(ac))) ac = bool_obj(get_fixnum_unchecked(ac) < 0);
-  else if (likely(is_flonum_obj(ac))) ac = bool_obj(flonum_from_obj(ac) < 0.0);
+  if (likely(is_fixnum(ac))) ac = bool_obj(get_fixnum(ac) < 0);
+  else if (likely(is_flonum(ac))) ac = bool_obj(get_flonum(ac) < 0.0);
   else failactype("number");
   gonexti(); 
 }
 
 define_instruction(add) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = fixnum_obj(fxadd(get_fixnum_unchecked(x), get_fixnum_unchecked(y)));
+  if (likely(are_fixnums(x, y))) {
+    long lx = get_fixnum(x), ly = get_fixnum(y);   
+    long long llz = (long long)lx + (long long)ly;
+    if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
+    else ac = flonum_obj((double)lx + (double)ly);
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(dx + dy);
   }
@@ -1977,15 +2008,18 @@ define_instruction(add) {
 
 define_instruction(sub) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = fixnum_obj(fxsub(get_fixnum_unchecked(x), get_fixnum_unchecked(y)));
+  if (likely(are_fixnums(x, y))) {
+    long lx = get_fixnum(x), ly = get_fixnum(y);   
+    long long llz = (long long)lx - (long long)ly;
+    if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
+    else ac = flonum_obj((double)lx - (double)ly);
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(dx - dy);
   }
@@ -1994,15 +2028,18 @@ define_instruction(sub) {
 
 define_instruction(mul) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = fixnum_obj(fxmul(get_fixnum_unchecked(x), get_fixnum_unchecked(y)));
+  if (likely(are_fixnums(x, y))) {
+    long lx = get_fixnum(x), ly = get_fixnum(y);   
+    long long llz = (long long)lx * (long long)ly;
+    if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
+    else ac = flonum_obj((double)lx * (double)ly);
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(dx * dy);
   }
@@ -2011,18 +2048,20 @@ define_instruction(mul) {
 
 define_instruction(div) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    long i; double d;
+  if (likely(are_fixnums(x, y))) {
+    long lx, ly; long long llz, llr;
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
-    if (fxifdv(get_fixnum_unchecked(x), get_fixnum_unchecked(y), &i, &d)) ac = fixnum_obj(i);
-    else ac = flonum_obj(d);
+    lx = get_fixnum(x), ly = get_fixnum(y);   
+    llz = (long long)lx / (long long)ly, llr = (long long)lx % (long long)ly;
+    if (likely(!llr && llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
+    else ac = flonum_obj((double)lx / (double)ly);
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(dx / dy);
   }
@@ -2031,16 +2070,16 @@ define_instruction(div) {
 
 define_instruction(quo) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
+  if (likely(are_fixnums(x, y))) {
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
-    ac = fixnum_obj(fxquo(get_fixnum_unchecked(x), get_fixnum_unchecked(y)));
+    ac = fixnum_obj(fxquo(get_fixnum(x), get_fixnum(y)));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(flquo(dx, dy));
   }
@@ -2049,16 +2088,16 @@ define_instruction(quo) {
 
 define_instruction(rem) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
+  if (likely(are_fixnums(x, y))) {
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
-    ac = fixnum_obj(fxrem(get_fixnum_unchecked(x), get_fixnum_unchecked(y)));
+    ac = fixnum_obj(fxrem(get_fixnum(x), get_fixnum(y)));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(flrem(dx, dy));
   }
@@ -2067,16 +2106,16 @@ define_instruction(rem) {
 
 define_instruction(mqu) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
+  if (likely(are_fixnums(x, y))) {
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
-    ac = fixnum_obj(fxmqu(get_fixnum_unchecked(x), get_fixnum_unchecked(y)));
+    ac = fixnum_obj(fxmqu(get_fixnum(x), get_fixnum(y)));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(flmqu(dx, dy));
   }
@@ -2085,16 +2124,16 @@ define_instruction(mqu) {
 
 define_instruction(mlo) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
+  if (likely(are_fixnums(x, y))) {
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
-    ac = fixnum_obj(fxmlo(get_fixnum_unchecked(x), get_fixnum_unchecked(y)));
+    ac = fixnum_obj(fxmlo(get_fixnum(x), get_fixnum(y)));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(flmlo(dx, dy));
   }
@@ -2104,15 +2143,15 @@ define_instruction(mlo) {
 
 define_instruction(lt) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = bool_obj(get_fixnum_unchecked(x) < get_fixnum_unchecked(y));
+  if (likely(are_fixnums(x, y))) {
+    ac = bool_obj(get_fixnum(x) < get_fixnum(y));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx < dy);
   }
@@ -2121,15 +2160,15 @@ define_instruction(lt) {
 
 define_instruction(gt) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = bool_obj(get_fixnum_unchecked(x) > get_fixnum_unchecked(y));
+  if (likely(are_fixnums(x, y))) {
+    ac = bool_obj(get_fixnum(x) > get_fixnum(y));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx > dy);
   }
@@ -2138,15 +2177,15 @@ define_instruction(gt) {
 
 define_instruction(le) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = bool_obj(get_fixnum_unchecked(x) <= get_fixnum_unchecked(y));
+  if (likely(are_fixnums(x, y))) {
+    ac = bool_obj(get_fixnum(x) <= get_fixnum(y));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx <= dy);
   }
@@ -2155,15 +2194,15 @@ define_instruction(le) {
 
 define_instruction(ge) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = bool_obj(get_fixnum_unchecked(x) >= get_fixnum_unchecked(y));
+  if (likely(are_fixnums(x, y))) {
+    ac = bool_obj(get_fixnum(x) >= get_fixnum(y));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx >= dy);
   }
@@ -2173,13 +2212,13 @@ define_instruction(ge) {
 define_instruction(eq) {
   obj x = ac, y = spop();
   if (x == y) ac = bool_obj(1);
-  else if (is_flonum_obj(x) || is_flonum_obj(y)) {
+  else if (is_flonum(x) || is_flonum(y)) {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx == dy);
   } else ac = bool_obj(0);
@@ -2189,13 +2228,13 @@ define_instruction(eq) {
 define_instruction(ne) {
   obj x = ac, y = spop();
   if (x == y) ac = bool_obj(0);
-  else if (is_flonum_obj(x) || is_flonum_obj(y)) {
+  else if (is_flonum(x) || is_flonum(y)) {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx != dy);
   } else ac = bool_obj(1);
@@ -2204,15 +2243,15 @@ define_instruction(ne) {
 
 define_instruction(min) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = (get_fixnum_unchecked(x) < get_fixnum_unchecked(y)) ? x : y;
+  if (likely(are_fixnums(x, y))) {
+    ac = (get_fixnum(x) < get_fixnum(y)) ? x : y;
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = dx < dy ? flonum_obj(dx) : flonum_obj(dy);
   }
@@ -2221,15 +2260,15 @@ define_instruction(min) {
 
 define_instruction(max) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = (get_fixnum_unchecked(x) > get_fixnum_unchecked(y)) ? x : y;
+  if (likely(are_fixnums(x, y))) {
+    ac = (get_fixnum(x) > get_fixnum(y)) ? x : y;
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = dx > dy ? flonum_obj(dx) : flonum_obj(dy);
   }
@@ -2238,15 +2277,15 @@ define_instruction(max) {
 
 define_instruction(gcd) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = fixnum_obj(fxgcd(fixnum_from_obj(x), fixnum_from_obj(y)));
+  if (likely(are_fixnums(x, y))) {
+    ac = fixnum_obj(fxgcd(get_fixnum(x), get_fixnum(y)));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(flgcd(dx, dy));
   }
@@ -2255,16 +2294,16 @@ define_instruction(gcd) {
 
 define_instruction(pow) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
+  if (likely(are_fixnums(x, y))) {
     /* fixme: this will either overflow, or fail on negative y */
-    ac = fixnum_obj(fxpow(fixnum_from_obj(x), fixnum_from_obj(y)));
+    ac = fixnum_obj(fxpow(get_fixnum(x), get_fixnum(y)));
   } else {
     double dx, dy;
-    if (likely(is_flonum_obj(x))) dx = flonum_from_obj(x);
-    else if (likely(is_fixnum_obj(x))) dx = (double)fixnum_from_obj(x);
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
     else failtype(x, "number");
-    if (likely(is_flonum_obj(y))) dy = flonum_from_obj(y);
-    else if (likely(is_fixnum_obj(y))) dy = (double)fixnum_from_obj(y);
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = flonum_obj(pow(dx, dy));
   }
@@ -2272,10 +2311,10 @@ define_instruction(pow) {
 }
 
 define_instruction(sqrt) {
-  if (likely(is_flonum_obj(ac))) {
-    ac = flonum_obj(sqrt(flonum_from_obj(ac)));
-  } else if (likely(is_fixnum_obj(ac))) {
-    long x = fixnum_from_obj(ac), y;
+  if (likely(is_flonum(ac))) {
+    ac = flonum_obj(sqrt(get_flonum(ac)));
+  } else if (likely(is_fixnum(ac))) {
+    long x = get_fixnum(ac), y;
     if (x < 0) ac = flonum_obj((HUGE_VAL - HUGE_VAL));   
     else if (y = fxsqrt(x), y*y == x) ac = fixnum_obj(y);
     else ac = flonum_obj(sqrt((double)x));
@@ -2285,8 +2324,8 @@ define_instruction(sqrt) {
 
 define_instruction(exp) {
   double x;
-  if (unlikely(is_fixnum_obj(ac))) x = (double)fixnum_from_obj(ac);
-  else if (likely(is_flonum_obj(ac))) x = flonum_from_obj(ac);
+  if (unlikely(is_fixnum(ac))) x = (double)get_fixnum(ac);
+  else if (likely(is_flonum(ac))) x = get_flonum(ac);
   else failactype("number");
   ac = flonum_obj(exp(x));
   gonexti(); 
@@ -2294,8 +2333,8 @@ define_instruction(exp) {
 
 define_instruction(log) {
   double x; obj y = spop();
-  if (unlikely(is_fixnum_obj(ac))) x = (double)fixnum_from_obj(ac);
-  else if (likely(is_flonum_obj(ac))) x = flonum_from_obj(ac);
+  if (unlikely(is_fixnum(ac))) x = (double)get_fixnum(ac);
+  else if (likely(is_flonum(ac))) x = get_flonum(ac);
   else failactype("number");
   if (likely(!y)) {
     ac = flonum_obj(log(x));
@@ -2303,8 +2342,8 @@ define_instruction(log) {
     ac = flonum_obj(log10(x));
   } else {
     double b; 
-    if (unlikely(is_fixnum_obj(y))) b = (double)fixnum_from_obj(y);
-    else if (likely(is_flonum_obj(y))) b = flonum_from_obj(y);
+    if (unlikely(is_fixnum(y))) b = (double)get_fixnum(y);
+    else if (likely(is_flonum(y))) b = get_flonum(y);
     else failtype(y, "number");
     if (likely(b == 10.0)) ac = flonum_obj(log10(x));
     else ac = flonum_obj(log(x)/log(b));
@@ -2314,10 +2353,10 @@ define_instruction(log) {
 
 define_instruction(sin) {
   double x;
-  if (unlikely(is_fixnum_obj(ac))) {
-    x = (double)fixnum_from_obj(ac);
-  } else if (likely(is_flonum_obj(ac))) {
-    x = flonum_from_obj(ac);
+  if (unlikely(is_fixnum(ac))) {
+    x = (double)get_fixnum(ac);
+  } else if (likely(is_flonum(ac))) {
+    x = get_flonum(ac);
   } else failactype("number");
   ac = flonum_obj(sin(x));
   gonexti(); 
@@ -2325,10 +2364,10 @@ define_instruction(sin) {
 
 define_instruction(cos) {
   double x;
-  if (unlikely(is_fixnum_obj(ac))) {
-    x = (double)fixnum_from_obj(ac);
-  } else if (likely(is_flonum_obj(ac))) {
-    x = flonum_from_obj(ac);
+  if (unlikely(is_fixnum(ac))) {
+    x = (double)get_fixnum(ac);
+  } else if (likely(is_flonum(ac))) {
+    x = get_flonum(ac);
   } else failactype("number");
   ac = flonum_obj(cos(x));
   gonexti(); 
@@ -2336,10 +2375,10 @@ define_instruction(cos) {
 
 define_instruction(tan) {
   double x;
-  if (unlikely(is_fixnum_obj(ac))) {
-    x = (double)fixnum_from_obj(ac);
-  } else if (likely(is_flonum_obj(ac))) {
-    x = flonum_from_obj(ac);
+  if (unlikely(is_fixnum(ac))) {
+    x = (double)get_fixnum(ac);
+  } else if (likely(is_flonum(ac))) {
+    x = get_flonum(ac);
   } else failactype("number");
   ac = flonum_obj(tan(x));
   gonexti(); 
@@ -2347,10 +2386,10 @@ define_instruction(tan) {
 
 define_instruction(asin) {
   double x;
-  if (unlikely(is_fixnum_obj(ac))) {
-    x = (double)fixnum_from_obj(ac);
-  } else if (likely(is_flonum_obj(ac))) {
-    x = flonum_from_obj(ac);
+  if (unlikely(is_fixnum(ac))) {
+    x = (double)get_fixnum(ac);
+  } else if (likely(is_flonum(ac))) {
+    x = get_flonum(ac);
   } else failactype("number");
   ac = flonum_obj(asin(x));
   gonexti(); 
@@ -2358,10 +2397,10 @@ define_instruction(asin) {
 
 define_instruction(acos) {
   double x;
-  if (unlikely(is_fixnum_obj(ac))) {
-    x = (double)fixnum_from_obj(ac);
-  } else if (likely(is_flonum_obj(ac))) {
-    x = flonum_from_obj(ac);
+  if (unlikely(is_fixnum(ac))) {
+    x = (double)get_fixnum(ac);
+  } else if (likely(is_flonum(ac))) {
+    x = get_flonum(ac);
   } else failactype("number");
   ac = flonum_obj(acos(x));
   gonexti(); 
@@ -2369,15 +2408,15 @@ define_instruction(acos) {
 
 define_instruction(atan) {
   double x; obj y = spop();
-  if (unlikely(is_fixnum_obj(ac))) x = (double)fixnum_from_obj(ac);
-  else if (likely(is_flonum_obj(ac))) x = flonum_from_obj(ac);
+  if (unlikely(is_fixnum(ac))) x = (double)get_fixnum(ac);
+  else if (likely(is_flonum(ac))) x = get_flonum(ac);
   else failactype("number");
   if (likely(!y)) {
     ac = flonum_obj(atan(x));
   } else {
     double b; 
-    if (unlikely(is_fixnum_obj(y))) b = (double)fixnum_from_obj(y);
-    else if (likely(is_flonum_obj(y))) b = flonum_from_obj(y);
+    if (unlikely(is_fixnum(y))) b = (double)get_fixnum(y);
+    else if (likely(is_flonum(y))) b = get_flonum(y);
     else failtype(y, "number");
     ac = flonum_obj(atan2(x, b));
   }
@@ -2385,56 +2424,56 @@ define_instruction(atan) {
 }
 
 define_instruction(neg) {
-  if (likely(is_fixnum_obj(ac))) {
-    ac = fixnum_obj(-fixnum_from_obj(ac));
-  } else if (likely(is_flonum_obj(ac))) {
-    ac = flonum_obj(-flonum_from_obj(ac));
+  if (likely(is_fixnum(ac))) {
+    ac = fixnum_obj(-get_fixnum(ac));
+  } else if (likely(is_flonum(ac))) {
+    ac = flonum_obj(-get_flonum(ac));
   } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(abs) {
-  if (likely(is_fixnum_obj(ac))) {
-    ac = fixnum_obj(fxabs(fixnum_from_obj(ac)));
-  } else if (likely(is_flonum_obj(ac))) {
-    ac = flonum_obj(fabs(flonum_from_obj(ac)));
+  if (likely(is_fixnum(ac))) {
+    ac = fixnum_obj(fxabs(get_fixnum(ac)));
+  } else if (likely(is_flonum(ac))) {
+    ac = flonum_obj(fabs(get_flonum(ac)));
   } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(floor) {
-  if (likely(is_flonum_obj(ac))) {
-    ac = flonum_obj(floor(flonum_from_obj(ac)));
-  } else if (unlikely(!is_fixnum_obj(ac))) {
+  if (likely(is_flonum(ac))) {
+    ac = flonum_obj(floor(get_flonum(ac)));
+  } else if (unlikely(!is_fixnum(ac))) {
     failactype("number");
   }
   gonexti(); 
 }
 
 define_instruction(ceil) {
-  if (likely(is_flonum_obj(ac))) {
-    ac = flonum_obj(ceil(flonum_from_obj(ac)));
-  } else if (unlikely(!is_fixnum_obj(ac))) {
+  if (likely(is_flonum(ac))) {
+    ac = flonum_obj(ceil(get_flonum(ac)));
+  } else if (unlikely(!is_fixnum(ac))) {
     failactype("number");
   }
   gonexti(); 
 }
 
 define_instruction(trunc) {
-  if (likely(is_flonum_obj(ac))) {
-    double x = flonum_from_obj(ac);
+  if (likely(is_flonum(ac))) {
+    double x = get_flonum(ac);
     double i; modf(x,  &i);
     ac = flonum_obj(i);
-  } else if (unlikely(!is_fixnum_obj(ac))) {
+  } else if (unlikely(!is_fixnum(ac))) {
     failactype("number");
   }
   gonexti(); 
 }
 
 define_instruction(round) {
-  if (likely(is_flonum_obj(ac))) {
-    ac = flonum_obj(flround(flonum_from_obj(ac)));
-  } else if (unlikely(!is_fixnum_obj(ac))) {
+  if (likely(is_flonum(ac))) {
+    ac = flonum_obj(flround(get_flonum(ac)));
+  } else if (unlikely(!is_fixnum(ac))) {
     failactype("number");
   }
   gonexti(); 
@@ -2442,89 +2481,89 @@ define_instruction(round) {
 
 
 define_instruction(nump) {
-  ac = bool_obj(is_fixnum_obj(ac) || is_flonum_obj(ac));
+  ac = bool_obj(is_fixnum(ac) || is_flonum(ac));
   gonexti(); 
 }
 
 define_instruction(fixp) {
-  ac = bool_obj(is_fixnum_obj(ac));
+  ac = bool_obj(is_fixnum(ac));
   gonexti(); 
 }
 
 define_instruction(flop) {
-  ac = bool_obj(is_flonum_obj(ac));
+  ac = bool_obj(is_flonum(ac));
   gonexti(); 
 }
 
 define_instruction(intp) {
-  if (likely(is_fixnum_obj(ac))) {
+  if (likely(is_fixnum(ac))) {
     ac = bool_obj(1);
   } else { /* accepts any object! */
-    ac = bool_obj(is_flonum_obj(ac) && flisint(flonum_from_obj(ac)));
+    ac = bool_obj(is_flonum(ac) && flisint(get_flonum(ac)));
   }
   gonexti(); 
 }
 
 define_instruction(nanp) {
-  if (unlikely(is_fixnum_obj(ac))) {
+  if (unlikely(is_fixnum(ac))) {
     ac = bool_obj(0);
-  } else if (likely(is_flonum_obj(ac))) {
-    double f = flonum_from_obj(ac);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
     ac = bool_obj(f != f);
   } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(finp) {
-  if (unlikely(is_fixnum_obj(ac))) {
+  if (unlikely(is_fixnum(ac))) {
     ac = bool_obj(1);
-  } else if (likely(is_flonum_obj(ac))) {
-    double f = flonum_from_obj(ac);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
     ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
   } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(infp) {
-  if (unlikely(is_fixnum_obj(ac))) {
+  if (unlikely(is_fixnum(ac))) {
     ac = bool_obj(0);
-  } else if (likely(is_flonum_obj(ac))) {
-    double f = flonum_from_obj(ac);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
     ac = bool_obj(f <= -HUGE_VAL || f >= HUGE_VAL);
   } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(evnp) {
-  if (likely(is_fixnum_obj(ac))) {
-    ac = bool_obj((fixnum_from_obj(ac) & 1) == 0);
-  } else if (likely(is_flonum_obj(ac))) {
-    double f = flonum_from_obj(ac);
+  if (likely(is_fixnum(ac))) {
+    ac = bool_obj((get_fixnum(ac) & 1) == 0);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
     ac = bool_obj(flisint(f / 2.0));
   } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(oddp) {
-  if (likely(is_fixnum_obj(ac))) {
-    ac = bool_obj((fixnum_from_obj(ac) & 1) != 0);
-  } else if (likely(is_flonum_obj(ac))) {
-    double f = flonum_from_obj(ac);
+  if (likely(is_fixnum(ac))) {
+    ac = bool_obj((get_fixnum(ac) & 1) != 0);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
     ac = bool_obj(flisint((f + 1.0) / 2.0));
   } else failactype("number");
   gonexti(); 
 }
 
 define_instruction(ntoi) {
-  if (likely(is_flonum_obj(ac))) ac = fixnum_obj(fxflo(flonum_from_obj(ac)));
-  else if (likely(is_fixnum_obj(ac))) /* keep ac as-is */ ;
+  if (likely(is_flonum(ac))) ac = fixnum_obj(fxflo(get_flonum(ac)));
+  else if (likely(is_fixnum(ac))) /* keep ac as-is */ ;
   else failactype("number");
   gonexti(); 
 }
 
 define_instruction(ntoj) {
-  if (likely(is_fixnum_obj(ac))) ac = flonum_obj((flonum_t)fixnum_from_obj(ac));
-  else if (likely(is_flonum_obj(ac))) /* keep ac as-is */ ;
+  if (likely(is_fixnum(ac))) ac = flonum_obj((flonum_t)get_fixnum(ac));
+  else if (likely(is_flonum(ac))) /* keep ac as-is */ ;
   else failactype("number");
   gonexti(); 
 }
@@ -2532,11 +2571,11 @@ define_instruction(ntoj) {
 
 define_instruction(lcat) {
   obj t, l, *p, *d; int c;
-  for (l = ac, c = 0; ispair(l); l = cdr(l)) ++c;
+  for (l = ac, c = 0; is_pair(l); l = pair_cdr(l)) ++c;
   hp_reserve(pairbsz()*c);
   p = --sp; t = *p; /* pop & take addr */
-  for (l = ac; ispair(l); l = cdr(l)) {
-    *--hp = t; d = hp; *--hp = car(l);
+  for (l = ac; is_pair(l); l = pair_cdr(l)) {
+    *--hp = t; d = hp; *--hp = pair_car(l);
     *p = hend_pair(); p = d;
   }
   ac = *sp;
@@ -2545,129 +2584,129 @@ define_instruction(lcat) {
 
 define_instruction(ccmp) {
   obj x = ac, y = spop(); int cmp; ckc(x); ckc(y);
-  cmp = char_from_obj(x) - char_from_obj(y);
+  cmp = get_char(x) - get_char(y);
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(ceq) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(char_from_obj(x) == char_from_obj(y));
+  ac = bool_obj(get_char(x) == get_char(y));
   gonexti(); 
 }
 
 define_instruction(clt) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(char_from_obj(x) < char_from_obj(y));
+  ac = bool_obj(get_char(x) < get_char(y));
   gonexti(); 
 }
 
 define_instruction(cgt) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(char_from_obj(x) > char_from_obj(y));
+  ac = bool_obj(get_char(x) > get_char(y));
   gonexti(); 
 }
 
 define_instruction(cle) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(char_from_obj(x) <= char_from_obj(y));
+  ac = bool_obj(get_char(x) <= get_char(y));
   gonexti(); 
 }
 
 define_instruction(cge) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(char_from_obj(x) >= char_from_obj(y));
+  ac = bool_obj(get_char(x) >= get_char(y));
   gonexti(); 
 }
 
 define_instruction(cicmp) {
   obj x = ac, y = spop(); int cmp; ckc(x); ckc(y);
-  cmp = tolower(char_from_obj(x)) - tolower(char_from_obj(y));
+  cmp = tolower(get_char(x)) - tolower(get_char(y));
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(cieq) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(char_from_obj(x)) == tolower(char_from_obj(y)));
+  ac = bool_obj(tolower(get_char(x)) == tolower(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cilt) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(char_from_obj(x)) < tolower(char_from_obj(y)));
+  ac = bool_obj(tolower(get_char(x)) < tolower(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cigt) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(char_from_obj(x)) > tolower(char_from_obj(y)));
+  ac = bool_obj(tolower(get_char(x)) > tolower(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cile) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(char_from_obj(x)) <= tolower(char_from_obj(y)));
+  ac = bool_obj(tolower(get_char(x)) <= tolower(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cige) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(char_from_obj(x)) >= tolower(char_from_obj(y)));
+  ac = bool_obj(tolower(get_char(x)) >= tolower(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cwsp) {
   ckc(ac);
-  ac = bool_obj(isspace(char_from_obj(ac)));
+  ac = bool_obj(isspace(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(clcp) {
   ckc(ac);
-  ac = bool_obj(islower(char_from_obj(ac)));
+  ac = bool_obj(islower(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cucp) {
   ckc(ac);
-  ac = bool_obj(isupper(char_from_obj(ac)));
+  ac = bool_obj(isupper(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(calp) {
   ckc(ac);
-  ac = bool_obj(isalpha(char_from_obj(ac)));
+  ac = bool_obj(isalpha(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cnup) {
   ckc(ac);
-  ac = bool_obj(isdigit(char_from_obj(ac)));
+  ac = bool_obj(isdigit(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cupc) {
   ckc(ac);
-  ac = char_obj(toupper(char_from_obj(ac)));
+  ac = char_obj(toupper(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cdnc) {
   ckc(ac);
-  ac = char_obj(tolower(char_from_obj(ac)));
+  ac = char_obj(tolower(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cflc) {
   ckc(ac);
-  ac = char_obj(tolower(char_from_obj(ac))); /* stub */
+  ac = char_obj(tolower(get_char(ac))); /* stub */
   gonexti(); 
 }
 
 define_instruction(cdgv) {
   int ch; ckc(ac);
-  ch = char_from_obj(ac);
+  ch = get_char(ac);
   if (likely('0' <= ch && ch <= '9')) ac = fixnum_obj(ch - '0');  
   /* R7RS won't allow hex and any larger radix digits
   else if (likely('a' <= ch && ch <= 'z')) ac = fixnum_obj(10 + ch - 'a');  
@@ -2753,32 +2792,32 @@ define_instruction(sige) {
 
 
 define_instruction(symp) {
-  ac = bool_obj(issymbol(ac));
+  ac = bool_obj(is_symbol(ac));
   gonexti();
 }
 
 define_instruction(boolp) {
-  ac = bool_obj(is_bool_obj(ac));
+  ac = bool_obj(is_bool(ac));
   gonexti();
 }
 
 define_instruction(boxp) {
-  ac = bool_obj(isbox(ac));
+  ac = bool_obj(is_box(ac));
   gonexti();
 }
 
 define_instruction(funp) {
-  ac = bool_obj(isvmclo(ac));
+  ac = bool_obj(is_proc(ac));
   gonexti();
 }
 
 define_instruction(ipp) {
-  ac = bool_obj(isiport(ac));
+  ac = bool_obj(is_iport(ac));
   gonexti();
 }
 
 define_instruction(opp) {
-  ac = bool_obj(isoport(ac));
+  ac = bool_obj(is_oport(ac));
   gonexti();
 }
 
@@ -2896,7 +2935,7 @@ define_instruction(rdcr) {
 }
 
 define_instruction(eofp) {
-  ac = bool_obj(iseof(ac));
+  ac = bool_obj(is_eof(ac));
   gonexti();
 }
 
@@ -2908,7 +2947,7 @@ define_instruction(eof) {
 
 define_instruction(wrc) {
   obj x = ac, y = spop(); ckc(x); ckw(y);
-  oportputc(char_from_obj(x), y);
+  oportputc(get_char(x), y);
   ac = void_obj();
   gonexti();
 }
@@ -2962,7 +3001,7 @@ define_instruction(igp) {
 
 define_instruction(iglk) {
   struct intgtab_entry *pe; cky(ac);
-  pe = lookup_integrable(getsymbol(ac));
+  pe = lookup_integrable(get_symbol(ac));
   ac = pe ? mkintegrable(pe) : bool_obj(0);
   gonexti(); 
 }
@@ -2983,7 +3022,7 @@ define_instruction(iggl) {
 
 define_instruction(igco) {
   int n; const char *cs; ckg(ac); ckk(sref(0));
-  n = fixnum_from_obj(spop());
+  n = get_fixnum(spop());
   cs = integrable_code(integrabledata(ac), n);
   ac = cs ? string_obj(newstring((char*)cs)) : bool_obj(0);
   gonexti(); 
@@ -3157,7 +3196,7 @@ define_instruction(atest4) {
 }
 
 define_instruction(scall1) {
-  int m = 1, n = fixnum_from_obj(*ip++);
+  int m = 1, n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n); /* argc */
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
@@ -3194,7 +3233,7 @@ define_instruction(scall14) {
 }
 
 define_instruction(scall2) {
-  int m = 2, n = fixnum_from_obj(*ip++);
+  int m = 2, n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n);
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
@@ -3231,7 +3270,7 @@ define_instruction(scall24) {
 }
 
 define_instruction(scall3) {
-  int m = 3, n = fixnum_from_obj(*ip++);
+  int m = 3, n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n);
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
@@ -3268,7 +3307,7 @@ define_instruction(scall34) {
 }
 
 define_instruction(scall4) {
-  int m = 4, n = fixnum_from_obj(*ip++);
+  int m = 4, n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n);
   memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
@@ -3306,18 +3345,18 @@ define_instruction(scall44) {
 
 define_instruction(brnotlt) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    int dx = fixnum_from_obj(*ip++);
-    ac = bool_obj(get_fixnum_unchecked(x) < get_fixnum_unchecked(y));
+  if (likely(are_fixnums(x, y))) {
+    int dx = get_fixnum(*ip++);
+    ac = bool_obj(get_fixnum(x) < get_fixnum(y));
     ip = ac ? ip : ip + dx;
     gonexti(); 
   } else {
-    int dx = fixnum_from_obj(*ip++);
+    int dx = get_fixnum(*ip++);
     double fx, fy;
-    if (likely(is_flonum_obj(x))) fx = flonum_from_obj(x);
-    else { cki(x); fx = (double)get_fixnum_unchecked(x); }
-    if (likely(is_flonum_obj(y))) fy = flonum_from_obj(y);
-    else { cki(y); fy = (double)get_fixnum_unchecked(y); }
+    if (likely(is_flonum(x))) fx = get_flonum(x);
+    else { cki(x); fx = (double)get_fixnum(x); }
+    if (likely(is_flonum(y))) fy = get_flonum(y);
+    else { cki(y); fy = (double)get_fixnum(y); }
     ac = bool_obj(fx < fy);
     ip = ac ? ip : ip + dx;
     gonexti(); 
@@ -3326,15 +3365,20 @@ define_instruction(brnotlt) {
 
 define_instruction(pushsub) {
   obj x = ac, y = spop();
-  if (likely(are_fixnum_objs(x, y))) {
-    ac = fixnum_obj(fxsub(get_fixnum_unchecked(x), get_fixnum_unchecked(y)));
+  if (likely(are_fixnums(x, y))) {
+    long lx = get_fixnum(x), ly = get_fixnum(y);   
+    long long llz = (long long)lx - (long long)ly;
+    if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
+    else ac = flonum_obj((double)lx - (double)ly);
   } else {
-    double fx, fy;
-    if (likely(is_flonum_obj(x))) fx = flonum_from_obj(x);
-    else { cki(x); fx = (double)get_fixnum_unchecked(x); }
-    if (likely(is_flonum_obj(y))) fy = flonum_from_obj(y);
-    else { cki(y); fy = (double)get_fixnum_unchecked(y); }
-    ac = flonum_obj(fx - fy);
+    double dx, dy;
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
+    else failtype(x, "number");
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
+    else failtype(y, "number");
+    ac = flonum_obj(dx - dy);
   }
   spush(ac);
   gonexti(); 
@@ -3751,7 +3795,7 @@ obj *revlist2vec(obj *r, obj *sp, obj *hp)
 {
   obj l; fixnum_t n = length(ra), i;
   hreserve(vecbsz(n), sp-r);
-  for (l = ra, i = 0; i < n; ++i, l = cdr(l)) *--hp = car(l);
+  for (l = ra, i = 0; i < n; ++i, l = cdr(l)) *--hp = pair_car(l);
   ra = hend_vec(n);
   return hp;
 }
@@ -3930,7 +3974,7 @@ more:
         fixnum_t n;
         ra = sref(1); hp = rds_arg(r, sp, hp);
         if (!is_fixnum_obj(ra)) { ra = mkeof(); goto out; }
-        n = fixnum_from_obj(ra);
+        n = get_fixnum(ra);
         ra = sref(1); hp = rds_block(r, sp, hp);
         if (iseof(ra)) goto out;
         hp = revlist2vec(r, sp, hp); /* ra => ra */
