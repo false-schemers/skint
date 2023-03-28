@@ -181,6 +181,8 @@ static void _sck(obj *s) {
 #define get_char(o) char_from_obj(o)
 #define void_obj() obj_from_void(0)
 #define is_void(o) (o == obj_from_void(0))
+#define unit_obj() obj_from_unit()
+#define is_unit(o) (o == obj_from_unit())
 #define null_obj() mknull()
 #define is_null(o) isnull(o)
 #define eof_obj() mkeof()
@@ -685,7 +687,7 @@ define_instruction(rcmv) {
   /* single-value producer call returns here with result in ac, cns on stack */
   obj val = ac, x = spop();
   /* tail-call the consumer with the returned value(s) */
-  if (is_void(val)) { /* (values) in improper context */
+  if (is_unit(val)) { /* (values) in improper context */
     ac = fixnum_obj(0);
   } else if (is_tuple(val)) { /* (values a1 a2 a ...) in improper context */
     int n = tuple_len(val), i;
@@ -715,12 +717,12 @@ define_instruction(sdmv) {
       /* NB: can be sped up for popular cases: n == 0, n == 2 */
       memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
       sdrop(m); callsubi();
-    } else if (n == 0) { /* return void (n = 0) */
-      ac = void_obj();
+    } else if (n == 0) { /* return unit (n = 0) */
+      ac = unit_obj();
       rx = spop();
       rd = spop();
       retfromi();
-    } else { /* return args as void (n = 0) or tuple (n > 1) */
+    } else { /* return args as tuple (n > 1) */
       hp_reserve(tuplebsz(n));
       for (i = n-1; i >= 0; --i) *--hp = sref(i);
       ac = hend_tuple(n);
@@ -798,8 +800,8 @@ define_instruction(rck) {
       if (c) memmove(sb+n, sp-c, c*sizeof(obj));
       memcpy(sb, ks, n*sizeof(obj));
       sp = sb+n+c; callsubi();
-    } else if (c == 0) { /* return void (n = 0) */
-      spush(void_obj());
+    } else if (c == 0) { /* return unit (n = 0) */
+      spush(unit_obj());
       ac = rd;
       goi(wckr);
     } else { /* return args as tuple (n > 1) */

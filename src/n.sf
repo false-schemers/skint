@@ -365,6 +365,15 @@ void *getnative(obj o, cxtype_t *tp) {
 (define-inline (void? x) (%prim "bool(obj_from_$arg == obj_from_void(0))" x))
 
 
+; unit
+
+; this is the value to be used when zero results are returned to a context
+; where one result is expected; it is analogous to a 0-element tuple
+
+(%definition "/* unit */")
+(%definition "#define obj_from_unit() (obj_from_size(0x6DF6F577))")
+
+
 ; booleans
 
 ; #f is (obj)0, #t is immediate 0 with tag 0 (singular true object)
@@ -3404,6 +3413,8 @@ static void wrdatum(obj o, wenv_t *e) {
     wrs(\"#<eof>\", e);
   } else if (o == obj_from_void(0)) {
     wrs(\"#<void>\", e);
+  } else if (o == obj_from_unit()) {
+    wrs(\"#<unit>\", e);
   } else if (isiport(o)) {
     char buf[60]; sprintf(buf, \"#<%s>\", ckiportvt(o)->tname); wrs(buf, e);
   } else if (isoport(o)) {

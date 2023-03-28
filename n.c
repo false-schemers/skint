@@ -148,6 +148,8 @@ extern int istagged(obj o, int t);
   extern int taggedlen(obj o, int t);
   extern obj* taggedref(obj o, int t, int i); 
 #endif
+/* unit */
+#define obj_from_unit() (obj_from_size(0x6DF6F577))
 /* booleans */
 #define TRUE_ITAG 0
 typedef int bool_t;
@@ -1178,6 +1180,8 @@ static void wrdatum(obj o, wenv_t *e) {
     wrs("#<eof>", e);
   } else if (o == obj_from_void(0)) {
     wrs("#<void>", e);
+  } else if (o == obj_from_unit()) {
+    wrs("#<unit>", e);
   } else if (isiport(o)) {
     char buf[60]; sprintf(buf, "#<%s>", ckiportvt(o)->tname); wrs(buf, e);
   } else if (isoport(o)) {

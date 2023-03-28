@@ -110,6 +110,8 @@ static /*inline*/ int istagged_inlined(obj o, int t) {
   extern int taggedlen(obj o, int t);
   extern obj* taggedref(obj o, int t, int i); 
 #endif
+/* unit */
+#define obj_from_unit() (obj_from_size(0x6DF6F577))
 /* booleans */
 #define TRUE_ITAG 0
 typedef int bool_t;
