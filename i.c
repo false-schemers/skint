@@ -226,6 +226,8 @@ static void _sck(obj *s) {
 #define box_ref(o) boxref(o)
 #define is_proc(o) isvmclo(o)
 #define is_tuple(o) (isrecord(o) && recordrtd(o) == 0)
+#define tuple_len(o) tuplelen(o)
+#define tuple_ref(o, i) tupleref(o, i)
 #define is_record(o) (isrecord(o) && recordrtd(o) != 0)
 #define record_rtd(o) recordrtd(o)
 #define record_len(o) recordlen(o)
@@ -682,8 +684,16 @@ define_instruction(cwmv) {
 define_instruction(rcmv) {
   /* single-value producer call returns here with result in ac, cns on stack */
   obj val = ac, x = spop();
-  /* tail-call the consumer with the returned value */
-  spush(val); ac = fixnum_obj(1);
+  /* tail-call the consumer with the returned value(s) */
+  if (is_void(val)) { /* (values) in improper context */
+    ac = fixnum_obj(0);
+  } else if (is_tuple(val)) { /* (values a1 a2 a ...) in improper context */
+    int n = tuple_len(val), i;
+    for (i = n-1; i >= 0; --i) spush(tuple_ref(val, i));
+    ac = fixnum_obj(n);
+  } else { /* regular single value */ 
+    spush(val); ac = fixnum_obj(1);
+  }
   rd = x; rx = fixnum_obj(0); 
   callsubi();
 }
@@ -705,7 +715,12 @@ define_instruction(sdmv) {
       /* NB: can be sped up for popular cases: n == 0, n == 2 */
       memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
       sdrop(m); callsubi();
-    } else { /* return args as a tuple (n != 1) */
+    } else if (n == 0) { /* return void (n = 0) */
+      ac = void_obj();
+      rx = spop();
+      rd = spop();
+      retfromi();
+    } else { /* return args as void (n = 0) or tuple (n > 1) */
       hp_reserve(tuplebsz(n));
       for (i = n-1; i >= 0; --i) *--hp = sref(i);
       ac = hend_tuple(n);
@@ -783,7 +798,11 @@ define_instruction(rck) {
       if (c) memmove(sb+n, sp-c, c*sizeof(obj));
       memcpy(sb, ks, n*sizeof(obj));
       sp = sb+n+c; callsubi();
-    } else { /* return args as a tuple (c != 1) */
+    } else if (c == 0) { /* return void (n = 0) */
+      spush(void_obj());
+      ac = rd;
+      goi(wckr);
+    } else { /* return args as tuple (n > 1) */
       hp_reserve(tuplebsz(c));
       for (i = c-1; i >= 0; --i) *--hp = sref(i);
       ac = hend_tuple(c);

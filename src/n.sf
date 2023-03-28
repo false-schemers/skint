@@ -362,7 +362,7 @@ void *getnative(obj o, cxtype_t *tp) {
 ; but we don't really care.
 
 (define-inline (void) (%prim "void(0)"))
-
+(define-inline (void? x) (%prim "bool(obj_from_$arg == obj_from_void(0))" x))
 
 
 ; booleans
@@ -3402,6 +3402,8 @@ static void wrdatum(obj o, wenv_t *e) {
     wrs(buf, e);
   } else if (iseof(o)) {
     wrs(\"#<eof>\", e);
+  } else if (o == obj_from_void(0)) {
+    wrs(\"#<void>\", e);
   } else if (isiport(o)) {
     char buf[60]; sprintf(buf, \"#<%s>\", ckiportvt(o)->tname); wrs(buf, e);
   } else if (isoport(o)) {
@@ -3478,8 +3480,12 @@ static void wrdatum(obj o, wenv_t *e) {
     wrs(\"#&\", e); o = boxref(o); goto tail;
   } else if (isrecord(o)) {
     int i, n = recordlen(o);
-    wrs(\"#<record \", e);
-    wrdatum(recordrtd(o), e); // TODO: no need to show as shared!
+    obj rtd = recordrtd(o);
+    if (rtd == bool_from_obj(0)) {
+      wrs(\"#<tuple\", e);
+    } else {
+      wrs(\"#<record \", e); wrdatum(rtd, e); // TODO: no need to show as shared!
+    }
     for (i = 0; i < n; ++i) { 
       wrc(' ', e); wrdatum(recordref(o, i), e); 
     }
