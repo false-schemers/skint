@@ -650,6 +650,9 @@
 ; (string-ci>? s1 s2 s ...)
 ; (string-ci<=? s1 s2 s ...)
 ; (string-ci>=? s1 s2 s ...)
+; (string-upcase s)
+; (string-downcase s)
+; (string-foldcase s)
 
 (define (substring->list str start end)
   (let loop ([i (fx- end 1)] [l '()])
@@ -735,10 +738,6 @@
     [(_ x y) (string-cat x y)]
     [(_ . r) (%string-append . r)]
     [_ %string-append]))
-
-;string-upcase
-;string-downcase
-;string-foldcase
 
 
 ;---------------------------------------------------------------------------------------------
@@ -859,7 +858,7 @@
 ; (bytevector-u8-ref b i)
 ; (bytevector-u8-set! b i u8)
 ; (list->bytevector l)
-; (subbytevector b from to)
+; (subbytevector b from to) +
 ; (bytevector=? b1 b2 b ...)
 
 (define (subbytevector->list bvec start end)
@@ -1606,13 +1605,25 @@
 ; (file-exists? s)
 ; (delete-file s)
 ; (rename-file sold snew) +
-;command-line
+; (%argv-ref i) +
+
+(define (command-line)
+  (let loop ([r '()] [i 0])
+    (let ([arg (%argv-ref i)])
+      (if arg 
+          (loop (cons arg r) (fx+ i 1))
+          (reverse! r)))))
+
 ;exit
 ;emergency-exit
+
 ;(get-environment-variable s)
 ;get-environment-variables
+
 ; (current-second)
 ; (current-jiffy)
 ; (jiffies-per-second)
+
 ;features
+
 

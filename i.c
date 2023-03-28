@@ -3534,6 +3534,15 @@ define_instruction(fren) {
   gonexti(); 
 }
 
+define_instruction(argvref) {
+  int i; char *s; ckk(ac);
+  i = get_fixnum(ac); /* todo: range-check */
+  s = cxg_argv[i];
+  if (s) ac = string_obj(newstring(s));
+  else ac = bool_obj(0); 
+  gonexti(); 
+}
+
 define_instruction(getenv) {
   char *v; cks(ac);
   v = getenv(stringchars(ac));
