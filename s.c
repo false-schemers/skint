@@ -150,6 +150,27 @@ char *s_code[] = {
   "l3:y12:syntax-rules;n;l2:l3:y1:_;py4:args;y5:forms;;y3:...;;l3:y7:lamb"
   "da*;l2:y4:args;py6:lambda;py4:args;y5:forms;;;;y3:...;;;",
 
+  "C", 0,
+  "@(y4:box?)@!(y8:promise?)",
+
+  "P", "make-promise",
+  "%1.0,tcb]1",
+
+  "P", "make-lazy-promise",
+  "%1.0,fcb]1",
+
+  "P", "force",
+  "%1.0z,.0a?{.0d]2}${.2d[00},.2z,.0a~?{.1za,.1sa.1zd,.1sd.0,.2sz}.3,@(y5"
+  ":force)[41",
+
+  "S", "delay-force",
+  "l3:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y17:make-lazy-promise;l3:y6:"
+  "lambda;n;y1:x;;;;",
+
+  "S", "delay",
+  "l3:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y11:delay-force;l2:y12:make-"
+  "promise;y1:x;;;;",
+
   "P", "floor/",
   "%2.1,.1Nm,.2,.2Nl,@(y6:values)[22",
 

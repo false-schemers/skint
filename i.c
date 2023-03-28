@@ -197,6 +197,8 @@ static void _sck(obj *s) {
 #define pair_car(o) car(o)
 #define pair_cdr(o) cdr(o)
 #define is_list(o) islist(o)
+#define is_circular(o) iscircular(o)
+#define is_noncircular(o) (!iscircular(o))
 #define is_vector(o) isvector(o)
 #define string_obj(s) hp_pushptr((s), STRING_NTAG)
 #define is_string(o) isstring(o)
@@ -472,6 +474,8 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"list"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cku(x) do { obj _x = (x); if (unlikely(!is_null(_x))) \
   { ac = _x; spush((obj)"proper list"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckt(x) do { obj _x = (x); if (unlikely(!is_noncircular(_x))) \
+  { ac = _x; spush((obj)"circle-free object"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckv(x) do { obj _x = (x); if (unlikely(!is_vector(_x))) \
   { ac = _x; spush((obj)"vector"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckc(x) do { obj _x = (x); if (unlikely(!is_char(_x))) \
@@ -1102,6 +1106,11 @@ define_instruction(lrevi) {
   gonexti();
 }
 
+define_instruction(circp) {
+  ac = bool_obj(is_circular(ac));
+  gonexti();
+}
+
 define_instruction(charp) {
   ac = bool_obj(is_char(ac));
   gonexti();
@@ -1179,6 +1188,30 @@ define_instruction(spos) {
   ckc(x); cks(y);
   s = stringchars(y), p = strchr(s, get_char(x));
   ac = p ? fixnum_obj(p-s) : bool_obj(0);
+  gonexti();
+}
+
+define_instruction(supc) {
+  int *d; char *s; cks(ac);
+  d = dupstring(stringdata(ac)); 
+  for (s = sdatachars(d); *s; ++s) *s = toupper(*s);
+  ac = string_obj(d);
+  gonexti();
+}
+
+define_instruction(sdnc) {
+  int *d; char *s; cks(ac);
+  d = dupstring(stringdata(ac)); 
+  for (s = sdatachars(d); *s; ++s) *s = tolower(*s);
+  ac = string_obj(d);
+  gonexti();
+}
+
+define_instruction(sflc) {
+  int *d; char *s; cks(ac);
+  d = dupstring(stringdata(ac)); 
+  for (s = sdatachars(d); *s; ++s) *s = tolower(*s); /* stub */
+  ac = string_obj(d);
   gonexti();
 }
 
@@ -2583,7 +2616,20 @@ define_instruction(lcat) {
   }
   ac = *sp;
   gonexti(); 
-}  
+}
+
+define_instruction(lcpy) {
+  obj t, l, *p, *d; int c;
+  for (l = ac, c = 0; is_pair(l); l = pair_cdr(l)) ++c;
+  hp_reserve(pairbsz()*c);
+  p = sp; *p = t = l; /* tail of last pair */
+  for (l = ac; is_pair(l); l = pair_cdr(l)) {
+    *--hp = t; d = hp; *--hp = pair_car(l);
+    *p = hend_pair(); p = d;
+  }
+  ac = *sp;
+  gonexti(); 
+}
 
 define_instruction(ccmp) {
   obj x = ac, y = spop(); int cmp; ckc(x); ckc(y);

@@ -194,8 +194,32 @@
 
 ;cond-expand
 
-;delay
-;delay-force
+
+;---------------------------------------------------------------------------------------------
+; Delayed evaluation
+;---------------------------------------------------------------------------------------------
+
+(define promise? box?)
+
+(define (make-promise o) (box (cons #t o)))
+(define (make-lazy-promise o) (box (cons #f o)))
+
+(define (force p)
+  (let ([pc (unbox p)])
+    (if (car pc)
+        (cdr pc)
+        (let* ([newp ((cdr pc))] [pc (unbox p)])
+          (unless (car pc)
+            (set-car! pc (car (unbox newp)))
+            (set-cdr! pc (cdr (unbox newp)))
+            (set-box! newp pc))
+          (force p)))))
+
+(define-syntax delay-force
+  (syntax-rules () [(_ x) (make-lazy-promise (lambda () x))]))
+
+(define-syntax delay
+  (syntax-rules () [(_ x) (delay-force (make-promise x))]))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -239,10 +263,10 @@
 ; (fx/ x y ...)
 ; (fxquotient x y)
 ; (fxremainder x y)
-; (fxmodquo x y) 
+; (fxmodquo x y) +
 ; (fxmodulo x y) 
-; (fxeucquo x y) a.k.a. euclidean-quotient, R6RS div
-; (fxeucrem x y) a.k.a. euclidean-remainder, R6RS mod
+; (fxeucquo x y) + a.k.a. euclidean-quotient, R6RS div
+; (fxeucrem x y) + a.k.a. euclidean-remainder, R6RS mod
 ; (fxneg x)
 ; (fxabs x)
 ; (fx<? x y z ...)
@@ -250,7 +274,7 @@
 ; (fx>? x y z ...)
 ; (fx>=? x y z ...)
 ; (fx=? x y z ...)
-; (fx!=? x y)
+; (fx!=? x y) +
 ; (fxmin x y)
 ; (fxmax x y)
 ; (fxneg x)
@@ -279,6 +303,7 @@
 ;fxbit-count cf. bit-count
 ;  Returns the population count of 1's (i >= 0) or 0's (i < 0)
 ;  0 => 0, -1 => 0, 7 => 3, 13 => 3, -13 => 2  
+
 
 ;---------------------------------------------------------------------------------------------
 ; Inexact floating-point numbers (flonums)
@@ -322,7 +347,7 @@
 ; (fl>? x y z ...)
 ; (fl>=? x y z ...)
 ; (fl=? x y z ...)
-; (fl!=? x y)
+; (fl!=? x y) +
 ; (flmin x y)
 ; (flmax x y)
 ; (flonum->fixnum x)
@@ -475,16 +500,18 @@
 ; (list-ref l i)
 ; (list-set! l i x)
 ; (list-cat l1 l2)  + 2-arg append
-; (memq v l)
-; (memv v l)  ; TODO: make sure memv checks list
-; (meme v l)  + 2-arg member; TODO: make sure meme checks list
+; (memq v l)  ; TODO: make sure memq doesn't fail on improper/circular list
+; (memv v l)  ; TODO: make sure memv doesn't fail on improper/circular list
+; (meme v l)  + 2-arg member; TODO: make sure meme checks list ^
 ; (assq v y)   
 ; (assv v y) ; TODO: make sure assv checks list
-; (asse v y) + 2-arg assoc; TODO: make sure asse checks list
+; (asse v y) + 2-arg assoc; TODO: make sure asse checks list ^
 ; (list-tail l i)
 ; (last-pair l)
 ; (reverse l)
 ; (reverse! l) +
+; (list-copy l) ; TODO: make sure list-copy checks list for circularity
+; (circular? x) +
 
 (define (%append . args)
   (let loop ([args args])
@@ -548,8 +575,6 @@
     [_ %list*]))
 
 (define-syntax cons* list*)
-
-;list-copy
 
 
 ;---------------------------------------------------------------------------------------------
