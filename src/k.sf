@@ -371,7 +371,7 @@
   (case igt
     [(#\0) (=  n 0)]   [(#\1) (=  n 1)]   [(#\2) (=  n 2)]   [(#\3) (=  n 3)] 
     [(#\p) (>= n 0)]   [(#\m) (>= n 1)]   [(#\c) (>= n 2)]   [(#\x) (>= n 1)]
-    [(#\u) (<= 0 n 1)] [(#\b) (<= 1 n 2)]
+    [(#\u) (<= 0 n 1)] [(#\b) (<= 1 n 2)] [(#\t) (<= 2 n 3)]
     [(#\#) (>= n 0)]   [(#\@) #f]
     [else #f])) 
 
@@ -1104,6 +1104,15 @@
                  (codegen (cadr args) l f s g #f port))
              (write-char #\, port)
              (codegen (car args) (cons #f l) f s g #f port)
+             (write-string igc0 port)]
+            [(#\t) ; 2 <= (length args) <= 3
+             (if (null? (cddr args))
+                 (write-string (integrable-code ig 1) port)
+                 (codegen (caddr args) l f s g #f port))
+             (write-char #\, port)
+             (codegen (cadr args) (cons #f l) f s g #f port)
+             (write-char #\, port)
+             (codegen (car args) (cons #f (cons #f l)) f s g #f port)
              (write-string igc0 port)]
             [(#\#) ; (length args) >= 0
              (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 

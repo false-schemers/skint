@@ -105,6 +105,10 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define vecbsz(n)     hbsz((n)+1)
 #define hend_vec(n)   (*--hp = obj_from_size(VECTOR_BTAG), hendblk((n)+1))
 
+/* record representation extras  */
+#define recbsz(c)     hbsz((c)+2)
+#define hend_rec(rtd, c) (*--hp = rtd, *--hp = obj_from_size(RECORD_BTAG), hendblk((c)+2))
+
 /* vm closure representation */
 #ifdef NDEBUG /* quick */
 #define isvmclo(x)    (isobjptr(x) && isobjptr(hblkref(x, 0)))
@@ -121,7 +125,7 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #endif
 
 /* vm tuple representation (c != 1) */
-#define istuple(x)    (isrecord(x) && recordrtd(x) == 0)  
+#define istuple(x)    isrecord
 #define tupleref      recordref
 #define tuplelen      recordlen
 #define tuplebsz(c)   hbsz((c)+2)
@@ -214,7 +218,12 @@ static void _sck(obj *s) {
 #define is_oport(o) isoport(o)
 #define is_box(o) isbox(o)
 #define is_proc(o) isvmclo(o)
-#define is_tuple(o) istuple(o)
+#define is_tuple(o) (isrecord(o) && recordrtd(o) == 0)
+#define is_record(o) (isrecord(o) && recordrtd(o) != 0)
+#define record_rtd(o) recordrtd(o)
+#define record_len(o) recordlen(o)
+#define record_ref(o) recordref(o)
+
 
 /* cxi instructions protocol; retval is new hp: */
 typedef obj* regcall (*ins_t)(IPARAMS);
@@ -474,8 +483,8 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"list"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cku(x) do { obj _x = (x); if (unlikely(!is_null(_x))) \
   { ac = _x; spush((obj)"proper list"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckt(x) do { obj _x = (x); if (unlikely(!is_noncircular(_x))) \
-  { ac = _x; spush((obj)"circle-free object"); musttail return cxi_failactype(IARGS); } } while (0)
+#define cko(x) do { obj _x = (x); if (unlikely(!is_record(_x))) \
+  { ac = _x; spush((obj)"record"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckv(x) do { obj _x = (x); if (unlikely(!is_vector(_x))) \
   { ac = _x; spush((obj)"vector"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckc(x) do { obj _x = (x); if (unlikely(!is_char(_x))) \
@@ -1279,6 +1288,11 @@ define_instruction(beq) {
   obj x = ac, y = spop(); ckb(x); ckb(y);
   ac = bool_obj(bytevectoreq(bytevectordata(x), bytevectordata(y)));
   gonexti(); 
+}
+
+define_instruction(recp) {
+  ac = bool_obj(is_record(ac));
+  gonexti();
 }
 
 
@@ -4242,6 +4256,11 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
         lcode = lbuf; assert(pe->enc); 
         pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
         sprintf(lbuf, "%%!1.0u?{%s,.2%s]2}.0du?{.0a,.2%s]2}%%%%", pe1, pe0, pe0);
+      } break;
+      case 't': {
+        lcode = lbuf; assert(pe->enc); 
+        pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
+        sprintf(lbuf, "%%!2.0u?{%s,.3,.3%s]3}.0du?{.0a,.3,.3%s]3}%%%%", pe1, pe0, pe0);
       } break;
       case '#': /* must have explicit lcode */
         assert(0); 
