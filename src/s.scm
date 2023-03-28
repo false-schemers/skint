@@ -223,6 +223,79 @@
 
 
 ;---------------------------------------------------------------------------------------------
+; Record type definitions
+;---------------------------------------------------------------------------------------------
+
+; integrables:
+;
+; (record? x (rtd))
+; (make-record rtd n (fill #f))
+; (record-length r)
+; (record-ref r i)
+; (record-set! r i v)
+
+(define (new-record-type name fields) ; stub
+  (cons name fields))
+
+; see http://okmij.org/ftp/Scheme/macro-symbol-p.txt
+(define-syntax %id-eq?? 
+  (syntax-rules ()
+    [(_ id b kt kf)
+     ((syntax-lambda (id ok) ((syntax-rules () [(_ b) (id)]) ok))
+      (syntax-rules () [(_) kf]) (syntax-rules () [(_) kt]))]))
+
+(define-syntax %id-assq??
+  (syntax-rules ()
+    [(_ id () kt kf) 
+     kf]
+    [(_ id ([id0 . r0] . idr*) kt kf) 
+     (%id-eq?? id id0 (kt . r0) (%id-assq?? id idr* kt kf))]))
+ 
+(define-syntax %drt-init
+  (syntax-rules ()
+    [(_  r () fi* (x ...)) 
+     (begin x ... r)]
+    [(_  r (id0 . id*) fi* (x ...))
+     (%id-assq?? id0 fi* 
+       (syntax-rules () [(_ i0) (%drt-init r id* fi* (x ... (record-set! r i0 id0)))]) 
+       (syntax-error "id in define-record-type constructor is not a field:" id0))]))
+
+(define-syntax %drt-unroll
+  (syntax-rules ()
+    [(_ rtn (consn id ...) predn () ([f i] ...) ([a ia] ...) ([m im] ...))
+     (begin
+       (define rtn 
+         (new-record-type 'rtn '(f ...)))
+       (define consn 
+         (lambda (id ...) 
+           (let ([r (make-record rtn (syntax-length (f ...)))])
+             (%drt-init r (id ...) ([f i] ...) ()))))
+       (define predn 
+         (lambda (obj) (record? obj rtn)))
+       (define a 
+         (lambda (obj) (record-ref obj ia)))
+       ...
+       (define m 
+         (lambda (obj val) (record-set! obj im val)))
+       ...)]
+    [(_ rtn cf* predn ([fn accn] fam ...) (fi ...) (ai ...) (mi ...))
+     (%drt-unroll rtn cf* predn (fam ...) 
+       (fi ... [fn (syntax-length (fi ...))]) 
+       (ai ... [accn (syntax-length (fi ...))]) 
+       (mi ...))]
+    [(_  rtn cf* predn ([fn accn modn] fam ...) (fi ...) (ai ...) (mi ...))
+     (%drt-unroll rtn cf* predn (fam ...) 
+       (fi ... [fn (syntax-length (fi ...))]) 
+       (ai ... [accn (syntax-length (fi ...))]) 
+       (mi ... [modn (syntax-length (fi ...))]))]))
+
+(define-syntax define-record-type
+  (syntax-rules ()
+    [(_ rtn (consn id ...) predn (fn . am) ...)
+     (%drt-unroll rtn (consn id ...) predn ((fn . am) ...) () () ())]))
+
+
+;---------------------------------------------------------------------------------------------
 ; Equivalence predicates
 ;---------------------------------------------------------------------------------------------
 

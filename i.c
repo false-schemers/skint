@@ -180,7 +180,7 @@ static void _sck(obj *s) {
 #define is_char(o) is_char_obj(o)
 #define get_char(o) char_from_obj(o)
 #define void_obj() obj_from_void(0)
-#define is_void(o) is_void_obj(o)
+#define is_void(o) (o == obj_from_void(0))
 #define null_obj() mknull()
 #define is_null(o) isnull(o)
 #define eof_obj() mkeof()
@@ -204,10 +204,16 @@ static void _sck(obj *s) {
 #define is_circular(o) iscircular(o)
 #define is_noncircular(o) (!iscircular(o))
 #define is_vector(o) isvector(o)
+#define vector_len(o) vectorlen(o)
+#define vector_ref(o, i) vectorref(o, i)
 #define string_obj(s) hp_pushptr((s), STRING_NTAG)
 #define is_string(o) isstring(o)
+#define string_len(o) stringlen(o) 
+#define string_ref(o, i) (*stringref(o, i))
 #define bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
 #define is_bytevector(o) isbytevector(o)
+#define bytevector_len(o) bytevectorlen(o)
+#define bytevector_ref(o, i) (*bytevectorref(o, i))
 #define iport_file_obj(fp) hp_pushptr((fp), IPORT_FILE_NTAG)
 #define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
 #define iport_string_obj(fp) hp_pushptr((fp), IPORT_STRING_NTAG)
@@ -217,12 +223,13 @@ static void _sck(obj *s) {
 #define is_iport(o) isiport(o)
 #define is_oport(o) isoport(o)
 #define is_box(o) isbox(o)
+#define box_ref(o) boxref(o)
 #define is_proc(o) isvmclo(o)
 #define is_tuple(o) (isrecord(o) && recordrtd(o) == 0)
 #define is_record(o) (isrecord(o) && recordrtd(o) != 0)
 #define record_rtd(o) recordrtd(o)
 #define record_len(o) recordlen(o)
-#define record_ref(o) recordref(o)
+#define record_ref(o, i) recordref(o, i)
 
 
 /* cxi instructions protocol; retval is new hp: */
@@ -561,12 +568,12 @@ define_instruction(gref) {
 }
 
 define_instruction(iref) {
-  ac = boxref(ac);
+  ac = box_ref(ac);
   gonexti();
 }
 
 define_instruction(iset) {
-  boxref(ac) = spop();
+  box_ref(ac) = spop();
   gonexti();
 }
 
@@ -618,13 +625,13 @@ define_instruction(andbo) {
 
 define_instruction(sseti) {
   int i = get_fixnum(*ip++);
-  boxref(sref(i)) = ac;
+  box_ref(sref(i)) = ac;
   gonexti();
 }
 
 define_instruction(dseti) {
   int i = get_fixnum(*ip++);
-  boxref(dref(i)) = ac;
+  box_ref(dref(i)) = ac;
   gonexti();
 }
 
@@ -791,7 +798,7 @@ define_instruction(rck) {
 define_instruction(save) {
   int dx = get_fixnum(*ip++); 
   spush(rd);
-  spush(fixnum_obj(ip + dx - &vectorref(vmcloref(rd, 0), 0)));  
+  spush(fixnum_obj(ip + dx - &vector_ref(vmcloref(rd, 0), 0)));  
   gonexti();
 }
 
@@ -950,8 +957,17 @@ define_instruction(ise) {
   gonexti(); 
 }
 
-define_instruction(unbox) { ckz(ac); ac = boxref(ac); gonexti(); }
-define_instruction(setbox) { ckz(ac); boxref(ac) = spop(); gonexti(); }
+define_instruction(unbox) { 
+  ckz(ac); 
+  ac = box_ref(ac); 
+  gonexti(); 
+}
+
+define_instruction(setbox) { 
+  ckz(ac); 
+  box_ref(ac) = spop(); 
+  gonexti(); 
+}
 
 define_instruction(box) {
   hp_reserve(boxbsz());
@@ -1151,7 +1167,7 @@ define_instruction(smk) {
 
 define_instruction(slen) {
   cks(ac);
-  ac = fixnum_obj(stringlen(ac));
+  ac = fixnum_obj(string_len(ac));
   gonexti();
 }
 
@@ -1159,8 +1175,8 @@ define_instruction(sget) {
   obj x = spop(); int i; 
   cks(ac); ckk(x); 
   i = get_fixnum(x); 
-  if (i >= stringlen(ac)) failtype(x, "valid string index");
-  ac = char_obj(*stringref(ac, i));
+  if (i >= string_len(ac)) failtype(x, "valid string index");
+  ac = char_obj(string_ref(ac, i));
   gonexti();
 }
 
@@ -1168,8 +1184,8 @@ define_instruction(sput) {
   obj x = spop(), y = spop(); int i; 
   cks(ac); ckk(x); ckc(y); 
   i = get_fixnum(x); 
-  if (i >= stringlen(ac)) failtype(x, "valid string index");
-  *stringref(ac, i) = get_char(y);
+  if (i >= string_len(ac)) failtype(x, "valid string index");
+  string_ref(ac, i) = get_char(y);
   gonexti();
 }
 
@@ -1186,7 +1202,7 @@ define_instruction(ssub) {
   cks(ac); ckk(x); ckk(y); 
   is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start string index");
-  if (ie > stringlen(ac)) failtype(y, "valid end string index");
+  if (ie > string_len(ac)) failtype(y, "valid end string index");
   d = substring(stringdata(ac), is, ie);
   ac = string_obj(d);
   gonexti();
@@ -1251,7 +1267,7 @@ define_instruction(bmk) {
 
 define_instruction(blen) {
   ckb(ac);
-  ac = fixnum_obj(bytevectorlen(ac));
+  ac = fixnum_obj(bytevector_len(ac));
   gonexti();
 }
 
@@ -1259,8 +1275,8 @@ define_instruction(bget) {
   obj x = spop(); int i; 
   ckb(ac); ckk(x); 
   i = get_fixnum(x); 
-  if (i >= bytevectorlen(ac)) failtype(x, "valid bytevector index");
-  ac = fixnum_obj(*bytevectorref(ac, i));
+  if (i >= bytevector_len(ac)) failtype(x, "valid bytevector index");
+  ac = fixnum_obj(bytevector_ref(ac, i));
   gonexti();
 }
 
@@ -1268,8 +1284,8 @@ define_instruction(bput) {
   obj x = spop(), y = spop(); int i; 
   ckb(ac); ckk(x); ck8(y); 
   i = get_fixnum(x); 
-  if (i >= bytevectorlen(ac)) failtype(x, "valid bytevector index");
-  *bytevectorref(ac, i) = byte_from_obj(y);
+  if (i >= bytevector_len(ac)) failtype(x, "valid bytevector index");
+  bytevector_ref(ac, i) = byte_from_obj(y);
   gonexti();
 }
 
@@ -1278,7 +1294,7 @@ define_instruction(bsub) {
   ckb(ac); ckk(x); ckk(y); 
   is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start bytevector index");
-  if (ie > bytevectorlen(ac)) failtype(y, "valid end bytevector index");
+  if (ie > bytevector_len(ac)) failtype(y, "valid end bytevector index");
   d = subbytevector(bytevectordata(ac), is, ie);
   ac = bytevector_obj(d);
   gonexti();
@@ -1290,8 +1306,54 @@ define_instruction(beq) {
   gonexti(); 
 }
 
+
 define_instruction(recp) {
-  ac = bool_obj(is_record(ac));
+  obj x = ac, y = spop();
+  if (is_void(y)) {
+    ac = bool_obj(is_record(ac));
+  } else {
+    ac = bool_obj(is_record(ac) && record_rtd(ac) == y);
+  }
+  gonexti();
+}
+
+define_instruction(rmk) {
+  int i, n; obj v; ckk(sref(0));
+  n = get_fixnum(sref(0)); 
+  hp_reserve(recbsz(n)); v = sref(1);
+  for (i = 0; i < n; ++i) *--hp = v;
+  ac = hend_rec(ac, n);
+  sdrop(2);
+  gonexti();
+}
+
+define_instruction(rlen) {
+  cko(ac);
+  ac = fixnum_obj(record_len(ac));
+  gonexti();
+}
+
+define_instruction(rget) {
+  obj x = spop(); int i; 
+  cko(ac); ckk(x); 
+  i = get_fixnum(x);
+  if (i >= record_len(ac)) failtype(x, "valid record index");
+  ac = record_ref(ac, i);
+  gonexti();
+}
+
+define_instruction(rput) {
+  obj x = spop(), y = spop(); int i; 
+  cko(ac); ckk(x);
+  i = get_fixnum(x);
+  if (i >= record_len(ac)) failtype(x, "valid record index");
+  record_ref(ac, i) = y;
+  gonexti();
+}
+
+define_instruction(rrtd) {
+  cko(ac);
+  ac = record_rtd(ac);
   gonexti();
 }
 
@@ -1322,7 +1384,7 @@ define_instruction(vmk) {
 
 define_instruction(vlen) {
   ckv(ac);
-  ac = fixnum_obj(vectorlen(ac));
+  ac = fixnum_obj(vector_len(ac));
   gonexti();
 }
 
@@ -1330,8 +1392,8 @@ define_instruction(vget) {
   obj x = spop(); int i; 
   ckv(ac); ckk(x); 
   i = get_fixnum(x);
-  if (i >= vectorlen(ac)) failtype(x, "valid vector index");
-  ac = vectorref(ac, i);
+  if (i >= vector_len(ac)) failtype(x, "valid vector index");
+  ac = vector_ref(ac, i);
   gonexti();
 }
 
@@ -1339,19 +1401,19 @@ define_instruction(vput) {
   obj x = spop(), y = spop(); int i; 
   ckv(ac); ckk(x);
   i = get_fixnum(x);
-  if (i >= vectorlen(ac)) failtype(x, "valid vector index");
-  vectorref(ac, i) = y;
+  if (i >= vector_len(ac)) failtype(x, "valid vector index");
+  vector_ref(ac, i) = y;
   gonexti();
 }
 
 define_instruction(vcat) {
   obj x = ac, y = sref(0); int n1, n2, n;
   ckv(x); ckv(y);
-  n1 = vectorlen(x), n2 = vectorlen(y), n = n1 + n2;
+  n1 = vector_len(x), n2 = vector_len(y), n = n1 + n2;
   hp_reserve(vecbsz(n));
-  /* NB: vectorref fails to return pointer to empty vector's start */
-  hp -= n2; if (n2) memcpy(hp, &vectorref(y, 0), n2*sizeof(obj));
-  hp -= n1; if (n1) memcpy(hp, &vectorref(x, 0), n1*sizeof(obj));
+  /* NB: vector_ref fails to return pointer to empty vector's start */
+  hp -= n2; if (n2) memcpy(hp, &vector_ref(y, 0), n2*sizeof(obj));
+  hp -= n1; if (n1) memcpy(hp, &vector_ref(x, 0), n1*sizeof(obj));
   ac = hend_vec(n);
   sdrop(1);
   gonexti();
@@ -1359,10 +1421,10 @@ define_instruction(vcat) {
 
 define_instruction(vtol) {
   obj l = null_obj(); int n;
-  ckv(ac); n = vectorlen(ac);
+  ckv(ac); n = vector_len(ac);
   hp_reserve(pairbsz()*n);
   while (n > 0) {
-    *--hp = l; *--hp = vectorref(ac, n-1);
+    *--hp = l; *--hp = vector_ref(ac, n-1);
     l = hend_pair();
     --n;
   }
@@ -1394,10 +1456,10 @@ define_instruction(ltob) {
 
 define_instruction(stol) {
   obj l = null_obj(); int n;
-  cks(ac); n = stringlen(ac);
+  cks(ac); n = string_len(ac);
   hp_reserve(pairbsz()*n);
   while (n > 0) {
-    *--hp = l; *--hp = char_obj(*stringref(ac, n-1));
+    *--hp = l; *--hp = char_obj(string_ref(ac, n-1));
     l = hend_pair();
     --n;
   }
@@ -2874,6 +2936,16 @@ define_instruction(funp) {
   gonexti();
 }
 
+define_instruction(voidp) {
+  ac = bool_obj(is_void(ac));
+  gonexti();
+}
+
+define_instruction(void) {
+  ac = void_obj();
+  gonexti();
+}
+
 define_instruction(ipp) {
   ac = bool_obj(is_iport(ac));
   gonexti();
@@ -3240,16 +3312,16 @@ define_instruction(pushsref7) { ac = sref(7); spush(ac); gonexti(); }
 define_instruction(pushsref8) { ac = sref(8); spush(ac); gonexti(); }  
 define_instruction(pushsref9) { ac = sref(9); spush(ac); gonexti(); }  
 
-define_instruction(srefi0) { ac = boxref(sref(0)); gonexti(); }
-define_instruction(srefi1) { ac = boxref(sref(1)); gonexti(); }
-define_instruction(srefi2) { ac = boxref(sref(2)); gonexti(); }
-define_instruction(srefi3) { ac = boxref(sref(3)); gonexti(); }
-define_instruction(srefi4) { ac = boxref(sref(4)); gonexti(); }
-define_instruction(pushsrefi0) { ac = boxref(sref(0)); spush(ac); gonexti(); }
-define_instruction(pushsrefi1) { ac = boxref(sref(1)); spush(ac); gonexti(); }
-define_instruction(pushsrefi2) { ac = boxref(sref(2)); spush(ac); gonexti(); }
-define_instruction(pushsrefi3) { ac = boxref(sref(3)); spush(ac); gonexti(); }
-define_instruction(pushsrefi4) { ac = boxref(sref(4)); spush(ac); gonexti(); }
+define_instruction(srefi0) { ac = box_ref(sref(0)); gonexti(); }
+define_instruction(srefi1) { ac = box_ref(sref(1)); gonexti(); }
+define_instruction(srefi2) { ac = box_ref(sref(2)); gonexti(); }
+define_instruction(srefi3) { ac = box_ref(sref(3)); gonexti(); }
+define_instruction(srefi4) { ac = box_ref(sref(4)); gonexti(); }
+define_instruction(pushsrefi0) { ac = box_ref(sref(0)); spush(ac); gonexti(); }
+define_instruction(pushsrefi1) { ac = box_ref(sref(1)); spush(ac); gonexti(); }
+define_instruction(pushsrefi2) { ac = box_ref(sref(2)); spush(ac); gonexti(); }
+define_instruction(pushsrefi3) { ac = box_ref(sref(3)); spush(ac); gonexti(); }
+define_instruction(pushsrefi4) { ac = box_ref(sref(4)); spush(ac); gonexti(); }
 
 define_instruction(dref0) { ac = dref(0); gonexti(); }
 define_instruction(dref1) { ac = dref(1); gonexti(); }
@@ -3262,16 +3334,16 @@ define_instruction(pushdref2) { ac = dref(2); spush(ac); gonexti(); }
 define_instruction(pushdref3) { ac = dref(3); spush(ac); gonexti(); }  
 define_instruction(pushdref4) { ac = dref(4); spush(ac); gonexti(); }  
 
-define_instruction(drefi0) { ac = boxref(dref(0)); gonexti(); }
-define_instruction(drefi1) { ac = boxref(dref(1)); gonexti(); }
-define_instruction(drefi2) { ac = boxref(dref(2)); gonexti(); }
-define_instruction(drefi3) { ac = boxref(dref(3)); gonexti(); }
-define_instruction(drefi4) { ac = boxref(dref(4)); gonexti(); }
-define_instruction(pushdrefi0) { ac = boxref(dref(0)); spush(ac); gonexti(); }
-define_instruction(pushdrefi1) { ac = boxref(dref(1)); spush(ac); gonexti(); }
-define_instruction(pushdrefi2) { ac = boxref(dref(2)); spush(ac); gonexti(); }
-define_instruction(pushdrefi3) { ac = boxref(dref(3)); spush(ac); gonexti(); }
-define_instruction(pushdrefi4) { ac = boxref(dref(4)); spush(ac); gonexti(); }
+define_instruction(drefi0) { ac = box_ref(dref(0)); gonexti(); }
+define_instruction(drefi1) { ac = box_ref(dref(1)); gonexti(); }
+define_instruction(drefi2) { ac = box_ref(dref(2)); gonexti(); }
+define_instruction(drefi3) { ac = box_ref(dref(3)); gonexti(); }
+define_instruction(drefi4) { ac = box_ref(dref(4)); gonexti(); }
+define_instruction(pushdrefi0) { ac = box_ref(dref(0)); spush(ac); gonexti(); }
+define_instruction(pushdrefi1) { ac = box_ref(dref(1)); spush(ac); gonexti(); }
+define_instruction(pushdrefi2) { ac = box_ref(dref(2)); spush(ac); gonexti(); }
+define_instruction(pushdrefi3) { ac = box_ref(dref(3)); spush(ac); gonexti(); }
+define_instruction(pushdrefi4) { ac = box_ref(dref(4)); spush(ac); gonexti(); }
 
 define_instruction(call0) { 
   ckx(ac); rd = ac; rx = fixnum_obj(0); ac = fixnum_obj(0); 

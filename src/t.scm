@@ -263,11 +263,20 @@
              [(body)          (xform-body          tail env)]
              [(define)        (xform-define        tail env)]
              [(define-syntax) (xform-define-syntax tail env)]
+             [(syntax-length) (xform-syntax-length tail env)]
+             [(syntax-error)  (xform-syntax-error  tail env)]
              [else            (if (integrable? hval)
                                   (xform-integrable hval tail env)
                                   (if (procedure? hval)
                                       (xform appos? (hval sexp env) env)
                                       (xform-call hval tail env)))]))]))
+
+(define (xform-sexp->datum sexp)
+  (let conv ([sexp sexp])
+    (cond [(id? sexp) (id->sym sexp)]
+          [(pair? sexp) (cons (conv (car sexp)) (conv (cdr sexp)))]
+          [(vector? sexp) (list->vector (map conv (vector->list sexp)))]
+          [else sexp])))
 
 (define (xform-ref id env)
   (let ([den (env id)])
@@ -276,13 +285,19 @@
 
 (define (xform-quote tail env)
   (if (list1? tail)
-      (list 'quote 
-        (let conv ([sexp (car tail)])
-          (cond [(id? sexp) (id->sym sexp)]
-                [(pair? sexp) (cons (conv (car sexp)) (conv (cdr sexp)))]
-                [(vector? sexp) (list->vector (map conv (vector->list sexp)))]
-                [else sexp])))
+      (list 'quote (xform-sexp->datum (car tail)))
       (x-error "improper quote form" (cons 'quote tail))))
+
+(define (xform-syntax-length tail env)
+  (if (and (list1? tail) (list? (car tail)))
+      (list 'quote (length (car tail)))
+      (x-error "improper syntax-length form" (cons 'syntax-length tail))))
+
+(define (xform-syntax-error tail env)
+  (let ([args (map xform-sexp->datum tail)])
+    (if (and (list1+? args) (string? (car args)))
+        (apply x-error args)
+        (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
 
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
@@ -335,7 +350,7 @@
   (case igt
     [(#\0) (=  n 0)]   [(#\1) (=  n 1)]   [(#\2) (=  n 2)]   [(#\3) (=  n 3)] 
     [(#\p) (>= n 0)]   [(#\m) (>= n 1)]   [(#\c) (>= n 2)]   [(#\x) (>= n 1)]
-    [(#\u) (<= 0 n 1)] [(#\b) (<= 1 n 2)]
+    [(#\u) (<= 0 n 1)] [(#\b) (<= 1 n 2)] [(#\t) (<= 2 n 3)]
     [(#\#) (>= n 0)]   [(#\@) #f]
     [else #f])) 
 
@@ -403,41 +418,53 @@
       (x-error "improper withcc form" (cons 'withcc tail))))
 
 (define (xform-body tail env)
-  (if (null? tail)
-      (list 'begin)
-      (let loop ([env env] [ids '()] [inits '()] [nids '()] [body tail])
-        (if (and (pair? body) (pair? (car body)))
-            (let ([first (car body)] [rest (cdr body)])
-              (let* ([head (car first)] [hval (xform #t head env)])
-                (case hval
-                  [(begin)
-                   (loop env ids inits nids (append (cdr first) rest))]
-                  [(define)
-                   (let* ([id (cadr first)] [init (caddr first)]
-                          [nid (gensym (id->sym id))] [env (add-var id nid env)])
-                     (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
-                  [(define-syntax)
-                   (let* ([id (cadr first)] [init (caddr first)]
-                          [env (add-binding id '(undefined) env)])
-                     (loop env (cons id ids) (cons init inits) (cons #t nids) rest))]
-                  [else
-                   (if (procedure? hval)
-                       (loop env ids inits nids (cons (hval first env) rest))
-                       (xform-labels (reverse ids) (reverse inits) (reverse nids) body env))])))
-            (xform-labels (reverse ids) (reverse inits) (reverse nids) body env)))))
+  (cond
+    [(null? tail) 
+     (list 'begin)]
+    [(not (list? tail))
+     (x-error "improper body form" (cons 'body tail))]
+    [else
+     (let loop ([env env] [ids '()] [inits '()] [nids '()] [body tail])
+       (if (and (pair? body) (pair? (car body)))
+           (let ([first (car body)] [rest (cdr body)])
+             (let* ([head (car first)] [tail (cdr first)] [hval (xform #t head env)])
+               (case hval
+                 [(begin)
+                  (if (list? tail) 
+                      (loop env ids inits nids (append tail rest))
+                      (x-error "improper begin form" first))]
+                 [(define)
+                  (if (and (list2? tail) (null? (car tail))) 
+                      (let ([init (cadr tail)]) ; idless
+                        (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))
+                      (if (and (list2? tail) (id? (car tail)))
+                          (let* ([id (car tail)] [init (cadr tail)]
+                                 [nid (gensym (id->sym id))] [env (add-var id nid env)])
+                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))
+                      (x-error "improper define form" first)))]
+                 [(define-syntax)
+                  (if (and (list2? tail) (id? (car tail))) 
+                      (let* ([id (car tail)] [init (cadr tail)]
+                             [env (add-binding id '(undefined) env)])
+                        (loop env (cons id ids) (cons init inits) (cons #t nids) rest))
+                      (x-error "improper define-syntax form" first))]
+                 [else
+                  (if (procedure? hval)
+                      (loop env ids inits nids (cons (hval first env) rest))
+                      (xform-labels (reverse ids) (reverse inits) (reverse nids) body env))])))
+           (xform-labels (reverse ids) (reverse inits) (reverse nids) body env)))]))
 
 (define (xform-labels ids inits nids body env)
   (let loop ([ids ids] [inits inits] [nids nids] [sets '()] [lids '()])
     (cond [(null? ids) 
-           (let* ([xexps (append (reverse sets)
-                           (map (lambda (sexp) (xform #f sexp env)) body))]
-                  [xexp (if (and (pair? xexps) (null? (cdr xexps)))
-                            (car xexps)
-                            (cons 'begin xexps))])
-             (if (null? lids)
-                 xexp
+           (let* ([xexps (append (reverse sets) (map (lambda (x) (xform #f x env)) body))]
+                  [xexp (if (list1? xexps) (car xexps) (cons 'begin xexps))])
+             (if (null? lids) xexp
                  (pair* 'call (list 'lambda (reverse lids) xexp)
                    (map (lambda (lid) '(begin)) lids))))]
+          [(not (car ids)) ; idless define
+           (loop (cdr ids) (cdr inits) (cdr nids)
+             (cons (xform #f (car inits) env) sets) lids)]
           [(symbol? (car nids)) ; define
            (loop (cdr ids) (cdr inits) (cdr nids)
              (cons (xform-set! (list (car ids) (car inits)) env) sets)
@@ -447,9 +474,11 @@
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
 (define (xform-define tail env) ; top-level only
-  (if (and (list2? tail) (id? (car tail)))
-      (list 'define (id->sym (car tail)) (xform #f (cadr tail) env))
-      (x-error "improper define form" (cons 'define tail))))
+  (if (and (list2? tail) (null? (car tail))) ; idless
+      (xform #f (cadr tail) env)
+      (if (and (list2? tail) (id? (car tail)))
+          (list 'define (id->sym (car tail)) (xform #f (cadr tail) env))
+          (x-error "improper define form" (cons 'define tail)))))
 
 (define (xform-define-syntax tail env) ; top-level only
   (if (and (list2? tail) (id? (car tail)))
@@ -473,6 +502,8 @@
     (make-binding 'lambda 'lambda)
     (make-binding 'lambda* 'lambda*)
     (make-binding 'syntax-lambda 'syntax-lambda)
+    (make-binding 'syntax-length 'syntax-length)
+    (make-binding 'syntax-error 'syntax-error)
     (make-binding 'letcc 'letcc)
     (make-binding 'withcc 'withcc)
     (make-binding 'begin 'begin)

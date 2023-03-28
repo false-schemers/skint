@@ -171,6 +171,56 @@ char *s_code[] = {
   "l3:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y11:delay-force;l2:y12:make-"
   "promise;y1:x;;;;",
 
+  "P", "new-record-type",
+  "%2.1,.1c]2",
+
+  "S", "%id-eq??",
+  "l3:y12:syntax-rules;n;l2:l5:y1:_;y2:id;y1:b;y2:kt;y2:kf;;l3:l3:y13:syn"
+  "tax-lambda;l2:y2:id;y2:ok;;l2:l3:y12:syntax-rules;n;l2:l2:y1:_;y1:b;;l"
+  "1:y2:id;;;;y2:ok;;;l3:y12:syntax-rules;n;l2:l1:y1:_;;y2:kf;;;l3:y12:sy"
+  "ntax-rules;n;l2:l1:y1:_;;y2:kt;;;;;",
+
+  "S", "%id-assq??",
+  "l4:y12:syntax-rules;n;l2:l5:y1:_;y2:id;n;y2:kt;y2:kf;;y2:kf;;l2:l5:y1:"
+  "_;y2:id;ppy3:id0;y2:r0;;y4:idr*;;y2:kt;y2:kf;;l5:y8:%25id-eq??;y2:id;y"
+  "3:id0;py2:kt;y2:r0;;l5:y10:%25id-assq??;y2:id;y4:idr*;y2:kt;y2:kf;;;;",
+
+  "S", "%drt-init",
+  "l4:y12:syntax-rules;n;l2:l5:y1:_;y1:r;n;y3:fi*;l2:y1:x;y3:...;;;l4:y5:"
+  "begin;y1:x;y3:...;y1:r;;;l2:l5:y1:_;y1:r;py3:id0;y3:id*;;y3:fi*;l2:y1:"
+  "x;y3:...;;;l5:y10:%25id-assq??;y3:id0;y3:fi*;l3:y12:syntax-rules;n;l2:"
+  "l2:y1:_;y2:i0;;l5:y9:%25drt-init;y1:r;y3:id*;y3:fi*;l3:y1:x;y3:...;l4:"
+  "y11:record-set!;y1:r;y2:i0;y3:id0;;;;;;l3:y12:syntax-error;s52:id in d"
+  "efine-record-type constructor is not a field:;y3:id0;;;;",
+
+  "S", "%drt-unroll",
+  "l5:y12:syntax-rules;n;l2:l8:y1:_;y3:rtn;l3:y5:consn;y2:id;y3:...;;y5:p"
+  "redn;n;l2:l2:y1:f;y1:i;;y3:...;;l2:l2:y1:a;y2:ia;;y3:...;;l2:l2:y1:m;y"
+  "2:im;;y3:...;;;l8:y5:begin;l3:y6:define;y3:rtn;l3:y15:new-record-type;"
+  "l2:y5:quote;y3:rtn;;l2:y5:quote;l2:y1:f;y3:...;;;;;l3:y6:define;y5:con"
+  "sn;l3:y6:lambda;l2:y2:id;y3:...;;l3:y3:let;l1:l2:y1:r;l3:y11:make-reco"
+  "rd;y3:rtn;l2:y13:syntax-length;l2:y1:f;y3:...;;;;;;l5:y9:%25drt-init;y"
+  "1:r;l2:y2:id;y3:...;;l2:l2:y1:f;y1:i;;y3:...;;n;;;;;l3:y6:define;y5:pr"
+  "edn;l3:y6:lambda;l1:y3:obj;;l3:y7:record?;y3:obj;y3:rtn;;;;l3:y6:defin"
+  "e;y1:a;l3:y6:lambda;l1:y3:obj;;l3:y10:record-ref;y3:obj;y2:ia;;;;y3:.."
+  ".;l3:y6:define;y1:m;l3:y6:lambda;l2:y3:obj;y3:val;;l4:y11:record-set!;"
+  "y3:obj;y2:im;y3:val;;;;y3:...;;;l2:l8:y1:_;y3:rtn;y3:cf*;y5:predn;l3:l"
+  "2:y2:fn;y4:accn;;y3:fam;y3:...;;l2:y2:fi;y3:...;;l2:y2:ai;y3:...;;l2:y"
+  "2:mi;y3:...;;;l8:y11:%25drt-unroll;y3:rtn;y3:cf*;y5:predn;l2:y3:fam;y3"
+  ":...;;l3:y2:fi;y3:...;l2:y2:fn;l2:y13:syntax-length;l2:y2:fi;y3:...;;;"
+  ";;l3:y2:ai;y3:...;l2:y4:accn;l2:y13:syntax-length;l2:y2:fi;y3:...;;;;;"
+  "l2:y2:mi;y3:...;;;;l2:l8:y1:_;y3:rtn;y3:cf*;y5:predn;l3:l3:y2:fn;y4:ac"
+  "cn;y4:modn;;y3:fam;y3:...;;l2:y2:fi;y3:...;;l2:y2:ai;y3:...;;l2:y2:mi;"
+  "y3:...;;;l8:y11:%25drt-unroll;y3:rtn;y3:cf*;y5:predn;l2:y3:fam;y3:...;"
+  ";l3:y2:fi;y3:...;l2:y2:fn;l2:y13:syntax-length;l2:y2:fi;y3:...;;;;;l3:"
+  "y2:ai;y3:...;l2:y4:accn;l2:y13:syntax-length;l2:y2:fi;y3:...;;;;;l3:y2"
+  ":mi;y3:...;l2:y4:modn;l2:y13:syntax-length;l2:y2:fi;y3:...;;;;;;;",
+
+  "S", "define-record-type",
+  "l3:y12:syntax-rules;n;l2:l6:y1:_;y3:rtn;l3:y5:consn;y2:id;y3:...;;y5:p"
+  "redn;py2:fn;y2:am;;y3:...;;l8:y11:%25drt-unroll;y3:rtn;l3:y5:consn;y2:"
+  "id;y3:...;;y5:predn;l2:py2:fn;y2:am;;y3:...;;n;n;n;;;",
+
   "P", "floor/",
   "%2.1,.1Nm,.2,.2Nl,@(y6:values)[22",
 
