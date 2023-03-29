@@ -55,6 +55,31 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define nochecks
 #endif
 
+/* copying objects */
+#if 0
+#define objcpy(dst, src, cnt) \
+  memcpy((dst), (src), (cnt)*sizeof(obj))  
+#define objmove_left(dst, src, cnt) \
+  memmove((dst), (src), (cnt)*sizeof(obj))  
+#define objmove(dst, src, cnt) \
+  memmove((dst), (src), (cnt)*sizeof(obj))  
+#else
+#define objcpy(dst, src, cnt) \
+  do { obj *noalias dp__ = (dst), *noalias sp__ = (src); int n__ = (cnt); \
+       while (n__-- > 0) *dp__++ = *sp__++; } while(0)
+#define objmove_left(dst, src, cnt) \
+  do { int n__ = (cnt); obj *dp__ = (dst), *sp__ = (src); \
+       while (n__-- > 0) *dp__++ = *sp__++; } while(0)
+#define objmove_right(dst, src, cnt) \
+  do { int n__ = (cnt); obj *dp__ = (dst)+n__, *sp__ = (src)+n__; \
+       while (n__-- > 0) *--dp__ = *--sp__; } while(0)
+#define objmove(dst, src, cnt) \
+  do { int n__ = (cnt); obj *dp__ = (dst), *sp__ = (src); \
+       if (dp__ > sp__) { dp__ += n__, sp__ += n; while (n__-- > 0) *--dp__ = *--sp__; } \
+       else if (dp__ < sp__) while (n__-- > 0) *dp__++ = *sp__++; } while(0)
+#endif
+
+
 #ifdef VM_INS_CODE_ALIGNED /* direct representation */
 #define ins_from_obj(x) ((ins_t)(x))
 #else /* indirect representation (alignment needed) */
@@ -667,7 +692,7 @@ define_instruction(cwmv) {
     int n = vmclolen(x) - 1;
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
     sp = r + VM_REGC; /* stack is empty */
-    memcpy(sp, &vmcloref(x, 1), n*sizeof(obj));
+    objcpy(sp, &vmcloref(x, 1), n);
     sp += n; /* contains n elements now */
     rd = t; rx = fixnum_obj(0); 
     ac = fixnum_obj(0);
@@ -715,7 +740,7 @@ define_instruction(sdmv) {
       /* tail-call the consumer with the produced values */
       rd = sref(n+2); rx = fixnum_obj(0); /* cns */
       /* NB: can be sped up for popular cases: n == 0, n == 2 */
-      memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+      objmove_left(sp-n-m, sp-n, n);
       sdrop(m); callsubi();
     } else if (n == 0) { /* return unit (n = 0) */
       ac = unit_obj();
@@ -739,17 +764,17 @@ define_instruction(lck) {
   int n; cki(sref(m)); ckx(sref(m+1));
   n = (int)(sp-m-(r+VM_REGC));
   hp_reserve(vmclobsz(n+1));
-  hp -= n; memcpy(hp, sp-n-m, n*sizeof(obj));
+  hp -= n; objcpy(hp, sp-n-m, n);
   *--hp = cx_continuation_2Dadapter_2Dcode;
   ac = hend_vmclo(n+1);
   gonexti();
 }
 
 define_instruction(lck0) {
-  int n; cki(sref(0)); ckx(sref(1));
+  int m = 0, n; cki(sref(0)); ckx(sref(1));
   n = (int)(sp-(r+VM_REGC));
   hp_reserve(vmclobsz(n+1));
-  hp -= n; memcpy(hp, sp-n, n*sizeof(obj));
+  hp -= n; objcpy(hp, sp-n-m, n);
   *--hp = cx_continuation_2Dadapter_2Dcode;
   ac = hend_vmclo(n+1);
   gonexti();
@@ -762,7 +787,7 @@ define_instruction(wck) {
   n = vmclolen(x) - 1;
   assert((cxg_rend - cxg_regs - VM_REGC) > n);
   sp = r + VM_REGC; /* stack is empty */
-  memcpy(sp, &vmcloref(x, 1), n*sizeof(obj));
+  objcpy(sp, &vmcloref(x, 1), n);
   sp += n; /* contains n elements now */
   rd = t; rx = fixnum_obj(0); 
   ac = fixnum_obj(0);
@@ -776,7 +801,7 @@ define_instruction(wckr) {
   n = vmclolen(x) - 1;
   assert((cxg_rend - cxg_regs - VM_REGC) > n);
   sp = r + VM_REGC; /* stack is empty */
-  memcpy(sp, &vmcloref(x, 1), n*sizeof(obj));
+  objcpy(sp, &vmcloref(x, 1), n);
   sp += n;
   ac = o;
   rx = spop();
@@ -797,8 +822,8 @@ define_instruction(rck) {
       rd = *--ke; rx = fixnum_obj(0); n = ke - ks; /* cns */
       /* arrange stack as follows: [ks..ke] [arg ...] */
       assert((cxg_rend - cxg_regs - VM_REGC) > n + c);
-      if (c) memmove(sb+n, sp-c, c*sizeof(obj));
-      memcpy(sb, ks, n*sizeof(obj));
+      if (c) objmove(sb+n, sp-c, c);
+      objcpy(sb, ks, n);
       sp = sb+n+c; callsubi();
     } else if (c == 0) { /* return unit (n = 0) */
       spush(unit_obj());
@@ -863,7 +888,7 @@ define_instruction(scall) {
   int m = get_fixnum(*ip++), n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n); /* argc */
-  memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+  objmove_left(sp-n-m, sp-n, n);
   sdrop(m);
   callsubi();
 }
@@ -914,7 +939,7 @@ define_instruction(shrarg) {
       l = hend_pair(); 
       --m;
     }
-    memmove((void*)(sp-c), (void*)(sp-n), (size_t)n*sizeof(obj));
+    objmove_left(sp-c, sp-n, n);
     sdrop(c-n);
     spush(l); 
   }
@@ -1433,8 +1458,8 @@ define_instruction(vcat) {
   n1 = vector_len(x), n2 = vector_len(y), n = n1 + n2;
   hp_reserve(vecbsz(n));
   /* NB: vector_ref fails to return pointer to empty vector's start */
-  hp -= n2; if (n2) memcpy(hp, &vector_ref(y, 0), n2*sizeof(obj));
-  hp -= n1; if (n1) memcpy(hp, &vector_ref(x, 0), n1*sizeof(obj));
+  hp -= n2; if (n2) objcpy(hp, &vector_ref(y, 0), n2);
+  hp -= n1; if (n1) objcpy(hp, &vector_ref(x, 0), n1);
   ac = hend_vec(n);
   sdrop(1);
   gonexti();
@@ -3433,7 +3458,7 @@ define_instruction(scall1) {
   int m = 1, n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n); /* argc */
-  memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+  objmove_left(sp-n-m, sp-n, n);
   sdrop(m); callsubi();
 }
 
@@ -3470,7 +3495,7 @@ define_instruction(scall2) {
   int m = 2, n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n);
-  memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+  objmove_left(sp-n-m, sp-n, n);
   sdrop(m); callsubi();
 }
 
@@ -3507,7 +3532,7 @@ define_instruction(scall3) {
   int m = 3, n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n);
-  memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+  objmove_left(sp-n-m, sp-n, n);
   sdrop(m); callsubi();
 }
 
@@ -3544,7 +3569,7 @@ define_instruction(scall4) {
   int m = 4, n = get_fixnum(*ip++);
   ckx(ac); rd = ac; rx = fixnum_obj(0); 
   ac = fixnum_obj(n);
-  memmove((void*)(sp-n-m), (void*)(sp-n), (size_t)n*sizeof(obj));
+  objmove_left(sp-n-m, sp-n, n);
   sdrop(m); callsubi();
 }
 
