@@ -1588,14 +1588,21 @@
 (define (repl-from-port iport)
   (let loop ([x (repl-read iport)])
     (unless (eof-object? x)
-        (repl-eval-top-form x)
-        (loop (repl-read iport)))))
+      (repl-eval-top-form x)
+      (loop (repl-read iport)))))
 
 (define (repl-file fname)
   (define iport (open-input-file fname))
   (repl-from-port iport)
   (close-input-port iport))
 
+(define (benchmark-file fname)
+  (define iport (open-input-file fname))
+  (unless (syntax-match? '(load "libl.sf") (read iport))
+    (error "unexpected benchmark file format" fname))
+  (repl-from-port iport)
+  (repl-eval-top-form '(main #f))  
+  (close-input-port iport))
 
 (define (run-repl)
   (repl-from-port (current-input-port)))
@@ -1607,6 +1614,8 @@
        (process-file (cadr args))]
       [(syntax-match? '("-l" *) args)
        (repl-file (cadr args))]
+      [(syntax-match? '("-b" *) args)
+       (benchmark-file (cadr args))]
       [(syntax-match? '("-t") args)
        (run-tests)]
       [(syntax-match? '("-v") args)
