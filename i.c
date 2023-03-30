@@ -840,12 +840,6 @@ define_instruction(wckr) {
   }
 }
 
-define_instruction(kdys) {
-  /* called with continuation as rd:
-   * rd[0] adapter_code, rd[1] dynamic_state */
-  ac = vmcloref(rd, 1);
-  gonexti();
-}
 
 define_instruction(rck) {
   /* called with continuation as rd: 

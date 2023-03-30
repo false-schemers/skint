@@ -1181,7 +1181,7 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (o == obj_from_void(0)) {
     wrs("#<void>", e);
   } else if (o == obj_from_unit()) {
-    wrs("#<unit>", e);
+    wrs("#<values>", e);
   } else if (isiport(o)) {
     char buf[60]; sprintf(buf, "#<%s>", ckiportvt(o)->tname); wrs(buf, e);
   } else if (isoport(o)) {
@@ -1260,7 +1260,7 @@ static void wrdatum(obj o, wenv_t *e) {
     int i, n = recordlen(o);
     obj rtd = recordrtd(o);
     if (rtd == bool_from_obj(0)) {
-      wrs("#<tuple", e);
+      wrs("#<values", e);
     } else {
       wrs("#<record ", e); wrdatum(rtd, e); // TODO: no need to show as shared!
     }
