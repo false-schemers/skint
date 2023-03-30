@@ -171,6 +171,27 @@ char *s_code[] = {
   "l3:y12:syntax-rules;n;l2:l2:y1:_;y1:x;;l2:y11:delay-force;l2:y12:make-"
   "promise;y1:x;;;;",
 
+  "C", 0,
+  "&0{%2${.2,.4[01},#0.2,.1,&2{%2.1?{.0:!0]2}.0,:1[21}%x,.3,.2,&2{%1${.2,"
+  ":1[01}:!0]1}%x,.2,&1{%0:0^]0}%x,&3{|00|11|22%%}]3}%x,&0{%1#0.0,&1{%2.1"
+  "?{.0:!0]2}.0]2}%x,.1,&1{%1.0:!0]1}%x,.2,&1{%0:0^]0}%x,&3{|00|11|22%%}]"
+  "1}%x,&2{|10|21%%}@!(y14:make-parameter)",
+
+  "S", "%parameterize-loop",
+  "l4:y12:syntax-rules;n;l2:l4:y1:_;l2:l5:y5:param;y5:value;y1:p;y3:old;y"
+  "3:new;;y3:...;;n;y4:body;;l3:y3:let;l2:l2:y1:p;y5:param;;y3:...;;l3:y3"
+  ":let;l4:l2:y3:old;l1:y1:p;;;y3:...;l2:y3:new;l3:y1:p;y5:value;f;;;y3:."
+  "..;;l4:y12:dynamic-wind;l4:y6:lambda;n;l3:y1:p;y3:new;t;;y3:...;;py6:l"
+  "ambda;pn;y4:body;;;l4:y6:lambda;n;l3:y1:p;y3:old;t;;y3:...;;;;;;l2:l4:"
+  "y1:_;y4:args;pl2:y5:param;y5:value;;y4:rest;;y4:body;;l4:y18:%25parame"
+  "terize-loop;pl5:y5:param;y5:value;y1:p;y3:old;y3:new;;y4:args;;y4:rest"
+  ";y4:body;;;",
+
+  "S", "parameterize",
+  "l3:y12:syntax-rules;n;l2:py1:_;pl2:l2:y5:param;y5:value;;y3:...;;y4:bo"
+  "dy;;;l4:y18:%25parameterize-loop;n;l2:l2:y5:param;y5:value;;y3:...;;y4"
+  ":body;;;",
+
   "P", "new-record-type",
   "%2.1,.1c]2",
 
@@ -581,11 +602,122 @@ char *s_code[] = {
   "I+,:3^[11}.!0.0^_1[41}${.2,.5c,@(y13:%25vector->list),@(y5:%25map1)[02"
   "},.2c,@(y9:%25for-each),@(y13:apply-to-list)[32",
 
+  "P", "abort",
+  "%0tZ8]0",
+
+  "P", "reset",
+  "%0'1Z9]0",
+
+  "P", "set-reset-handler!",
+  "%1.0@!(y5:reset)]1",
+
+  "P", "print-error-message",
+  "%3,,,#0#1#2.1,&1{%2.0p?{.0a~?{${.3,'(s2:: ),@(y12:write-string)[02}.1,"
+  ".1d,:0^[22}.0aY0?{${.3,'(s4: in ),@(y12:write-string)[02}.1,.1aW5${.3,"
+  "'(s2:: ),@(y12:write-string)[02}.1,.1d,:0^[22}${.3,'(s2:: ),@(y12:writ"
+  "e-string)[02}.1,.1,:0^[22}]2}.!0.2,&1{%2.0p?{.0aS0?{.1,.1aW4.1,.1d,:0^"
+  "[22}.1,.1,:0^[22}]2}.!1.2,&1{%2.0p?{.1,'(c )W0.1,.1aW5.1,.1d,:0^[22}]2"
+  "}.!2.3S0,.0?{.0}{.4Y0}_1?{${.7,.6,@(y12:write-string)[02}}{${.7,'(s5:E"
+  "rror),@(y12:write-string)[02}}${.7,.7,.4^[02}.5W6]6",
+
+  "P", "simple-error",
+  "%!0P12,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:rese"
+  "t)[20",
+
+  "P", "assertion-violation",
+  "%!0P12,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-messag"
+  "e)[03}'1Z9]2",
+
+  "C", 0,
+  "${'(l3:y4:kind;y7:message;y9:irritants;),'(y14:<error-object>),@(y15:n"
+  "ew-record-type)[02}@!(y14:<error-object>)",
+
+  "P", "error-object",
+  "%3f,'3,@(y14:<error-object>)O2,.1,'0,.2O5.2,'1,.2O5.3,'2,.2O5.0]4",
+
+  "P", "error-object?",
+  "%1@(y14:<error-object>),.1O0]1",
+
+  "P", "error-object-kind",
+  "%1'0,.1O4]1",
+
+  "P", "error-object-message",
+  "%1'1,.1O4]1",
+
+  "P", "error-object-irritants",
+  "%1'2,.1O4]1",
+
   "P", "error",
-  "%!1.0,.2Z7]2",
+  "%!1${.2,.4,f,@(y12:error-object)[03},@(y5:raise)[21",
+
+  "C", 0,
+  "${,#0&0{%1${.2,@(y13:error-object?)[01}?{${.2,@(y22:error-object-irrit"
+  "ants)[01},${.3,@(y20:error-object-message)[01}c,${.3,@(y17:error-objec"
+  "t-kind)[01}c,@(y12:simple-error),@(y13:apply-to-list)[12}.0,'(s19:unha"
+  "ndled exception),f,@(y12:simple-error)[13}%x,.1,&1{%0:0^]0}%x,&2{|00|1"
+  "1%%}.!0.0^_1,@(y14:make-parameter)[01}@!(y25:current-exception-handler"
+  ")",
+
+  "P", "with-exception-handler",
+  "%2${@(y25:current-exception-handler)[00},@(y25:current-exception-handl"
+  "er),${f,.5,&1{%1.0,:0[11}%x,.5,&1{%0:0]0}%x,&2{|00|11%%},.4[02},${.3[0"
+  "0},.0,.3,&2{%0t,:1,:0[02},.6,&1{%0:0[00},.3,.5,&2{%0t,:1,:0[02},@(y12:"
+  "dynamic-wind)[63",
+
+  "P", "raise",
+  "%1${@(y25:current-exception-handler)[00},@(y25:current-exception-handl"
+  "er),${f,${.6[00},.4[02},${.3[00},.0,.3,&2{%0t,:1,:0[02},.4,.6,&2{%0${:"
+  "0,:1[01}${:0,:1,l2,'(s26:exception handler returned),'(y5:raise),@(y12"
+  ":error-object)[03},@(y5:raise)[01},.3,.5,&2{%0t,:1,:0[02},@(y12:dynami"
+  "c-wind)[53",
+
+  "P", "raise-continuable",
+  "%1${@(y25:current-exception-handler)[00},@(y25:current-exception-handl"
+  "er),${f,${.6[00},.4[02},${.3[00},.0,.3,&2{%0t,:1,:0[02},.5,.5,&2{%0:1,"
+  ":0[01},.3,.5,&2{%0t,:1,:0[02},@(y12:dynamic-wind)[53",
+
+  "S", "%guard-aux",
+  "l9:y12:syntax-rules;l2:y4:else;y2:=>;;l2:l3:y1:_;y7:reraise;l4:y4:else"
+  ";y7:result1;y7:result2;y3:...;;;l4:y5:begin;y7:result1;y7:result2;y3:."
+  "..;;;l2:l3:y1:_;y7:reraise;l3:y4:test;y2:=>;y6:result;;;l3:y3:let;l1:l"
+  "2:y4:temp;y4:test;;;l4:y2:if;y4:temp;l2:y6:result;y4:temp;;y7:reraise;"
+  ";;;l2:l6:y1:_;y7:reraise;l3:y4:test;y2:=>;y6:result;;y7:clause1;y7:cla"
+  "use2;y3:...;;l3:y3:let;l1:l2:y4:temp;y4:test;;;l4:y2:if;y4:temp;l2:y6:"
+  "result;y4:temp;;l5:y10:%25guard-aux;y7:reraise;y7:clause1;y7:clause2;y"
+  "3:...;;;;;l2:l3:y1:_;y7:reraise;l1:y4:test;;;l3:y2:or;y4:test;y7:rerai"
+  "se;;;l2:l6:y1:_;y7:reraise;l1:y4:test;;y7:clause1;y7:clause2;y3:...;;l"
+  "3:y3:let;l1:l2:y4:temp;y4:test;;;l4:y2:if;y4:temp;y4:temp;l5:y10:%25gu"
+  "ard-aux;y7:reraise;y7:clause1;y7:clause2;y3:...;;;;;l2:l3:y1:_;y7:rera"
+  "ise;l4:y4:test;y7:result1;y7:result2;y3:...;;;l4:y2:if;y4:test;l4:y5:b"
+  "egin;y7:result1;y7:result2;y3:...;;y7:reraise;;;l2:l6:y1:_;y7:reraise;"
+  "l4:y4:test;y7:result1;y7:result2;y3:...;;y7:clause1;y7:clause2;y3:...;"
+  ";l4:y2:if;y4:test;l4:y5:begin;y7:result1;y7:result2;y3:...;;l5:y10:%25"
+  "guard-aux;y7:reraise;y7:clause1;y7:clause2;y3:...;;;;",
+
+  "S", "guard",
+  "l3:y12:syntax-rules;n;l2:l5:y5:guard;l3:y3:var;y6:clause;y3:...;;y2:e1"
+  ";y2:e2;y3:...;;l1:l2:y7:call/cc;l3:y6:lambda;l1:y7:guard-k;;l3:y22:wit"
+  "h-exception-handler;l3:y6:lambda;l1:y9:condition;;l1:l2:y7:call/cc;l3:"
+  "y6:lambda;l1:y9:handler-k;;l2:y7:guard-k;l3:y6:lambda;n;l3:y3:let;l1:l"
+  "2:y3:var;y9:condition;;;l4:y10:%25guard-aux;l2:y9:handler-k;l3:y6:lamb"
+  "da;n;l2:y17:raise-continuable;y9:condition;;;;y6:clause;y3:...;;;;;;;;"
+  ";l3:y6:lambda;n;l3:y16:call-with-values;l5:y6:lambda;n;y2:e1;y2:e2;y3:"
+  "...;;l3:y6:lambda;y4:args;l2:y7:guard-k;l3:y6:lambda;n;l3:y5:apply;y6:"
+  "values;y4:args;;;;;;;;;;;;",
 
   "P", "read-error",
-  "%!1.0,.2Z7]2",
+  "%!1${.2,.4,'(y4:read),@(y12:error-object)[03},@(y5:raise)[21",
+
+  "P", "read-error?",
+  "%1${.2,@(y13:error-object?)[01}?{'(y4:read),${.3,@(y17:error-object-ki"
+  "nd)[01}q]1}f]1",
+
+  "P", "file-error",
+  "%!1${.2,.4,'(y4:file),@(y12:error-object)[03},@(y5:raise)[21",
+
+  "P", "file-error?",
+  "%1${.2,@(y13:error-object?)[01}?{'(y4:file),${.3,@(y17:error-object-ki"
+  "nd)[01}q]1}f]1",
 
   "P", "port?",
   "%1.0P00,.0?{.0]2}.1P01]2",

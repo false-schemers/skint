@@ -223,6 +223,42 @@
 
 
 ;---------------------------------------------------------------------------------------------
+; Dynamic bindings
+;---------------------------------------------------------------------------------------------
+
+(define make-parameter
+  (case-lambda
+    [(value) 
+     (case-lambda 
+       [() value]
+       [(x) (set! value x)]
+       [(x s) (if s (set! value x) x)])]
+    [(init converter)
+     (let ([value (converter init)])
+       (case-lambda 
+         [() value]
+         [(x) (set! value (converter x))]
+         [(x s) (if s (set! value x) (converter x))]))]))
+
+(define-syntax %parameterize-loop
+  (syntax-rules ()
+    [(_ ([param value p old new] ...) () body)
+     (let ([p param] ...)
+       (let ([old (p)] ... [new (p value #f)] ...)
+         (dynamic-wind
+           (lambda () (p new #t) ...)
+           (lambda () . body)
+           (lambda () (p old #t) ...))))]
+    [(_ args ([param value] . rest) body)
+     (%parameterize-loop ([param value p old new] . args) rest body)]))
+
+(define-syntax parameterize
+  (syntax-rules ()
+    [(_ ([param value] ...) . body)
+     (%parameterize-loop () ([param value] ...) body)]))
+
+
+;---------------------------------------------------------------------------------------------
 ; Record type definitions
 ;---------------------------------------------------------------------------------------------
 
@@ -1144,20 +1180,157 @@
 
 ;TBD:
 ;
-;with-exception-handler
-;raise
-;raise-continuable
-;error-object?
-;error-object-message
-;error-object-irritants
+; (with-exception-handler handler thunk)
+; (raise obj)
+; (raise-continuable obj)
+; (error-object? x)
+; (error-object-message e)
+; (error-object-irritants e)
 ;read-error?
 ;file-error?
 
-(define (error msg . args) 
-  (%panic msg args)) ; should work for now
+
+(define (abort) (%abort))
+
+(define (reset) (%exit 1))
+
+(define (set-reset-handler! fn) (set! reset fn))
+
+(define (print-error-message prefix args ep)
+  (define (pr-where args ep)
+    (when (pair? args) 
+      (cond [(not (car args)) 
+             (write-string ": " ep)
+             (pr-msg (cdr args) ep)]
+            [(symbol? (car args)) 
+             (write-string " in " ep) (write (car args) ep) (write-string ": " ep)
+             (pr-msg (cdr args) ep)]
+            [else 
+             (write-string ": " ep)
+             (pr-msg args ep)]))) 
+  (define (pr-msg args ep)
+    (when (pair? args) 
+      (cond [(string? (car args))
+             (display (car args) ep)
+             (pr-rest (cdr args) ep)]
+            [else (pr-rest args ep)])))
+   (define (pr-rest args ep)
+     (when (pair? args)
+       (write-char #\space ep) (write (car args) ep)
+       (pr-rest (cdr args) ep)))
+   (cond [(or (string? prefix) (symbol? prefix)) 
+          (write-string prefix ep)]
+         [else (write-string "Error" ep)])
+   (pr-where args ep)
+   (newline ep))
+
+(define (simple-error . args)
+  (let ([ep (current-error-port)])
+    (newline ep)
+    (print-error-message "Error" args ep)
+    (reset)))
+
+(define (assertion-violation . args)
+  (let ([ep (current-error-port)])
+    (newline ep)
+    (print-error-message "Assertion violation" args ep)
+    (%exit 1)))
+
+(define-record-type <error-object>
+  (error-object kind message irritants)
+  error-object?
+  (kind error-object-kind)
+  (message error-object-message)
+  (irritants error-object-irritants))
+
+(define (error msg . args)
+  (raise (error-object #f msg args)))
+
+(define current-exception-handler 
+  (make-parameter
+    (letrec 
+      ([default-handler
+        (case-lambda 
+          [() default-handler] ;this one its own parent 
+          [(obj) 
+           (if (error-object? obj)
+               (apply simple-error (error-object-kind obj) (error-object-message obj) (error-object-irritants obj)) 
+               (simple-error #f "unhandled exception" obj))])])
+      default-handler)))
+
+(define (with-exception-handler handler thunk)
+  (let ([eh (current-exception-handler)])
+    (parameterize ([current-exception-handler (case-lambda [() eh] [(obj) (handler obj)])])
+      (thunk)))) 
+
+(define (raise obj)
+  (let ([eh (current-exception-handler)])
+    (parameterize ([current-exception-handler (eh)])
+      (eh obj)
+      (raise (error-object 'raise "exception handler returned" (list eh obj))))))
+
+(define (raise-continuable obj)
+  (let ([eh (current-exception-handler)])
+    (parameterize ([current-exception-handler (eh)])
+      (eh obj))))
+
+(define-syntax %guard-aux
+  (syntax-rules (else =>)
+    [(_ reraise (else result1 result2 ...))
+     (begin result1 result2 ...)]
+    [(_ reraise (test => result))
+     (let ([temp test]) (if temp (result temp) reraise))]
+    [(_ reraise (test => result) clause1 clause2 ...)
+     (let ([temp test])
+       (if temp
+           (result temp)
+           (%guard-aux reraise clause1 clause2 ...)))]
+    [(_ reraise (test)) (or test reraise)]
+    [(_ reraise (test) clause1 clause2 ...)
+     (let ([temp test])
+       (if temp temp (%guard-aux reraise clause1 clause2 ...)))]
+    [(_ reraise (test result1 result2 ...))
+     (if test (begin result1 result2 ...) reraise)]
+    [(_ reraise (test result1 result2 ...) clause1 clause2 ...)
+     (if test
+         (begin result1 result2 ...)
+         (%guard-aux reraise clause1 clause2 ...))]))
+
+(define-syntax guard
+  (syntax-rules ()
+    [(guard (var clause ...) e1 e2 ...)
+    ((call/cc
+      (lambda (guard-k)
+        (with-exception-handler
+          (lambda (condition)
+            ((call/cc
+                (lambda (handler-k)
+                  (guard-k
+                    (lambda ()
+                      (let ([var condition])
+                        (%guard-aux
+                          (handler-k
+                            (lambda ()
+                              (raise-continuable condition)))
+                          clause
+                          ...))))))))
+          (lambda ()
+            (call-with-values
+              (lambda () e1 e2 ...)
+              (lambda args
+                (guard-k (lambda () (apply values args))))))))))]))
 
 (define (read-error msg . args)
-  (%panic msg args)) ; should work for now
+  (raise (error-object 'read msg args)))
+
+(define (read-error? obj)
+  (and (error-object? obj) (eq? (error-object-kind obj) 'read))) 
+
+(define (file-error msg . args)
+  (raise (error-object 'file msg args)))
+
+(define (file-error? obj)
+  (and (error-object? obj) (eq? (error-object-kind obj) 'file))) 
 
 
 ;---------------------------------------------------------------------------------------------

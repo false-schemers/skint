@@ -573,6 +573,22 @@ define_instruction(panic) {
   unwindi(0); 
 }
 
+define_instruction(abort) {
+  /* exit code ignored */
+  abort();
+  unwindi(0);
+}
+
+define_instruction(exit) {
+  int excode;
+  if (ac == bool_obj(0)) excode = 1;
+  else if (ac == bool_obj(1)) excode = 0;
+  else if (is_fixnum(ac)) excode = (int)get_fixnum(ac);
+  else excode = 1;
+  exit(excode);
+  unwindi(0);
+}
+
 
 define_instruction(lit) { 
   ac = *ip++; 
