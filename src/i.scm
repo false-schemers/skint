@@ -24,3 +24,14 @@
           (%set-dynamic-state! there))
         (before)))))
 
+; same %dynamic-state integrable is needed for dynamic-wind; the code in i_code module is
+; later modified manually to make sure internal lambda does not list/unlist its arguments 
+
+(define (dynamic-wind before during after)
+  (let ([here (%dynamic-state)])
+    (%dynamic-state-reroot! (cons (cons before after) here))
+    (call-with-values during
+      (lambda results
+        (%dynamic-state-reroot! here)
+        (apply values results)))))
+

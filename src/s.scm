@@ -1025,6 +1025,11 @@
 ; (values x ...)
 ; (call-with-values thunk receiver)
 
+; builtins:
+;
+; (dynamic-wind before during after)
+
+
 (define (%apply p x . l)
   (apply-to-list p 
     (let loop ([x x] [l l])
@@ -1048,8 +1053,6 @@
     [_ %call/cc])) 
 
 (define-syntax call-with-current-continuation call/cc)
-
-;dynamic-wind
 
 (define (%map1 p l)
   (let loop ([l l] [r '()])

@@ -4594,22 +4594,39 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
   return hp;
 }
 
-/* hand-coded module */
+/* partially hand-coded module (prototyped in i.scm) */
 char *i_code[] = {
 
   "P", "%dynamic-state-reroot!",
   "%1.0,,#0.0,&1{%1.0,yq~?{${.2d,:0^[01}.0ad,.1aa,y,.1,.3c,.1sa.3,.1sdf,."
   "4san,.4sd.3sy_1.0[30}]1}.!0.0^_1[11",
 
+  /* code for dynamic-wind's internal lambda is modified as follows:
+   * ,    save argc by pushing it on top of args in stack
+   * ${   push new frame for return from %dynamic-state-reroot!
+   * :0   get 'here' dynamic state from internal lambda's display
+   * ,    put it on the stack for dynamic-state-reroot!
+   * @(y22:%25dynamic-state-reroot!) get the d-s-r! procedure
+   * [01  call it with 1 argument ('here' dynamic state)
+   * }    we will return here when d-s-r! is finished 
+   * _!   pop saved argc from stack into ac register
+   * K6   use sdmv opcode to return args from the lambda
+   * also, %x procedure checks inserted for early error detection
+  */
+  "P", "dynamic-wind",
+  "%3y,${.2,.6%x,.5%xcc,@(y22:%25dynamic-state-reroot!)[01}.0,&1{,${:0,@("
+  "y22:%25dynamic-state-reroot!)[01}_!K6},.3,@(y16:call-with-values)[42",
+
   /* code for the continuation adapter:
    * k!   first attempt; does not return if nothing to un/re-wind
    * ,    save argc by pushing it on top of args in stack
    * ${   push new frame for return from %dynamic-state-reroot!
    * :0   get old dynamic state from continuation's display
-   * ,@(y22:%25dynamic-state-reroot!) get the d-s-r! procedure
+   * ,    put it on the stack for dynamic-state-reroot!
+   * @(y22:%25dynamic-state-reroot!) get the d-s-r! procedure
    * [01  call it with 1 argument (old dynamic state)
    * }    we will return here when d-s-r! is finished 
-   * _!   pull saved argc from stack; we are ready to retry
+   * _!   pop saved argc from stack; we are ready to retry
    * k!   retry; should not return this time
    * %%   signal an (argument?) error if we return ?? */
   "K", 0, 
