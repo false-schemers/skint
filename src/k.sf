@@ -733,6 +733,9 @@
 (define-syntax index-global unbox)
 (define-syntax index-set-global! set-box!)
 
+(define *dynamic-state* (list #f)) ; for dynamic-wind
+
+
 ;---------------------------------------------------------------------------------------------
 ; String representation of S-expressions and code arguments
 ;---------------------------------------------------------------------------------------------
@@ -1363,7 +1366,7 @@
 ;---------------------------------------------------------------------------------------------
 
 ; adapter code for continuation closures produced by letcc 
-(define continuation-adapter-code (decode "k!"))
+(define continuation-adapter-code #f) ; inited via (decode "k!...") in i.c
 
 ; adapter closure for values/call-with-values pair
 (define callmv-adapter-closure (make-closure (decode "K5")))

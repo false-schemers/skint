@@ -1037,6 +1037,8 @@
     [(_ . args) (%apply . args)]
     [_ %apply]))
 
+; call/cc and dynamic-wind
+
 (define (%call/cc p) (letcc k (p k)))
 
 (define-syntax call/cc

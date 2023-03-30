@@ -6,6 +6,7 @@
 /* imports */
 extern obj cx__2Aglobals_2A;
 extern obj cx__2Atransformers_2A;
+extern obj cx__2Adynamic_2Dstate_2A;
 extern obj cx_continuation_2Dadapter_2Dcode;
 extern obj cx_callmv_2Dadapter_2Dclosure;
 
@@ -689,7 +690,7 @@ define_instruction(cwmv) {
   ckx(t); ckx(x);
   if (vmcloref(x, 0) == cx_continuation_2Dadapter_2Dcode) {
     /* arrange call of t with x as continuation */
-    int n = vmclolen(x) - 1;
+    int n = vmclolen(x) - 1; 
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
     sp = r + VM_REGC; /* stack is empty */
     objcpy(sp, &vmcloref(x, 1), n);
@@ -763,20 +764,24 @@ define_instruction(lck) {
   int m = get_fixnum(*ip++);
   int n; cki(sref(m)); ckx(sref(m+1));
   n = (int)(sp-m-(r+VM_REGC));
-  hp_reserve(vmclobsz(n+1));
+  hp_reserve(vmclobsz(n+2));
   hp -= n; objcpy(hp, sp-n-m, n);
+  /* [0] adapter_code, [1] dynamic_state */
+  *--hp = cx__2Adynamic_2Dstate_2A;
   *--hp = cx_continuation_2Dadapter_2Dcode;
-  ac = hend_vmclo(n+1);
+  ac = hend_vmclo(n+2);
   gonexti();
 }
 
 define_instruction(lck0) {
-  int m = 0, n; cki(sref(0)); ckx(sref(1));
+  int n; cki(sref(0)); ckx(sref(1));
   n = (int)(sp-(r+VM_REGC));
-  hp_reserve(vmclobsz(n+1));
-  hp -= n; objcpy(hp, sp-n-m, n);
+  hp_reserve(vmclobsz(n+2));
+  hp -= n; objcpy(hp, sp-n, n);
+  /* [0] adapter_code, [1] dynamic_state */
+  *--hp = cx__2Adynamic_2Dstate_2A;
   *--hp = cx_continuation_2Dadapter_2Dcode;
-  ac = hend_vmclo(n+1);
+  ac = hend_vmclo(n+2);
   gonexti();
 }
 
@@ -784,10 +789,11 @@ define_instruction(wck) {
   obj x = ac, t = spop(); int n; ckx(t); ckx(x);
   if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
     failactype("continuation");
-  n = vmclolen(x) - 1;
+  /* [0] adapter_code, [1] dynamic_state */
+  n = vmclolen(x) - 2; 
   assert((cxg_rend - cxg_regs - VM_REGC) > n);
   sp = r + VM_REGC; /* stack is empty */
-  objcpy(sp, &vmcloref(x, 1), n);
+  objcpy(sp, &vmcloref(x, 2), n);
   sp += n; /* contains n elements now */
   rd = t; rx = fixnum_obj(0); 
   ac = fixnum_obj(0);
@@ -798,10 +804,11 @@ define_instruction(wckr) {
   obj x = ac, o = spop(); int n; ckx(x);
   if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
     failactype("continuation");
-  n = vmclolen(x) - 1;
+  /* [0] adapter_code, [1] dynamic_state */
+  n = vmclolen(x) - 2;
   assert((cxg_rend - cxg_regs - VM_REGC) > n);
   sp = r + VM_REGC; /* stack is empty */
-  objcpy(sp, &vmcloref(x, 1), n);
+  objcpy(sp, &vmcloref(x, 2), n);
   sp += n;
   ac = o;
   rx = spop();
@@ -809,14 +816,27 @@ define_instruction(wckr) {
   retfromi();
 }
 
+define_instruction(kdys) {
+  /* called with continuation as rd:
+   * rd[0] adapter_code, rd[1] dynamic_state */
+  ac = vmcloref(rd, 1);
+  gonexti();
+}
+
 define_instruction(rck) {
-  /* in: ac:argc, args on stack, rd display is saved stack */
-  if (ac == fixnum_obj(1)) { /* easy, popular case */
+  /* called with continuation as rd: 
+   * in: ac:argc, args on stack, rd display is dys, saved stack */
+  if (vmcloref(rd, 1) != cx__2Adynamic_2Dstate_2A) {
+    /* need to run the rest of the code to unwind/rewind on the
+     * old stack; rck will be called again when done */
+    gonexti(); 
+  } else if (ac == fixnum_obj(1)) { /* easy, popular case */
     ac = rd; 
     goi(wckr);
   } else { /* multiple results case */
-    int c = get_fixnum(ac), n = vmclolen(rd) - 1, i;
-    obj *ks = &vmcloref(rd, 1), *ke = ks + n;
+    /* rd[0] adapter_code, rd[1] dynamic_state */
+    int c = get_fixnum(ac), n = vmclolen(rd) - 2, i;
+    obj *ks = &vmcloref(rd, 2), *ke = ks + n;
     if (ke-ks > 3 && *--ke == fixnum_obj(0) && *--ke == cx_callmv_2Dadapter_2Dclosure) {
       obj *sb = r + VM_REGC;
       rd = *--ke; rx = fixnum_obj(0); n = ke - ks; /* cns */
@@ -839,6 +859,16 @@ define_instruction(rck) {
       goi(wckr);
     }
   } 
+}
+
+define_instruction(dys) {
+  ac = cx__2Adynamic_2Dstate_2A;
+  gonexti();
+}
+
+define_instruction(setdys) {
+  cx__2Adynamic_2Dstate_2A = ac;
+  gonexti();
 }
 
 define_instruction(save) {
@@ -1161,8 +1191,9 @@ define_instruction(lpair) {
 define_instruction(lrev) {
   obj l = ac, o = null_obj(); int n = 0;
   while (is_pair(ac)) { ac = pair_cdr(ac); ++n; }
+  cku(ac); ac = l;
   hp_reserve(pairbsz()*n);
-  for (ac = l; ac != null_obj(); ac = pair_cdr(ac)) { 
+  for (; ac != null_obj(); ac = pair_cdr(ac)) { 
     *--hp = o; *--hp = pair_car(ac);
     o = hend_pair(); 
   }
@@ -4470,6 +4501,16 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       }
       cdr(bnd) = spop(); /* oldden */
       continue;    
+    } else if (name != 0 && name[0] == 'K' && name[1] == 0) {
+      /* special entry for cx_continuation_2Dadapter_2Dcode */
+      ent += 1; name = ent[0], data = ent[1];
+      assert(name == 0); assert(data != 0);
+      ra = mkiport_string(sp-r, sialloc((char*)data, NULL));
+      hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
+      if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
+      assert(!iseof(ra));
+      cx_continuation_2Dadapter_2Dcode = ra;
+      continue;
     }
     /* skipped prefix or no prefix */
     if (name != NULL) {
@@ -4529,11 +4570,37 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
   return hp;
 }
 
+/* hand-coded module */
+char *i_code[] = {
+
+  "P", "%dynamic-state-reroot!",
+  "%1.0,,#0.0,&1{%1.0,yq~?{${.2d,:0^[01}.0ad,.1aa,y,.1,.3c,.1sa.3,.1sdf,."
+  "4san,.4sd.3sy_1.0[30}]1}.!0.0^_1[11",
+
+  /* code for the continuation adapter:
+   * k!   first attempt; does not return if nothing to un/re-wind
+   * ,    save argc by pushing it on top of args in stack
+   * ${   push new frame for return from %dynamic-state-reroot!
+   * :0   get old dynamic state from continuation's display
+   * ,@(y22:%25dynamic-state-reroot!) get the d-s-r! procedure
+   * [01  call it with 1 argument (old dynamic state)
+   * }    we will return here when d-s-r! is finished 
+   * _!   pull saved argc from stack; we are ready to retry
+   * k!   retry; should not return this time
+   * %%   signal an (argument?) error if we return ?? */
+  "K", 0, 
+  "k!,${:0,@(y22:%25dynamic-state-reroot!)[01}_!k!%%",
+
+  0, 0, 0
+};
+
 /* protects registers from r to sp=r+2; returns new hp */
 static obj *init_modules(obj *r, obj *sp, obj *hp)
 {
+  extern char* i_code[]; /* i.c */
   extern char* s_code[]; /* s.c */
   extern char* t_code[]; /* t.c */
+  hp = init_module(r, sp, hp, (const char **)i_code);
   hp = init_module(r, sp, hp, (const char **)s_code);
   hp = init_module(r, sp, hp, (const char **)t_code);
   return hp;
