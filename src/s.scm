@@ -1359,10 +1359,10 @@
 ; (current-input-port)   ; need to be made into a parameter
 ; (current-output-port)  ; need to be made into a parameter
 ; (current-error-port)   ; need to be made into a parameter
-; (open-input-file s)
-; (open-binary-input-file s)
-; (open-output-file x)
-; (open-binary-output-file x)
+; (%open-input-file s) +
+; (%open-binary-input-file s) +
+; (%open-output-file x) +
+; (%open-binary-output-file x) +
 ; (close-input-port p)
 ; (close-output-port p)
 ; (open-input-string s)
@@ -1375,6 +1375,22 @@
 (define (port? x) (or (input-port? x) (output-port? x)))
 (define textual-port? port?) ; all ports are bimodal
 (define binary-port? port?)  ; all ports are bimodal
+
+(define-inline (open-input-file fn)
+  (or (%open-input-file fn)
+      (file-error "cannot open input file" fn)))
+
+(define-inline (open-output-file fn)
+  (or (%open-output-file fn)
+      (file-error "cannot open output file" fn)))
+
+(define-inline (open-binary-input-file fn)
+  (or (%open-binary-input-file fn)
+      (file-error "cannot open binary input file" fn)))
+
+(define-inline (open-binary-output-file fn)
+  (or (%open-binary-output-file fn)
+      (file-error "cannot open binary output file" fn)))
 
 (define (close-port p)
   (if (input-port? p) (close-input-port p))

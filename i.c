@@ -3098,29 +3098,25 @@ define_instruction(opop) {
 
 define_instruction(oif) {
   FILE *fp = fopen(stringchars(ac), "r");
-  if (fp == NULL) fail("can't open input file");
-  ac = iport_file_obj(fp);
+  ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp);
   gonexti();
 }
 
 define_instruction(oof) {
   FILE *fp = fopen(stringchars(ac), "w");
-  if (fp == NULL) fail("can't open output file");
-  ac = oport_file_obj(fp);
+  ac = (fp == NULL) ? bool_obj(0) : oport_file_obj(fp);
   gonexti();
 }
 
 define_instruction(obif) {
   FILE *fp = fopen(stringchars(ac), "rb");
-  if (fp == NULL) fail("can't open binary input file");
-  ac = iport_file_obj(fp);
+  ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp);
   gonexti();
 }
 
 define_instruction(obof) {
   FILE *fp = fopen(stringchars(ac), "wb");
-  if (fp == NULL) fail("can't open binary output file");
-  ac = oport_file_obj(fp);
+  ac = (fp == NULL) ? bool_obj(0) : oport_file_obj(fp);
   gonexti();
 }
 

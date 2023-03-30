@@ -2,6 +2,12 @@
 
 char *s_code[] = {
 
+  "C", 0,
+  "@(y16:%25open-input-file)@!(y15:open-input-file)"
+  "@(y17:%25open-output-file)@!(y16:open-output-file)"
+  "@(y23:%25open-binary-input-file)@!(y22:open-binary-input-file)"
+  "@(y24:%25open-binary-output-file)@!(y23:open-binary-output-file)",
+
   "S", "let-syntax",
   "l4:y12:syntax-rules;n;l2:l2:y1:_;l2:l2:y2:kw;y4:init;;y3:...;;;l1:y5:b"
   "egin;;;l2:py1:_;pl2:l2:y2:kw;y4:init;;y3:...;;y5:forms;;;l3:py13:synta"
