@@ -348,6 +348,7 @@ declare_instruction(tan,        "N5",           0,  "tan",                      
 declare_instruction(asin,       "N6",           0,  "asin",                     '1', AUTOGL)
 declare_instruction(acos,       "N7",           0,  "acos",                     '1', AUTOGL)
 declare_instruction(atan,       "N8\0f",        0,  "atan",                     'b', AUTOGL)
+declare_instruction(ratp,       "Nv",           0,  "rational?",                '1', AUTOGL)
 declare_instruction(intp,       "Nw",           0,  "integer?",                 '1', AUTOGL)
 declare_instruction(nanp,       "Nu",           0,  "nan?",                     '1', AUTOGL)
 declare_instruction(finp,       "Nf",           0,  "finite?",                  '1', AUTOGL)
@@ -528,7 +529,6 @@ declare_instruction(igco,       "U8",           0,  "integrable-code",          
 /* inlined integrables (no custom instructions) */               
 declare_integrable(NULL,        "N0",           0,  "complex?",                 '1', AUTOGL)
 declare_integrable(NULL,        "N0",           0,  "real?",                    '1', AUTOGL)
-declare_integrable(NULL,        "N0",           0,  "rational?",                '1', AUTOGL)
 declare_integrable(NULL,        "I0",           0,  "exact-integer?",           '1', AUTOGL)
 declare_integrable(NULL,        "%nI0",         0,  "exact?",                   '1', AUTOGL)
 declare_integrable(NULL,        "%nJ0",         0,  "inexact?",                 '1', AUTOGL)

@@ -2,12 +2,6 @@
 
 char *s_code[] = {
 
-  "C", 0,
-  "@(y16:%25open-input-file)@!(y15:open-input-file)"
-  "@(y17:%25open-output-file)@!(y16:open-output-file)"
-  "@(y23:%25open-binary-input-file)@!(y22:open-binary-input-file)"
-  "@(y24:%25open-binary-output-file)@!(y23:open-binary-output-file)",
-
   "S", "let-syntax",
   "l4:y12:syntax-rules;n;l2:l2:y1:_;l2:l2:y2:kw;y4:init;;y3:...;;;l1:y5:b"
   "egin;;;l2:py1:_;pl2:l2:y2:kw;y4:init;;y3:...;;y5:forms;;;l3:py13:synta"
@@ -734,6 +728,21 @@ char *s_code[] = {
   "C", 0,
   "@(y5:port?)@!(y12:binary-port?)",
 
+  "P", "open-input-file",
+  "%1.0P40,.0?{.0]2}.1,'(s22:cannot open input file),@(y10:file-error)[22",
+
+  "P", "open-output-file",
+  "%1.0P41,.0?{.0]2}.1,'(s23:cannot open output file),@(y10:file-error)[2"
+  "2",
+
+  "P", "open-binary-input-file",
+  "%1.0P42,.0?{.0]2}.1,'(s29:cannot open binary input file),@(y10:file-er"
+  "ror)[22",
+
+  "P", "open-binary-output-file",
+  "%1.0P43,.0?{.0]2}.1,'(s30:cannot open binary output file),@(y10:file-e"
+  "rror)[22",
+
   "P", "close-port",
   "%1.0P00?{.0P60}.0P01?{.0P61]1}]1",
 
@@ -742,10 +751,10 @@ char *s_code[] = {
   "st)[12},.1,.3,&2{%0:1,:0[01},@(y16:call-with-values)[22",
 
   "P", "call-with-input-file",
-  "%2.1,.1P40,@(y14:call-with-port)[22",
+  "%2.1,${.3,@(y15:open-input-file)[01},@(y14:call-with-port)[22",
 
   "P", "call-with-output-file",
-  "%2.1,.1P41,@(y14:call-with-port)[22",
+  "%2.1,${.3,@(y16:open-output-file)[01},@(y14:call-with-port)[22",
 
   "P", "read-line",
   "%!0P51,.1u?{P10}{.1a},t,,#0.2,.4,.2,&3{%1:2R0,.0R8,.0?{.0}{'(c%0a),.2C"

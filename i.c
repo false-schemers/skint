@@ -2727,6 +2727,19 @@ define_instruction(intp) {
   gonexti(); 
 }
 
+define_instruction(ratp) {
+  if (likely(is_fixnum(ac))) {
+    ac = bool_obj(1);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
+    ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
+  } else {
+    ac = bool_obj(0);
+  }
+  gonexti(); 
+}
+
+
 define_instruction(nanp) {
   if (unlikely(is_fixnum(ac))) {
     ac = bool_obj(0);

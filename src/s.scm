@@ -473,7 +473,7 @@
 ; (number? x)
 ; (complex? x) == number? what about inf and nan?
 ; (real? x) == number? what about inf and nan?
-; (rational? x) == number? what about inf and nan?
+; (rational? x)
 ; (integer? x)
 ; (exact? x)
 ; (inexact? x)
@@ -1376,19 +1376,19 @@
 (define textual-port? port?) ; all ports are bimodal
 (define binary-port? port?)  ; all ports are bimodal
 
-(define-inline (open-input-file fn)
+(define (open-input-file fn)
   (or (%open-input-file fn)
       (file-error "cannot open input file" fn)))
 
-(define-inline (open-output-file fn)
+(define (open-output-file fn)
   (or (%open-output-file fn)
       (file-error "cannot open output file" fn)))
 
-(define-inline (open-binary-input-file fn)
+(define (open-binary-input-file fn)
   (or (%open-binary-input-file fn)
       (file-error "cannot open binary input file" fn)))
 
-(define-inline (open-binary-output-file fn)
+(define (open-binary-output-file fn)
   (or (%open-binary-output-file fn)
       (file-error "cannot open binary output file" fn)))
 
