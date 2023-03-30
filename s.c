@@ -621,12 +621,12 @@ char *s_code[] = {
   "rror),@(y12:write-string)[02}}${.7,.7,.4^[02}.5W6]6",
 
   "P", "simple-error",
-  "%!0Pe,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:reset"
-  ")[20",
+  "%!0Y9Pe!,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:re"
+  "set)[20",
 
   "P", "assertion-violation",
-  "%!0Pe,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-message"
-  ")[03}'1Z9]2",
+  "%!0Y9Pe!,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-mess"
+  "age)[03}'1Z9]2",
 
   "C", 0,
   "${'(l3:y4:kind;y7:message;y9:irritants;),'(y14:<error-object>),@(y15:n"
@@ -728,6 +728,39 @@ char *s_code[] = {
   "C", 0,
   "@(y5:port?)@!(y12:binary-port?)",
 
+  "C", 0,
+  "&0{%2.1?{.0,@(y24:%25set-current-input-port!)[21}.0]2}%x,&0{%1.0,@(y24"
+  ":%25set-current-input-port!)[11}%x,&0{%0Pi]0}%x,&3{|00|11|22%%}@!(y29:"
+  "%25current-input-port-parameter)",
+
+  "S", "current-input-port",
+  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y19:%25current-input-port;;;l2:l2"
+  ":y1:_;y1:p;;l2:y24:%25set-current-input-port!;y1:p;;;l2:py1:_;y1:r;;py"
+  "29:%25current-input-port-parameter;y1:r;;;l2:y1:_;y29:%25current-input"
+  "-port-parameter;;",
+
+  "C", 0,
+  "&0{%2.1?{.0,@(y25:%25set-current-output-port!)[21}.0]2}%x,&0{%1.0,@(y2"
+  "5:%25set-current-output-port!)[11}%x,&0{%0Po]0}%x,&3{|00|11|22%%}@!(y3"
+  "0:%25current-output-port-parameter)",
+
+  "S", "current-output-port",
+  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y20:%25current-output-port;;;l2:l"
+  "2:y1:_;y1:p;;l2:y25:%25set-current-output-port!;y1:p;;;l2:py1:_;y1:r;;"
+  "py30:%25current-output-port-parameter;y1:r;;;l2:y1:_;y30:%25current-ou"
+  "tput-port-parameter;;",
+
+  "C", 0,
+  "&0{%2.1?{.0,@(y24:%25set-current-error-port!)[21}.0]2}%x,&0{%1.0,@(y24"
+  ":%25set-current-error-port!)[11}%x,&0{%0Pe]0}%x,&3{|00|11|22%%}@!(y29:"
+  "%25current-error-port-parameter)",
+
+  "S", "current-error-port",
+  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y19:%25current-error-port;;;l2:l2"
+  ":y1:_;y1:p;;l2:y24:%25set-current-error-port!;y1:p;;;l2:py1:_;y1:r;;py"
+  "29:%25current-error-port-parameter;y1:r;;;l2:y1:_;y29:%25current-error"
+  "-port-parameter;;",
+
   "P", "open-input-file",
   "%1.0P40,.0?{.0]2}.1,'(s22:cannot open input file),@(y10:file-error)[22",
 
@@ -755,6 +788,24 @@ char *s_code[] = {
 
   "P", "call-with-output-file",
   "%2.1,${.3,@(y16:open-output-file)[01},@(y14:call-with-port)[22",
+
+  "P", "with-input-from-port",
+  "%2@(y29:%25current-input-port-parameter),${f,.4,.4[02},${.3[00},.0,.3,"
+  "&2{%0t,:1,:0[02},.5,&1{%0:0[00},.3,.5,&2{%0t,:1,:0[02},@(y12:dynamic-w"
+  "ind)[53",
+
+  "P", "with-output-to-port",
+  "%2@(y30:%25current-output-port-parameter),${f,.4,.4[02},${.3[00},.0,.3"
+  ",&2{%0t,:1,:0[02},.5,&1{%0:0[00},.3,.5,&2{%0t,:1,:0[02},@(y12:dynamic-"
+  "wind)[53",
+
+  "P", "with-input-from-file",
+  "%2.1,&1{%1:0,.1,@(y20:with-input-from-port)[12},.1,@(y20:call-with-inp"
+  "ut-file)[22",
+
+  "P", "with-output-to-file",
+  "%2.1,&1{%1:0,.1,@(y19:with-output-to-port)[12},.1,@(y21:call-with-outp"
+  "ut-file)[22",
 
   "P", "read-line",
   "%!0P51,.1u?{Pi}{.1a},t,,#0.2,.4,.2,&3{%1:2R0,.0R8,.0?{.0}{'(c%0a),.2C="

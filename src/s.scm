@@ -1178,18 +1178,6 @@
 ; Exceptions
 ;---------------------------------------------------------------------------------------------
 
-;TBD:
-;
-; (with-exception-handler handler thunk)
-; (raise obj)
-; (raise-continuable obj)
-; (error-object? x)
-; (error-object-message e)
-; (error-object-irritants e)
-;read-error?
-;file-error?
-
-
 (define (abort) (%abort))
 
 (define (reset) (%exit 1))
@@ -1356,9 +1344,15 @@
 ; (output-port? x)
 ; (input-port-open? p)
 ; (output-port-open? p)
-; (current-input-port)   ; need to be made into a parameter
-; (current-output-port)  ; need to be made into a parameter
-; (current-error-port)   ; need to be made into a parameter
+; (%current-input-port) +
+; (%current-output-port) +
+; (%current-error-port) +
+; (%set-current-input-port! p) +
+; (%set-current-output-port! p) +
+; (%set-current-error-port! p) +
+; (standard-input-port) +
+; (standard-output-port) +
+; (standard-error-port) +
 ; (%open-input-file s) +
 ; (%open-binary-input-file s) +
 ; (%open-output-file x) +
@@ -1375,6 +1369,45 @@
 (define (port? x) (or (input-port? x) (output-port? x)))
 (define textual-port? port?) ; all ports are bimodal
 (define binary-port? port?)  ; all ports are bimodal
+
+(define %current-input-port-parameter
+  (case-lambda 
+    [() (%current-input-port)]
+    [(p) (%set-current-input-port! p)]
+    [(p s) (if s (%set-current-input-port! p) p)]))
+
+(define-syntax current-input-port
+  (syntax-rules ()
+    [(_) (%current-input-port)]
+    [(_ p) (%set-current-input-port! p)]
+    [(_ . r) (%current-input-port-parameter . r)]
+    [_ %current-input-port-parameter]))
+
+(define %current-output-port-parameter
+  (case-lambda 
+    [() (%current-output-port)]
+    [(p) (%set-current-output-port! p)]
+    [(p s) (if s (%set-current-output-port! p) p)]))
+
+(define-syntax current-output-port
+  (syntax-rules ()
+    [(_) (%current-output-port)]
+    [(_ p) (%set-current-output-port! p)]
+    [(_ . r) (%current-output-port-parameter . r)]
+    [_ %current-output-port-parameter]))
+
+(define %current-error-port-parameter
+  (case-lambda 
+    [() (%current-error-port)]
+    [(p) (%set-current-error-port! p)]
+    [(p s) (if s (%set-current-error-port! p) p)]))
+
+(define-syntax current-error-port
+  (syntax-rules ()
+    [(_) (%current-error-port)]
+    [(_ p) (%set-current-error-port! p)]
+    [(_ . r) (%current-error-port-parameter . r)]
+    [_ %current-error-port-parameter]))
 
 (define (open-input-file fn)
   (or (%open-input-file fn)
@@ -1406,8 +1439,17 @@
 (define (call-with-output-file fname proc)
   (call-with-port (open-output-file fname) proc)) 
 
-;with-input-from-file  -- requires parameterize
-;with-output-to-file   -- requires parameterize
+(define (with-input-from-port port thunk) ; +
+  (parameterize ([current-input-port port]) (thunk)))
+
+(define (with-output-to-port port thunk) ; +
+  (parameterize ([current-output-port port]) (thunk)))
+
+(define (with-input-from-file fname thunk)
+  (call-with-input-file fname (lambda (p) (with-input-from-port p thunk))))
+
+(define (with-output-to-file fname thunk)
+  (call-with-output-file fname (lambda (p) (with-output-to-port p thunk))))
 
 
 ;---------------------------------------------------------------------------------------------

@@ -3101,6 +3101,25 @@ define_instruction(cerr) {
   gonexti();
 }
 
+define_instruction(setcin) {
+  ckr(ac);
+  cx__2Acurrent_2Dinput_2A = ac;
+  gonexti();
+}
+
+define_instruction(setcout) {
+  ckw(ac);
+  cx__2Acurrent_2Doutput_2A = ac;
+  gonexti();
+}
+
+define_instruction(setcerr) {
+  ckw(ac);
+  cx__2Acurrent_2Derror_2A = ac;
+  gonexti();
+  gonexti();
+}
+/*
 define_instruction(cinv) {
   if (ac == void_obj()) {
     ac = cx__2Acurrent_2Dinput_2A;
@@ -3133,7 +3152,7 @@ define_instruction(cerrv) {
   }  
   gonexti();
 }
-
+*/
 
 define_instruction(sip) {
   ac = iport_file_obj(stdin);
@@ -4673,7 +4692,7 @@ char *i_code[] = {
 
   /* initialize current port variables */
   "C", 0,
-  "P10Pi!" "P11Po!" "P12Pe!",
+  "P10Psi" "P11Pso" "P12Pse",
 
   /* internal continuation switch code */
   "P", "%dynamic-state-reroot!",
