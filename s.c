@@ -621,12 +621,12 @@ char *s_code[] = {
   "rror),@(y12:write-string)[02}}${.7,.7,.4^[02}.5W6]6",
 
   "P", "simple-error",
-  "%!0P12,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:rese"
-  "t)[20",
+  "%!0Pe,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:reset"
+  ")[20",
 
   "P", "assertion-violation",
-  "%!0P12,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-messag"
-  "e)[03}'1Z9]2",
+  "%!0Pe,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-message"
+  ")[03}'1Z9]2",
 
   "C", 0,
   "${'(l3:y4:kind;y7:message;y9:irritants;),'(y14:<error-object>),@(y15:n"
@@ -757,9 +757,9 @@ char *s_code[] = {
   "%2.1,${.3,@(y16:open-output-file)[01},@(y14:call-with-port)[22",
 
   "P", "read-line",
-  "%!0P51,.1u?{P10}{.1a},t,,#0.2,.4,.2,&3{%1:2R0,.0R8,.0?{.0}{'(c%0a),.2C"
-  "=}_1?{.0R8?{.1}{f}?{.0]2}:1P90,:1P61.0]3}'(c%0d),.1C=?{f,:0^[21}:1,.1W"
-  "0f,:0^[21}.!0.0^_1[31",
+  "%!0P51,.1u?{Pi}{.1a},t,,#0.2,.4,.2,&3{%1:2R0,.0R8,.0?{.0}{'(c%0a),.2C="
+  "}_1?{.0R8?{.1}{f}?{.0]2}:1P90,:1P61.0]3}'(c%0d),.1C=?{f,:0^[21}:1,.1W0"
+  "f,:0^[21}.!0.0^_1[31",
 
   "P", "read-substring!",
   "%4.1,,#0.5,.4,.4,.3,.8,&5{%1:0,.1I<!?{:3,.1I-]1}:4R0,.0R8?{:3,.2I=?{.0"
@@ -772,12 +772,12 @@ char *s_code[] = {
   "C", 0,
   "&0{%4.1,.4,.4,.3,@(y15:read-substring!)[44}%x,&0{%3.1,.1S3,.4,.3,@(y15"
   ":read-substring!)[34}%x,&0{%2.1,.1S3,'0,.3,@(y15:read-substring!)[24}%"
-  "x,&0{%1P10,.1S3,'0,.3,@(y15:read-substring!)[14}%x,&4{|10|21|32|43%%}@"
-  "!(y12:read-string!)",
+  "x,&0{%1Pi,.1S3,'0,.3,@(y15:read-substring!)[14}%x,&4{|10|21|32|43%%}@!"
+  "(y12:read-string!)",
 
   "C", 0,
-  "&0{%2.1,.1,@(y14:read-substring)[22}%x,&0{%1P10,.1,@(y14:read-substrin"
-  "g)[12}%x,&2{|10|21%%}@!(y11:read-string)",
+  "&0{%2.1,.1,@(y14:read-substring)[22}%x,&0{%1Pi,.1,@(y14:read-substring"
+  ")[12}%x,&2{|10|21%%}@!(y11:read-string)",
 
   "P", "read-subbytevector!",
   "%4.1,,#0.5,.4,.4,.3,.8,&5{%1:0,.1I<!?{:3,.1I-]1}:4R3,.0R8?{:3,.2I=?{.0"
@@ -790,12 +790,12 @@ char *s_code[] = {
   "C", 0,
   "&0{%4.1,.4,.4,.3,@(y19:read-subbytevector!)[44}%x,&0{%3.1,.1B3,.4,.3,@"
   "(y19:read-subbytevector!)[34}%x,&0{%2.1,.1B3,'0,.3,@(y19:read-subbytev"
-  "ector!)[24}%x,&0{%1P10,.1B3,'0,.3,@(y19:read-subbytevector!)[14}%x,&4{"
-  "|10|21|32|43%%}@!(y16:read-bytevector!)",
+  "ector!)[24}%x,&0{%1Pi,.1B3,'0,.3,@(y19:read-subbytevector!)[14}%x,&4{|"
+  "10|21|32|43%%}@!(y16:read-bytevector!)",
 
   "C", 0,
-  "&0{%2.1,.1,@(y18:read-subbytevector)[22}%x,&0{%1P10,.1,@(y18:read-subb"
-  "ytevector)[12}%x,&2{|10|21%%}@!(y15:read-bytevector)",
+  "&0{%2.1,.1,@(y18:read-subbytevector)[22}%x,&0{%1Pi,.1,@(y18:read-subby"
+  "tevector)[12}%x,&2{|10|21%%}@!(y15:read-bytevector)",
 
   "P", "%read",
   "%2,,,,,,,,,,,,,,,,,,,,,,#0#1#2#3#4#5#6#7#8#9#(i10)#(i11)#(i12)#(i13)#("
@@ -917,12 +917,12 @@ char *s_code[] = {
   "),.2d,'(s17:unexpected token:),@(y10:read-error)[(i25)4",
 
   "C", 0,
-  "&0{%1f,.1,@(y5:%25read)[12}%x,&0{%0f,P10,@(y5:%25read)[02}%x,&2{|00|11"
-  "%%}@!(y4:read)",
+  "&0{%1f,.1,@(y5:%25read)[12}%x,&0{%0f,Pi,@(y5:%25read)[02}%x,&2{|00|11%"
+  "%}@!(y4:read)",
 
   "C", 0,
-  "&0{%1t,.1,@(y5:%25read)[12}%x,&0{%0t,P10,@(y5:%25read)[02}%x,&2{|00|11"
-  "%%}@!(y11:read-simple)",
+  "&0{%1t,.1,@(y5:%25read)[12}%x,&0{%0t,Pi,@(y5:%25read)[02}%x,&2{|00|11%"
+  "%}@!(y11:read-simple)",
 
   "P", "write-substring",
   "%4.1,,#0.0,.3,.7,.7,&4{%1:0,.1I<!?{]1}:1,.1,:2S4W0'1,.1I+,:3^[11}.!0.0"
@@ -930,8 +930,8 @@ char *s_code[] = {
 
   "C", 0,
   "&0{%4.1,.4,.4,.3,@(y15:write-substring)[44}%x,&0{%3.1,.1S3,.4,.3,@(y15"
-  ":write-substring)[34}%x,&0{%2.1,.1W1]2}%x,&0{%1P11,.1W1]1}%x,&4{|10|21"
-  "|32|43%%}@!(y12:write-string)",
+  ":write-substring)[34}%x,&0{%2.1,.1W1]2}%x,&0{%1Po,.1W1]1}%x,&4{|10|21|"
+  "32|43%%}@!(y12:write-string)",
 
   "P", "write-subbytevector",
   "%4.1,,#0.0,.3,.7,.7,&4{%1:0,.1I<!?{]1}:1,.1,:2B4W2'1,.1I+,:3^[11}.!0.0"
@@ -939,8 +939,8 @@ char *s_code[] = {
 
   "C", 0,
   "&0{%4.1,.4,.4,.3,@(y19:write-subbytevector)[44}%x,&0{%3.1,.1B3,.4,.3,@"
-  "(y19:write-subbytevector)[34}%x,&0{%2.1,.1W3]2}%x,&0{%1P11,.1W3]1}%x,&"
-  "4{|10|21|32|43%%}@!(y16:write-bytevector)",
+  "(y19:write-subbytevector)[34}%x,&0{%2.1,.1W3]2}%x,&0{%1Po,.1W3]1}%x,&4"
+  "{|10|21|32|43%%}@!(y16:write-bytevector)",
 
   "P", "command-line",
   "%0'0,n,,#0.0,&1{%2.1Z0,.0?{'1,.3I+,.2,.2c,:0^[32}.1A9]3}.!0.0^_1[02",

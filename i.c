@@ -9,6 +9,9 @@ extern obj cx__2Atransformers_2A;
 extern obj cx__2Adynamic_2Dstate_2A;
 extern obj cx_continuation_2Dadapter_2Dcode;
 extern obj cx_callmv_2Dadapter_2Dclosure;
+extern obj cx__2Acurrent_2Dinput_2A;
+extern obj cx__2Acurrent_2Doutput_2A;
+extern obj cx__2Acurrent_2Derror_2A;
 
 #define istagged(o, t) istagged_inlined(o, t) 
 
@@ -3080,18 +3083,70 @@ define_instruction(opp) {
   gonexti();
 }
 
+define_instruction(cin) {
+  ac = cx__2Acurrent_2Dinput_2A;
+  assert(is_iport(ac));
+  gonexti();
+}
+
+define_instruction(cout) {
+  ac = cx__2Acurrent_2Doutput_2A;
+  assert(is_oport(ac));
+  gonexti();
+}
+
+define_instruction(cerr) {
+  ac = cx__2Acurrent_2Derror_2A;
+  assert(is_oport(ac));
+  gonexti();
+}
+
+define_instruction(cinv) {
+  if (ac == void_obj()) {
+    ac = cx__2Acurrent_2Dinput_2A;
+    assert(is_iport(ac));
+  } else {
+    ckr(ac);
+    cx__2Acurrent_2Dinput_2A = ac;
+  }  
+  gonexti();
+}
+
+define_instruction(coutv) {
+  if (ac == void_obj()) {
+    ac = cx__2Acurrent_2Doutput_2A;
+    assert(is_oport(ac));
+  } else {
+    ckw(ac);
+    cx__2Acurrent_2Doutput_2A = ac;
+  }  
+  gonexti();
+}
+
+define_instruction(cerrv) {
+  if (ac == void_obj()) {
+    ac = cx__2Acurrent_2Derror_2A;
+    assert(is_oport(ac));
+  } else {
+    ckw(ac);
+    cx__2Acurrent_2Derror_2A = ac;
+  }  
+  gonexti();
+}
+
+
 define_instruction(sip) {
-  ac = iport_file_obj(stdin); /* TODO: keep in global var -- in r7rs it is a parameter */
+  ac = iport_file_obj(stdin);
   gonexti();
 }
 
 define_instruction(sop) {
-  ac = oport_file_obj(stdout); /* TODO: keep in global var -- in r7rs it is a parameter */
+  ac = oport_file_obj(stdout);
   gonexti();
 }
 
 define_instruction(sep) {
-  ac = oport_file_obj(stderr); /* TODO: keep in global var -- in r7rs it is a parameter */
+  ac = oport_file_obj(stderr);
   gonexti();
 }
 
@@ -4616,6 +4671,11 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
 /* partially hand-coded module (prototyped in i.scm) */
 char *i_code[] = {
 
+  /* initialize current port variables */
+  "C", 0,
+  "P10Pi!" "P11Po!" "P12Pe!",
+
+  /* internal continuation switch code */
   "P", "%dynamic-state-reroot!",
   "%1.0,,#0.0,&1{%1.0,yq~?{${.2d,:0^[01}.0ad,.1aa,y,.1,.3c,.1sa.3,.1sdf,."
   "4san,.4sd.3sy_1.0[30}]1}.!0.0^_1[11",

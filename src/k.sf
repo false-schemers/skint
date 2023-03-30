@@ -735,6 +735,10 @@
 
 (define *dynamic-state* (list #f)) ; for dynamic-wind
 
+(define *current-input* #f)
+(define *current-output* #f)
+(define *current-error* #f)
+
 
 ;---------------------------------------------------------------------------------------------
 ; String representation of S-expressions and code arguments
