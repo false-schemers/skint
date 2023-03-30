@@ -688,12 +688,15 @@ define_instruction(appl) {
 define_instruction(cwmv) {
   obj t = ac, x = spop();
   ckx(t); ckx(x);
-  if (vmcloref(x, 0) == cx_continuation_2Dadapter_2Dcode) {
+  /* we can run in constant space in some situations */
+  if (vmcloref(x, 0) == cx_continuation_2Dadapter_2Dcode 
+   && vmcloref(x, 1) ==  cx__2Adynamic_2Dstate_2A) {
     /* arrange call of t with x as continuation */
-    int n = vmclolen(x) - 1; 
+    /* [0] adapter_code, [1] dynamic_state */
+    int n = vmclolen(x) - 2; 
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
     sp = r + VM_REGC; /* stack is empty */
-    objcpy(sp, &vmcloref(x, 1), n);
+    objcpy(sp, &vmcloref(x, 2), n);
     sp += n; /* contains n elements now */
     rd = t; rx = fixnum_obj(0); 
     ac = fixnum_obj(0);
@@ -786,34 +789,55 @@ define_instruction(lck0) {
 }
 
 define_instruction(wck) {
-  obj x = ac, t = spop(); int n; ckx(t); ckx(x);
+  obj x = ac, t = spop(); ckx(t); ckx(x);
   if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  n = vmclolen(x) - 2; 
-  assert((cxg_rend - cxg_regs - VM_REGC) > n);
-  sp = r + VM_REGC; /* stack is empty */
-  objcpy(sp, &vmcloref(x, 2), n);
-  sp += n; /* contains n elements now */
-  rd = t; rx = fixnum_obj(0); 
-  ac = fixnum_obj(0);
-  callsubi();
+  if (vmcloref(x, 1) == cx__2Adynamic_2Dstate_2A) {
+    /* restore cont stack and invoke t there */
+    int n = vmclolen(x) - 2; 
+    assert((cxg_rend - cxg_regs - VM_REGC) > n);
+    sp = r + VM_REGC; /* stack is empty */
+    objcpy(sp, &vmcloref(x, 2), n);
+    sp += n; /* contains n elements now */
+    rd = t; rx = fixnum_obj(0); 
+    ac = fixnum_obj(0);
+    callsubi();
+  } else {
+    /* have to arrange call of cont adapter */
+    spush(x);
+    spush(cx_callmv_2Dadapter_2Dclosure); 
+    spush(fixnum_obj(0));
+    /* call the thunk as producer */
+    rd = t; rx = fixnum_obj(0); 
+    ac = fixnum_obj(0); 
+    callsubi(); 
+  }
 }
 
 define_instruction(wckr) {
-  obj x = ac, o = spop(); int n; ckx(x);
+  obj x = ac, o = spop(); ckx(x);
   if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  n = vmclolen(x) - 2;
-  assert((cxg_rend - cxg_regs - VM_REGC) > n);
-  sp = r + VM_REGC; /* stack is empty */
-  objcpy(sp, &vmcloref(x, 2), n);
-  sp += n;
-  ac = o;
-  rx = spop();
-  rd = spop();
-  retfromi();
+  if (vmcloref(x, 1) == cx__2Adynamic_2Dstate_2A) {
+    /* restore cont stack and return o there */
+    int n = vmclolen(x) - 2;
+    assert((cxg_rend - cxg_regs - VM_REGC) > n);
+    sp = r + VM_REGC; /* stack is empty */
+    objcpy(sp, &vmcloref(x, 2), n);
+    sp += n;
+    ac = o;
+    rx = spop();
+    rd = spop();
+    retfromi();
+  } else {
+    /* have to arrange call of cont adapter */
+    spush(o);
+    rd = x; rx = fixnum_obj(0); 
+    ac = fixnum_obj(1); 
+    callsubi(); 
+  }
 }
 
 define_instruction(kdys) {
