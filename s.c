@@ -621,12 +621,12 @@ char *s_code[] = {
   "rror),@(y12:write-string)[02}}${.7,.7,.4^[02}.5W6]6",
 
   "P", "simple-error",
-  "%!0Y9Pe!,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:re"
-  "set)[20",
+  "%!0Pe,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:reset"
+  ")[20",
 
   "P", "assertion-violation",
-  "%!0Y9Pe!,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-mess"
-  "age)[03}'1Z9]2",
+  "%!0Pe,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-message"
+  ")[03}'1Z9]2",
 
   "C", 0,
   "${'(l3:y4:kind;y7:message;y9:irritants;),'(y14:<error-object>),@(y15:n"
@@ -729,9 +729,8 @@ char *s_code[] = {
   "@(y5:port?)@!(y12:binary-port?)",
 
   "C", 0,
-  "&0{%2.1?{.0,@(y24:%25set-current-input-port!)[21}.0]2}%x,&0{%1.0,@(y24"
-  ":%25set-current-input-port!)[11}%x,&0{%0Pi]0}%x,&3{|00|11|22%%}@!(y29:"
-  "%25current-input-port-parameter)",
+  "&0{%2.1?{.0Psi]2}.0]2}%x,&0{%1.0Psi]1}%x,&0{%0Pi]0}%x,&3{|00|11|22%%}@"
+  "!(y29:%25current-input-port-parameter)",
 
   "S", "current-input-port",
   "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y19:%25current-input-port;;;l2:l2"
@@ -740,9 +739,8 @@ char *s_code[] = {
   "-port-parameter;;",
 
   "C", 0,
-  "&0{%2.1?{.0,@(y25:%25set-current-output-port!)[21}.0]2}%x,&0{%1.0,@(y2"
-  "5:%25set-current-output-port!)[11}%x,&0{%0Po]0}%x,&3{|00|11|22%%}@!(y3"
-  "0:%25current-output-port-parameter)",
+  "&0{%2.1?{.0Pso]2}.0]2}%x,&0{%1.0Pso]1}%x,&0{%0Po]0}%x,&3{|00|11|22%%}@"
+  "!(y30:%25current-output-port-parameter)",
 
   "S", "current-output-port",
   "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y20:%25current-output-port;;;l2:l"
@@ -751,9 +749,8 @@ char *s_code[] = {
   "tput-port-parameter;;",
 
   "C", 0,
-  "&0{%2.1?{.0,@(y24:%25set-current-error-port!)[21}.0]2}%x,&0{%1.0,@(y24"
-  ":%25set-current-error-port!)[11}%x,&0{%0Pe]0}%x,&3{|00|11|22%%}@!(y29:"
-  "%25current-error-port-parameter)",
+  "&0{%2.1?{.0Pse]2}.0]2}%x,&0{%1.0Pse]1}%x,&0{%0Pe]0}%x,&3{|00|11|22%%}@"
+  "!(y29:%25current-error-port-parameter)",
 
   "S", "current-error-port",
   "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y19:%25current-error-port;;;l2:l2"

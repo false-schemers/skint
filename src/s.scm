@@ -1239,7 +1239,7 @@
     (letrec 
       ([default-handler
         (case-lambda 
-          [() default-handler] ;this one its own parent 
+          [() default-handler] ; make this one its own parent 
           [(obj) 
            (if (error-object? obj)
                (apply simple-error (error-object-kind obj) (error-object-message obj) (error-object-irritants obj)) 

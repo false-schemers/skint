@@ -3119,40 +3119,6 @@ define_instruction(setcerr) {
   gonexti();
   gonexti();
 }
-/*
-define_instruction(cinv) {
-  if (ac == void_obj()) {
-    ac = cx__2Acurrent_2Dinput_2A;
-    assert(is_iport(ac));
-  } else {
-    ckr(ac);
-    cx__2Acurrent_2Dinput_2A = ac;
-  }  
-  gonexti();
-}
-
-define_instruction(coutv) {
-  if (ac == void_obj()) {
-    ac = cx__2Acurrent_2Doutput_2A;
-    assert(is_oport(ac));
-  } else {
-    ckw(ac);
-    cx__2Acurrent_2Doutput_2A = ac;
-  }  
-  gonexti();
-}
-
-define_instruction(cerrv) {
-  if (ac == void_obj()) {
-    ac = cx__2Acurrent_2Derror_2A;
-    assert(is_oport(ac));
-  } else {
-    ckw(ac);
-    cx__2Acurrent_2Derror_2A = ac;
-  }  
-  gonexti();
-}
-*/
 
 define_instruction(sip) {
   ac = iport_file_obj(stdin);
