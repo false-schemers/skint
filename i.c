@@ -60,7 +60,7 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #endif
 
 /* copying objects */
-#if 0
+#ifndef OBJCOPY_LOOP
 #define objcpy(dst, src, cnt) \
   memcpy((dst), (src), (cnt)*sizeof(obj))  
 #define objmove_left(dst, src, cnt) \
@@ -117,9 +117,9 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define rz   (r[5])   /* red zone for stack pointer (r + len - rsz) */
 
 /* the rest of the register file is used as a stack */
-#define VM_REGC       6    /* r[0] ... r[5] */
-#define VM_STACK_LEN  1000 /* r[6] ... r[1005] */
-#define VM_STACK_RSZ  64   /* red zone for overflow checks */
+#define VM_REGC       6      /* r[0] ... r[5] */
+#define VM_STACK_LEN  256000 /* r[6] ... r[256005] */
+#define VM_STACK_RSZ  256    /* red zone for overflow checks */
 #define VM_STACK_GSZ  (VM_STACK_LEN-VM_STACK_RSZ)
 
 /* box representation extras */
