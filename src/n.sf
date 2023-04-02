@@ -3775,6 +3775,15 @@ static void wrdatum(obj o, wenv_t *e) {
     wrc(')', e);
   } else if (isbox(o)) {
     wrs(\"#&\", e); o = boxref(o); goto tail;
+  } else if (istagged(o, 0)) {
+    int i, n = taggedlen(o, 0);
+    wrs(\"#<values\", e);
+    for (i = 0; i < n; ++i) { 
+      wrc(' ', e); wrdatum(*taggedref(o, 0, i), e); 
+    }
+    wrc('>', e);
+  } else if (isprocedure(o)) {
+    char buf[60]; sprintf(buf, \"#<procedure @%p>\", objptr_from_obj(o)); wrs(buf, e);
   } else if (isrecord(o)) {
     int i, n = recordlen(o);
     wrs(\"#<record \", e);
@@ -3783,8 +3792,6 @@ static void wrdatum(obj o, wenv_t *e) {
       wrc(' ', e); wrdatum(recordref(o, i), e); 
     }
     wrc('>', e);
-  } else if (isprocedure(o)) {
-    char buf[60]; sprintf(buf, \"#<procedure @%p>\", objptr_from_obj(o)); wrs(buf, e);
   } else if (isvoid(o)) {
     wrs(\"#<void>\", e);
   } else {
