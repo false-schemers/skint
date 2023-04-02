@@ -1,5 +1,5 @@
 
-;  LibN: Medium RNRS compatibility library for #F, fixnum/flonum arithmetics 
+;  LibN: Large RNRS compatibility library for #F, fixnum/flonum arithmetics 
 
 ;  #F's predefined forms: 
 ;
@@ -261,33 +261,35 @@
 
 (%definition "/* basic object representation */")
 
-; immediate objects have 3-bit tag followed by at least 28 bits of data
-; subtype bits follow lsb which is 1 in non-pointer objects 
+; there are two types of immediate objects: those with 30 bits of payload data
+; and no secondary tag (lower two bits are 11), and those with 3-bit tag and 24 
+; bits of payload data (lower two bits are 01); in both cases lsb is 1
 
-(%definition "#define isimm(o, t) (((o) & 0xf) == (((t) << 1) | 1))")
-(%definition "#define isimm2(o1, o2, t) (((((o1) & 0xf) << 4) | ((o2) & 0xf)) == (((((t) << 1) | 1) << 4) | (((t) << 1) | 1)))")
-(%definition "#define getimmu_unchecked(o) (long)(((o) >> 4) & 0xfffffff)")
-(%definition "#define getimms_unchecked(o) (long)(((((o) >> 4) & 0xfffffff) ^ 0x8000000) - 0x8000000)")
-
-(%localdef "long getimmu(obj o, int t) {
-  assert(isimm(o, t));
-  return getimmu_unchecked(o);
-}")
-
-(%localdef "long getimms(obj o, int t) {
-  assert(isimm(o, t));
-  return getimms_unchecked(o);
-}")
+(%definition "#define isim0(o)    (((o) & 3) == 3)")
+(%definition "#define isimm(o, t) (((o) & 0xff) == (((t) << 2) | 1))")
 
 (%definition "#ifdef NDEBUG
-  #define getimmu(o, t) getimmu_unchecked(o)
-  #define getimms(o, t) getimms_unchecked(o)
+  #define getim0s(o) (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
+  #define getimmu(o, t) (long)(((o) >> 8) & 0xffffff)
 #else
+  extern long getim0s(obj o);
   extern long getimmu(obj o, int t);
-  extern long getimms(obj o, int t);
 #endif")
 
-(%definition "#define mkimm(o, t) (obj)((((o) & 0xfffffff) << 4) | ((t) << 1) | 1)")
+(%localdef "#ifndef NDEBUG
+long getim0s(obj o) {
+  assert(isim0(o));
+  return (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
+}
+long getimmu(obj o, int t) {
+  assert(isimm(o, t));
+  return (long)((o >> 8) & 0xffffff);
+}
+#endif")
+
+(%definition "#define mkim0(o) (obj)((((o) & 0x3fffffff) << 2) | 3)")
+(%definition "#define mkimm(o, t) (obj)((((o) & 0xffffff) << 8) | ((t) << 2) | 1)")
+
 
 
 ; native blocks are 1-element blocks containing a native
@@ -315,8 +317,10 @@ void *getnative(obj o, cxtype_t *tp) {
 
 
 ; tagged blocks are heap blocks with runtime int tag as 0th element
-; (disjoint from closures which have a pointer as 0th element)
+; (disjoint from closures which have a foreign pointer as 0th element
+; and from typed blocks which have scheme heap pointer as 0th element)
 
+(%definition "extern int istagged(obj o, int t);")
 (%localdef "int istagged(obj o, int t) {
   if (!isobjptr(o)) return 0;
   else { obj h = objptr_from_obj(o)[-1];
@@ -324,24 +328,6 @@ void *getnative(obj o, cxtype_t *tp) {
       && hblkref(o, 0) == obj_from_size(t); }
 }")
 
-(%localdef "obj cktagged(obj o, int t) {
-  assert(istagged(o, t));
-  return o;
-}")
-
-(%localdef "int taggedlen(obj o, int t) {
-  assert(istagged(o, t));
-  return hblklen(o) - 1;
-}")
-
-(%localdef "obj* taggedref(obj o, int t, int i) {
-  int len; assert(istagged(o, t));
-  len = hblklen(o);
-  assert(i >= 0 && i < len-1);  
-  return &hblkref(o, i+1);
-}")
-
-(%definition "extern int istagged(obj o, int t);")
 (%definition "#ifdef NDEBUG
   #define cktagged(o, t) (o)
   #define taggedlen(o, t) (hblklen(o)-1) 
@@ -351,27 +337,68 @@ void *getnative(obj o, cxtype_t *tp) {
   extern int taggedlen(obj o, int t);
   extern obj* taggedref(obj o, int t, int i); 
 #endif")
+(%localdef "#ifndef NDEBUG
+obj cktagged(obj o, int t) {
+  assert(istagged(o, t));
+  return o;
+}
+int taggedlen(obj o, int t) {
+  assert(istagged(o, t));
+  return hblklen(o) - 1;
+}
+obj* taggedref(obj o, int t, int i) {
+  int len; assert(istagged(o, t));
+  len = hblklen(o);
+  assert(i >= 0 && i < len-1);  
+  return &hblkref(o, i+1);
+}
+#endif")
 
 
 
-; void 
+; typed blocks have non-immediate scheme tag as 0th element
+; (disjoint from closures and native/tagged blocks)
 
-; this is the value to be used where it doesn't really matter what value
-; is used. Standard header supports void value, which is some immediate
-; which looks funny in the debugger; it might correspond to a useful value,
-; but we don't really care.
+(%definition "extern int istyped(obj o);")
+(%localdef "int istyped(obj o) {
+  if (!isobjptr(o)) return 0;
+  else { obj h = objptr_from_obj(o)[-1];
+    return notaptr(h) && size_from_obj(h) >= 1 
+      && isobjptr(hblkref(o, 0)); }
+}")
 
-(define-inline (void) (%prim "void(0)"))
-(define-inline (void? x) (%prim "bool(obj_from_$arg == obj_from_void(0))" x))
+(%definition "#ifdef NDEBUG
+  #define cktyped(o, t) (o)
+  #define typedtype(o) (&hblkref(o, 0))
+  #define typedlen(o) (hblklen(o)-1) 
+  #define typedref(o, i) (&hblkref(o, (i)+1))
+#else
+  extern obj cktyped(obj o);
+  extern obj* typedtype(obj o); 
+  extern int typedlen(obj o);
+  extern obj* typedref(obj o, int i); 
+#endif")
+(%localdef "#ifndef NDEBUG
+obj cktyped(obj o) {
+  assert(istyped(o));
+  return o;
+}
+obj* typedtype(obj o) {
+  assert(istyped(o));
+  return &hblkref(o, 0);
+}
+int typedlen(obj o) {
+  assert(istyped(o));
+  return hblklen(o) - 1;
+}
+obj* typedref(obj o, int i) {
+  int len; assert(istyped(o));
+  len = hblklen(o);
+  assert(i >= 0 && i < len-1);  
+  return &hblkref(o, i+1);
+}
+#endif")
 
-
-; unit
-
-; this is the value to be used when zero results are returned to a context
-; where one result is expected; it is analogous to a 0-element tuple
-
-(%definition "/* unit */")
-(%definition "#define obj_from_unit() (obj_from_size(0x6DF6F577))")
 
 
 ; booleans
@@ -402,13 +429,45 @@ void *getnative(obj o, cxtype_t *tp) {
 (define-inline (not x)
   (%prim "bool(!bool_from_$arg)" x))
 
+(define-syntax boolean=?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(bool_from_$arg == bool_from_$arg)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (boolean=? x t) (boolean=? t z ...)))]
+    [_ %residual-boolean=?]))
+
+
+
+; void 
+
+; void object redefined as immediate with payload 0 and immediate tag 1
+
+
+(%definition "/* void */")
+(%definition "#define VOID_ITAG 1")  
+(%definition "#define mkvoid() mkimm(0, VOID_ITAG)")  
+(%definition "#define isvoid(o) ((o) == mkimm(0, VOID_ITAG))")  
+(%definition "#undef obj_from_void")
+(%definition "#define obj_from_void(v) ((void)(v), mkimm(0, VOID_ITAG))")
+
+(define-inline (void) (%prim "void(0)"))
+(define-inline (void? x) (%prim "bool(obj_from_$arg == obj_from_void(0))" x))
+
+
+; unit
+
+; this is the value to be used when zero results are returned to a context
+; where one result is expected; it is analogous to a 0-element tuple
+
+(%definition "/* unit */")
+(%definition "#define obj_from_unit() (obj_from_size(0x6DF6F577))")
+
 
 ; numerical helpers
 
 (%definition "/* numbers */")
-(%definition "#define FIXNUM_BIT 28")
-(%definition "#define FIXNUM_MIN -134217728")
-(%definition "#define FIXNUM_MAX 134217727")
+(%definition "#define FIXNUM_BIT 30")
+(%definition "#define FIXNUM_MIN -536870912")
+(%definition "#define FIXNUM_MAX 536870911")
 (%definition "#ifdef NDEBUG
 #define fxneg(x) (-(x))
 #define fxabs(x) (labs(x))
@@ -627,7 +686,7 @@ long fxflo(double f) {
   fl: if (radix != 10) return (errno = eno, 0); 
   e = \"\", errno = 0; if (*s != '+' && *s != '-') d = strtod(s, &e);
   else if (strcmp_ci(s+1, \"inf.0\") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
-  else if (strcmp_ci(s+1, \"nan.0\") == 0) d = HUGE_VAL - HUGE_VAL; 
+  else if (strcmp_ci(s+1, \"nan.0\") == 0) d = HUGE_VAL - HUGE_VAL;
   else d = strtod(s, &e);
   if (errno || *e || e == s) return (errno = eno, 0);
   if ((conv == 'e') && ((l=(long)d) < FIXNUM_MIN || l > FIXNUM_MAX || (double)l != d))
@@ -639,23 +698,20 @@ long fxflo(double f) {
 
 ; fixnums
 
-; fixnums are immediate with immediate tag 1
+; fixnums are tag-less immediates with 30 bits of payload
 
 (%definition "/* fixnums */")
-(%definition "#define FIXNUM_ITAG 1")  
 (%definition "typedef long fixnum_t;")
-(%definition "#define is_fixnum_obj(o) (isimm(o, FIXNUM_ITAG))")
-(%definition "#define are_fixnum_objs(o1, o2) (isimm2((o1), (o2), FIXNUM_ITAG))")
-(%definition "#define get_fixnum_unchecked(o) (getimms_unchecked(o))")
+(%definition "#define is_fixnum_obj(o) (isim0(o))")
 (%definition "#define is_fixnum_fixnum(i) ((void)(i), 1)")
 (%definition "#define is_bool_fixnum(i) ((void)(i), 0)")
 (%definition "#define is_fixnum_bool(i) ((void)(i), 0)")
-(%definition "#define fixnum_from_obj(o) (getimms(o, FIXNUM_ITAG))")
+(%definition "#define fixnum_from_obj(o) (getim0s(o))")
 (%definition "#define fixnum_from_fixnum(i) (i)")
 (%definition "#define fixnum_from_flonum(l,x) ((fixnum_t)(x))")
 (%definition "#define bool_from_fixnum(i) ((void)(i), 1)")
 (%definition "#define void_from_fixnum(i) (void)(i)")
-(%definition "#define obj_from_fixnum(i) mkimm((fixnum_t)(i), FIXNUM_ITAG)")
+(%definition "#define obj_from_fixnum(i) mkim0((fixnum_t)(i))")
 
 (define-syntax %const
   (let-syntax ([old-%const %const])
@@ -1328,7 +1384,7 @@ long fxflo(double f) {
 
 (%include <ctype.h>)
 
-; characters are immediate with immediate tag 2
+; characters are 24-bit immediates with immediate tag 2
 
 (%definition "/* characters */")
 (%definition "#define CHAR_ITAG 2")  
@@ -1342,7 +1398,7 @@ long fxflo(double f) {
 (%definition "#define is_fixnum_char(i) ((void)(i), 0)")
 (%definition "#define is_char_flonum(i) ((void)(i), 0)")
 (%definition "#define is_flonum_char(i) ((void)(i), 0)")
-(%definition "#define char_from_obj(o) ((int)getimms(o, CHAR_ITAG))")
+(%definition "#define char_from_obj(o) ((int)getimmu(o, CHAR_ITAG))")
 (%definition "#define char_from_char(i) (i)")
 (%definition "#define bool_from_char(i) ((void)(i), 1)")
 (%definition "#define void_from_char(i) (void)(i)")
@@ -1358,35 +1414,65 @@ long fxflo(double f) {
 (define-inline (char? x)
   (%prim "bool(is_char_$arg)" x))
 
-(define-inline (char=? x y)
-  (%prim "bool(char_from_$arg == char_from_$arg)" x y))
+(define-syntax char=?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(char_from_$arg == char_from_$arg)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char=? x t) (char=? t z ...)))]
+    [_ %residual-char=?]))
 
-(define-inline (char<? x y)
-  (%prim "bool(char_from_$arg < char_from_$arg)" x y))
+(define-syntax char>?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(char_from_$arg > char_from_$arg)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char>? x t) (char>? t z ...)))]
+    [_ %residual-char>?]))
 
-(define-inline (char>? x y)
-  (%prim "bool(char_from_$arg > char_from_$arg)" x y))
+(define-syntax char<?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(char_from_$arg < char_from_$arg)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char<? x t) (char<? t z ...)))]
+    [_ %residual-char<?]))
 
-(define-inline (char<=? x y)
-  (%prim "bool(char_from_$arg <= char_from_$arg)" x y))
+(define-syntax char>=?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(char_from_$arg >= char_from_$arg)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char>=? x t) (char>=? t z ...)))]
+    [_ %residual-char>=?]))
 
-(define-inline (char>=? x y)
-  (%prim "bool(char_from_$arg >= char_from_$arg)" x y))
+(define-syntax char<=?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(char_from_$arg <= char_from_$arg)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char<=? x t) (char<=? t z ...)))]
+    [_ %residual-char<=?]))
 
-(define-inline (char-ci=? x y)
-  (%prim "bool(tolower(char_from_$arg) == tolower(char_from_$arg))" x y))
+(define-syntax char-ci=?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(tolower(char_from_$arg) == tolower(char_from_$arg))" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char-ci=? x t) (char-ci=? t z ...)))]
+    [_ %residual-char-ci=?]))
 
-(define-inline (char-ci<? x y)
-  (%prim "bool(tolower(char_from_$arg) < tolower(char_from_$arg))" x y))
+(define-syntax char-ci>?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(tolower(char_from_$arg) > tolower(char_from_$arg))" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char-ci>? x t) (char-ci>? t z ...)))]
+    [_ %residual-char-ci>?]))
 
-(define-inline (char-ci>? x y)
-  (%prim "bool(tolower(char_from_$arg) > tolower(char_from_$arg))" x y))
+(define-syntax char-ci<?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(tolower(char_from_$arg) < tolower(char_from_$arg))" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char-ci<? x t) (char-ci<? t z ...)))]
+    [_ %residual-char-ci<?]))
 
-(define-inline (char-ci<=? x y)
-  (%prim "bool(tolower(char_from_$arg) <= tolower(char_from_$arg))" x y))
+(define-syntax char-ci>=?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(tolower(char_from_$arg) >= tolower(char_from_$arg))" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char-ci>=? x t) (char-ci>=? t z ...)))]
+    [_ %residual-char-ci>=?]))
 
-(define-inline (char-ci>=? x y)
-  (%prim "bool(tolower(char_from_$arg) >= tolower(char_from_$arg))" x y))
+(define-syntax char-ci<=?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(tolower(char_from_$arg) <= tolower(char_from_$arg))" x y)]
+    [(_ x y z ...) (let ([t y]) (and (char-ci<=? x t) (char-ci<=? t z ...)))]
+    [_ %residual-char-ci<=?]))
 
 (define-inline (char-alphabetic? x)
   (%prim "bool(isalpha(char_from_$arg))" x))
@@ -1415,6 +1501,11 @@ long fxflo(double f) {
 (define-inline (char-downcase x)
   (%prim "char(tolower(char_from_$arg))" x))
 
+(define-syntax char-foldcase char-downcase)
+
+(define-inline (digit-value x)
+  (and (char<=? #\0 x #\9) (fx- (char->integer x) (%prim "fixnum('0')"))))
+
 
 ; strings
 
@@ -1432,9 +1523,8 @@ long fxflo(double f) {
 (%definition "#define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)")
 
 (%localdef "char* stringref(obj o, int i) {
-  int *d = stringdata(o);
-  assert(i >= 0 && i < *d);  
-  return ((char*)(d+1))+i;
+  int *d = stringdata(o); assert(i >= 0 && i < *d);  
+  return sdatachars(d)+i;
 }")
 
 (%definition "#ifdef NDEBUG
@@ -1447,14 +1537,21 @@ long fxflo(double f) {
 (%localdef "int *newstring(char *s) {
   int l, *d; assert(s); l = (int)strlen(s); 
   d = cxm_cknull(malloc(sizeof(int)+l+1), \"malloc(string)\");
-  *d = l; strcpy((char*)(d+1), s); return d;
+  *d = l; strcpy(sdatachars(d), s); return d;
+}")
+
+(%definition "extern int *newstringn(char *s, int n);")
+(%localdef "int *newstringn(char *s, int n) {
+  int *d; char *ns; assert(s); assert(n >= 0);
+  d = cxm_cknull(malloc(sizeof(int)+n+1), \"malloc(stringn)\");
+  *d = n; memcpy((ns = sdatachars(d)), s, n); ns[n] = 0; return d;
 }")
 
 (%definition "extern int *allocstring(int n, int c);")
 (%localdef "int *allocstring(int n, int c) {
   int *d; char *s; assert(n+1 > 0); 
   d = cxm_cknull(malloc(sizeof(int)+n+1), \"malloc(string)\");
-  *d = n; s = (char*)(d+1); memset(s, c, n); s[n] = 0;
+  *d = n; s = sdatachars(d); memset(s, c, n); s[n] = 0;
   return d;
 }")
 
@@ -1463,7 +1560,7 @@ long fxflo(double f) {
   int n = to-from, *d1; char *s0, *s1; assert(d0);
   assert(0 <= from && from <= to && to <= *d0); 
   d1 = cxm_cknull(malloc(sizeof(int)+n+1), \"malloc(string)\");
-  *d1 = n; s0 = (char*)(d0+1); s1 = (char*)(d1+1); 
+  *d1 = n; s0 = sdatachars(d0); s1 = sdatachars(d1); 
   memcpy(s1, s0+from, n); s1[n] = 0;
   return d1;
 }")
@@ -1472,7 +1569,7 @@ long fxflo(double f) {
 (%localdef "int *stringcat(int *d0, int *d1) {
   int l0 = *d0, l1 = *d1, n = l0+l1; char *s0, *s1, *s;
   int *d = cxm_cknull(malloc(sizeof(int)+n+1), \"malloc(string)\");
-  *d = n; s = (char*)(d+1); s0 = (char*)(d0+1); s1 = (char*)(d1+1);
+  *d = n; s = sdatachars(d); s0 = sdatachars(d0); s1 = sdatachars(d1);
   memcpy(s, s0, l0); memcpy(s+l0, s1, l1); s[n] = 0;
   return d;
 }")
@@ -1486,15 +1583,14 @@ long fxflo(double f) {
 
 (%definition "extern void stringfill(int *d, int c);")
 (%localdef "void stringfill(int *d, int c) {
-  int l = *d, i; char *s = (char*)(d+1);
+  int l = *d, i; char *s = sdatachars(d);
   for (i = 0; i < l; ++i) s[i] = c;
 }")
 
-(%definition "extern int strcmp_ci(char *s1, char*s2);")
+(%definition "extern int strcmp_ci(char *s1, char *s2);")
 (%localdef "int strcmp_ci(char *s1, char *s2) {
   int c1, c2, d;
-  do { c1 = *s1++; c2 = *s2++; d = (unsigned)tolower(c1) - (unsigned)tolower(c2); }
-  while (!d && c1 && c2);
+  do { c1 = *s1++; c2 = *s2++; d = (unsigned)tolower(c1) - (unsigned)tolower(c2); } while (!d && c1 && c2);
   return d;
 }")
 
@@ -1536,42 +1632,86 @@ long fxflo(double f) {
 (define-inline (string-set! s k c)
   (%prim! "void(*stringref(obj_from_$arg, fixnum_from_$arg) = char_from_$arg)" s k c))
 
-(define-inline (string=? x y)
-  (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) == 0)" x y))
+(define-syntax string=?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) == 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string=? x t) (string=? t z ...)))]
+    [_ %residual-string=?]))
 
-(define-inline (string<? x y)
-  (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) < 0)" x y))
+(define-syntax string<?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) < 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string<? x t) (string<? t z ...)))]
+    [_ %residual-string<?]))
 
-(define-inline (string>? x y)
-  (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) > 0)" x y))
+(define-syntax string>?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) > 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string>? x t) (string>? t z ...)))]
+    [_ %residual-string>?]))
 
-(define-inline (string<=? x y)
-  (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) <= 0)" x y))
+(define-syntax string<=?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) <= 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string<=? x t) (string<=? t z ...)))]
+    [_ %residual-string<=?]))
 
-(define-inline (string>=? x y)
-  (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) >= 0)" x y))
+(define-syntax string>=?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) >= 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string>=? x t) (string>=? t z ...)))]
+    [_ %residual-string>=?]))
 
-(define-inline (string-ci=? x y)
-  (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) == 0)" x y))
+(define-syntax string-ci=?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) == 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string-ci=? x t) (string-ci=? t z ...)))]
+    [_ %residual-string-ci=?]))
 
-(define-inline (string-ci<? x y)
-  (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) < 0)" x y))
+(define-syntax string-ci<?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) < 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string-ci<? x t) (string-ci<? t z ...)))]
+    [_ %residual-string-ci<?]))
 
-(define-inline (string-ci>? x y)
-  (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) > 0)" x y))
+(define-syntax string-ci>?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) > 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string-ci>? x t) (string-ci>? t z ...)))]
+    [_ %residual-string-ci>?]))
 
-(define-inline (string-ci<=? x y)
-  (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) <= 0)" x y))
+(define-syntax string-ci<=?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) <= 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string-ci<=? x t) (string-ci<=? t z ...)))]
+    [_ %residual-string-ci<=?]))
 
-(define-inline (string-ci>=? x y)
-  (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) >= 0)" x y))
+(define-syntax string-ci>=?
+  (syntax-rules ()
+    [(_ x y) (%prim? "bool(strcmp_ci(stringchars(obj_from_$arg), stringchars(obj_from_$arg)) >= 0)" x y)]
+    [(_ x y z ...) (let ([t y]) (and (string-ci>=? x t) (string-ci>=? t z ...)))]
+    [_ %residual-string-ci>=?]))
+
+(define-inline (string-upcase s)
+  (%prim*? "{ /* string-upcase */
+    int *d = dupstring(stringdata(obj_from_$arg)); char *s;
+    for (s = sdatachars(d); *s; ++s) *s = toupper(*s);
+    $return obj(hpushstr($live, d)); }" s))
+
+(define-inline (string-downcase s)
+  (%prim*? "{ /* string-downcase */
+    int *d = dupstring(stringdata(obj_from_$arg)); char *s;
+    for (s = sdatachars(d); *s; ++s) *s = tolower(*s);
+    $return obj(hpushstr($live, d)); }" s))
+
+(define-syntax string-foldcase string-downcase)
 
 (define-inline (substring s start end)
   (%prim*? "{ /* substring */
     int *d = substring(stringdata(obj_from_$arg), fixnum_from_$arg, fixnum_from_$arg);
     $return obj(hpushstr($live, d)); }" s start end))
 
-(define-inline (string-append/2 s1 s2)
+(define-inline (%string-append s1 s2)
   (%prim*? "{ /* string-append */
     int *d = stringcat(stringdata(obj_from_$arg), stringdata(obj_from_$arg));
     $return obj(hpushstr($live, d)); }" s1 s2))
@@ -1579,16 +1719,29 @@ long fxflo(double f) {
 (define-syntax string-append
   (syntax-rules ()
     [(_) ""] [(_ x) x]
-    [(_ x y) (string-append/2 x y)]
-    [(_ x y z ...) (string-append/2 x (string-append y z ...))]
+    [(_ x y) (%string-append x y)]
+    [(_ x y z ...) (%string-append x (string-append y z ...))]
     [_ %residual-string-append]))
 
-(define-inline (string-copy s)
+(define-inline (%string-copy s)
   (%prim*? "{ /* string-copy */
     int *d = dupstring(stringdata(obj_from_$arg));
     $return obj(hpushstr($live, d)); }" s))
 
-(define-inline (string-fill! s c)
+(define (substring-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (string-length to) at)))])
+    (if (fx<=? at start)
+        (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+          [(fx>=? j limit)]
+          (string-set! to i (string-ref from j)))
+        (do ([i (fx+ at (fx- end start 1)) (fx- i 1)] [j (fx- limit 1) (fx- j 1)])
+          [(fx<? j start)]
+          (string-set! to i (string-ref from j))))))
+
+(define (substring-fill! str c start end)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (string-set! str i c)))
+
+(define-inline (%string-fill! s c)
   (%prim! "void(stringfill(stringdata(obj_from_$arg), char_from_$arg))" s c))
 
 (define-inline (string-position c s)
@@ -1608,7 +1761,15 @@ long fxflo(double f) {
 (define-inline (vector? o)
   (%prim "bool(isvector(obj_from_$arg))" o))
 
-(define-inline (make-vector n i)
+(define-inline (%new-vector n)
+  (%prim* "{ /* new-vector */
+    int c = fixnum_from_$arg;
+    hreserve(hbsz(c+1), $live); /* $live live regs */
+    hp -= c; memset(hp, 0, c * sizeof(obj));
+    *--hp = obj_from_size(VECTOR_BTAG);
+    $return obj(hendblk(c+1)); }" n))
+
+(define-inline (%make-vector n i)
   (%prim* "{ /* make-vector */
     obj o; int i = 0, c = fixnum_from_$arg;
     hreserve(hbsz(c+1), $live); /* $live live regs */
@@ -1618,11 +1779,10 @@ long fxflo(double f) {
     $return obj(hendblk(c+1)); }" n i))
 
 (define-syntax make-vector
-  (let-syntax ([old-make-vector make-vector])
-    (syntax-rules ()
-      [(_ n) (old-make-vector n (void))]
-      [(_ n i) (old-make-vector n i)]
-      [_ %residual-make-vector])))
+  (syntax-rules ()
+    [(_ n) (%new-vector n)]
+    [(_ n i) (%make-vector n i)]
+    [_ %residual-make-vector]))
 
 (define-syntax vector
   (syntax-rules ()
@@ -1649,11 +1809,23 @@ long fxflo(double f) {
 (define-inline (vector-set! v i x)
   (%prim! "void(vectorref(obj_from_$arg, fixnum_from_$arg) = obj_from_$arg)" v i x))
 
-(define (vector-fill! v x) ;extend? turn into subvector-fill?
-  (let ([n (vector-length v)])
-    (do ([i 0 (fx+ i 1)])
-      [(fx=? i n)]
-      (vector-set! v i x))))
+(define (subvector-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (vector-length to) at)))])
+    (if (fx<=? at start)
+        (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+          [(fx>=? j limit)]
+          (vector-set! to i (vector-ref from j)))
+        (do ([i (fx+ at (fx- end start 1)) (fx- i 1)] [j (fx- limit 1) (fx- j 1)])
+          [(fx<? j start)]
+          (vector-set! to i (vector-ref from j))))))
+
+(define (subvector vec start end)
+  (let ([v (make-vector (fx- end start))])
+    (subvector-copy! v 0 vec start end)
+    v))
+
+(define (subvector-fill! vec x start end)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (vector-set! vec i x)))
 
 
 ; bytevectors
@@ -1694,11 +1866,16 @@ long fxflo(double f) {
   d = mallocbvdata(n); *d = n; memcpy(bvdatabytes(d), s, n); return d;
 }")
 
-(%definition "extern int *allocbytevector(int n, int c);")
-(%localdef "int *allocbytevector(int n, int c) {
+(%definition "extern int *makebytevector(int n, int c);")
+(%localdef "int *makebytevector(int n, int c) {
   int *d; assert(n >= 0); 
   d = mallocbvdata(n); *d = n; memset(bvdatabytes(d), c, n);
   return d;
+}")
+
+(%definition "extern int *allocbytevector(int n);")
+(%localdef "int *allocbytevector(int n) {
+  int *d = mallocbvdata(n); *d = n; return d;
 }")
 
 (%definition "extern int *dupbytevector(int *d);")
@@ -1738,15 +1915,15 @@ long fxflo(double f) {
 
 (define-syntax make-bytevector
   (syntax-rules ()
-    [(_ k) (%prim* "obj(hpushu8v($live, allocbytevector(fixnum_from_$arg, 0)))" k)]
-    [(_ k c) (%prim* "obj(hpushu8v($live, allocbytevector(fixnum_from_$arg, byte_from_fixnum(fixnum_from_$arg))))" k c)]
+    [(_ k) (%prim* "obj(hpushu8v($live, allocbytevector(fixnum_from_$arg)))" k)]
+    [(_ k c) (%prim* "obj(hpushu8v($live, makebytevector(fixnum_from_$arg, byte_from_fixnum(fixnum_from_$arg))))" k c)]
     [_ %residual-make-bytevector]))
 
 (define-syntax bytevector
   (syntax-rules ()
     [(_ b ...)
      (%prim* "{ /* bytevector */
-    obj o = hpushu8v($live, allocbytevector($argc, 0));
+    obj o = hpushu8v($live, allocbytevector($argc));
     unsigned char *s = bytevectorbytes(o);
     ${*s++ = byte_from_fixnum(fixnum_from_$arg);
     $}$return obj(o); }" b ...)]
@@ -1763,6 +1940,16 @@ long fxflo(double f) {
 
 (define-inline (bytevector=? x y)
   (%prim? "bool(bytevectoreq(bytevectordata(obj_from_$arg), bytevectordata(obj_from_$arg)))" x y))
+
+(define (subbytevector-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (bytevector-length to) at)))])
+    (if (fx<=? at start)
+        (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+          [(fx>=? j limit)]
+          (bytevector-u8-set! to i (bytevector-u8-ref from j)))
+        (do ([i (fx+ at (fx- end start 1)) (fx- i 1)] [j (fx- limit 1) (fx- j 1)])
+          [(fx<? j start)]
+          (bytevector-u8-set! to i (bytevector-u8-ref from j))))))
 
 (define-inline (subbytevector bv start end)
   (%prim*? "{ /* subbytevector */
@@ -1803,7 +1990,7 @@ long fxflo(double f) {
 
 ; null
 
-; () is immediate 0 with immediate tag 3 (singular null object)
+; () is immediate with payload 0 and immediate tag 3 (singular null object)
 
 (%definition "/* null */")
 (%definition "#define NULL_ITAG 3")  
@@ -1914,6 +2101,16 @@ long fxflo(double f) {
 (define-inline (cdddar x) (c?r d d d a x))
 (define-inline (cddddr x) (c?r d d d d x))
 
+(define (%make-list n i)
+  (let loop ([n n] [l '()])
+    (if (<= n 0) l (loop (- n 1) (cons i l))))) 
+
+(define-syntax make-list
+  (syntax-rules ()
+    [(_ n) (%make-list n (void))]
+    [(_ n i) (%make-list n i)]
+    [_ %residual-make-list]))
+
 (define-syntax list
   (syntax-rules ()
     [(_) '()]
@@ -1955,7 +2152,7 @@ long fxflo(double f) {
     while (l != mknull()) t = cdr(l), cdr(l) = v, v = l, l = t;
     $return obj(v); }" l))
 
-(define-inline (append/2 l o)
+(define (%append l o)
   (%prim*? "{ /* append */
     obj t, l, o, *p, *d; int c = fixnum_from_$arg;
     hreserve(hbsz(3)*c, $live); /* $live live regs */
@@ -1970,12 +2167,14 @@ long fxflo(double f) {
 (define-syntax append
   (syntax-rules ()
     [(_) '()] [(_ x) x]
-    [(_ x y) (append/2 x y)]
-    [(_ x y z ...) (append/2 x (append y z ...))]
+    [(_ x y) (%append x y)]
+    [(_ x y z ...) (%append x (append y z ...))]
     [_ %residual-append]))
 
-(define-inline (list-copy l) 
-  (append/2 l '()))
+(define (list-copy obj)
+  (if (pair? obj)
+      (cons (car obj) (list-copy (cdr obj)))
+      obj))
 
 (define-inline (list-ref l n)
   (%prim? "{ /* list-ref */
@@ -1988,6 +2187,9 @@ long fxflo(double f) {
     obj l = obj_from_$arg; int c = fixnum_from_$arg;
     while (c-- > 0) l = cdr(l);
     $return obj(l); }" l n)) 
+
+(define-inline (list-set! l n obj)
+  (set-car! (list-tail list n) obj)) 
 
 (define-inline (last-pair l)
   (%prim? "{ /* last-pair */
@@ -2014,9 +2216,10 @@ long fxflo(double f) {
     [_ %residual-for-each]))
 
 
+
 ; symbols
 
-; symbols are immediate with immediate tag 4
+; symbols are 24-bit immediates with immediate tag 4
 
 (%definition "/* symbols */")
 (%definition "#define SYMBOL_ITAG 4")  
@@ -2082,18 +2285,23 @@ long fxflo(double f) {
 (define-inline (symbol? x)
   (%prim "bool(issymbol(obj_from_$arg))" x))
 
-(define-inline (symbol=? x y)
-  (%prim "bool(getsymbol(obj_from_$arg) == getsymbol(obj_from_$arg))" x y))
+(define-syntax symbol=?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(getsymbol(obj_from_$arg) == getsymbol(obj_from_$arg))" x y)]
+    [(_ x y z ...) (let ([t y]) (and (symbol=? x t) (symbol=? t z ...)))]
+    [_ %residual-symbol=?]))
+
 
 
 ; records
 
+; records are typed blocks with rtd (non-immediate object) as type
+
 (%definition "/* records */")
-(%definition "#define RECORD_BTAG 4")  
-(%definition "#define isrecord(o) istagged(o, RECORD_BTAG)")  
-(%definition "#define recordrtd(r) *taggedref(r, RECORD_BTAG, 0)")  
-(%definition "#define recordref(r, i) *taggedref(r, RECORD_BTAG, (i)+1)")  
-(%definition "#define recordlen(r) (taggedlen(r, RECORD_BTAG)-1)")  
+(%definition "#define isrecord(o) istyped(o)")  
+(%definition "#define recordrtd(r) *typedtype(r)")  
+(%definition "#define recordlen(r) typedlen(r)")  
+(%definition "#define recordref(r, i) *typedref(r, i)")  
 
 (define-syntax record?
   (syntax-rules ()
@@ -2106,12 +2314,11 @@ long fxflo(double f) {
 
 (define-inline (make-record rtd n)
   (%prim* "{ /* make-record */
-    int i = 0, c = fixnum_from_$arg;
-    hreserve(hbsz(c+2), $live); /* $live live regs */
-    while (i++ < c) *--hp = obj_from_bool(0);
-    *--hp = obj_from_$arg; /* gc-safe */
-    *--hp = obj_from_size(RECORD_BTAG);
-    $return obj(hendblk(c+2)); }" n rtd))
+    int c = fixnum_from_$arg;
+    hreserve(hbsz(c+1), $live); /* $live live regs */
+    hp -= c; memset(hp, 0, c * sizeof(obj));
+    *--hp = obj_from_$arg; assert(isobjptr(*hp));
+    $return obj(hendblk(c+1)); }" n rtd))
 
 (define-inline (record-type-descriptor r)
   (%prim "obj(recordrtd(obj_from_$arg))" r))
@@ -2167,6 +2374,7 @@ long fxflo(double f) {
        (unroll rtn (consn id ...) predn ((fn . am) ...) () () ())])))
 
 
+
 ; conversions
 
 (define-inline (symbol->string s)
@@ -2220,7 +2428,7 @@ long fxflo(double f) {
     char *e = \"\", *s = stringchars(obj_from_$arg); double d; errno = 0;
     if (*s != '+' && *s != '-') d = strtod(s, &e);
     else if (strcmp_ci(s+1, \"inf.0\") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
-    else if (strcmp_ci(s+1, \"nan.0\") == 0) d = HUGE_VAL - HUGE_VAL; 
+    else if (strcmp_ci(s+1, \"nan.0\") == 0) d = HUGE_VAL - HUGE_VAL;
     else d = strtod(s, &e);
     if (errno || e == s || *e) $return bool(0);
     else $return flonum($live, d); }" s))
@@ -2242,16 +2450,11 @@ long fxflo(double f) {
     [(_ s) (string->fixnum-or-flonum s 10)]
     [_ %residual-string->number]))
 
-(define-inline (vector->list v)
-  (%prim*? "{ /* vector->list */
-    obj v, l = mknull(); int c = fixnum_from_$arg;
-    hreserve(hbsz(3)*c, $live); /* $live live regs */
-    v = obj_from_$arg; /* gc-safe */
-    while (c-- > 0) { *--hp = l; *--hp = hblkref(v, 1+c);
-    *--hp = obj_from_size(PAIR_BTAG); l = hendblk(3); }
-    $return obj(l); }" (vector-length v) v))
+(define (subvector->list vec start end)
+  (let loop ([i (fx- end 1)] [l '()])
+    (if (fx<? i start) l (loop (fx- i 1) (cons (vector-ref vec i) l)))))
 
-(define-inline (list->vector l)
+(define (list->vector l)
   (%prim*? "{ /* list->vector */
     obj l; int i, c = fixnum_from_$arg;
     hreserve(hbsz(c+1), $live); /* $live live regs */
@@ -2260,7 +2463,7 @@ long fxflo(double f) {
     hp -= c; *--hp = obj_from_size(VECTOR_BTAG);
     $return obj(hendblk(c+1)); }" (length l) l))
 
-(define-inline (list->string l)
+(define (list->string l)
   (%prim*? "{ /* list->string */
     int i, c = fixnum_from_$arg; 
     obj o = hpushstr($live, allocstring(c, ' ')); /* $live live regs */
@@ -2269,34 +2472,41 @@ long fxflo(double f) {
     for (i = 0; i < c; ++i, l = cdr(l)) s[i] = (unsigned char)char_from_obj(car(l));
     $return obj(o); }" (length l) l))
 
-(define-inline (string->list s)
-  (%prim*? "{ /* string->list */
-    int c = fixnum_from_$arg;
-    unsigned char *s; obj l = mknull();
-    hreserve(hbsz(3)*c, $live); /* $live live regs */
-    s = (unsigned char *)stringchars(obj_from_$arg); /* gc-safe */
-    while (c-- > 0) { *--hp = l; *--hp = obj_from_char(s[c]);
-    *--hp = obj_from_size(PAIR_BTAG); l = hendblk(3); }
-    $return obj(l); }" (string-length s) s))
+(define (substring->list str start end)
+  (let loop ([i (fx- end 1)] [l '()])
+    (if (fx<? i start) l (loop (fx- i 1) (cons (string-ref str i) l)))))
 
-(define-inline (list->bytevector l)
+(define (%subvector-string-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (string-length to) at)))])
+    (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+      [(fx>=? j limit) to]
+      (string-set! to i (vector-ref from j)))))
+
+(define (subvector->string vec start end)
+  (%subvector-string-copy! (make-string (fx- end start)) 0 vec start end))
+
+(define (%substring-vector-copy! to at from start end)
+  (let ([limit (fxmin end (fx+ start (fx- (vector-length to) at)))])
+    (do ([i at (fx+ i 1)] [j start (fx+ j 1)]) 
+      [(fx>=? j limit) to]
+      (vector-set! to i (string-ref from j)))))
+
+(define (substring->vector str start end)
+  (%substring-vector-copy! (make-vector (fx- end start)) 0 str start end))
+
+(define (list->bytevector l)
   (%prim*? "{ /* list->bytevector */
     int i, c = fixnum_from_$arg; 
-    obj o = hpushu8v($live, allocbytevector(c, 0)); /* $live live regs */
+    obj o = hpushu8v($live, allocbytevector(c)); /* $live live regs */
     obj l = obj_from_$arg; /* gc-safe */
     unsigned char *s = bytevectorbytes(o);
     for (i = 0; i < c; ++i, l = cdr(l)) s[i] = byte_from_obj(car(l));
     $return obj(o); }" (length l) l))
 
-(define-inline (bytevector->list bv)
-  (%prim*? "{ /* bytevector->list */
-    int c = fixnum_from_$arg;
-    unsigned char *s; obj l = mknull();
-    hreserve(hbsz(3)*c, $live); /* $live live regs */
-    s = bytevectorbytes(obj_from_$arg); /* gc-safe */
-    while (c-- > 0) { *--hp = l; *--hp = obj_from_fixnum(s[c]);
-    *--hp = obj_from_size(PAIR_BTAG); l = hendblk(3); }
-    $return obj(l); }" (bytevector-length bv) bv))
+(define (subbytevector->list vec start end)
+  (let loop ([i (fx- end 1)] [l '()])
+    (if (fx<? i start) l (loop (fx- i 1) (cons (bytevector-u8-ref vec i) l)))))
+
 
 
 ; control
@@ -2305,11 +2515,6 @@ long fxflo(double f) {
 ; have a pointer to the static code entry as 0th element;
 ; sfc allocates env-less global procedures in static memory,
 ; so procedure? answers #t to any nonzero out-of-heap pointer
-
-(%definition "/* procedures */")
-(%definition "extern int isprocedure(obj o);")
-(%definition "extern int procedurelen(obj o);")
-(%definition "extern obj* procedureref(obj o, int i);")
 
 (%localdef "int isprocedure(obj o) {
   if (!o) return 0;
@@ -2331,6 +2536,11 @@ long fxflo(double f) {
   assert(i >= 0 && i < len);
   return &hblkref(o, i);   
 }")
+
+(%definition "/* procedures */")
+(%definition "extern int isprocedure(obj o);")
+(%definition "extern int procedurelen(obj o);")
+(%definition "extern obj* procedureref(obj o, int i);")
 
 (define-inline (procedure? o)
   (%prim "bool(isprocedure(obj_from_$arg))" o))
@@ -2526,44 +2736,40 @@ default: /* inter-host call */
        (loop () ([param value] ...) body)])))
 
 
-; delay & force
+; delay & force, r7rs-style
 
-(define make-promise
-  (lambda (proc)
-    ((lambda (result-ready? result)
-       (lambda ()
-         (if result-ready?
-             result
-             ((lambda (x)
-                (if result-ready?
-                    result
-                    (begin
-                      (set! result-ready? #t)
-                      (set! result x)
-                      result)))
-              (proc)))))
-     #f
-     #f)))
+(define promise? box?)
 
-(define-inline force 
-  (lambda (promise)
-    (promise)))
+(define (make-promise o) (box (cons #t o)))
+(define (make-lazy-promise o) (box (cons #f o)))
+
+(define (force p)
+  (let ([pc (unbox p)])
+    (if (car pc)
+        (cdr pc)
+        (let* ([newp ((cdr pc))] [pc (unbox p)])
+          (unless (car pc)
+            (set-car! pc (car (unbox newp)))
+            (set-cdr! pc (cdr (unbox newp)))
+            (set-box! newp pc))
+          (force p)))))
+
+(define-syntax delay-force
+  (syntax-rules () [(_ x) (make-lazy-promise (lambda () x))]))
 
 (define-syntax delay
-  (syntax-rules ()
-    [(delay exp)
-     (make-promise (lambda () exp))]))
+  (syntax-rules () [(_ x) (delay-force (make-promise x))]))
 
 
 
 ; eof
 
-; eof is immediate -1 with immediate tag 7 (compatible with C EOF)
+; eof is tagged immediate with payload 0 and immediate tag 7 
 
 (%definition "/* eof */")
 (%definition "#define EOF_ITAG 7")  
-(%definition "#define mkeof() mkimm(-1, EOF_ITAG)")  
-(%definition "#define iseof(o) ((o) == mkimm(-1, EOF_ITAG))")  
+(%definition "#define mkeof() mkimm(0, EOF_ITAG)")  
+(%definition "#define iseof(o) ((o) == mkimm(0, EOF_ITAG))")  
 
 (define-syntax %const
   (let-syntax ([old-%const %const])
@@ -2620,6 +2826,13 @@ default: /* inter-host call */
 
 (define-inline (input-port? x)
   (%prim "bool(isiport(obj_from_$arg))" x))
+
+(define-inline (port-fold-case? ip) ;stub
+  (%prim? "bool(((void)ckiportvt(obj_from_$arg), 0))" ip))
+
+(define-inline (set-port-fold-case! ip b) ;stub
+  (%prim?! "void(ckiportvt(obj_from_$arg))" ip))
+
 
 ; closed input ports 
 
@@ -2877,8 +3090,8 @@ default: /* inter-host call */
     obj o = obj_from_$arg; cxtype_oport_t *vt = ckoportvt(o); 
     if (vt != (cxtype_oport_t *)OPORT_STRING_NTAG &&
         vt != (cxtype_oport_t *)OPORT_BYTEVECTOR_NTAG) $return obj(mkeof());
-    else { cbuf_t *pcb = oportdata(o);
-    $return obj(hpushstr($live, newstring(cbdata(pcb)))); } }" p))
+    else { cbuf_t *pcb = oportdata(o); 
+    $return obj(hpushstr($live, newstring(cbdata(pcb)))); } }" p)) 
 
 ; bytevector output ports 
 
@@ -2931,7 +3144,6 @@ default: /* inter-host call */
 (define (with-output-to-file fname thunk)
   (call-with-output-file fname (lambda (p) (with-output-to-port p thunk))))
 
-
 ; simple text i/o
 
 (define-syntax read-char
@@ -2952,6 +3164,38 @@ default: /* inter-host call */
     [(_ p) #t] ; no better solution for FILE/STRING ports
     [_ %residual-char-ready?]))
 
+(define (%read-line p)
+  (let ([op (open-output-string)])
+    (let loop ([read-nothing? #t])
+      (let ([c (read-char p)])
+        (cond [(or (eof-object? c) (char=? c #\newline))
+               (let ([s (get-output-string op)])
+                 (close-output-port op) ; todo: use get-final-output-string
+                 (if (and (eof-object? c) read-nothing?) c s))]
+              [(char=? c #\return) (loop #f)]
+              [else (%prim?! "void(oportputc(char_from_$arg, obj_from_$arg))" c op) (loop #f)]))))) 
+
+(define-syntax read-line
+  (syntax-rules ()
+    [(_) (%read-line (current-input-port))]
+    [(_ p) (%read-line p)]
+    [_ %residual-read-line]))
+
+(define (read-substring! str start end p)
+  (let loop ([i start])
+    (if (fx>=? i end)
+        (fx- i start)
+        (let ([c (read-char p)])
+          (cond [(eof-object? c) (if (fx=? i start) c (fx- i start))]
+                [else (string-set! str i c) (loop (fx+ i 1))])))))
+
+(define (read-substring k p)
+  (let ([str (make-string k)])
+    (let ([r (read-substring! str 0 k p)])
+      (if (eof-object? r)
+          r
+          (if (fx=? r k) str (substring str 0 r))))))
+
 (define-syntax flush-output-port
   (syntax-rules ()
     [(_) (flush-output-port (current-output-port))]
@@ -2964,10 +3208,15 @@ default: /* inter-host call */
     [(_ c p) (%prim?! "void(oportputc(char_from_$arg, obj_from_$arg))" c p)]
     [_ %residual-write-char]))
 
+(define (write-substring from start end p)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (write-char (string-ref from i) p)))
+
 (define-syntax write-string
   (syntax-rules ()
     [(_ s) (write-string s (current-output-port))]
     [(_ s p) (%prim?! "void(oportputs(stringchars(obj_from_$arg), obj_from_$arg))" s p)]
+    [(_ s p start) (let ([str s]) (write-substring str start (string-length str) p))]
+    [(_ s p start end) (write-substring s start end p)]
     [_ %residual-write-string]))
 
 (define-syntax newline
@@ -3020,7 +3269,6 @@ default: /* inter-host call */
     $return void(oportputs(buf, obj_from_$arg)); }" x p)]
     [_ %residual-display-output-port]))
 
-
 ; simple binary i/o
 
 (define-syntax read-u8
@@ -3041,11 +3289,29 @@ default: /* inter-host call */
     [(_ p) #t] ; no better solution for FILE/STRING ports
     [_ %residual-u8-ready?]))
 
+(define (read-subbytevector! vec start end p)
+  (let loop ([i start])
+    (if (fx>=? i end)
+        (fx- i start)
+        (let ([u8 (read-u8 p)])
+          (cond [(eof-object? u8) (if (fx=? i start) u8 (fx- i start))]
+                [else (bytevector-u8-set! vec i u8) (loop (fx+ i 1))])))))
+
+(define (read-subbytevector k p)
+  (let ([vec (make-bytevector k)])
+    (let ([r (read-subbytevector! vec 0 k p)])
+      (if (eof-object? r)
+          r
+          (if (fx=? r k) vec (subbytevector vec 0 r))))))
+
 (define-syntax write-u8
   (syntax-rules ()
     [(_ c) (write-u8 c (current-output-port))]
     [(_ c p) (%prim?! "void(oportputc(fixnum_from_$arg, obj_from_$arg))" c p)]
     [_ %residual-write-u8]))
+
+(define (write-subbytevector from start end p)
+  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (write-u8 (bytevector-u8-ref from i) p)))
 
 (define-syntax write-bytevector
   (syntax-rules ()
@@ -3053,6 +3319,8 @@ default: /* inter-host call */
     [(_ bv p) (%prim?! "{ /* write-bytevector */
     int *d = bytevectordata(obj_from_$arg);
     $return void(oportwrite((char *)bvdatabytes(d), *d,  obj_from_$arg)); }" bv p)]
+    [(_ bv p start) (let ([vec bv]) (write-subbytevector vec start (bytevector-length vec) p))]
+    [(_ bv p start end) (write-subbytevector bv start end p)]
     [_ %residual-write-bytevector]))
 
 
@@ -3330,6 +3598,7 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
         (let ([key expr]) (case key clause1 clause ...))])))
 
 
+
 ; equivalence-based member, assoc
 
 (define-inline (memq x l)
@@ -3341,8 +3610,17 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
 (define-inline (memv x l)
   (%prim? "obj(ismemv(obj_from_$arg, obj_from_$arg))" x l)) 
 
-(define-inline (member x l)
+(define-inline (meml x l)
   (%prim? "obj(ismember(obj_from_$arg, obj_from_$arg))" x l)) 
+
+(define (%member x l eq) 
+  (and (pair? l) (if (eq x (car l)) l (%member x (cdr l) eq))))
+
+(define-syntax member
+  (syntax-rules ()
+    [(_ x l) (meml x l)]
+    [(_ x l eq) (%member x l eq)]
+    [_ %residual-member]))
 
 (define-inline (assq x l)
   (%prim? "{ /* assq */
@@ -3353,8 +3631,17 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
 (define-inline (assv x l)
   (%prim? "obj(isassv(obj_from_$arg, obj_from_$arg))" x l)) 
 
-(define-inline (assoc x l)
+(define-inline (assl x l)
   (%prim? "obj(isassoc(obj_from_$arg, obj_from_$arg))" x l)) 
+
+(define (%assoc x al eq) 
+  (and (pair? al) (if (eq x (caar al)) (car al) (%assoc x (cdr al) eq))))
+
+(define-syntax assoc
+  (syntax-rules ()
+    [(_ x al) (assl x al)]
+    [(_ x al eq) (%assoc x al eq)]
+    [_ %residual-assoc]))
 
 
 ; quasiquote
@@ -3374,7 +3661,6 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
     [(_ (x . y) . d) (cons (quasiquote x . d) (quasiquote y . d))]
     [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
     [(_ x . d) 'x]))
-
 
 
 ; S-expression writer
@@ -3491,18 +3777,16 @@ static void wrdatum(obj o, wenv_t *e) {
     wrs(\"#&\", e); o = boxref(o); goto tail;
   } else if (isrecord(o)) {
     int i, n = recordlen(o);
-    obj rtd = recordrtd(o);
-    if (rtd == bool_from_obj(0)) {
-      wrs(\"#<values\", e);
-    } else {
-      wrs(\"#<record \", e); wrdatum(rtd, e); // TODO: no need to show as shared!
-    }
+    wrs(\"#<record \", e);
+    wrdatum(recordrtd(o), e); // TODO: no need to show as shared!
     for (i = 0; i < n; ++i) { 
       wrc(' ', e); wrdatum(recordref(o, i), e); 
     }
     wrc('>', e);
   } else if (isprocedure(o)) {
     char buf[60]; sprintf(buf, \"#<procedure @%p>\", objptr_from_obj(o)); wrs(buf, e);
+  } else if (isvoid(o)) {
+    wrs(\"#<void>\", e);
   } else {
     wrs(\"#<unknown>\", e);
   }
@@ -3554,7 +3838,7 @@ void oportputshared(obj x, obj p, int disp) {
     [(_ x) (%prim?! "void(oportputcircular(obj_from_$arg, obj_from_$arg, 1))" x (current-output-port))]
     [(_ x p) (%prim?! "void(oportputcircular(obj_from_$arg, obj_from_$arg, 1))" x p)]
     [_ %residual-display]))
-  
+
 
 
 ; simple errors
@@ -3600,12 +3884,12 @@ void oportputshared(obj x, obj p, int disp) {
     (%prim! "{ assert(0); exit(1); $return void(0); }")))
 
 
-
 ; S-expression reader
 
 (define (%read port simple?)
+
   (define-syntax r-error
-    (syntax-rules () [(_ p msg a ...) (read-error msg a ... 'port: p)]))
+    (syntax-rules () [(_ p msg a ...) (read-error msg a ... 'port: p)])) ; see read-error below
 
   (define shared '())
   (define (make-shared-ref loc) (lambda () (unbox loc)))
@@ -3637,12 +3921,11 @@ void oportputshared(obj x, obj p, int disp) {
   (define close-paren #f)
   (define close-bracket #f)
   (define dot #f)
-  (define ; idless
-    (let ([rtm (list 'reader-token)])
-          (set! reader-token-marker rtm)
-          (set! close-paren (cons rtm "right parenthesis"))
-          (set! close-bracket (cons rtm "right bracket"))
-          (set! dot (cons rtm "\" . \""))))
+  (define (let ([rtm (list 'reader-token)])
+            (set! reader-token-marker rtm)
+            (set! close-paren (cons rtm "right parenthesis"))
+            (set! close-bracket (cons rtm "right bracket"))
+            (set! dot (cons rtm "\" . \""))))
 
   (define (reader-token? form)
     (and (pair? form) (eq? (car form) reader-token-marker)))
@@ -3941,28 +4224,26 @@ void oportputshared(obj x, obj p, int disp) {
     [(_ p) (%read p #t)]
     [_ %residual-read-simple]))
 
-(define-inline (get-datum p)
-  (%read p #f))
-
-
 
 ; file system
 
-(define-inline (file-exists? fn) ; fixme?
+(define (file-exists? fn) ; fixme?
   (%prim?! "{ /* file-exists? */ 
     FILE *f = fopen(stringchars(obj_from_$arg), \"r\");
     if (f != NULL) fclose(f);
     $return bool(f != NULL); }" fn))
 
-(define-inline (delete-file fn)
-  (%prim?! "{ /* delete-file */ 
+(define (delete-file fn)
+  (unless (%prim?! "{ /* delete-file */ 
     int res = remove(stringchars(obj_from_$arg));
-    $return bool(res == 0); }" fn))
+    $return bool(res == 0); }" fn)
+    (file-error "cannot delete file:" fn)))
 
-(define-inline (rename-file fnold fnnew)
-  (%prim?! "{ /* rename-file */ 
+(define (rename-file fnold fnnew) ; not in r7rs
+  (unless (%prim?! "{ /* rename-file */ 
     int res = rename(stringchars(obj_from_$arg), stringchars(obj_from_$arg));
-    $return bool(res == 0); }" fnold fnnew))
+    $return bool(res == 0); }" fnold fnnew)
+    (file-error "cannot rename file:" fnold fnnew)))
 
 
 
@@ -4133,16 +4414,24 @@ void oportputshared(obj x, obj p, int disp) {
   (%prim* "flonum($live, CLOCKS_PER_SEC)"))
 
 (define-inline (current-second)
-  (%prim* "flonum($live, (double)time(NULL))"))
+  (%prim* "flonum($live, difftime(time(NULL), 0)+37.0)"))
 
 
 ; miscellaneous / system
 
-(define-syntax exit
-  (syntax-rules ()
-    [(_) (exit 0)]
-    [(_ n) (%prim! "void(exit(fixnum_from_$arg))" n)]
-    [_ %residual-exit]))
+(define emergency-exit  
+  (case-lambda ; exits no matter what
+    [() (%prim! "void(exit(0))")]
+    [(n) (cond [(eq? n #t) (%prim! "void(exit(0))")] 
+               [(fixnum? n) (%prim! "void(exit(fixnum_from_$arg))" n)]
+               [else (%prim! "void(exit(1))")])]
+    [args (%prim! "void(exit(1))")]))
+
+(define exit 
+  (let ([exit-ds *current-dynamic-state*])
+    (lambda args
+      (dynamic-state-reroot! exit-ds)
+      (apply emergency-exit args))))    
 
 (define-inline (argv-ref argv i)
   (%prim* "{ /* argv-ref */
@@ -4203,6 +4492,171 @@ void oportputshared(obj x, obj p, int disp) {
     (lambda vals (close-port port) (apply values vals))))
 
 
+; procedures of variable arity (plain and making use of case-lambda)
+
+(define string->list
+  (case-lambda
+     [(str) (substring->list str 0 (string-length str))]
+     [(str start) (substring->list str start (string-length str))]
+     [(str start end) (substring->list str start end)]))
+
+(define string-copy 
+  (case-lambda
+     [(str) (%string-copy str)]
+     [(str start) (substring str start (string-length str))]
+     [(str start end) (substring str start end)]))
+
+(define string-copy!
+  (case-lambda
+     [(to at from) (substring-copy! to at from 0 (string-length from))]
+     [(to at from start) (substring-copy! to at from start (string-length from))]
+     [(to at from start end) (substring-copy! to at from start end)]))
+
+(define string-fill!
+  (case-lambda
+     [(str c) (%string-fill! str c)]
+     [(str c start) (substring-fill! str c start (string-length str))]
+     [(str c start end) (substring-fill! str c start end)]))
+
+(define vector->list
+  (case-lambda
+     [(vec) (subvector->list vec 0 (vector-length vec))]
+     [(vec start) (subvector->list vec start (vector-length vec))]
+     [(vec start end) (subvector->list vec start end)]))
+
+(define vector->string
+  (case-lambda
+     [(vec) (subvector->string vec 0 (vector-length vec))]
+     [(vec start) (subvector->string vec start (vector-length vec))]
+     [(vec start end) (subvector->string vec start end)]))
+
+(define string->vector
+  (case-lambda
+     [(str) (substring->vector str 0 (string-length str))]
+     [(str start) (substring->vector str start (string-length str))]
+     [(str start end) (substring->vector str start end)]))
+
+(define vector-copy!
+  (case-lambda
+     [(to at from) (subvector-copy! to at from 0 (vector-length from))]
+     [(to at from start) (subvector-copy! to at from start (vector-length from))]
+     [(to at from start end) (subvector-copy! to at from start end)]))
+
+(define vector-copy
+  (case-lambda
+     [(vec) (subvector vec 0 (vector-length vec))]
+     [(vec start) (subvector vec start (vector-length vec))]
+     [(vec start end) (subvector vec start end)]))
+
+(define (%vectors-sum-length vecs)
+  (let loop ([vecs vecs] [l 0])
+    (if (null? vecs) l (loop (cdr vecs) (fx+ l (vector-length (car vecs)))))))
+
+(define (%vectors-copy-into! to vecs)
+  (let loop ([vecs vecs] [i 0])
+    (if (null? vecs)
+        to
+        (let ([vec (car vecs)] [vecs (cdr vecs)])
+          (let ([len (vector-length vec)])
+            (subvector-copy! to i vec 0 len)
+            (loop vecs (fx+ i len)))))))  
+
+(define (vector-append . vecs)
+  (%vectors-copy-into! (make-vector (%vectors-sum-length vecs)) vecs))
+
+(define vector-fill!
+  (case-lambda
+     [(vec x) (subvector-fill! vec x 0 (vector-length vec))]
+     [(vec x start) (subvector-fill! vec x start (vector-length vec))]
+     [(vec x start end) (subvector-fill! vec x start end)]))
+
+(define bytevector->list
+  (case-lambda
+     [(vec) (subbytevector->list vec 0 (bytevector-length vec))]
+     [(vec start) (subbytevector->list vec start (bytevector-length vec))]
+     [(vec start end) (subbytevector->list vec start end)]))
+
+(define bytevector-copy!
+  (case-lambda
+     [(to at from) (subbytevector-copy! to at from 0 (bytevector-length from))]
+     [(to at from start) (subbytevector-copy! to at from start (bytevector-length from))]
+     [(to at from start end) (subbytevector-copy! to at from start end)]))
+
+(define bytevector-copy
+  (case-lambda
+     [(vec) (subbytevector vec 0 (bytevector-length vec))]
+     [(vec start) (subbytevector vec start (bytevector-length vec))]
+     [(vec start end) (subbytevector vec start end)]))
+
+(define (%bytevectors-sum-length vecs)
+  (let loop ([vecs vecs] [l 0])
+    (if (null? vecs) l (loop (cdr vecs) (fx+ l (bytevector-length (car vecs)))))))
+
+(define (%bytevectors-copy-into! to vecs)
+  (let loop ([vecs vecs] [i 0])
+    (if (null? vecs)
+        to
+        (let ([vec (car vecs)] [vecs (cdr vecs)])
+          (let ([len (bytevector-length vec)])
+            (subbytevector-copy! to i vec 0 len)
+            (loop vecs (fx+ i len)))))))  
+
+(define (bytevector-append . vecs)
+  (%bytevectors-copy-into! (make-bytevector (%bytevectors-sum-length vecs)) vecs))
+
+(define (subutf8->string vec start end)
+  (let ([p (open-output-string)])
+    (write-subbytevector vec start end p)
+    ; todo: make a single operation: get-final-output-string (can reuse cbuf?)
+    (let ([s (get-output-string p)]) (close-output-port p) s)))
+
+(define utf8->string
+  (case-lambda
+    [(vec) (%prim*? "{ /* bytevector->string */
+    int *d = bytevectordata(obj_from_$arg);
+    $return obj(hpushstr($live, newstringn((char *)bvdatabytes(d), *d))); }" vec)]
+    [(vec start) (subutf8->string vec start (bytevector-length vec))]
+    [(vec start end) (subutf8->string vec start end)]))
+
+(define (substring->utf8 str start end)
+  (let ([p (open-output-bytevector)])
+    (write-substring str start end p)
+    ; todo: make a single operation: get-final-output-bytevector (can reuse cbuf?)
+    (let ([v (get-output-bytevector p)]) (close-output-port p) v)))
+
+(define string->utf8
+  (case-lambda
+    [(str) (%prim*? "{ /* string->bytevector */
+    int *d = stringdata(obj_from_$arg);
+    $return obj(hpushu8v($live, newbytevector((unsigned char *)sdatachars(d), *d))); }" str)]
+    [(str start) (substring->utf8 str start (string-length str))]
+    [(str start end) (substring->utf8 str start end)]))
+
+(define read-string!
+  (case-lambda
+    [(str) (read-substring! str 0 (string-length str) (current-input-port))]
+    [(str p) (read-substring! str 0 (string-length str) p)]
+    [(str p start) (read-substring! str start (string-length str) p)]
+    [(str p start end) (read-substring! str start end p)]))
+
+(define read-string
+  (case-lambda
+    [(k) (read-substring k (current-input-port))]
+    [(k p) (read-substring k p)]))
+
+(define read-bytevector!
+  (case-lambda
+    [(vec) (read-subbytevector! vec 0 (bytevector-length vec) (current-input-port))]
+    [(vec p) (read-subbytevector! vec 0 (bytevector-length vec) p)]
+    [(vec p start) (read-subbytevector! vec start (bytevector-length vec) p)]
+    [(vec p start end) (read-subbytevector! vec start end p)]))
+
+(define read-bytevector
+  (case-lambda
+    [(k) (read-subbytevector k (current-input-port))]
+    [(k p) (read-subbytevector k p)]))
+
+
 ; residual versions of inline procedures
 
 (define (%residual-values . l)
@@ -4217,6 +4671,8 @@ void oportputshared(obj x, obj p, int disp) {
              (or (null? args)
                  (let ([y (car args)])
                    (and (f x y) (loop y (cdr args))))))))]))
+
+(define %residual-boolean=? (cmp-reducer boolean=?))  
 
 (define %residual-fx=? (cmp-reducer fx=?))
 (define %residual-fx<? (cmp-reducer fx<?))
@@ -4330,6 +4786,13 @@ void oportputshared(obj x, obj p, int disp) {
      (lambda (x . args)
        (if (null? args) (f x) (if (null? (cdr args)) (f x (car args)) (f x (car args) (cadr args)))))])) 
 
+(define-syntax unary-binary-ternary-quaternary-adaptor
+  (syntax-rules ()
+    [(_ f)
+     (lambda (x . args)
+       (if (null? args) (f x) (if (null? (cdr args)) (f x (car args)) 
+         (if (null? (cddr args)) (f x (car args) (cadr args)) (f x (car args) (cadr args) (caddr args))))))])) 
+
 (define-syntax binary-ternary-adaptor
   (syntax-rules ()
     [(_ f)
@@ -4347,7 +4810,10 @@ void oportputshared(obj x, obj p, int disp) {
 
 (define %residual-flatan (unary-binary-adaptor flatan))
 (define %residual-atan (unary-binary-adaptor atan))
-  
+
+(define %residual-member (binary-ternary-adaptor member)) 
+(define %residual-assoc (binary-ternary-adaptor assoc)) 
+
 (define (%residual-map p l . l*)
   (if (null? l*) 
       (let loop ([l l] [r '()])
@@ -4364,6 +4830,32 @@ void oportputshared(obj x, obj p, int disp) {
         (if (let lp ([l* l*]) (or (null? l*) (and (pair? (car l*)) (lp (cdr l*)))))
             (begin (apply p (map car l*)) (loop (map cdr l*)))))))
 
+(define (string-map p s . s*)
+  (if (null? s*)
+      (let* ([len (string-length s)] [res (make-string len)])
+        (do ([i 0 (fx+ i 1)]) [(fx>=? i len) res]
+           (string-set! res i (p (string-ref s i)))))
+      (list->string (apply map p (map string->list (cons s s*))))))
+
+(define (vector-map p v . v*)
+  (if (null? v*)
+      (let* ([len (vector-length v)] [res (make-vector len)])
+        (do ([i 0 (fx+ i 1)]) [(fx>=? i len) res]
+          (vector-set! res i (p (vector-ref v i)))))
+      (list->vector (apply map p (map vector->list (cons v v*))))))
+
+(define (string-for-each p s . s*)
+  (if (null? s*) 
+      (let ([len (string-length s)])
+        (do ([i 0 (fx+ i 1)]) [(fx>=? i len)] (p (string-ref s i))))
+      (apply for-each p (map string->list (cons s s*)))))
+
+(define (vector-for-each p v . v*)
+  (if (null? v*)
+      (let ([len (vector-length v)])
+        (do ([i 0 (fx+ i 1)]) [(fx>=? i len)] (p (vector-ref v i))))
+      (apply for-each p (map vector->list (cons v v*)))))
+
 (define-syntax append-reducer
   (syntax-rules ()
     [(_ f s)
@@ -4373,12 +4865,34 @@ void oportputshared(obj x, obj p, int disp) {
                [(null? (cdr args)) (car args)]
                [else (f (car args) (loop (cdr args)))])))]))
 
+(define %residual-char=? (cmp-reducer char=?))
+(define %residual-char<? (cmp-reducer char<?))
+(define %residual-char>? (cmp-reducer char>?))
+(define %residual-char<=? (cmp-reducer char<=?))
+(define %residual-char>=? (cmp-reducer char>=?))
+(define %residual-char-ci=? (cmp-reducer char-ci=?))
+(define %residual-char-ci<? (cmp-reducer char-ci<?))
+(define %residual-char-ci>? (cmp-reducer char-ci>?))
+(define %residual-char-ci<=? (cmp-reducer char-ci<=?))
+(define %residual-char-ci>=? (cmp-reducer char-ci>=?))
+
 (define %residual-make-string (unary-binary-adaptor make-string))
 
 (define (%residual-string . l) 
   (list->string l))
 
 (define %residual-string-append (append-reducer string-append ""))
+
+(define %residual-string=? (cmp-reducer string=?))
+(define %residual-string<? (cmp-reducer string<?))
+(define %residual-string>? (cmp-reducer string>?))
+(define %residual-string<=? (cmp-reducer string<=?))
+(define %residual-string>=? (cmp-reducer string>=?))
+(define %residual-string-ci=? (cmp-reducer string-ci=?))
+(define %residual-string-ci<? (cmp-reducer string-ci<?))
+(define %residual-string-ci>? (cmp-reducer string-ci>?))
+(define %residual-string-ci<=? (cmp-reducer string-ci<=?))
+(define %residual-string-ci>=? (cmp-reducer string-ci>=?))
 
 (define %residual-make-vector (unary-binary-adaptor make-vector))
 
@@ -4392,6 +4906,8 @@ void oportputshared(obj x, obj p, int disp) {
 
 (define (%residual-list . l) l)
 
+(define %residual-make-list (unary-binary-adaptor make-list))
+
 (define (%residual-cons* x . l)
   (let loop ([x x] [l l])
     (if (null? l) x (cons x (loop (car l) (cdr l))))))
@@ -4402,6 +4918,8 @@ void oportputshared(obj x, obj p, int disp) {
 
 (define %residual-number->string (unary-binary-adaptor number->string))
 (define %residual-string->number (unary-binary-adaptor string->number))
+
+(define %residual-symbol=? (cmp-reducer symbol=?))  
 
 (define (%fail-lambda . args)
   (error 'case-lambda "unexpected number of arguments" args))
@@ -4422,6 +4940,7 @@ void oportputshared(obj x, obj p, int disp) {
 (define %residual-read-char (nullary-unary-adaptor read-char))
 (define %residual-peek-char (nullary-unary-adaptor peek-char))
 (define %residual-char-ready? (nullary-unary-adaptor char-ready?))
+(define %residual-read-line (nullary-unary-adaptor read-line))
 
 (define %residual-display-fixnum (unary-binary-adaptor display-fixnum))
 (define %residual-display-flonum (unary-binary-adaptor display-flonum))
@@ -4430,16 +4949,18 @@ void oportputshared(obj x, obj p, int disp) {
 (define %residual-display-output-port (unary-binary-adaptor display-output-port))
 
 (define %residual-write-char (unary-binary-adaptor write-char))
-(define %residual-write-string (unary-binary-adaptor write-string))
+(define %residual-write-string (unary-binary-ternary-quaternary-adaptor write-string))
 (define %residual-newline (nullary-unary-adaptor newline))
-(define %residual-flush-output-port (nullary-unary-adaptor newline))
+(define %residual-flush-output-port (nullary-unary-adaptor flush-output-port))
 
 (define %residual-read-u8 (nullary-unary-adaptor read-u8))
 (define %residual-peek-u8 (nullary-unary-adaptor peek-u8))
 (define %residual-u8-ready? (nullary-unary-adaptor u8-ready?))
-(define %residual-write-u8 (unary-binary-adaptor write-char))
-(define %residual-write-bytevector (unary-binary-adaptor write-string))
+(define %residual-write-u8 (unary-binary-adaptor write-u8))
+(define %residual-write-bytevector (unary-binary-ternary-quaternary-adaptor write-bytevector))
 
+(define %residual-write-simple (unary-binary-adaptor write-simple))
+(define %residual-write-shared (unary-binary-adaptor write-shared))
 (define %residual-write (unary-binary-adaptor write))
 (define %residual-display (unary-binary-adaptor display))
 

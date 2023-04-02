@@ -13,7 +13,7 @@ extern obj cx__2Acurrent_2Dinput_2A;
 extern obj cx__2Acurrent_2Doutput_2A;
 extern obj cx__2Acurrent_2Derror_2A;
 
-#define istagged(o, t) istagged_inlined(o, t) 
+//#define istagged(o, t) istagged_inlined(o, t) 
 
 /* forwards */
 static struct intgtab_entry *lookup_integrable(int sym);
@@ -135,8 +135,8 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define hend_vec(n)   (*--hp = obj_from_size(VECTOR_BTAG), hendblk((n)+1))
 
 /* record representation extras  */
-#define recbsz(c)     hbsz((c)+2)
-#define hend_rec(rtd, c) (*--hp = rtd, *--hp = obj_from_size(RECORD_BTAG), hendblk((c)+2))
+#define recbsz(c)     hbsz((c)+1)
+#define hend_rec(rtd, c) (*--hp = rtd, hendblk((c)+1))
 
 /* vm closure representation */
 #ifdef NDEBUG /* quick */
@@ -154,11 +154,11 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #endif
 
 /* vm tuple representation (c != 1) */
-#define istuple(x)    isrecord
-#define tupleref      recordref
-#define tuplelen      recordlen
-#define tuplebsz(c)   hbsz((c)+2)
-#define hend_tuple(c) (*--hp = 0, *--hp = obj_from_size(RECORD_BTAG), hendblk((c)+2))
+#define istuple(x)    istagged(x, 0)
+#define tupleref(x,i) *taggedref(x, 0, i)
+#define tuplelen(x)   taggedlen(x, 0)
+#define tuplebsz(c)   hbsz((c)+1)
+#define hend_tuple(c) (*--hp = obj_from_size(0), hendblk((c)+1))
 
 /* in/re-loading gc-save shadow registers */
 #define unload_ip()   (rx = obj_from_fixnum(ip - &vectorref(vmcloref(rd, 0), 0)))
@@ -218,11 +218,11 @@ static void _sck(obj *s) {
 #define is_eof(o) ((o) == mkeof())
 #define fixnum_obj(x) obj_from_fixnum(x)
 #define is_fixnum(o) is_fixnum_obj(o)
-#define are_fixnums(o1, o2) are_fixnum_objs(o1, o2)
-#define get_fixnum(o) get_fixnum_unchecked(o)
+#define are_fixnums(o1, o2) (is_fixnum(o1) && is_fixnum(o2))
+#define get_fixnum(o) fixnum_from_obj(o)
 #define is_byte(o) is_byte_obj(o)
 #define byte_obj(x) obj_from_fixnum((unsigned char)(x))
-#define get_byte(o) ((unsigned char)get_fixnum_unchecked(o))
+#define get_byte(o) ((unsigned char)fixnum_from_obj(o))
 #define flonum_obj(x) hp_pushptr(dupflonum(x), FLONUM_NTAG)
 #define is_flonum(o) is_flonum_obj(o)
 #define get_flonum(o) flonum_from_obj(o)
@@ -1362,7 +1362,7 @@ define_instruction(bvecp) {
 
 define_instruction(bvec) {
   int i, n = get_fixnum(*ip++);
-  obj o = bytevector_obj(allocbytevector(n, 0));
+  obj o = bytevector_obj(allocbytevector(n));
   unsigned char *s = (unsigned char *)bytevectorbytes(o);
   for (i = 0; i < n; ++i) {
     obj x = sref(i); ck8(x); s[i] = byte_from_obj(x);
@@ -1375,7 +1375,7 @@ define_instruction(bmk) {
   int n, b; obj x = spop(); 
   ckk(ac); ck8(x);
   n = get_fixnum(ac), b = byte_from_obj(x);
-  ac = bytevector_obj(allocbytevector(n, b)); 
+  ac = bytevector_obj(makebytevector(n, b)); 
   gonexti();
 }
 
@@ -1558,7 +1558,7 @@ define_instruction(ltov) {
 define_instruction(ltob) {
   obj l = ac, o; int n = 0, i; unsigned char *s;
   while (is_pair(l)) { l = pair_cdr(l); ++n; } cku(l);
-  o = bytevector_obj(allocbytevector(n, 0));
+  o = bytevector_obj(allocbytevector(n));
   s = bytevectorbytes(o);
   for (i = 0, l = ac; i < n; ++i, l = pair_cdr(l)) {
     obj x = pair_car(l); ck8(x);
