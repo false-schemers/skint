@@ -19,7 +19,20 @@
 #include <time.h>
 
 /* standard definitions */
+#ifdef NAN_BOXING
+#include <stdint.h>
+typedef int64_t obj;          /* pointers are this size, higher 16 bits and lower bit zero */
+typedef int64_t cxoint_t;     /* same thing, used as integer */
+typedef struct {              /* type descriptor */
+  const char *tname;          /* name (debug) */
+  void (*free)(void*);        /* deallocator */
+} cxtype_t;
 
+#define notobjptr(o)          (((cxoint_t)(o) - (cxoint_t)cxg_heap) & cxg_hmask)
+#define isobjptr(o)           (!notobjptr(o))
+#define notaptr(o)            ((o) & 0xffff000000000001ULL)
+#define isaptr(o)             (!notaptr(o))
+#else
 typedef ptrdiff_t obj;        /* pointers are this size, lower bit zero */
 typedef ptrdiff_t cxoint_t;   /* same thing, used as integer */
 typedef struct {              /* type descriptor */
@@ -31,6 +44,7 @@ typedef struct {              /* type descriptor */
 #define isobjptr(o)           (!notobjptr(o))
 #define notaptr(o)            ((o) & 1)
 #define isaptr(o)             (!notaptr(o))
+#endif
 
 #define obj_from_obj(o)       (o)
 #define obj_from_objptr(p)    ((obj)(p))
