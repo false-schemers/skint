@@ -223,9 +223,15 @@ static void _sck(obj *s) {
 #define is_byte(o) is_byte_obj(o)
 #define byte_obj(x) obj_from_fixnum((unsigned char)(x))
 #define get_byte(o) ((unsigned char)fixnum_from_obj(o))
+#ifdef FLONUMS_BOXED
 #define flonum_obj(x) hp_pushptr(dupflonum(x), FLONUM_NTAG)
 #define is_flonum(o) is_flonum_obj(o)
 #define get_flonum(o) flonum_from_obj(o)
+#else
+#define flonum_obj(x) obj_from_flonum(0, x)
+#define is_flonum(o) is_flonum_obj(o)
+#define get_flonum(o) flonum_from_obj(o)
+#endif
 #define is_symbol(o) issymbol(o)
 #define get_symbol(o) getsymbol(o)
 #define is_pair(o) ispair(o)

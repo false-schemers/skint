@@ -81,6 +81,29 @@ extern char **cxg_argv;
 
 /* extra definitions */
 /* basic object representation */
+#ifdef NAN_BOXING
+#define isim0(o)    (((o) & 0xffff000000000003ULL) == 3)
+#define isimm(o, t) (((o) & 0xffff0000000000ffULL) == (((t) << 2) | 1))
+#ifdef NDEBUG
+  #define getim0s(o) (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
+  #define getimmu(o, t) (long)(((o) >> 8) & 0xffffff)
+#else
+  extern long getim0s(obj o);
+  extern long getimmu(obj o, int t);
+#endif
+#ifndef NDEBUG
+long getim0s(obj o) {
+  assert(isim0(o));
+  return (long)(((((uint32_t)o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
+}
+long getimmu(obj o, int t) {
+  assert(isimm((o), t));
+  return (long)(((uint32_t)o >> 8) & 0xffffff);
+}
+#endif
+#define mkim0(v) ((obj)((((v) & 0x000000003fffffffULL) << 2) | 3))
+#define mkimm(v, t) ((obj)((((v) & 0x0000000000ffffffULL) << 8) | ((t) << 2) | 1))
+#else
 #define isim0(o)    (((o) & 3) == 3)
 #define isimm(o, t) (((o) & 0xff) == (((t) << 2) | 1))
 #ifdef NDEBUG
@@ -102,6 +125,8 @@ long getimmu(obj o, int t) {
 #endif
 #define mkim0(o) (obj)((((o) & 0x3fffffff) << 2) | 3)
 #define mkimm(o, t) (obj)((((o) & 0xffffff) << 8) | ((t) << 2) | 1)
+#define FLONUMS_BOXED
+#endif
 #ifndef NDEBUG
 int isnative(obj o, cxtype_t *tp) {
   return isobjptr(o) && objptr_from_obj(o)[-1] == (obj)tp; 
@@ -137,15 +162,15 @@ int istagged(obj o, int t) {
 #endif
 #ifndef NDEBUG
 obj cktagged(obj o, int t) {
-  assert(istagged(o, t));
+  assert(istagged((o), t));
   return o;
 }
 int taggedlen(obj o, int t) {
-  assert(istagged(o, t));
+  assert(istagged((o), t));
   return hblklen(o) - 1;
 }
 obj* taggedref(obj o, int t, int i) {
-  int len; assert(istagged(o, t));
+  int len; assert(istagged((o), t));
   len = hblklen(o);
   assert(i >= 0 && i < len-1);  
   return &hblkref(o, i+1);
@@ -440,6 +465,32 @@ typedef long fixnum_t;
 #define void_from_fixnum(i) (void)(i)
 #define obj_from_fixnum(i) mkim0((fixnum_t)(i))
 /* flonums */
+#ifndef FLONUMS_BOXED
+typedef double flonum_t;
+#define is_flonum_obj(o) (((o) & 0xffff000000000000ULL) != 0ULL)
+#define is_flonum_flonum(f) ((void)(f), 1)
+#define is_flonum_bool(f) ((void)(f), 0)
+#define is_bool_flonum(f) ((void)(f), 0)
+#define is_fixnum_flonum(i) ((void)(i), 0)
+#define is_flonum_fixnum(i) ((void)(i), 0)
+#define flonum_from_flonum(l, f) (f)
+#define flonum_from_fixnum(x) ((flonum_t)(x))
+#define bool_from_flonum(f) ((void)(f), 0)
+#define void_from_flonum(l, f) (void)(f)
+union iod { cxoint_t i; double d; };
+static double flonum_from_obj(obj o) { 
+  union iod u; 
+  assert(is_flonum_obj(o));
+  u.i = ~o; 
+  return u.d; 
+}
+static obj obj_from_flonum(int rc, double d) { 
+  union iod u; 
+  u.d = d; 
+  assert(is_flonum_obj(~u.i));
+  return ~u.i; 
+}
+#else /* FLONUMS_BOXED */
 static cxtype_t cxt_flonum = { "flonum", free };
 cxtype_t *FLONUM_NTAG = &cxt_flonum;
 extern cxtype_t *FLONUM_NTAG;
@@ -461,6 +512,7 @@ flonum_t *dupflonum(flonum_t f) {
   flonum_t *pf = cxm_cknull(malloc(sizeof(flonum_t)), "malloc(flonum)");
   *pf = f; return pf;
 }
+#endif
 /* characters */
 #define CHAR_ITAG 2
 typedef int char_t;
@@ -1018,7 +1070,7 @@ static void stabdelifu(obj o, stab_t *p) {
 }
 static void stabpushp(obj o, stab_t *p) {
   obj *r = p->r; if (!r) { p->r = r = cxm_cknull(calloc(sizeof(obj), 12), "stabpushp"); r[1] = 10; }
-  else if (r[0] == r[1]) { p->r = r = cxm_cknull(realloc(r, sizeof(obj)*(2+r[1]*2)), "stabpushp"); r[1] *= 2; }
+  else if (r[0] == r[1]) { p->r = r = cxm_cknull(realloc(r, sizeof(obj)*(2+(size_t)r[1]*2)), "stabpushp"); r[1] *= 2; }
   r[2 + r[0]++] = o; 
 }
 static void stabpopp(stab_t *p) {
@@ -1081,9 +1133,9 @@ static long stabref(obj o, stab_t *p, int upd) {
 static int stabufind(obj x, obj y, stab_t *p) {
   size_t sz = p->sz, i, ix=0, iy=0; /* bogus 0 inits to silence gcc */ obj *r = p->r;
   for (i = (unsigned long)x & (sz-1); p->v[i]; i = (i-1) & (sz-1)) if ((p->v[i] & ~1) == x) { ix = i; break; }
-  for (i = ix; r[i] >= 0; ) i = (size_t)r[i]; if (i != ix) ix = r[ix] = i;  
+  for (i = ix; r[i] >= 0; ) i = (size_t)r[i]; if (i != ix) ix = (size_t)(r[ix] = i);  
   for (i = (unsigned long)y & (sz-1); p->v[i]; i = (i-1) & (sz-1)) if ((p->v[i] & ~1) == y) { iy = i; break; }
-  for (i = iy; r[i] >= 0; ) i = (size_t)r[i]; if (i != iy) iy = r[iy] = i;
+  for (i = iy; r[i] >= 0; ) i = (size_t)r[i]; if (i != iy) iy = (size_t)(r[iy] = i);
   if (ix == iy) return 1; /* same class, assumed to be equal */ 
   if (r[ix] < r[iy]) { r[ix] += r[iy]; r[iy] = ix; } else { r[iy] += r[ix]; r[ix] = iy; } return 0;
 }
@@ -1091,7 +1143,9 @@ static int stabequal(obj x, obj y, stab_t *p) {
   obj h; int i, n; loop: if (x == y) return 1;
   if (!x || !y || notaptr(x) || notaptr(y) || notobjptr(x) || notobjptr(y)) return 0;
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return 0;
+#ifdef FLONUMS_BOXED
   if (h == (obj)FLONUM_NTAG) return flonum_from_obj(x) == flonum_from_obj(y); 
+#endif
   if (h == (obj)STRING_NTAG) return strcmp(stringchars(x), stringchars(y)) == 0;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)); 
   if (isaptr(h) || !(n = size_from_obj(h)) || hblkref(x, 0) != hblkref(y, 0)) return 0;
@@ -1103,7 +1157,9 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
   obj h; int i, n; loop: assert(fuel > 0); if (x == y) return fuel-1;
   if (!x || !y || notaptr(x) || notaptr(y) || notobjptr(x) || notobjptr(y)) return -1;
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return -1;
+#ifdef FLONUMS_BOXED
   if (h == (obj)FLONUM_NTAG) return flonum_from_obj(x) == flonum_from_obj(y) ? fuel-1 : -1; 
+#endif
   if (h == (obj)STRING_NTAG) return strcmp(stringchars(x), stringchars(y)) == 0 ? fuel-1 : -1;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)) ? fuel-1 : -1;
   if (isaptr(h) || !(n = size_from_obj(h)) || hblkref(x, 0) != hblkref(y, 0)) return -1;
@@ -1121,7 +1177,9 @@ int iseqv(obj x, obj y) {
   obj h; if (x == y) return 1;
   if (!x || !y || notaptr(x) || notaptr(y) || notobjptr(x) || notobjptr(y)) return 0;
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return 0;
+#ifdef FLONUMS_BOXED
   if (h == (obj)FLONUM_NTAG) return *(flonum_t*)objptr_from_obj(x)[0] == *(flonum_t*)objptr_from_obj(y)[0]; 
+#endif
   return 0;
 }
 extern obj ismemv(obj x, obj l);

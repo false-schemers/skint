@@ -75,6 +75,19 @@ extern char **cxg_argv;
 
 /* extra definitions */
 /* basic object representation */
+#ifdef NAN_BOXING
+#define isim0(o)    (((o) & 0xffff000000000003ULL) == 3)
+#define isimm(o, t) (((o) & 0xffff0000000000ffULL) == (((t) << 2) | 1))
+#ifdef NDEBUG
+  #define getim0s(o) (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
+  #define getimmu(o, t) (long)(((o) >> 8) & 0xffffff)
+#else
+  extern long getim0s(obj o);
+  extern long getimmu(obj o, int t);
+#endif
+#define mkim0(v) ((obj)((((v) & 0x000000003fffffffULL) << 2) | 3))
+#define mkimm(v, t) ((obj)((((v) & 0x0000000000ffffffULL) << 8) | ((t) << 2) | 1))
+#else
 #define isim0(o)    (((o) & 3) == 3)
 #define isimm(o, t) (((o) & 0xff) == (((t) << 2) | 1))
 #ifdef NDEBUG
@@ -86,6 +99,8 @@ extern char **cxg_argv;
 #endif
 #define mkim0(o) (obj)((((o) & 0x3fffffff) << 2) | 3)
 #define mkimm(o, t) (obj)((((o) & 0xffffff) << 8) | ((t) << 2) | 1)
+#define FLONUMS_BOXED
+#endif
 #ifdef NDEBUG
    static int isnative(obj o, cxtype_t *tp) 
      { return isobjptr(o) && objptr_from_obj(o)[-1] == (obj)tp;  }
@@ -209,6 +224,32 @@ typedef long fixnum_t;
 #define void_from_fixnum(i) (void)(i)
 #define obj_from_fixnum(i) mkim0((fixnum_t)(i))
 /* flonums */
+#ifndef FLONUMS_BOXED
+typedef double flonum_t;
+#define is_flonum_obj(o) (((o) & 0xffff000000000000ULL) != 0ULL)
+#define is_flonum_flonum(f) ((void)(f), 1)
+#define is_flonum_bool(f) ((void)(f), 0)
+#define is_bool_flonum(f) ((void)(f), 0)
+#define is_fixnum_flonum(i) ((void)(i), 0)
+#define is_flonum_fixnum(i) ((void)(i), 0)
+#define flonum_from_flonum(l, f) (f)
+#define flonum_from_fixnum(x) ((flonum_t)(x))
+#define bool_from_flonum(f) ((void)(f), 0)
+#define void_from_flonum(l, f) (void)(f)
+union iod { cxoint_t i; double d; };
+static double flonum_from_obj(obj o) { 
+  union iod u; 
+  assert(is_flonum_obj(o));
+  u.i = ~o; 
+  return u.d; 
+}
+static obj obj_from_flonum(int rc, double d) { 
+  union iod u; 
+  u.d = d; 
+  assert(is_flonum_obj(~u.i));
+  return ~u.i; 
+}
+#else /* FLONUMS_BOXED */
 extern cxtype_t *FLONUM_NTAG;
 typedef double flonum_t;
 #define is_flonum_obj(o) (isnative(o, FLONUM_NTAG))
@@ -224,6 +265,7 @@ typedef double flonum_t;
 #define void_from_flonum(l, f) (void)(f)
 #define obj_from_flonum(l, f) hpushptr(dupflonum(f), FLONUM_NTAG, l)
 extern flonum_t *dupflonum(flonum_t f);
+#endif
 /* characters */
 #define CHAR_ITAG 2
 typedef int char_t;
