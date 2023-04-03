@@ -2006,12 +2006,6 @@ define_instruction(jdiv) {
   gonexti();
 }
 
-define_instruction(jrem) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flrem(get_flonum(x), get_flonum(y)));
-  gonexti();
-}
-
 define_instruction(jlt) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
   ac = bool_obj(get_flonum(x) < get_flonum(y));
@@ -2097,10 +2091,20 @@ define_instruction(jtoi) {
 }
 
 define_instruction(jquo) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flquo(get_flonum(x), get_flonum(y)));
+  obj x = ac, y = spop(); double n, d, i; 
+  ckj(x); ckj(y);
+  n = get_flonum(x), d = get_flonum(y); modf(n/d,  &i);
+  ac = flonum_obj(i);
   gonexti(); 
 }
+
+define_instruction(jrem) {
+  /* NB: we keep sign: (flremainder -10.0 2.0) => -0.0 */
+  obj x = ac, y = spop(); ckj(x); ckj(y);
+  ac = flonum_obj(fmod(get_flonum(x), get_flonum(y)));
+  gonexti();
+}
+
 
 define_instruction(jmqu) {
   obj x = ac, y = spop(); ckj(x); ckj(y);
@@ -2127,9 +2131,8 @@ define_instruction(jceil) {
 }
 
 define_instruction(jtrunc) {
-  double f, i; ckj(ac);
-  f = get_flonum(ac);
-  modf(f,  &i);
+  double i; ckj(ac);
+  modf(get_flonum(ac), &i);
   ac = flonum_obj(i);
   gonexti(); 
 }
@@ -2312,14 +2315,15 @@ define_instruction(quo) {
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
     ac = fixnum_obj(fxquo(get_fixnum(x), get_fixnum(y)));
   } else {
-    double dx, dy;
-    if (likely(is_flonum(x))) dx = get_flonum(x);
+    double dx, dy, dz;
+    if (likely(is_flonum(x) && flisint(dx = get_flonum(x)))) /* ok */;
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else failtype(x, "number");
-    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else failtype(x, "integer");
+    if (likely(is_flonum(y) && flisint(dy = get_flonum(y)))) /* ok */;
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else failtype(y, "number");
-    ac = flonum_obj(flquo(dx, dy));
+    else failtype(y, "integer");
+    modf(dx / dy,  &dz);
+    ac = flonum_obj(dz);
   }
   gonexti(); 
 }
@@ -2330,14 +2334,16 @@ define_instruction(rem) {
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
     ac = fixnum_obj(fxrem(get_fixnum(x), get_fixnum(y)));
   } else {
-    double dx, dy;
-    if (likely(is_flonum(x))) dx = get_flonum(x);
+    double dx, dy, dz;
+    if (likely(is_flonum(x) && flisint(dx = get_flonum(x)))) /* ok */;
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else failtype(x, "number");
-    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else failtype(x, "integer");
+    if (likely(is_flonum(y) && flisint(dy = get_flonum(y)))) /* ok */;
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else failtype(y, "number");
-    ac = flonum_obj(flrem(dx, dy));
+    else failtype(y, "integer");
+    dz = fmod(dx, dy);
+    /* keep zero positive: (remainder -10.0 2.0) => 0.0, not -0.0 */
+    ac = flonum_obj((dz == 0.0) ? 0.0 : dz);
   }
   gonexti(); 
 }
@@ -2449,8 +2455,9 @@ define_instruction(ge) {
 
 define_instruction(eq) {
   obj x = ac, y = spop();
-  if (x == y) ac = bool_obj(1);
-  else if (is_flonum(x) || is_flonum(y)) {
+  if (likely(are_fixnums(x, y))) {
+    ac = bool_obj(x == y);
+  } else if (is_flonum(x) || is_flonum(y)) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
@@ -2465,8 +2472,9 @@ define_instruction(eq) {
 
 define_instruction(ne) {
   obj x = ac, y = spop();
-  if (x == y) ac = bool_obj(0);
-  else if (is_flonum(x) || is_flonum(y)) {
+  if (likely(are_fixnums(x, y))) {
+    ac = bool_obj(x != y);
+  } else if (is_flonum(x) || is_flonum(y)) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
