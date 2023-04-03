@@ -122,6 +122,12 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define VM_STACK_RSZ  256    /* red zone for overflow checks */
 #define VM_STACK_GSZ  (VM_STACK_LEN-VM_STACK_RSZ)
 
+/* faster non-debug type testing */
+#ifdef NDEBUG /* quick */
+static int istagged_inline(obj o, int t) { return isobjptr(o) && hblkref(o, 0) == obj_from_size(t); }
+#define istagged(o, t) istagged_inline(o, t)
+#endif
+
 /* box representation extras */
 #define boxbsz()      hbsz(1+1)
 #define hend_box()    (*--hp = obj_from_size(BOX_BTAG), hendblk(1+1))
