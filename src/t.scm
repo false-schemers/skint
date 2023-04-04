@@ -421,6 +421,8 @@
   (cond
     [(null? tail) 
      (list 'begin)]
+    [(list1? tail) ; can't have defines there
+     (xform #f (car tail) env)]
     [(not (list? tail))
      (x-error "improper body form" (cons 'body tail))]
     [else
