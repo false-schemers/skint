@@ -13,6 +13,20 @@
 #include <time.h>
 
 /* standard definitions */
+#ifdef NAN_BOXING
+#include <stdint.h>
+typedef int64_t obj;          /* pointers are this size, higher 16 bits and lower bit zero */
+typedef int64_t cxoint_t;     /* same thing, used as integer */
+typedef struct {              /* type descriptor */
+  const char *tname;          /* name (debug) */
+  void (*free)(void*);        /* deallocator */
+} cxtype_t;
+
+#define notobjptr(o)          (((cxoint_t)(o) - (cxoint_t)cxg_heap) & cxg_hmask)
+#define isobjptr(o)           (!notobjptr(o))
+#define notaptr(o)            ((o) & 0xffff000000000001ULL)
+#define isaptr(o)             (!notaptr(o))
+#else
 typedef ptrdiff_t obj;        /* pointers are this size, lower bit zero */
 typedef ptrdiff_t cxoint_t;   /* same thing, used as integer */
 typedef struct {              /* type descriptor */
@@ -24,6 +38,7 @@ typedef struct {              /* type descriptor */
 #define isobjptr(o)           (!notobjptr(o))
 #define notaptr(o)            ((o) & 1)
 #define isaptr(o)             (!notaptr(o))
+#endif
 
 #define obj_from_obj(o)       (o)
 #define obj_from_objptr(p)    ((obj)(p))
@@ -74,18 +89,32 @@ extern char **cxg_argv;
 
 /* extra definitions */
 /* basic object representation */
-#define isimm(o, t) (((o) & 0xf) == (((t) << 1) | 1))
-#define isimm2(o1, o2, t) (((((o1) & 0xf) << 4) | ((o2) & 0xf)) == (((((t) << 1) | 1) << 4) | (((t) << 1) | 1)))
-#define getimmu_unchecked(o) (long)(((o) >> 4) & 0xfffffff)
-#define getimms_unchecked(o) (long)(((((o) >> 4) & 0xfffffff) ^ 0x8000000) - 0x8000000)
+#ifdef NAN_BOXING
+#define isim0(o)    (((o) & 0xffff000000000003ULL) == 3)
+#define isimm(o, t) (((o) & 0xffff0000000000ffULL) == (((t) << 2) | 1))
 #ifdef NDEBUG
-  #define getimmu(o, t) getimmu_unchecked(o)
-  #define getimms(o, t) getimms_unchecked(o)
+  #define getim0s(o) (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
+  #define getimmu(o, t) (long)(((o) >> 8) & 0xffffff)
 #else
+  extern long getim0s(obj o);
   extern long getimmu(obj o, int t);
-  extern long getimms(obj o, int t);
 #endif
-#define mkimm(o, t) (obj)((((o) & 0xfffffff) << 4) | ((t) << 1) | 1)
+#define mkim0(v) ((obj)((((v) & 0x000000003fffffffULL) << 2) | 3))
+#define mkimm(v, t) ((obj)((((v) & 0x0000000000ffffffULL) << 8) | ((t) << 2) | 1))
+#else
+#define isim0(o)    (((o) & 3) == 3)
+#define isimm(o, t) (((o) & 0xff) == (((t) << 2) | 1))
+#ifdef NDEBUG
+  #define getim0s(o) (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
+  #define getimmu(o, t) (long)(((o) >> 8) & 0xffffff)
+#else
+  extern long getim0s(obj o);
+  extern long getimmu(obj o, int t);
+#endif
+#define mkim0(o) (obj)((((o) & 0x3fffffff) << 2) | 3)
+#define mkimm(o, t) (obj)((((o) & 0xffffff) << 8) | ((t) << 2) | 1)
+#define FLONUMS_BOXED
+#endif
 #ifdef NDEBUG
    static int isnative(obj o, cxtype_t *tp) 
      { return isobjptr(o) && objptr_from_obj(o)[-1] == (obj)tp;  }
@@ -95,12 +124,6 @@ extern char **cxg_argv;
   extern void *getnative(obj o, cxtype_t *tp);
 #endif
 extern int istagged(obj o, int t);
-static /*inline*/ int istagged_inlined(obj o, int t) {
-  if (!isobjptr(o)) return 0;
-  else { obj h = objptr_from_obj(o)[-1];
-    return notaptr(h) && size_from_obj(h) >= 1 
-      && hblkref(o, 0) == obj_from_size(t); }
-}
 #ifdef NDEBUG
   #define cktagged(o, t) (o)
   #define taggedlen(o, t) (hblklen(o)-1) 
@@ -110,8 +133,18 @@ static /*inline*/ int istagged_inlined(obj o, int t) {
   extern int taggedlen(obj o, int t);
   extern obj* taggedref(obj o, int t, int i); 
 #endif
-/* unit */
-#define obj_from_unit() (obj_from_size(0x6DF6F577))
+extern int istyped(obj o);
+#ifdef NDEBUG
+  #define cktyped(o, t) (o)
+  #define typedtype(o) (&hblkref(o, 0))
+  #define typedlen(o) (hblklen(o)-1) 
+  #define typedref(o, i) (&hblkref(o, (i)+1))
+#else
+  extern obj cktyped(obj o);
+  extern obj* typedtype(obj o); 
+  extern int typedlen(obj o);
+  extern obj* typedref(obj o, int i); 
+#endif
 /* booleans */
 #define TRUE_ITAG 0
 typedef int bool_t;
@@ -119,10 +152,18 @@ typedef int bool_t;
 #define is_bool_bool(b) ((void)(b), 1)
 #define void_from_bool(b) (void)(b)
 #define obj_from_bool(b) ((b) ? mkimm(0, TRUE_ITAG) : 0)
+/* void */
+#define VOID_ITAG 1
+#define mkvoid() mkimm(0, VOID_ITAG)
+#define isvoid(o) ((o) == mkimm(0, VOID_ITAG))
+#undef obj_from_void
+#define obj_from_void(v) ((void)(v), mkimm(0, VOID_ITAG))
+/* unit */
+#define obj_from_unit() (obj_from_size(0x6DF6F577))
 /* numbers */
-#define FIXNUM_BIT 28
-#define FIXNUM_MIN -134217728
-#define FIXNUM_MAX 134217727
+#define FIXNUM_BIT 30
+#define FIXNUM_MIN -536870912
+#define FIXNUM_MAX 536870911
 #ifdef NDEBUG
 #define fxneg(x) (-(x))
 #define fxabs(x) (labs(x))
@@ -185,21 +226,44 @@ extern double flgcd(double x, double y);
 extern double flround(double x);
 extern int strtofxfl(char *s, int radix, long *pl, double *pd);
 /* fixnums */
-#define FIXNUM_ITAG 1
 typedef long fixnum_t;
-#define is_fixnum_obj(o) (isimm(o, FIXNUM_ITAG))
-#define are_fixnum_objs(o1, o2) (isimm2((o1), (o2), FIXNUM_ITAG))
-#define get_fixnum_unchecked(o) (getimms_unchecked(o))
+#define is_fixnum_obj(o) (isim0(o))
 #define is_fixnum_fixnum(i) ((void)(i), 1)
 #define is_bool_fixnum(i) ((void)(i), 0)
 #define is_fixnum_bool(i) ((void)(i), 0)
-#define fixnum_from_obj(o) (getimms(o, FIXNUM_ITAG))
+#define fixnum_from_obj(o) (getim0s(o))
 #define fixnum_from_fixnum(i) (i)
 #define fixnum_from_flonum(l,x) ((fixnum_t)(x))
 #define bool_from_fixnum(i) ((void)(i), 1)
 #define void_from_fixnum(i) (void)(i)
-#define obj_from_fixnum(i) mkimm((fixnum_t)(i), FIXNUM_ITAG)
+#define obj_from_fixnum(i) mkim0((fixnum_t)(i))
 /* flonums */
+#ifndef FLONUMS_BOXED
+typedef double flonum_t;
+#define is_flonum_obj(o) (((o) & 0xffff000000000000ULL) != 0ULL)
+#define is_flonum_flonum(f) ((void)(f), 1)
+#define is_flonum_bool(f) ((void)(f), 0)
+#define is_bool_flonum(f) ((void)(f), 0)
+#define is_fixnum_flonum(i) ((void)(i), 0)
+#define is_flonum_fixnum(i) ((void)(i), 0)
+#define flonum_from_flonum(l, f) (f)
+#define flonum_from_fixnum(x) ((flonum_t)(x))
+#define bool_from_flonum(f) ((void)(f), 0)
+#define void_from_flonum(l, f) (void)(f)
+union iod { cxoint_t i; double d; };
+static double flonum_from_obj(obj o) { 
+  union iod u; 
+  assert(is_flonum_obj(o));
+  u.i = ~o; 
+  return u.d; 
+}
+static obj obj_from_flonum(int rc, double d) { 
+  union iod u; 
+  u.d = d; 
+  assert(is_flonum_obj(~u.i));
+  return ~u.i; 
+}
+#else /* FLONUMS_BOXED */
 extern cxtype_t *FLONUM_NTAG;
 typedef double flonum_t;
 #define is_flonum_obj(o) (isnative(o, FLONUM_NTAG))
@@ -215,6 +279,7 @@ typedef double flonum_t;
 #define void_from_flonum(l, f) (void)(f)
 #define obj_from_flonum(l, f) hpushptr(dupflonum(f), FLONUM_NTAG, l)
 extern flonum_t *dupflonum(flonum_t f);
+#endif
 /* characters */
 #define CHAR_ITAG 2
 typedef int char_t;
@@ -227,7 +292,7 @@ typedef int char_t;
 #define is_fixnum_char(i) ((void)(i), 0)
 #define is_char_flonum(i) ((void)(i), 0)
 #define is_flonum_char(i) ((void)(i), 0)
-#define char_from_obj(o) ((int)getimms(o, CHAR_ITAG))
+#define char_from_obj(o) ((int)getimmu(o, CHAR_ITAG))
 #define char_from_char(i) (i)
 #define bool_from_char(i) ((void)(i), 1)
 #define void_from_char(i) (void)(i)
@@ -246,12 +311,13 @@ extern cxtype_t *STRING_NTAG;
   extern char* stringref(obj o, int i);
 #endif
 extern int *newstring(char *s);
+extern int *newstringn(char *s, int n);
 extern int *allocstring(int n, int c);
 extern int *substring(int *d, int from, int to);
 extern int *stringcat(int *d0, int *d1);
 extern int *dupstring(int *d);
 extern void stringfill(int *d, int c);
-extern int strcmp_ci(char *s1, char*s2);
+extern int strcmp_ci(char *s1, char *s2);
 /* vectors */
 #define VECTOR_BTAG 1
 #define isvector(o) istagged(o, VECTOR_BTAG)
@@ -279,7 +345,8 @@ static int is_byte_obj(obj o) { return (obj_from_fixnum(0) <= o && o <= obj_from
   extern unsigned char* bytevectorref(obj o, int i);
 #endif
 extern int *newbytevector(unsigned char *s, int n);
-extern int *allocbytevector(int n, int c);
+extern int *makebytevector(int n, int c);
+extern int *allocbytevector(int n);
 extern int *dupbytevector(int *d);
 extern int bytevectoreq(int *d0, int *d1);
 extern int *subbytevector(int *d, int from, int to);
@@ -305,11 +372,10 @@ extern int islist(obj l);
 extern char *symbolname(int sym);
 extern int internsym(char *name);
 /* records */
-#define RECORD_BTAG 4
-#define isrecord(o) istagged(o, RECORD_BTAG)
-#define recordrtd(r) *taggedref(r, RECORD_BTAG, 0)
-#define recordref(r, i) *taggedref(r, RECORD_BTAG, (i)+1)
-#define recordlen(r) (taggedlen(r, RECORD_BTAG)-1)
+#define isrecord(o) istyped(o)
+#define recordrtd(r) *typedtype(r)
+#define recordlen(r) typedlen(r)
+#define recordref(r, i) *typedref(r, i)
 /* procedures */
 extern int isprocedure(obj o);
 extern int procedurelen(obj o);
@@ -318,8 +384,8 @@ extern obj* procedureref(obj o, int i);
 extern obj appcases[];
 /* eof */
 #define EOF_ITAG 7
-#define mkeof() mkimm(-1, EOF_ITAG)
-#define iseof(o) ((o) == mkimm(-1, EOF_ITAG))
+#define mkeof() mkimm(0, EOF_ITAG)
+#define iseof(o) ((o) == mkimm(0, EOF_ITAG))
 /* input ports */
 typedef struct { /* extends cxtype_t */
   const char *tname;
