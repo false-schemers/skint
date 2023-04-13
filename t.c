@@ -259,13 +259,17 @@ char *t_code[] = {
   ".(i11),fc,.(i11),:0^[(i12)5}${.4,@(y6:list2?)[01}?{${.4a,@(y3:id?)[01}"
   "}{f}?{.2a,.3da,${${.5,@(y7:id->sym)[01},@(y6:gensym)[01},${.(i11),.3,."
   "6,@(y7:add-var)[03},.9,.(i14),.3c,.(i14),.5c,.(i14),.7c,.4,:0^[(i15)5}"
-  ".4,'(s20:improper define form),@(y7:x-error)[(i11)2}'(y13:define-synta"
-  "x),.1v?{${.4,@(y6:list2?)[01}?{${.4a,@(y3:id?)[01}}{f}?{.2a,.3da,${.(i"
-  "10),'(l1:y9:undefined;),.5,@(y11:add-binding)[03},.8,.(i13),tc,.(i13),"
-  ".4c,.(i13),.6c,.4,:0^[(i14)5}.4,'(s27:improper define-syntax form),@(y"
-  "7:x-error)[(i11)2}.1K0?{.5,${.9,.8,.6[02}c,.(i10),.(i10),.(i10),.(i10)"
-  ",:0^[(i11)5}.6,.(i11),.(i11)A8,.(i11)A8,.(i11)A8,@(y12:xform-labels)[("
-  "i11)5}.0,.5,.5A8,.5A8,.5A8,@(y12:xform-labels)[55}.!0.0^_1[25",
+  "${.4,@(y7:list2+?)[01}?{.2ap?{${.4aa,@(y3:id?)[01}?{${.4ad,@(y8:idslis"
+  "t?)[01}}{f}}{f}}{f}?{.2aa,${'(y6:lambda),'(y6:lambda)c,@(y6:new-id)[01"
+  "},.4d,.5adc,.1c,${${.6,@(y7:id->sym)[01},@(y6:gensym)[01},${.(i12),.3,"
+  ".7,@(y7:add-var)[03},.(i10),.(i15),.3c,.(i15),.5c,.(i15),.8c,.4,:0^[(i"
+  "16)5}.4,'(s20:improper define form),@(y7:x-error)[(i11)2}'(y13:define-"
+  "syntax),.1v?{${.4,@(y6:list2?)[01}?{${.4a,@(y3:id?)[01}}{f}?{.2a,.3da,"
+  "${.(i10),'(l1:y9:undefined;),.5,@(y11:add-binding)[03},.8,.(i13),tc,.("
+  "i13),.4c,.(i13),.6c,.4,:0^[(i14)5}.4,'(s27:improper define-syntax form"
+  "),@(y7:x-error)[(i11)2}.1K0?{.5,${.9,.8,.6[02}c,.(i10),.(i10),.(i10),."
+  "(i10),:0^[(i11)5}.6,.(i11),.(i11)A8,.(i11)A8,.(i11)A8,@(y12:xform-labe"
+  "ls)[(i11)5}.0,.5,.5A8,.5A8,.5A8,@(y12:xform-labels)[55}.!0.0^_1[25",
 
   "P", "xform-labels",
   "%5n,n,.4,.4,.4,,#0.0,.(i11),.(i11),&3{%5.0u?{${:0,:1,&1{%1:0,.1,f,@(y5"
@@ -279,8 +283,10 @@ char *t_code[] = {
   "P", "xform-define",
   "%2${.2,@(y6:list2?)[01}?{.0au}{f}?{.1,.1da,f,@(y5:xform)[23}${.2,@(y6:"
   "list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,f,@(y5:xform)[03},${.3"
-  "a,@(y7:id->sym)[01},'(y6:define),l3]2}.0,'(y6:define)c,'(s20:improper "
-  "define form),@(y7:x-error)[22",
+  "a,@(y7:id->sym)[01},'(y6:define),l3]2}${.2,@(y7:list2+?)[01}?{.0ap?{${"
+  ".2aa,@(y3:id?)[01}?{${.2ad,@(y8:idslist?)[01}}{f}}{f}}{f}?{${.3,.3d,.4"
+  "adc,@(y12:xform-lambda)[02},${.3aa,@(y7:id->sym)[01},'(y6:define),l3]2"
+  "}.0,'(y6:define)c,'(s20:improper define form),@(y7:x-error)[22",
 
   "P", "xform-define-syntax",
   "%2${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,t,@(y5:xfo"
@@ -352,13 +358,6 @@ char *t_code[] = {
   "id?)[01}?{${.3ddd,.4dda,.5da,.7,@(y13:syntax-rules*)[04},.1^,l2]3}${.3"
   "dd,.4da,f,.7,@(y13:syntax-rules*)[04},.1^,l2]3},'(y12:syntax-rules),@("
   "y20:install-transformer!)[02}",
-
-  "C", 0,
-  "${${@(y19:top-transformer-env),'(y6:define),'(y6:define),@(y11:add-bin"
-  "ding)[03},${'(l2:l2:py1:_;ppy4:name;y4:args;;y5:forms;;;l3:y6:define;y"
-  "4:name;py6:lambda;py4:args;y5:forms;;;;;l2:l3:y1:_;y4:name;y3:exp;;l3:"
-  "y6:define;y4:name;y3:exp;;;),n,f,.5,@(y13:syntax-rules*)[04}_1,'(y6:de"
-  "fine),@(y20:install-transformer!)[02}",
 
   "S", "install-sr-transformer!",
   "l4:y12:syntax-rules;l2:y5:quote;y12:syntax-rules;;l2:l3:y1:_;l2:y5:quo"

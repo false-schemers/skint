@@ -888,7 +888,7 @@ define_instruction(rck) {
     obj *ks = &vmcloref(rd, 2), *ke = ks + n;
     if (ke-ks > 3 && *--ke == fixnum_obj(0) && *--ke == cx_callmv_2Dadapter_2Dclosure) {
       obj *sb = r + VM_REGC;
-      rd = *--ke; rx = fixnum_obj(0); n = ke - ks; /* cns */
+      rd = *--ke; rx = fixnum_obj(0); n = (int)(ke - ks); /* cns */
       /* arrange stack as follows: [ks..ke] [arg ...] */
       assert((cxg_rend - cxg_regs - VM_REGC) > n + c);
       if (c) objmove(sb+n, sp-c, c);
@@ -3385,6 +3385,11 @@ define_instruction(wriw) {
   oportputsimple(x, y, 0);
   ac = void_obj();
   gonexti();
+}
+
+define_instruction(itrs) {
+  ac = cx__2Atransformers_2A;
+  gonexti(); 
 }
 
 define_instruction(igp) {

@@ -1059,6 +1059,7 @@ static stab_t *stabfree(stab_t *p) {
 }
 static int stabnew(obj o, stab_t *p, int circ) {
   if (!o || notaptr(o) || notobjptr(o) || (circ && isaptr(objptr_from_obj(o)[-1]))) return 0;
+  else if (circ && isaptr(objptr_from_obj(o)[0])) return 0; /* opaque */ 
   else { /* v[i] is 0 or heap obj, possibly with lower bit set if it's not new */
     unsigned long h = (unsigned long)o; size_t sz = p->sz, i, j;
     for (i = h & (sz-1); p->v[i]; i = (i-1) & (sz-1))
@@ -1387,7 +1388,10 @@ static void wrdatum(obj o, wenv_t *e) {
     }
     wrc('>', e);
   } else if (isprocedure(o)) {
-    char buf[60]; sprintf(buf, "#<procedure @%p>", objptr_from_obj(o)); wrs(buf, e);
+    char buf[60];
+    if (isobjptr(hblkref(o, 0))) sprintf(buf, "#<vmclosure @%p>", objptr_from_obj(o));
+    else sprintf(buf, "#<procedure @%p>", objptr_from_obj(o)); 
+    wrs(buf, e);
   } else if (isrecord(o)) {
     int i, n = recordlen(o);
     wrs("#<record ", e);

@@ -321,7 +321,7 @@
                           (x-error "set& of a non-variable")))]))
       (x-error "improper set& form" (cons 'set& tail))))
 
-(define (xform-begin tail env)
+(define (xform-begin tail env) ; top-level
   (if (list? tail)
       (let ([xexps (map (lambda (sexp) (xform #f sexp env)) tail)])
         (if (and (pair? xexps) (null? (cdr xexps)))
@@ -431,20 +431,25 @@
            (let ([first (car body)] [rest (cdr body)])
              (let* ([head (car first)] [tail (cdr first)] [hval (xform #t head env)])
                (case hval
-                 [(begin)
+                 [(begin) ; internal
                   (if (list? tail) 
                       (loop env ids inits nids (append tail rest))
                       (x-error "improper begin form" first))]
-                 [(define)
-                  (if (and (list2? tail) (null? (car tail))) 
-                      (let ([init (cadr tail)]) ; idless
-                        (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))
-                      (if (and (list2? tail) (id? (car tail)))
-                          (let* ([id (car tail)] [init (cadr tail)]
-                                 [nid (gensym (id->sym id))] [env (add-var id nid env)])
-                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))
-                      (x-error "improper define form" first)))]
-                 [(define-syntax)
+                 [(define) ; internal
+                  (cond [(and (list2? tail) (null? (car tail))) ; idless
+                         (let ([init (cadr tail)])
+                           (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))]
+                        [(and (list2? tail) (id? (car tail)))
+                         (let* ([id (car tail)] [init (cadr tail)]
+                                [nid (gensym (id->sym id))] [env (add-var id nid env)])
+                           (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
+                        [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
+                         (let* ([id (caar tail)] [lambda-id (new-id (make-binding 'lambda 'lambda))] 
+                                [init (cons lambda-id (cons (cdar tail) (cdr tail)))]
+                                [nid (gensym (id->sym id))] [env (add-var id nid env)])
+                           (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
+                        [else (x-error "improper define form" first)])]
+                 [(define-syntax) ; internal
                   (if (and (list2? tail) (id? (car tail))) 
                       (let* ([id (car tail)] [init (cadr tail)]
                              [env (add-binding id '(undefined) env)])
@@ -475,14 +480,19 @@
            (binding-set-val! (env (car ids)) (xform #t (car inits) env))
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
-(define (xform-define tail env) ; top-level only
-  (if (and (list2? tail) (null? (car tail))) ; idless
-      (xform #f (cadr tail) env)
-      (if (and (list2? tail) (id? (car tail)))
-          (list 'define (id->sym (car tail)) (xform #f (cadr tail) env))
-          (x-error "improper define form" (cons 'define tail)))))
+(define (xform-define tail env) ; top-level
+  (cond [(and (list2? tail) (null? (car tail))) ; idless
+         (xform #f (cadr tail) env)]
+        [(and (list2? tail) (id? (car tail)))
+         (list 'define (id->sym (car tail)) 
+           (xform #f (cadr tail) env))]
+        [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
+         (list 'define (id->sym (caar tail))
+           (xform-lambda (cons (cdar tail) (cdr tail)) env))] 
+        [else 
+         (x-error "improper define form" (cons 'define tail))]))
 
-(define (xform-define-syntax tail env) ; top-level only
+(define (xform-define-syntax tail env) ; top-level
   (if (and (list2? tail) (id? (car tail)))
       (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))
       (x-error "improper define-syntax form" (cons 'define-syntax tail))))
@@ -666,15 +676,6 @@
         ; or (_ (litname ...) . rules)
         (list syntax-id (syntax-rules* env #f (cadr sexp) (cddr sexp))))))
 
-; non-recursive transformer for define relies on old definition
-
-(install-transformer! 'define
-  (let ([env (add-binding 'define 'define top-transformer-env)])
-    (syntax-rules* env #f '() '(
-      [(_ (name . args) . forms)
-       (define name (lambda args . forms))]
-      [(_ name exp)
-       (define name exp)]))))
 
 ; Remaining transformers are made with the help of syntax-rules*
 ; NB: order of installation is important -- each transformer can

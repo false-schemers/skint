@@ -525,6 +525,7 @@ declare_instruction(exit,       "Z9\0t",        0,  "%exit",                    
 
 /* serialization and deserialization instructions */             
 declare_instruction(igp,        "U0",           0,  "integrable?",              '1', AUTOGL)
+declare_instruction(itrs,       "U1",           0,  "initial-transformers",     '0', AUTOGL)
 declare_instruction(rdsx,       "U3",           0,  "deserialize-sexp",         '1', AUTOGL)
 declare_instruction(rdsc,       "U4",           0,  "deserialize-code",         '1', AUTOGL)
 declare_instruction(iglk,       "U5",           0,  "lookup-integrable",        '1', AUTOGL)
