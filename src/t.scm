@@ -257,12 +257,13 @@
              [(if)            (xform-if            tail env)]
              [(lambda)        (xform-lambda        tail env)]
              [(lambda*)       (xform-lambda*       tail env)]
-             [(syntax-lambda) (xform-syntax-lambda tail env)]
              [(letcc)         (xform-letcc         tail env)]
              [(withcc)        (xform-withcc        tail env)]
              [(body)          (xform-body          tail env)]
              [(define)        (xform-define        tail env)]
              [(define-syntax) (xform-define-syntax tail env)]
+             [(syntax-lambda) (xform-syntax-lambda tail env)]
+             [(syntax-rules)  (xform-syntax-rules  tail env)]
              [(syntax-length) (xform-syntax-length tail env)]
              [(syntax-error)  (xform-syntax-error  tail env)]
              [else            (if (integrable? hval)
@@ -287,17 +288,6 @@
   (if (list1? tail)
       (list 'quote (xform-sexp->datum (car tail)))
       (x-error "improper quote form" (cons 'quote tail))))
-
-(define (xform-syntax-length tail env)
-  (if (and (list1? tail) (list? (car tail)))
-      (list 'quote (length (car tail)))
-      (x-error "improper syntax-length form" (cons 'syntax-length tail))))
-
-(define (xform-syntax-error tail env)
-  (let ([args (map xform-sexp->datum tail)])
-    (if (and (list1+? args) (string? (car args)))
-        (apply x-error args)
-        (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
 
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
@@ -388,21 +378,6 @@
                      (x-error "improper lambda* clause" aexp)))
               tail))
       (x-error "improper lambda* form" (cons 'lambda* tail))))
-
-(define (xform-syntax-lambda tail env)
-  (if (and (list2+? tail) (andmap id? (car tail)))
-      (let ([vars (car tail)] [macenv env] [forms (cdr tail)])
-        ; return a transformer that wraps xformed body in (syntax ...)
-        (lambda (use useenv)
-          (if (and (list1+? use) (fx=? (length vars) (length (cdr use))))
-              (let loop ([vars vars] [exps (cdr use)] [env macenv])
-                (if (null? vars)
-                    (list 'syntax (xform-body forms env))
-                    (loop (cdr vars) (cdr exps)
-                      (add-binding (car vars) 
-                        (xform #t (car exps) useenv) env))))  
-              (x-error "invalif syntax-lambda application" use))))  
-      (x-error "improper syntax-lambda body" (cons 'syntax-lambda tail))))
 
 (define (xform-letcc tail env)
   (if (and (list2+? tail) (id? (car tail)))
@@ -497,6 +472,40 @@
       (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))
       (x-error "improper define-syntax form" (cons 'define-syntax tail))))
 
+(define (xform-syntax-lambda tail env)
+  (if (and (list2+? tail) (andmap id? (car tail)))
+      (let ([vars (car tail)] [macenv env] [forms (cdr tail)])
+        ; return a transformer that wraps xformed body in (syntax ...)
+        (lambda (use useenv)
+          (if (and (list1+? use) (fx=? (length vars) (length (cdr use))))
+              (let loop ([vars vars] [exps (cdr use)] [env macenv])
+                (if (null? vars)
+                    (list 'syntax (xform-body forms env))
+                    (loop (cdr vars) (cdr exps)
+                      (add-binding (car vars) 
+                        (xform #t (car exps) useenv) env))))  
+              (x-error "invalif syntax-lambda application" use))))  
+      (x-error "improper syntax-lambda body" (cons 'syntax-lambda tail))))
+
+(define (xform-syntax-rules tail env)
+  (cond [(and (list2+? tail) (id? (car tail)) (andmap id? (cadr tail)))
+         (syntax-rules* env (car tail) (cadr tail) (cddr tail))]
+        [(and (list1+? tail) (andmap id? (car tail)))
+         (syntax-rules* env #f (car tail) (cdr tail))]
+        [else
+         (x-error "improper syntax-rules form" (cons 'syntax-rules tail))]))
+
+(define (xform-syntax-length tail env)
+  (if (and (list1? tail) (list? (car tail)))
+      (list 'quote (length (car tail)))
+      (x-error "improper syntax-length form" (cons 'syntax-length tail))))
+
+(define (xform-syntax-error tail env)
+  (let ([args (map xform-sexp->datum tail)])
+    (if (and (list1+? args) (string? (car args)))
+        (apply x-error args)
+        (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
+
 
 ; ellipsis denotation is used for comparisons only
 
@@ -514,6 +523,7 @@
     (make-binding 'lambda 'lambda)
     (make-binding 'lambda* 'lambda*)
     (make-binding 'syntax-lambda 'syntax-lambda)
+    (make-binding 'syntax-rules 'syntax-rules)
     (make-binding 'syntax-length 'syntax-length)
     (make-binding 'syntax-error 'syntax-error)
     (make-binding 'letcc 'letcc)
@@ -549,7 +559,7 @@
   (xform appos? sexp (if (null? optenv) top-transformer-env (car optenv))))
 
 
-; 'syntax-rules' transformer produces another transformer from the rules
+; make transformer procedure from the rules
 
 (define (syntax-rules* mac-env ellipsis pat-literals rules)
   (define (pat-literal? id) (memq id pat-literals))
@@ -665,16 +675,6 @@
         (cond [(match-pattern pat use use-env) =>
                (lambda (bindings) (expand-template pat tmpl bindings))]
               [else (loop (cdr rules))])))))
-
-(install-transformer! 'syntax-rules
-  (lambda (sexp env)
-    (define syntax-id (new-id (make-binding 'syntax 'syntax)))
-    ; sexp can be either
-    (if (id? (cadr sexp))
-        ; (_ ellipsis (litname ...) . rules)
-        (list syntax-id (syntax-rules* env (cadr sexp) (caddr sexp) (cdddr sexp)))
-        ; or (_ (litname ...) . rules)
-        (list syntax-id (syntax-rules* env #f (cadr sexp) (cddr sexp))))))
 
 
 ; Remaining transformers are made with the help of syntax-rules*
