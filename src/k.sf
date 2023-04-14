@@ -302,6 +302,7 @@
              [(syntax-rules)  (xform-syntax-rules  tail env)]
              [(syntax-length) (xform-syntax-length tail env)]
              [(syntax-error)  (xform-syntax-error  tail env)]
+             [(...)           (xform-...           tail env)]
              [else            (if (integrable? hval)
                                   (xform-integrable hval tail env)
                                   (if (procedure? hval)
@@ -378,7 +379,7 @@
     [(#\p) (>= n 0)]   [(#\m) (>= n 1)]   [(#\c) (>= n 2)]   [(#\x) (>= n 1)]
     [(#\u) (<= 0 n 1)] [(#\b) (<= 1 n 2)] [(#\t) (<= 2 n 3)]
     [(#\#) (>= n 0)]   [(#\@) #f]
-    [else #f])) 
+    [else  #f])) 
 
 (define (xform-integrable ig tail env)
   (if (integrable-argc-match? (integrable-type ig) (length tail))
@@ -542,11 +543,8 @@
         (apply x-error args)
         (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
 
-
-; ellipsis denotation is used for comparisons only
-
-(define denotation-of-default-ellipsis 
-  (make-binding '... (lambda (sexp env) (x-error "improper use of ..." sexp))))
+(define (xform-... tail env)
+  (x-error "improper use of ... in syntax form" (cons '... tail)))
 
 (define *transformers* 
   (list
@@ -567,7 +565,7 @@
     (make-binding 'begin 'begin)
     (make-binding 'if 'if)
     (make-binding 'body 'body)
-    denotation-of-default-ellipsis))
+    (make-binding '... '...)))
 
 (define (top-transformer-env id)
   (let ([bnd (find-top-binding id *transformers*)])
@@ -594,14 +592,17 @@
 ; make transformer procedure from the rules
 
 (define (syntax-rules* mac-env ellipsis pat-literals rules)
+
   (define (pat-literal? id) (memq id pat-literals))
   (define (not-pat-literal? id) (not (pat-literal? id)))
   (define (ellipsis-pair? x)
     (and (pair? x) (ellipsis? (car x))))
+  (define (ellipsis-denotation? den)
+    (and (binding? den) (eq? (binding-val den) '...)))
   (define (ellipsis? x)
     (if ellipsis
         (eq? x ellipsis)
-        (and (id? x) (eq? (mac-env x) denotation-of-default-ellipsis))))
+        (and (id? x) (ellipsis-denotation? (mac-env x)))))
 
   ; List-ids returns a list of the non-ellipsis ids in a
   ; pattern or template for which (pred? id) is true.  If
