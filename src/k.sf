@@ -261,6 +261,13 @@
 (define (add-var var val env) ; adds renamed var as <core>
   (extend-xenv env var (make-binding (id->sym var) (list 'ref val))))
 
+(define (xform-sexp->datum sexp)
+  (let conv ([sexp sexp])
+    (cond [(id? sexp) (id->sym sexp)]
+          [(pair? sexp) (cons (conv (car sexp)) (conv (cdr sexp)))]
+          [(vector? sexp) (list->vector (map conv (vector->list sexp)))]
+          [else sexp])))
+
 (define (x-error msg . args)
   (error* (string-append "transformer: " msg) args))
 
@@ -289,36 +296,29 @@
              [(quote)         (xform-quote         tail env)]
              [(set!)          (xform-set!          tail env)]
              [(set&)          (xform-set&          tail env)]
-             [(begin)         (xform-begin         tail env)]
              [(if)            (xform-if            tail env)]
              [(lambda)        (xform-lambda        tail env)]
              [(lambda*)       (xform-lambda*       tail env)]
              [(letcc)         (xform-letcc         tail env)]
              [(withcc)        (xform-withcc        tail env)]
              [(body)          (xform-body          tail env)]
+             [(begin)         (xform-begin         tail env)]
              [(define)        (xform-define        tail env)]
              [(define-syntax) (xform-define-syntax tail env)]
              [(syntax-lambda) (xform-syntax-lambda tail env)]
              [(syntax-rules)  (xform-syntax-rules  tail env)]
              [(syntax-length) (xform-syntax-length tail env)]
              [(syntax-error)  (xform-syntax-error  tail env)]
-             [(...)           (xform-...           tail env)]
              [else            (if (integrable? hval)
                                   (xform-integrable hval tail env)
                                   (if (procedure? hval)
                                       (xform appos? (hval sexp env) env)
                                       (xform-call hval tail env)))]))]))
 
-(define (xform-sexp->datum sexp)
-  (let conv ([sexp sexp])
-    (cond [(id? sexp) (id->sym sexp)]
-          [(pair? sexp) (cons (conv (car sexp)) (conv (cdr sexp)))]
-          [(vector? sexp) (list->vector (map conv (vector->list sexp)))]
-          [else sexp])))
-
 (define (xform-ref id env)
   (let ([den (env id)])
     (cond [(symbol? den) (list 'ref den)]
+          [(eq? (binding-val den) '...) (x-error "improper use of ...")]
           [else (binding-val den)])))
 
 (define (xform-quote tail env)
@@ -347,14 +347,6 @@
                           (list 'set& (cadr val))
                           (x-error "set& of a non-variable")))]))
       (x-error "improper set& form" (cons 'set& tail))))
-
-(define (xform-begin tail env) ; top-level
-  (if (list? tail)
-      (let ([xexps (map (lambda (sexp) (xform #f sexp env)) tail)])
-        (if (and (pair? xexps) (null? (cdr xexps)))
-            (car xexps) ; (begin x) => x
-            (cons 'begin xexps)))
-      (x-error "improper begin form" (cons 'begin! tail))))
 
 (define (xform-if tail env)
   (if (list? tail)
@@ -492,6 +484,14 @@
            (binding-set-val! (env (car ids)) (xform #t (car inits) env))
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
+(define (xform-begin tail env) ; top-level
+  (if (list? tail)
+      (let ([xexps (map (lambda (sexp) (xform #f sexp env)) tail)])
+        (if (and (pair? xexps) (null? (cdr xexps)))
+            (car xexps) ; (begin x) => x
+            (cons 'begin xexps)))
+      (x-error "improper begin form" (cons 'begin! tail))))
+
 (define (xform-define tail env) ; top-level
   (cond [(and (list2? tail) (null? (car tail))) ; idless
          (xform #f (cadr tail) env)]
@@ -543,28 +543,25 @@
         (apply x-error args)
         (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
 
-(define (xform-... tail env)
-  (x-error "improper use of ... in syntax form" (cons '... tail)))
-
 (define *transformers* 
   (list
     (make-binding 'syntax 'syntax) 
-    (make-binding 'define 'define)
-    (make-binding 'define-syntax 'define-syntax)
     (make-binding 'quote 'quote)
     (make-binding 'set! 'set!)
     (make-binding 'set& 'set&)
+    (make-binding 'if 'if)
     (make-binding 'lambda 'lambda)
     (make-binding 'lambda* 'lambda*)
+    (make-binding 'letcc 'letcc)
+    (make-binding 'withcc 'withcc)
+    (make-binding 'body 'body)
+    (make-binding 'begin 'begin)
+    (make-binding 'define 'define)
+    (make-binding 'define-syntax 'define-syntax)
     (make-binding 'syntax-lambda 'syntax-lambda)
     (make-binding 'syntax-rules 'syntax-rules)
     (make-binding 'syntax-length 'syntax-length)
     (make-binding 'syntax-error 'syntax-error)
-    (make-binding 'letcc 'letcc)
-    (make-binding 'withcc 'withcc)
-    (make-binding 'begin 'begin)
-    (make-binding 'if 'if)
-    (make-binding 'body 'body)
     (make-binding '... '...)))
 
 (define (top-transformer-env id)
