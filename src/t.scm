@@ -182,8 +182,7 @@
 ;---------------------------------------------------------------------------------------------
 
 ; An environment is a procedure that accepts any identifier and
-; returns a denotation.  The denotation of an unbound identifier is
-; its name (as a symbol).  A bound identifier's denotation is its
+; returns a denotation. The denotation of an identifier is its
 ; binding, which is a pair of the current value and the identifier's 
 ; name (needed by quote). Biding's value can be changed later.
 
@@ -191,7 +190,7 @@
 ; that takes two arguments: a macro use and the environment of the macro use.
 
 ; <identifier>  ->  <symbol> | <thunk returning den>
-; <denotation>  ->  <symbol> | <binding>
+; <denotation>  ->  <binding>
 ; <binding>     ->  (<symbol> . <value>)
 ; <value>       ->  <special> | <core>
 ; <special>     ->  <builtin> | <transformer>
@@ -201,14 +200,12 @@
 ; <transformer> ->  <procedure of exp and env returning exp>
 
 (define-syntax   val-core?               pair?)
-(define          (val-special? val)      (not (pair? val)))
 (define-syntax   binding?                pair?)
 (define-syntax   make-binding            cons)
 (define-syntax   binding-val             cdr)
-(define          (binding-special? bnd)  (val-special? (cdr bnd)))
+(define          (binding-special? bnd)  (not (pair? (cdr bnd))))
 (define-syntax   binding-sym             car)
 (define-syntax   binding-set-val!        set-cdr!)
-(define-syntax   find-top-binding        assq)
 
 (define (new-id den)               (define p (list den)) (lambda () p))
 (define (old-den id)               (car (id)))
@@ -216,7 +213,6 @@
 (define (id->sym id)               (if (symbol? id) id (den->sym (old-den id))))
 (define (den->sym den)             (if (symbol? den) den (binding-sym den)))
 
-(define (empty-xenv id)            (if (symbol? id) id (old-den id)))
 (define (extend-xenv env id bnd)   (lambda (i) (if (eq? id i) bnd (env i))))
 
 (define (add-binding key val env) ; adds as-is     
@@ -243,14 +239,16 @@
 (define (xform appos? sexp env)
   (cond [(id? sexp) 
          (let ([hval (xform-ref sexp env)])
-           (cond [appos? hval]
+           (cond [appos? ; app position: anything goes
+                  hval]
                  [(integrable? hval) ; integrable id-syntax
                   (list 'ref (integrable-global hval))]
                  [(procedure? hval) ; id-syntax
                   (xform appos? (hval sexp env) env)]
-                 [(not (pair? hval)) 
+                 [(not (pair? hval)) ; special used out of context 
                   (x-error "improper use of syntax form" hval)]
-                 [else hval]))]
+                 [else ; core 
+                  hval]))]
         [(not (pair? sexp))
          (xform-quote (list sexp) env)]
         [else 
@@ -281,7 +279,7 @@
 
 (define (xform-ref id env)
   (let ([den (env id)])
-    (cond [(symbol? den) (list 'ref den)]
+    (cond [(symbol? den) (x-error "unexpected den" den)]  ;(list 'ref den)
           [(eq? (binding-val den) '...) (x-error "improper use of ...")]
           [else (binding-val den)])))
 
@@ -293,7 +291,7 @@
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
       (let ([den (env (car tail))] [xexp (xform #f (cadr tail) env)])
-        (cond [(symbol? den) (list 'set! den xexp)]
+        (cond [(symbol? den) (x-error "unexpected den in set!" den)] ;(list 'set! den xexp)
               [(binding-special? den) (binding-set-val! den xexp) '(begin)]
               [else (let ([val (binding-val den)])
                       (if (eq? (car val) 'ref)
@@ -304,7 +302,7 @@
 (define (xform-set& tail env)
   (if (list1? tail)
       (let ([den (env (car tail))])      
-        (cond [(symbol? den) (list 'set& den)]
+        (cond [(symbol? den) (x-error "unexpected den in set&" den)] ;(list 'set& den)
               [(binding-special? den) (x-error "set& of a non-variable")]
               [else (let ([val (binding-val den)])
                       (if (eq? (car val) 'ref)
@@ -506,52 +504,6 @@
     (if (and (list1+? args) (string? (car args)))
         (apply x-error args)
         (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
-
-(define *transformers* 
-  (list
-    (make-binding 'syntax 'syntax) 
-    (make-binding 'quote 'quote)
-    (make-binding 'set! 'set!)
-    (make-binding 'set& 'set&)
-    (make-binding 'if 'if)
-    (make-binding 'lambda 'lambda)
-    (make-binding 'lambda* 'lambda*)
-    (make-binding 'letcc 'letcc)
-    (make-binding 'withcc 'withcc)
-    (make-binding 'body 'body)
-    (make-binding 'begin 'begin)
-    (make-binding 'define 'define)
-    (make-binding 'define-syntax 'define-syntax)
-    (make-binding 'syntax-lambda 'syntax-lambda)
-    (make-binding 'syntax-rules 'syntax-rules)
-    (make-binding 'syntax-length 'syntax-length)
-    (make-binding 'syntax-error 'syntax-error)
-    (make-binding '... '...)))
-
-(define (top-transformer-env id)
-  (let ([bnd (find-top-binding id *transformers*)])
-    (cond [(binding? bnd)
-           ; special case: syntax-rules in sexp form (left by init)
-           (let ([val (binding-val bnd)])
-             (if (and (pair? val) (eq? (car val) 'syntax-rules))  
-                 (binding-set-val! bnd (transform #t val))))
-           bnd]
-          [(symbol? id)
-           (let ([bnd (make-binding id (or (lookup-integrable id) (list 'ref id)))])
-             (set! *transformers* (cons bnd *transformers*))
-             bnd)]
-          [else (old-den id)])))
-
-(define (install-transformer! s t)
-  (binding-set-val! (top-transformer-env s) t))
-
-(define (install-transformer-rules! s ell lits rules)
-  (install-transformer! s
-    (syntax-rules* top-transformer-env ell lits rules)))
-
-(define (transform appos? sexp . optenv)
-  ; (gensym #f) ; reset gs counter to make results reproducible
-  (xform appos? sexp (if (null? optenv) top-transformer-env (car optenv))))
 
 
 ; make transformer procedure from the rules

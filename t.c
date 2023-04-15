@@ -83,9 +83,6 @@ char *t_code[] = {
 
   "A", "val-core?", "pair?",
 
-  "P", "val-special?",
-  "%1.0p~]1",
-
   "A", "binding?", "pair?",
 
   "A", "make-binding", "cons",
@@ -93,13 +90,11 @@ char *t_code[] = {
   "A", "binding-val", "cdr",
 
   "P", "binding-special?",
-  "%1.0d,@(y12:val-special?)[11",
+  "%1.0dp~]1",
 
   "A", "binding-sym", "car",
 
   "A", "binding-set-val!", "set-cdr!",
-
-  "A", "find-top-binding", "assq",
 
   "P", "new-id",
   "%1,#0.1,l1.!0.0,&1{%0:0^]0}]2",
@@ -115,9 +110,6 @@ char *t_code[] = {
 
   "P", "den->sym",
   "%1.0Y0?{.0]1}.0a]1",
-
-  "P", "empty-xenv",
-  "%1.0Y0?{.0]1}.0,@(y7:old-den)[11",
 
   "P", "extend-xenv",
   "%3.0,.3,.3,&3{%1.0,:0q?{:1]1}.0,:2[11}]3",
@@ -157,8 +149,8 @@ char *t_code[] = {
   "orm-call)[73",
 
   "P", "xform-ref",
-  "%2${.2,.4[01},.0Y0?{.0,'(y3:ref),l2]3}'(y3:...),.1dq?{'(s19:improper u"
-  "se of ...),@(y7:x-error)[31}.0d]3",
+  "%2${.2,.4[01},.0Y0?{.0,'(s14:unexpected den),@(y7:x-error)[32}'(y3:..."
+  "),.1dq?{'(s19:improper use of ...),@(y7:x-error)[31}.0d]3",
 
   "P", "xform-quote",
   "%2${.2,@(y6:list1?)[01}?{${.2a,@(y17:xform-sexp->datum)[01},'(y5:quote"
@@ -166,17 +158,18 @@ char *t_code[] = {
 
   "P", "xform-set!",
   "%2${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,f,@(y5:xfo"
-  "rm)[03},${.3a,.5[01},.0Y0?{.1,.1,'(y4:set!),l3]4}${.2,@(y16:binding-sp"
-  "ecial?)[01}?{.1,.1sd'(l1:y5:begin;)]4}.0d,'(y3:ref),.1aq?{.2,.1da,'(y4"
-  ":set!),l3]5}'(s27:set! to non-identifier form),@(y7:x-error)[51}.0,'(y"
-  "4:set!)c,'(s18:improper set! form),@(y7:x-error)[22",
+  "rm)[03},${.3a,.5[01},.0Y0?{.0,'(s22:unexpected den in set!),@(y7:x-err"
+  "or)[42}${.2,@(y16:binding-special?)[01}?{.1,.1sd'(l1:y5:begin;)]4}.0d,"
+  "'(y3:ref),.1aq?{.2,.1da,'(y4:set!),l3]5}'(s27:set! to non-identifier f"
+  "orm),@(y7:x-error)[51}.0,'(y4:set!)c,'(s18:improper set! form),@(y7:x-"
+  "error)[22",
 
   "P", "xform-set&",
-  "%2${.2,@(y6:list1?)[01}?{${.2a,.4[01},.0Y0?{.0,'(y4:set&),l2]3}${.2,@("
-  "y16:binding-special?)[01}?{'(s22:set& of a non-variable),@(y7:x-error)"
-  "[31}.0d,'(y3:ref),.1aq?{.0da,'(y4:set&),l2]4}'(s22:set& of a non-varia"
-  "ble),@(y7:x-error)[41}.0,'(y4:set&)c,'(s18:improper set& form),@(y7:x-"
-  "error)[22",
+  "%2${.2,@(y6:list1?)[01}?{${.2a,.4[01},.0Y0?{.0,'(s22:unexpected den in"
+  " set&),@(y7:x-error)[32}${.2,@(y16:binding-special?)[01}?{'(s22:set& o"
+  "f a non-variable),@(y7:x-error)[31}.0d,'(y3:ref),.1aq?{.0da,'(y4:set&)"
+  ",l2]4}'(s22:set& of a non-variable),@(y7:x-error)[41}.0,'(y4:set&)c,'("
+  "s18:improper set& form),@(y7:x-error)[22",
 
   "P", "xform-if",
   "%2.0L0?{${.2,.4,&1{%1:0,.1,f,@(y5:xform)[13},@(y5:%25map1)[02},.0g,'2,"
@@ -301,32 +294,6 @@ char *t_code[] = {
   "%2${.2,@(y17:xform-sexp->datum),@(y5:%25map1)[02},${.2,@(y7:list1+?)[0"
   "1}?{.0aS0}{f}?{.0,@(y7:x-error),@(y13:apply-to-list)[32}.1,'(y12:synta"
   "x-error)c,'(s26:improper syntax-error form),@(y7:x-error)[32",
-
-  "C", 0,
-  "'(y3:...),'(y3:...)c,'(y12:syntax-error),'(y12:syntax-error)c,'(y13:sy"
-  "ntax-length),'(y13:syntax-length)c,'(y12:syntax-rules),'(y12:syntax-ru"
-  "les)c,'(y13:syntax-lambda),'(y13:syntax-lambda)c,'(y13:define-syntax),"
-  "'(y13:define-syntax)c,'(y6:define),'(y6:define)c,'(y5:begin),'(y5:begi"
-  "n)c,'(y4:body),'(y4:body)c,'(y6:withcc),'(y6:withcc)c,'(y5:letcc),'(y5"
-  ":letcc)c,'(y7:lambda*),'(y7:lambda*)c,'(y6:lambda),'(y6:lambda)c,'(y2:"
-  "if),'(y2:if)c,'(y4:set&),'(y4:set&)c,'(y4:set!),'(y4:set!)c,'(y5:quote"
-  "),'(y5:quote)c,'(y6:syntax),'(y6:syntax)c,l(i18)@!(y14:*transformers*)",
-
-  "P", "top-transformer-env",
-  "%1@(y14:*transformers*),.1A3,.0p?{.0d,.0p?{'(y12:syntax-rules),.1aq}{f"
-  "}?{${.2,t,@(y9:transform)[02},.2sd}_1.0]2}.1Y0?{.1U5,.0?{.0}{.2,'(y3:r"
-  "ef),l2}_1,.2c,@(y14:*transformers*),.1c@!(y14:*transformers*).0]3}.1,@"
-  "(y7:old-den)[21",
-
-  "P", "install-transformer!",
-  "%2.1,${.3,@(y19:top-transformer-env)[01}sd]2",
-
-  "P", "install-transformer-rules!",
-  "%4${.5,.5,.5,@(y19:top-transformer-env),@(y13:syntax-rules*)[04},.1,@("
-  "y20:install-transformer!)[42",
-
-  "P", "transform",
-  "%!2.0u?{@(y19:top-transformer-env)}{.0a},.3,.3,@(y5:xform)[33",
 
   "P", "syntax-rules*",
   "%4,,,,,,,,#0#1#2#3#4#5#6#7.(i10),&1{%1:0,.1A0]1}.!0.0,&1{%1${.2,:0^[01"

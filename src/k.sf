@@ -217,8 +217,7 @@
 ;---------------------------------------------------------------------------------------------
 
 ; An environment is a procedure that accepts any identifier and
-; returns a denotation.  The denotation of an unbound identifier is
-; its name (as a symbol).  A bound identifier's denotation is its
+; returns a denotation.  The denotation of an identifier is its
 ; binding, which is a pair of the current value and the identifier's 
 ; name (needed by quote). Biding's value can be changed later.
 
@@ -226,7 +225,7 @@
 ; that takes two arguments: a macro use and the environment of the macro use.
 
 ; <identifier>  ->  <symbol> | <thunk returning den>
-; <denotation>  ->  <symbol> | <binding>
+; <denotation>  ->  <binding>
 ; <binding>     ->  (<symbol> . <value>)
 ; <value>       ->  <special> | <core>
 ; <special>     ->  <builtin> | <transformer>
@@ -236,12 +235,11 @@
 ; <transformer> ->  <procedure of exp and env returning exp>
 
 (define-inline (val-core? val)            (pair? val))
-(define-inline (val-special? val)         (not (pair? val)))
 
 (define-inline (binding? x)               (pair? x))
 (define-inline (make-binding s v)         (cons s v))
 (define-inline (binding-val bnd)          (cdr bnd))
-(define-inline (binding-special? bnd)     (val-special? (cdr bnd)))
+(define-inline (binding-special? bnd)     (not (pair? (cdr bnd))))
 (define-inline (binding-sym bnd)          (car bnd))
 (define-inline (binding-set-val! bnd val) (set-cdr! bnd val))
 (define-inline (find-top-binding s blist) (assq s blist))
@@ -252,7 +250,6 @@
 (define (id->sym id)               (if (symbol? id) id (den->sym (old-den id))))
 (define (den->sym den)             (if (symbol? den) den (binding-sym den)))
 
-(define (empty-xenv id)            (if (symbol? id) id (old-den id)))
 (define (extend-xenv env id bnd)   (lambda (i) (if (eq? id i) bnd (env i))))
 
 (define (add-binding key val env) ; adds as-is     
@@ -317,7 +314,7 @@
 
 (define (xform-ref id env)
   (let ([den (env id)])
-    (cond [(symbol? den) (list 'ref den)]
+    (cond [(symbol? den) (x-error "unexpected den" den)]  ;(list 'ref den)
           [(eq? (binding-val den) '...) (x-error "improper use of ...")]
           [else (binding-val den)])))
 
@@ -329,7 +326,7 @@
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
       (let ([den (env (car tail))] [xexp (xform #f (cadr tail) env)])
-        (cond [(symbol? den) (list 'set! den xexp)]
+        (cond [(symbol? den) (x-error "unexpected den in set!" den)] ;(list 'set! den xexp)
               [(binding-special? den) (binding-set-val! den xexp) '(begin)]
               [else (let ([val (binding-val den)])
                       (if (eq? (car val) 'ref)
@@ -340,7 +337,7 @@
 (define (xform-set& tail env)
   (if (list1? tail)
       (let ([den (env (car tail))])      
-        (cond [(symbol? den) (list 'set& den)]
+        (cond [(symbol? den) (x-error "unexpected den in set&" den)] ;(list 'set& den)
               [(binding-special? den) (x-error "set& of a non-variable")]
               [else (let ([val (binding-val den)])
                       (if (eq? (car val) 'ref)
