@@ -675,103 +675,67 @@
               [else (loop (cdr rules))])))))
 
 
-; Remaining transformers are made with the help of syntax-rules*
-; NB: order of installation is important -- each transformer can
-; be self-recursive but can't use transformers defined later!
+; experimental lookup procedure for alist-like macro environments
 
-(define-syntax install-sr-transformer!
-  (syntax-rules (quote syntax-rules)
-    [(_ 'name (syntax-rules (lit ...) . rules))
-     (install-transformer-rules! 'name #f '(lit ...) 'rules)]
-    [(_ 'name (syntax-rules ellipsis (lit ...) . rules))
-     (install-transformer-rules! 'name 'ellipsis '(lit ...) 'rules)]))    
+(define (lookup-in-transformer-env id env) ;=> binding | #f
+  (if (procedure? id)
+      (old-den id) ; nonsymbolic ids can't be globally bound
+      (let loop ([env env])
+        (cond [(pair? env)
+               (if (eq? (caar env) id)
+                   (car env)
+                   (loop (cdr env)))]
+              [(eq? env #t) 
+               ; implicitly append integrables and "naked" globals
+               (let ([bnd (make-binding id (or (lookup-integrable id) (list 'ref id)))])
+                 (set! *root-env* (cons bnd *root-env*))
+                 bnd)]
+              ;[(procedure? env)
+              ; (env id)]
+              [else ; finite env
+               #f]))))
 
-(install-sr-transformer! 'letrec-syntax
-  (syntax-rules ()
-    [(_ ([key trans] ...) . forms) ; non-splicing!
-     (body (define-syntax key trans) ... . forms)]))
+; make root env from a list of initial transformers
 
-(install-sr-transformer! 'let-syntax
-  (syntax-rules ()
-    [(_ () . forms) 
-     (body . forms)]
-    [(_ ([key trans] ...) . forms)
-     ((syntax-lambda (key ...) . forms) trans ...)]))
+(define *root-env*
+  (let loop ([l (initial-transformers)] [env #t])
+    (if (null? l) env
+        (let ([p (car l)] [l (cdr l)])
+          (let ([k (car p)] [v (cdr p)])
+            (cond
+              [(or (symbol? v) (number? v)) 
+               (loop l (cons (cons k v) env))]
+              [(and (pair? v) (eq? (car v) 'syntax-rules))
+               (body
+                 (define (sr-env id) 
+                   (lookup-in-transformer-env id *root-env*))
+                 (define sr-v
+                   (if (id? (cadr v))
+                       (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
+                       (syntax-rules* sr-env #f (cadr v) (cddr v))))
+                 (loop l (cons (cons k sr-v) env)))]
+              [else 
+               (loop l (cons (list k '? v) env))]))))))
 
-(install-sr-transformer! 'letrec
-  (syntax-rules ()
-    [(_ ([var init] ...) . forms)
-     (body (define var init) ... . forms)]))
+(define (root-env id)
+  (lookup-in-transformer-env id *root-env*))
 
-(install-sr-transformer! 'let
-  (syntax-rules ()
-    [(_ ([var init] ...) . forms)
-     ((lambda (var ...) . forms) init ...)]
-    [(_ name ([var init] ...) . forms)
-     ((letrec ((name (lambda (var ...) . forms))) name) init ...)]))
+(define (error* msg args)
+  (apply error (cons msg args)))
 
-(install-sr-transformer! 'let*
-  (syntax-rules ()
-    [(_ () . forms) 
-     (body . forms)]
-    [(_ (first . more) . forms)
-     (let (first) (let* more . forms))]))
-
-(install-sr-transformer! 'and
-  (syntax-rules ()
-    [(_) #t]
-    [(_ test) test]
-    [(_ test . tests) (if test (and . tests) #f)]))
-
-(install-sr-transformer! 'or
-  (syntax-rules ()
-    [(_) #f]
-    [(_ test) test]
-    [(_ test . tests) (let ([x test]) (if x x (or . tests)))]))
-
-(install-sr-transformer! 'cond
-  (syntax-rules (else =>)
-    [(_) #f]
-    [(_ (else . exps)) (begin . exps)]
-    [(_ (x) . rest) (or x (cond . rest))]
-    [(_ (x => proc) . rest) (let ([tmp x]) (cond [tmp (proc tmp)] . rest))]
-    [(_ (x . exps) . rest) (if x (begin . exps) (cond . rest))]))
-
-(install-sr-transformer! 'case-test
-  (syntax-rules (else) 
-    [(_ k else) #t]
-    [(_ k atoms) (memv k 'atoms)]))
-
-(install-sr-transformer! 'case
-  (syntax-rules ()
-    [(_ x (test . exprs) ...)
-     (let ([key x]) (cond ((case-test key test) . exprs) ...))]))
-
-(install-sr-transformer! 'do
-  (syntax-rules ()
-    [(_ ((var init . step) ...) ending expr ...)
-     (let loop ([var init] ...)
-       (cond ending [else expr ... (loop (begin var . step) ...)]))]))
-
-(install-sr-transformer! 'quasiquote
-  (syntax-rules (unquote unquote-splicing quasiquote)
-    [(_ ,x) x]
-    [(_ (,@x . y)) (append x `y)]
-    [(_ `x . d) (cons 'quasiquote (quasiquote (x) d))]
-    [(_ ,x   d) (cons 'unquote (quasiquote (x) . d))]
-    [(_ ,@x  d) (cons 'unquote-splicing (quasiquote (x) . d))]
-    [(_ (x . y) . d) (cons (quasiquote x . d) (quasiquote y . d))]
-    [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
-    [(_ x . d) 'x]))
-
-(install-sr-transformer! 'when
-  (syntax-rules ()
-    [(_ test . rest) (if test (begin . rest))]))
-
-(install-sr-transformer! 'unless
-  (syntax-rules ()
-    [(_ test . rest) (if (not test) (begin . rest))]))
-
-(install-sr-transformer! 'case-lambda
-  (syntax-rules ()
-    [(_ [args . body] ...) (lambda* [args (lambda args . body)] ...)]))
+(define (transform! x)
+  (let ([t (xform #t x root-env)])
+    (when (and (syntax-match? '(define-syntax * *) t) (id? (cadr t))) ; (procedure? (caddr t))
+        (let ([b (lookup-in-transformer-env (cadr t) *root-env*)])
+          (when b (binding-set-val! b (caddr t)))))
+    t)) 
+  
+(define (visit f) 
+  (define p (open-input-file f)) 
+  (let loop ([x (read p)]) 
+    (unless (eof-object? x)
+      (let ([t (transform! x)])
+        (write t) 
+        (newline))
+      (loop (read p)))) 
+  (close-input-port p))

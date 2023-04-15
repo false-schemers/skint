@@ -359,104 +359,35 @@ char *t_code[] = {
   "1da,${:2,:3,.5,:4^[03},.0?{.0,.0,.3,.5,:1^[63}.4d,:0^[51}.!0.0^_1[21}]"
   "(i12)",
 
-  "S", "install-sr-transformer!",
-  "l4:y12:syntax-rules;l2:y5:quote;y12:syntax-rules;;l2:l3:y1:_;l2:y5:quo"
-  "te;y4:name;;py12:syntax-rules;pl2:y3:lit;y3:...;;y5:rules;;;;l5:y26:in"
-  "stall-transformer-rules!;l2:y5:quote;y4:name;;f;l2:y5:quote;l2:y3:lit;"
-  "y3:...;;;l2:y5:quote;y5:rules;;;;l2:l3:y1:_;l2:y5:quote;y4:name;;py12:"
-  "syntax-rules;py8:ellipsis;pl2:y3:lit;y3:...;;y5:rules;;;;;l5:y26:insta"
-  "ll-transformer-rules!;l2:y5:quote;y4:name;;l2:y5:quote;y8:ellipsis;;l2"
-  ":y5:quote;l2:y3:lit;y3:...;;;l2:y5:quote;y5:rules;;;;",
+  "P", "lookup-in-transformer-env",
+  "%2.0K0?{.0,@(y7:old-den)[21}.1,,#0.2,.1,&2{%1.0p?{:1,.1aaq?{.0a]1}.0d,"
+  ":0^[11}t,.1q?{:1U5,.0?{.0}{:1,'(y3:ref),l2}_1,:1c,@(y10:*root-env*),.1"
+  "c@!(y10:*root-env*).0]2}f]1}.!0.0^_1[21",
 
   "C", 0,
-  "${'(l1:l2:py1:_;pl2:l2:y3:key;y5:trans;;y3:...;;y5:forms;;;py4:body;pl"
-  "3:y13:define-syntax;y3:key;y5:trans;;py3:...;y5:forms;;;;;),n,f,'(y13:"
-  "letrec-syntax),@(y26:install-transformer-rules!)[04}",
+  "${t,U1,,#0.0,&1{%2.0u?{.1]2}.0d,.1a,.0d,.1a,.1Y0,.0?{.0}{.2N0}_1?{.5,."
+  "2,.2cc,.4,:0^[62}.1p?{'(y12:syntax-rules),.2aq}{f}?{,,#0#1&0{%1@(y10:*"
+  "root-env*),.1,@(y25:lookup-in-transformer-env)[12}.!0${.5da,@(y3:id?)["
+  "01}?{${.5ddd,.6dda,.7da,.5^,@(y13:syntax-rules*)[04}}{${.5dd,.6da,f,.5"
+  "^,@(y13:syntax-rules*)[04}}.!1.7,.2^,.4cc,.6,:0^[82}.5,.2,'(y1:?),.3,l"
+  "3c,.4,:0^[62}.!0.0^_1[02}@!(y10:*root-env*)",
 
-  "C", 0,
-  "${'(l2:l2:py1:_;pn;y5:forms;;;py4:body;y5:forms;;;l2:py1:_;pl2:l2:y3:k"
-  "ey;y5:trans;;y3:...;;y5:forms;;;l3:py13:syntax-lambda;pl2:y3:key;y3:.."
-  ".;;y5:forms;;;y5:trans;y3:...;;;),n,f,'(y10:let-syntax),@(y26:install-"
-  "transformer-rules!)[04}",
+  "P", "root-env",
+  "%1@(y10:*root-env*),.1,@(y25:lookup-in-transformer-env)[12",
 
-  "C", 0,
-  "${'(l1:l2:py1:_;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms;;;py4:body;pl3"
-  ":y6:define;y3:var;y4:init;;py3:...;y5:forms;;;;;),n,f,'(y6:letrec),@(y"
-  "26:install-transformer-rules!)[04}",
+  "P", "error*",
+  "%2.1,.1c,@(y5:error),@(y13:apply-to-list)[22",
 
-  "C", 0,
-  "${'(l2:l2:py1:_;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms;;;l3:py6:lambd"
-  "a;pl2:y3:var;y3:...;;y5:forms;;;y4:init;y3:...;;;l2:py1:_;py4:name;pl2"
-  ":l2:y3:var;y4:init;;y3:...;;y5:forms;;;;l3:l3:y6:letrec;l1:l2:y4:name;"
-  "py6:lambda;pl2:y3:var;y3:...;;y5:forms;;;;;y4:name;;y4:init;y3:...;;;)"
-  ",n,f,'(y3:let),@(y26:install-transformer-rules!)[04}",
+  "P", "transform!",
+  "%1${@(y8:root-env),.3,t,@(y5:xform)[03},${.2,'(l3:y13:define-syntax;y1"
+  ":*;y1:*;),@(y13:syntax-match?)[02}?{${.2da,@(y3:id?)[01}}{f}?{${@(y10:"
+  "*root-env*),.3da,@(y25:lookup-in-transformer-env)[02},.0?{.1dda,.1sd}_"
+  "1}.0]2",
 
-  "C", 0,
-  "${'(l2:l2:py1:_;pn;y5:forms;;;py4:body;y5:forms;;;l2:py1:_;ppy5:first;"
-  "y4:more;;y5:forms;;;l3:y3:let;l1:y5:first;;py4:let*;py4:more;y5:forms;"
-  ";;;;),n,f,'(y4:let*),@(y26:install-transformer-rules!)[04}",
-
-  "C", 0,
-  "${'(l3:l2:l1:y1:_;;t;;l2:l2:y1:_;y4:test;;y4:test;;l2:py1:_;py4:test;y"
-  "5:tests;;;l4:y2:if;y4:test;py3:and;y5:tests;;f;;;),n,f,'(y3:and),@(y26"
-  ":install-transformer-rules!)[04}",
-
-  "C", 0,
-  "${'(l3:l2:l1:y1:_;;f;;l2:l2:y1:_;y4:test;;y4:test;;l2:py1:_;py4:test;y"
-  "5:tests;;;l3:y3:let;l1:l2:y1:x;y4:test;;;l4:y2:if;y1:x;y1:x;py2:or;y5:"
-  "tests;;;;;),n,f,'(y2:or),@(y26:install-transformer-rules!)[04}",
-
-  "C", 0,
-  "${'(l5:l2:l1:y1:_;;f;;l2:l2:y1:_;py4:else;y4:exps;;;py5:begin;y4:exps;"
-  ";;l2:py1:_;pl1:y1:x;;y4:rest;;;l3:y2:or;y1:x;py4:cond;y4:rest;;;;l2:py"
-  "1:_;pl3:y1:x;y2:=>;y4:proc;;y4:rest;;;l3:y3:let;l1:l2:y3:tmp;y1:x;;;py"
-  "4:cond;pl2:y3:tmp;l2:y4:proc;y3:tmp;;;y4:rest;;;;;l2:py1:_;ppy1:x;y4:e"
-  "xps;;y4:rest;;;l4:y2:if;y1:x;py5:begin;y4:exps;;py4:cond;y4:rest;;;;),"
-  "'(l2:y4:else;y2:=>;),f,'(y4:cond),@(y26:install-transformer-rules!)[04"
-  "}",
-
-  "C", 0,
-  "${'(l2:l2:l3:y1:_;y1:k;y4:else;;t;;l2:l3:y1:_;y1:k;y5:atoms;;l3:y4:mem"
-  "v;y1:k;l2:y5:quote;y5:atoms;;;;),'(l1:y4:else;),f,'(y9:case-test),@(y2"
-  "6:install-transformer-rules!)[04}",
-
-  "C", 0,
-  "${'(l1:l2:l4:y1:_;y1:x;py4:test;y5:exprs;;y3:...;;l3:y3:let;l1:l2:y3:k"
-  "ey;y1:x;;;l3:y4:cond;pl3:y9:case-test;y3:key;y4:test;;y5:exprs;;y3:..."
-  ";;;;),n,f,'(y4:case),@(y26:install-transformer-rules!)[04}",
-
-  "C", 0,
-  "${'(l1:l2:l5:y1:_;l2:py3:var;py4:init;y4:step;;;y3:...;;y6:ending;y4:e"
-  "xpr;y3:...;;l4:y3:let;y4:loop;l2:l2:y3:var;y4:init;;y3:...;;l3:y4:cond"
-  ";y6:ending;l4:y4:else;y4:expr;y3:...;l3:y4:loop;py5:begin;py3:var;y4:s"
-  "tep;;;y3:...;;;;;;),n,f,'(y2:do),@(y26:install-transformer-rules!)[04}",
-
-  "C", 0,
-  "${'(l8:l2:l2:y1:_;l2:y7:unquote;y1:x;;;y1:x;;l2:l2:y1:_;pl2:y16:unquot"
-  "e-splicing;y1:x;;y1:y;;;l3:y6:append;y1:x;l2:y10:quasiquote;y1:y;;;;l2"
-  ":py1:_;pl2:y10:quasiquote;y1:x;;y1:d;;;l3:y4:cons;l2:y5:quote;y10:quas"
-  "iquote;;l3:y10:quasiquote;l1:y1:x;;y1:d;;;;l2:l3:y1:_;l2:y7:unquote;y1"
-  ":x;;y1:d;;l3:y4:cons;l2:y5:quote;y7:unquote;;py10:quasiquote;pl1:y1:x;"
-  ";y1:d;;;;;l2:l3:y1:_;l2:y16:unquote-splicing;y1:x;;y1:d;;l3:y4:cons;l2"
-  ":y5:quote;y16:unquote-splicing;;py10:quasiquote;pl1:y1:x;;y1:d;;;;;l2:"
-  "py1:_;ppy1:x;y1:y;;y1:d;;;l3:y4:cons;py10:quasiquote;py1:x;y1:d;;;py10"
-  ":quasiquote;py1:y;y1:d;;;;;l2:py1:_;pv2:y1:x;y3:...;;y1:d;;;l2:y12:lis"
-  "t->vector;py10:quasiquote;pl2:y1:x;y3:...;;y1:d;;;;;l2:py1:_;py1:x;y1:"
-  "d;;;l2:y5:quote;y1:x;;;),'(l3:y7:unquote;y16:unquote-splicing;y10:quas"
-  "iquote;),f,'(y10:quasiquote),@(y26:install-transformer-rules!)[04}",
-
-  "C", 0,
-  "${'(l1:l2:py1:_;py4:test;y4:rest;;;l3:y2:if;y4:test;py5:begin;y4:rest;"
-  ";;;),n,f,'(y4:when),@(y26:install-transformer-rules!)[04}",
-
-  "C", 0,
-  "${'(l1:l2:py1:_;py4:test;y4:rest;;;l3:y2:if;l2:y3:not;y4:test;;py5:beg"
-  "in;y4:rest;;;;),n,f,'(y6:unless),@(y26:install-transformer-rules!)[04}",
-
-  "C", 0,
-  "${'(l1:l2:l3:y1:_;py4:args;y4:body;;y3:...;;l3:y7:lambda*;l2:y4:args;p"
-  "y6:lambda;py4:args;y4:body;;;;y3:...;;;),n,f,'(y11:case-lambda),@(y26:"
-  "install-transformer-rules!)[04}",
+  "P", "visit",
+  "%1,#0${.3,@(y15:open-input-file)[01}.!0${${.4^,@(y4:read)[01},,#0.4,.1"
+  ",&2{%1.0R8~?{${.2,@(y10:transform!)[01},Po,.1W5PoW6_1${:1^,@(y4:read)["
+  "01},:0^[11}]1}.!0.0^_1[01}.0^P60]2",
 
   0, 0, 0
 };
