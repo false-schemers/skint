@@ -189,14 +189,14 @@
 ; Special forms are either a symbol naming a builtin, or a transformer procedure 
 ; that takes two arguments: a macro use and the environment of the macro use.
 
-; <identifier>  ->  <symbol> | <thunk returning den>
+; <identifier>  ->  <symbol> | <thunk returning (sym . den)>
 ; <denotation>  ->  <binding>
 ; <binding>     ->  (<symbol> . <value>)
 ; <value>       ->  <special> | <core>
 ; <special>     ->  <builtin> | <transformer>
-; <builtin>     ->  syntax | quote | set! | set& | begin | if | lambda | 
-;                   lambda* | syntax-lambda | letcc | withcc | body | 
-;                   define | define-syntax ; top-level only
+; <builtin>     ->  syntax | quote | set! | set& | if | lambda | lambda* |
+;                   letcc | withcc | body | begin | define | define-syntax |
+;                   syntax-lambda | syntax-rules | syntax-length | syntax-error  
 ; <transformer> ->  <procedure of exp and env returning exp>
 
 (define-syntax   val-core?               pair?)
@@ -207,11 +207,11 @@
 (define-syntax   binding-sym             car)
 (define-syntax   binding-set-val!        set-cdr!)
 
-(define (new-id den)               (define p (list den)) (lambda () p))
-(define (old-den id)               (car (id)))
+(define (new-id sym den)           (define p (cons sym den)) (lambda () p))
+(define (old-sym id)               (car (id)))
+(define (old-den id)               (cdr (id)))
 (define (id? x)                    (or (symbol? x) (procedure? x)))
-(define (id->sym id)               (if (symbol? id) id (den->sym (old-den id))))
-(define (den->sym den)             (if (symbol? den) den (binding-sym den)))
+(define (id->sym id)               (if (symbol? id) id (old-sym id)))
 
 (define (extend-xenv env id bnd)   (lambda (i) (if (eq? id i) bnd (env i))))
 
@@ -279,8 +279,7 @@
 
 (define (xform-ref id env)
   (let ([den (env id)])
-    (cond [(symbol? den) (x-error "unexpected den" den)]  ;(list 'ref den)
-          [(eq? (binding-val den) '...) (x-error "improper use of ...")]
+    (cond [(eq? (binding-val den) '...) (x-error "improper use of ...")]
           [else (binding-val den)])))
 
 (define (xform-quote tail env)
@@ -291,8 +290,7 @@
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
       (let ([den (env (car tail))] [xexp (xform #f (cadr tail) env)])
-        (cond [(symbol? den) (x-error "unexpected den in set!" den)] ;(list 'set! den xexp)
-              [(binding-special? den) (binding-set-val! den xexp) '(begin)]
+        (cond [(binding-special? den) (binding-set-val! den xexp) '(begin)]
               [else (let ([val (binding-val den)])
                       (if (eq? (car val) 'ref)
                           (list 'set! (cadr val) xexp)
@@ -302,8 +300,7 @@
 (define (xform-set& tail env)
   (if (list1? tail)
       (let ([den (env (car tail))])      
-        (cond [(symbol? den) (x-error "unexpected den in set&" den)] ;(list 'set& den)
-              [(binding-special? den) (x-error "set& of a non-variable")]
+        (cond [(binding-special? den) (x-error "set& of a non-variable")]
               [else (let ([val (binding-val den)])
                       (if (eq? (car val) 'ref)
                           (list 'set& (cadr val))
@@ -410,7 +407,7 @@
                                 [nid (gensym (id->sym id))] [env (add-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
                         [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
-                         (let* ([id (caar tail)] [lambda-id (new-id (make-binding 'lambda 'lambda))] 
+                         (let* ([id (caar tail)] [lambda-id (new-id 'lambda (make-binding 'lambda 'lambda))] 
                                 [init (cons lambda-id (cons (cdar tail) (cdr tail)))]
                                 [nid (gensym (id->sym id))] [env (add-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
@@ -579,7 +576,7 @@
     ; fresh ids, but that's okay because when we go to retrieve a
     ; fresh id, assq will always retrieve the first one.
     (define new-literals
-      (map (lambda (id) (cons id (new-id (mac-env id))))
+      (map (lambda (id) (cons id (new-id (id->sym id) (mac-env id))))
            (list-ids tmpl #t
              (lambda (id) (not (assq id top-bindings))))))
 
