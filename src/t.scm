@@ -181,17 +181,16 @@
 ; Macro transformer (from Scheme to Scheme Core) derived from Al Petrofsky's EIOD 1.17
 ;---------------------------------------------------------------------------------------------
 
-; An environment is a procedure that accepts any identifier and
-; returns a denotation. The denotation of an identifier is its
-; binding, which is a pair of the current value and the identifier's 
-; name (needed by quote). Biding's value can be changed later.
+; An environment is a procedure that accepts any identifier and returns a denotation.
+; The denotation of an identifier is its macro location, which is a cell storing the 
+; identifier's current syntactic value. Location's value can be changed later.
 
 ; Special forms are either a symbol naming a builtin, or a transformer procedure 
 ; that takes two arguments: a macro use and the environment of the macro use.
 
 ; <identifier>  ->  <symbol> | <thunk returning (sym . den)>
-; <denotation>  ->  <binding>
-; <binding>     ->  (<symbol> . <value>)
+; <denotation>  ->  <location>
+; <location>    ->  #&<value>
 ; <value>       ->  <special> | <core>
 ; <special>     ->  <builtin> | <transformer>
 ; <builtin>     ->  syntax | quote | set! | set& | if | lambda | lambda* |
@@ -199,14 +198,13 @@
 ;                   syntax-lambda | syntax-rules | syntax-length | syntax-error  
 ; <transformer> ->  <procedure of exp and env returning exp>
 
-(define-syntax   val-core?               pair?)
-(define-syntax   binding?                pair?)
-(define-syntax   make-binding            cons)
-(define-syntax   binding-val             cdr)
-(define          (binding-special? bnd)  (not (pair? (cdr bnd))))
-(define-syntax   binding-sym             car)
-(define-syntax   binding-set-val!        set-cdr!)
+(define-syntax  val-core?          pair?)
 
+(define-syntax  make-location      box)
+(define-syntax  location-val       unbox)
+(define-syntax  location-set-val!  set-box!)
+
+(define (location-special? l)      (not (pair? (unbox l))))
 (define (new-id sym den)           (define p (cons sym den)) (lambda () p))
 (define (old-sym id)               (car (id)))
 (define (old-den id)               (cdr (id)))
@@ -215,11 +213,11 @@
 
 (define (extend-xenv env id bnd)   (lambda (i) (if (eq? id i) bnd (env i))))
 
-(define (add-binding key val env) ; adds as-is     
-  (extend-xenv env key (make-binding (id->sym key) val)))
+(define (add-location key val env) ; adds as-is     
+  (extend-xenv env key (make-location val)))
 
 (define (add-var var val env) ; adds renamed var as <core>
-  (extend-xenv env var (make-binding (id->sym var) (list 'ref val))))
+  (extend-xenv env var (make-location (list 'ref val))))
 
 (define (xform-sexp->datum sexp)
   (let conv ([sexp sexp])
@@ -239,16 +237,14 @@
 (define (xform appos? sexp env)
   (cond [(id? sexp) 
          (let ([hval (xform-ref sexp env)])
-           (cond [appos? ; app position: anything goes
-                  hval]
+           (cond [appos? hval]
                  [(integrable? hval) ; integrable id-syntax
                   (list 'ref (integrable-global hval))]
                  [(procedure? hval) ; id-syntax
                   (xform appos? (hval sexp env) env)]
                  [(not (pair? hval)) ; special used out of context 
                   (x-error "improper use of syntax form" hval)]
-                 [else ; core 
-                  hval]))]
+                 [else hval]))] ; core 
         [(not (pair? sexp))
          (xform-quote (list sexp) env)]
         [else 
@@ -279,8 +275,8 @@
 
 (define (xform-ref id env)
   (let ([den (env id)])
-    (cond [(eq? (binding-val den) '...) (x-error "improper use of ...")]
-          [else (binding-val den)])))
+    (cond [(eq? (location-val den) '...) (x-error "improper use of ...")]
+          [else (location-val den)])))
 
 (define (xform-quote tail env)
   (if (list1? tail)
@@ -290,8 +286,8 @@
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
       (let ([den (env (car tail))] [xexp (xform #f (cadr tail) env)])
-        (cond [(binding-special? den) (binding-set-val! den xexp) '(begin)]
-              [else (let ([val (binding-val den)])
+        (cond [(location-special? den) (location-set-val! den xexp) '(begin)]
+              [else (let ([val (location-val den)])
                       (if (eq? (car val) 'ref)
                           (list 'set! (cadr val) xexp)
                           (x-error "set! to non-identifier form")))]))
@@ -300,8 +296,8 @@
 (define (xform-set& tail env)
   (if (list1? tail)
       (let ([den (env (car tail))])      
-        (cond [(binding-special? den) (x-error "set& of a non-variable")]
-              [else (let ([val (binding-val den)])
+        (cond [(location-special? den) (x-error "set& of a non-variable")]
+              [else (let ([val (location-val den)])
                       (if (eq? (car val) 'ref)
                           (list 'set& (cadr val))
                           (x-error "set& of a non-variable")))]))
@@ -407,7 +403,7 @@
                                 [nid (gensym (id->sym id))] [env (add-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
                         [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
-                         (let* ([id (caar tail)] [lambda-id (new-id 'lambda (make-binding 'lambda 'lambda))] 
+                         (let* ([id (caar tail)] [lambda-id (new-id 'lambda (make-location 'lambda))] 
                                 [init (cons lambda-id (cons (cdar tail) (cdr tail)))]
                                 [nid (gensym (id->sym id))] [env (add-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
@@ -415,7 +411,7 @@
                  [(define-syntax) ; internal
                   (if (and (list2? tail) (id? (car tail))) 
                       (let* ([id (car tail)] [init (cadr tail)]
-                             [env (add-binding id '(undefined) env)])
+                             [env (add-location id '(undefined) env)])
                         (loop env (cons id ids) (cons init inits) (cons #t nids) rest))
                       (x-error "improper define-syntax form" first))]
                  [else
@@ -440,7 +436,7 @@
              (cons (xform-set! (list (car ids) (car inits)) env) sets)
              (cons (car nids) lids))]
           [else ; define-syntax
-           (binding-set-val! (env (car ids)) (xform #t (car inits) env))
+           (location-set-val! (env (car ids)) (xform #t (car inits) env))
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
 (define (xform-begin tail env) ; top-level
@@ -478,7 +474,7 @@
                 (if (null? vars)
                     (list 'syntax (xform-body forms env))
                     (loop (cdr vars) (cdr exps)
-                      (add-binding (car vars) 
+                      (add-location (car vars) 
                         (xform #t (car exps) useenv) env))))  
               (x-error "invalif syntax-lambda application" use))))  
       (x-error "improper syntax-lambda body" (cons 'syntax-lambda tail))))
@@ -512,7 +508,7 @@
   (define (ellipsis-pair? x)
     (and (pair? x) (ellipsis? (car x))))
   (define (ellipsis-denotation? den)
-    (and (binding? den) (eq? (binding-val den) '...)))
+    (eq? (location-val den) '...)) ; fixme: need eq? with correct #&...
   (define (ellipsis? x)
     (if ellipsis
         (eq? x ellipsis)
@@ -624,27 +620,25 @@
               [else (loop (cdr rules))])))))
 
 
-; experimental lookup procedure for alist-like macro environments
+; new lookup procedure for alist-like macro environments
 
-(define (lookup-in-transformer-env id env) ;=> binding | #f
+(define (lookup-in-transformer-env id env) ;=> location (| #f)
   (if (procedure? id)
       (old-den id) ; nonsymbolic ids can't be globally bound
       (let loop ([env env])
         (cond [(pair? env)
                (if (eq? (caar env) id)
-                   (car env)
+                   (cdar env) ; location
                    (loop (cdr env)))]
               [(eq? env #t) 
                ; implicitly append integrables and "naked" globals
-               (let ([bnd (make-binding id (or (lookup-integrable id) (list 'ref id)))])
-                 (set! *root-env* (cons bnd *root-env*))
-                 bnd)]
-              ;[(procedure? env)
-              ; (env id)]
-              [else ; finite env
+               (let ([loc (make-location (or (lookup-integrable id) (list 'ref id)))])
+                 (set! *root-env* (cons (cons id loc) *root-env*))
+                 loc)]
+              [else ; (future) finite env 
                #f]))))
 
-; make root env from a list of initial transformers
+; make root env from alist of initial transformers
 
 (define *root-env*
   (let loop ([l (initial-transformers)] [env #t])
@@ -653,7 +647,7 @@
           (let ([k (car p)] [v (cdr p)])
             (cond
               [(or (symbol? v) (number? v)) 
-               (loop l (cons (cons k v) env))]
+               (loop l (cons (cons k (make-location v)) env))]
               [(and (pair? v) (eq? (car v) 'syntax-rules))
                (body
                  (define (sr-env id) 
@@ -662,9 +656,7 @@
                    (if (id? (cadr v))
                        (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
                        (syntax-rules* sr-env #f (cadr v) (cddr v))))
-                 (loop l (cons (cons k sr-v) env)))]
-              [else 
-               (loop l (cons (list k '? v) env))]))))))
+                 (loop l (cons (cons k (make-location sr-v)) env)))]))))))
 
 (define (root-env id)
   (lookup-in-transformer-env id *root-env*))
@@ -675,8 +667,8 @@
 (define (transform! x)
   (let ([t (xform #t x root-env)])
     (when (and (syntax-match? '(define-syntax * *) t) (id? (cadr t))) ; (procedure? (caddr t))
-        (let ([b (lookup-in-transformer-env (cadr t) *root-env*)])
-          (when b (binding-set-val! b (caddr t)))))
+        (let ([loc (lookup-in-transformer-env (cadr t) *root-env*)])
+          (when loc (location-set-val! loc (caddr t)))))
     t)) 
   
 (define (visit f) 
