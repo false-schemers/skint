@@ -793,6 +793,9 @@
            (write-serialized-size (string-length x) port)
            (do ([i 0 (fx+ i 1)]) [(fx=? i (string-length x))]
              (write-serialized-char (string-ref x i) port)))]
+        [(box? x)
+         (write-char #\z port)
+         (write-serialized-element (unbox x) port)]
         [else (c-error "cannot encode literal" x)]))
 
 (define (write-serialized-arg arg port)

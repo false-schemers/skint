@@ -3426,6 +3426,15 @@ define_instruction(igco) {
   gonexti(); 
 }
 
+define_instruction(hshim) {
+  unsigned long long v = (unsigned long long)ac, base = 0; obj b = spop(); 
+  if (v && isaptr(v)) failtype(v, "immediate value");
+  if (b) { ckk(b); base = get_fixnum(b); } 
+  if (!base) base = 1 + (unsigned long long)FIXNUM_MAX;
+  ac = fixnum_obj((fixnum_t)(v % base));
+  gonexti();
+}
+
 define_instruction(rdsx) {
   cks(ac); 
   unload_ac(); /* ac->ra (string) */
@@ -3447,6 +3456,7 @@ define_instruction(rdsc) {
   if (ac == eof_obj()) fail("failed to read serialized code");
   gonexti(); 
 }
+
 
 define_instruction(litf) { ac = bool_obj(0); gonexti(); }  
 define_instruction(litt) { ac = bool_obj(1); gonexti(); }  
@@ -4097,7 +4107,16 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
       }
       ra = hpushu8v(sp-r, newbytevector((unsigned char *)cbdata(pcb), (int)cblen(pcb)));
       freecb(pcb);
-    }
+    } break;
+    case 'z': {
+      spush(port);
+      ra = sref(0); hp = rds_elt(r, sp, hp); 
+      if (iseof(ra)) { sdrop(1); return hp; } else spush(ra);
+      hreserve(boxbsz(), sp-r);
+      *--hp = sref(0);  
+      ra = hend_box();
+      sdrop(2);      
+    } break;
   }  
   return hp;
 }

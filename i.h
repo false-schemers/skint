@@ -523,7 +523,7 @@ declare_instruction(panic,      "Z7",           0,  "%panic",                   
 declare_instruction(abort,      "Z8\0t",        0,  "%abort",                   'u', AUTOGL)
 declare_instruction(exit,       "Z9\0t",        0,  "%exit",                    'u', AUTOGL)
 
-/* serialization and deserialization instructions */             
+/* serialization, deserialization, compilation-related instructions */             
 declare_instruction(igp,        "U0",           0,  "integrable?",              '1', AUTOGL)
 declare_instruction(itrs,       "U1",           0,  "initial-transformers",     '0', AUTOGL)
 declare_instruction(rdsx,       "U3",           0,  "deserialize-sexp",         '1', AUTOGL)
@@ -532,6 +532,7 @@ declare_instruction(iglk,       "U5",           0,  "lookup-integrable",        
 declare_instruction(igty,       "U6",           0,  "integrable-type",          '1', AUTOGL)
 declare_instruction(iggl,       "U7",           0,  "integrable-global",        '1', AUTOGL)
 declare_instruction(igco,       "U8",           0,  "integrable-code",          '2', AUTOGL)
+declare_instruction(hshim,      "H2\0f",        0,  "immediate-hash",           'b', AUTOGL)
 
 /* inlined integrables (no custom instructions) */               
 declare_integrable(NULL,        "N0",           0,  "complex?",                 '1', AUTOGL)
