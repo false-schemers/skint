@@ -630,46 +630,58 @@
                (if (eq? (caar env) id)
                    (cdar env) ; location
                    (loop (cdr env)))]
-              [(eq? env #t) 
-               ; implicitly append integrables and "naked" globals
-               (let ([loc (make-location (or (lookup-integrable id) (list 'ref id)))])
-                 (set! *root-env* (cons (cons id loc) *root-env*))
-                 loc)]
+              [(vector? env)
+               (let* ([n (vector-length env)] [i (immediate-hash id n)]
+                      [al (vector-ref env i)] [p (assq id al)])
+                 (if p (cdr p)
+                     ; implicitly append integrables and "naked" globals
+                     (let ([loc (make-location (or (lookup-integrable id) (list 'ref id)))])
+                       (vector-set! env i (cons (cons id loc) al))
+                       loc)))]
               [else ; (future) finite env 
                #f]))))
 
-; make root env from alist of initial transformers
 
-(define *root-env*
-  (let loop ([l (initial-transformers)] [env #t])
-    (if (null? l) env
-        (let ([p (car l)] [l (cdr l)])
-          (let ([k (car p)] [v (cdr p)])
-            (cond
-              [(or (symbol? v) (number? v)) 
-               (loop l (cons (cons k (make-location v)) env))]
-              [(and (pair? v) (eq? (car v) 'syntax-rules))
-               (body
-                 (define (sr-env id) 
-                   (lookup-in-transformer-env id *root-env*))
-                 (define sr-v
-                   (if (id? (cadr v))
-                       (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
-                       (syntax-rules* sr-env #f (cadr v) (cddr v))))
-                 (loop l (cons (cons k (make-location sr-v)) env)))]))))))
+; make root environment from the list of initial transformers
 
-(define (root-env id)
-  (lookup-in-transformer-env id *root-env*))
+(define *root-environment*
+  (let* ([n 101] ; use prime number
+         [env (make-vector n '())]) 
+    (define (put! k loc)
+      (let* ([i (immediate-hash k n)] [al (vector-ref env i)] [p (assq k al)])
+        (cond [p (set-cdr! p loc)]
+              [else (vector-set! env i (cons (cons k loc) al))])))
+    (let loop ([l (initial-transformers)])
+      (if (null? l) env
+          (let ([p (car l)] [l (cdr l)])
+            (let ([k (car p)] [v (cdr p)])
+              (cond
+                [(or (symbol? v) (number? v)) 
+                 (put! k (make-location v))
+                 (loop l)]
+                [(and (pair? v) (eq? (car v) 'syntax-rules))
+                 (body
+                   (define (sr-env id) 
+                     (lookup-in-transformer-env id *root-environment*))
+                   (define sr-v
+                     (if (id? (cadr v))
+                         (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
+                         (syntax-rules* sr-env #f (cadr v) (cddr v))))
+                   (put! k (make-location sr-v))
+                   (loop l))])))))))
+
+(define (root-environment id)
+  (lookup-in-transformer-env id *root-environment*))
+
+(define (transform! x)
+  (let ([t (xform #t x root-environment)])
+    (when (and (syntax-match? '(define-syntax * *) t) (id? (cadr t))) ; (procedure? (caddr t))
+        (let ([loc (lookup-in-transformer-env (cadr t) *root-environment*)])
+          (when loc (location-set-val! loc (caddr t)))))
+    t)) 
 
 (define (error* msg args)
   (apply error (cons msg args)))
-
-(define (transform! x)
-  (let ([t (xform #t x root-env)])
-    (when (and (syntax-match? '(define-syntax * *) t) (id? (cadr t))) ; (procedure? (caddr t))
-        (let ([loc (lookup-in-transformer-env (cadr t) *root-env*)])
-          (when loc (location-set-val! loc (caddr t)))))
-    t)) 
   
 (define (visit f) 
   (define p (open-input-file f)) 

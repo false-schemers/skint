@@ -322,28 +322,30 @@ char *t_code[] = {
 
   "P", "lookup-in-transformer-env",
   "%2.0K0?{.0,@(y7:old-den)[21}.1,,#0.2,.1,&2{%1.0p?{:1,.1aaq?{.0ad]1}.0d"
-  ",:0^[11}t,.1q?{:1U5,.0?{.0}{:1,'(y3:ref),l2}_1b,@(y10:*root-env*),.1,:"
-  "1cc@!(y10:*root-env*).0]2}f]1}.!0.0^_1[21",
+  ",:0^[11}.0V0?{.0V3,.0,:1H2,.0,.3V4,.0,:1A3,.0?{.0d]5}:1U5,.0?{.0}{:1,'"
+  "(y3:ref),l2}_1b,.2,.1,:1cc,.4,.7V5.0]6}f]1}.!0.0^_1[21",
 
   "C", 0,
-  "${t,U1,,#0.0,&1{%2.0u?{.1]2}.0d,.1a,.0d,.1a,.1Y0,.0?{.0}{.2N0}_1?{.5,."
-  "2b,.2cc,.4,:0^[62}.1p?{'(y12:syntax-rules),.2aq}{f}?{,,#0#1&0{%1@(y10:"
-  "*root-env*),.1,@(y25:lookup-in-transformer-env)[12}.!0${.5da,@(y3:id?)"
-  "[01}?{${.5ddd,.6dda,.7da,.5^,@(y13:syntax-rules*)[04}}{${.5dd,.6da,f,."
-  "5^,@(y13:syntax-rules*)[04}}.!1.7,.2^b,.4cc,.6,:0^[82}f]6}.!0.0^_1[02}"
-  "@!(y10:*root-env*)",
+  "'(i101),n,.1V2,,#0.2,.2,&2{%2:1,.1H2,.0,:0V4,.0,.3A3,.0?{.4,.1sd]5}.1,"
+  ".5,.5cc,.3,:0V5]5}.!0${U1,,#0.0,.5,.7,&3{%1.0u?{:0]1}.0d,.1a,.0d,.1a,."
+  "1Y0,.0?{.0}{.2N0}_1?{${.3b,.3,:1^[02}.3,:2^[51}.1p?{'(y12:syntax-rules"
+  "),.2aq}{f}?{,,#0#1&0{%1@(y18:*root-environment*),.1,@(y25:lookup-in-tr"
+  "ansformer-env)[12}.!0${.5da,@(y3:id?)[01}?{${.5ddd,.6dda,.7da,.5^,@(y1"
+  "3:syntax-rules*)[04}}{${.5dd,.6da,f,.5^,@(y13:syntax-rules*)[04}}.!1${"
+  ".3^b,.5,:1^[02}.5,:2^[71}f]5}.!0.0^_1[01}_1_1_1@!(y18:*root-environmen"
+  "t*)",
 
-  "P", "root-env",
-  "%1@(y10:*root-env*),.1,@(y25:lookup-in-transformer-env)[12",
+  "P", "root-environment",
+  "%1@(y18:*root-environment*),.1,@(y25:lookup-in-transformer-env)[12",
+
+  "P", "transform!",
+  "%1${@(y16:root-environment),.3,t,@(y5:xform)[03},${.2,'(l3:y13:define-"
+  "syntax;y1:*;y1:*;),@(y13:syntax-match?)[02}?{${.2da,@(y3:id?)[01}}{f}?"
+  "{${@(y18:*root-environment*),.3da,@(y25:lookup-in-transformer-env)[02}"
+  ",.0?{.1dda,.1sz}_1}.0]2",
 
   "P", "error*",
   "%2.1,.1c,@(y5:error),@(y13:apply-to-list)[22",
-
-  "P", "transform!",
-  "%1${@(y8:root-env),.3,t,@(y5:xform)[03},${.2,'(l3:y13:define-syntax;y1"
-  ":*;y1:*;),@(y13:syntax-match?)[02}?{${.2da,@(y3:id?)[01}}{f}?{${@(y10:"
-  "*root-env*),.3da,@(y25:lookup-in-transformer-env)[02},.0?{.1dda,.1sz}_"
-  "1}.0]2",
 
   "P", "visit",
   "%1,#0${.3,@(y15:open-input-file)[01}.!0${${.4^,@(y4:read)[01},,#0.4,.1"
