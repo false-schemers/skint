@@ -622,7 +622,7 @@
 
 ; new lookup procedure for alist-like macro environments
 
-(define (lookup-in-transformer-env id env) ;=> location (| #f)
+(define (env-lookup id env full?) ;=> location (| #f)
   (if (procedure? id)
       (old-den id) ; nonsymbolic ids can't be globally bound
       (let loop ([env env])
@@ -630,7 +630,7 @@
                (if (eq? (caar env) id)
                    (cdar env) ; location
                    (loop (cdr env)))]
-              [(vector? env)
+              [(vector? env) ; root
                (let* ([n (vector-length env)] [i (immediate-hash id n)]
                       [al (vector-ref env i)] [p (assq id al)])
                  (if p (cdr p)
@@ -638,7 +638,11 @@
                      (let ([loc (make-location (or (lookup-integrable id) (list 'ref id)))])
                        (vector-set! env i (cons (cons id loc) al))
                        loc)))]
-              [else ; (future) finite env 
+              [(string? env) ; module prefix
+               (and full?
+                 (let ([gid (string->symbol (string-append env (symbol->string id)))])
+                   (env-lookup gid *root-environment* #t)))]
+              [else ; finite env 
                #f]))))
 
 
@@ -662,7 +666,7 @@
                 [(and (pair? v) (eq? (car v) 'syntax-rules))
                  (body
                    (define (sr-env id) 
-                     (lookup-in-transformer-env id *root-environment*))
+                     (env-lookup id *root-environment* #t))
                    (define sr-v
                      (if (id? (cadr v))
                          (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
@@ -671,12 +675,12 @@
                    (loop l))])))))))
 
 (define (root-environment id)
-  (lookup-in-transformer-env id *root-environment*))
+  (env-lookup id *root-environment* #t))
 
 (define (transform! x)
   (let ([t (xform #t x root-environment)])
     (when (and (syntax-match? '(define-syntax * *) t) (id? (cadr t))) ; (procedure? (caddr t))
-        (let ([loc (lookup-in-transformer-env (cadr t) *root-environment*)])
+        (let ([loc (env-lookup (cadr t) *root-environment* #t)])
           (when loc (location-set-val! loc (caddr t)))))
     t)) 
 
