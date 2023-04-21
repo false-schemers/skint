@@ -620,6 +620,489 @@
               [else (loop (cdr rules))])))))
 
 
+;---------------------------------------------------------------------------------------------
+; String representation of S-expressions and code arguments
+;---------------------------------------------------------------------------------------------
+
+(define (write-serialized-char x port)
+  (cond [(or (char=? x #\%) (char=? x #\") (char=? x #\\) (char<? x #\space) (char>? x #\~))
+         (write-char #\% port)
+         (let ([s (fixnum->string (char->integer x) 16)])
+           (if (fx=? (string-length s) 1) (write-char #\0 port))
+           (write-string s port))]
+        [else (write-char x port)]))
+
+(define (write-serialized-byte x port)
+  (let ([s (fixnum->string x 16)])
+    (if (fx=? (string-length s) 1) (write-char #\0 port))
+    (write-string s port)))
+
+(define (write-serialized-size n port)         
+  (write-string (fixnum->string n 10) port)
+  (write-char #\: port))
+
+(define (write-serialized-element x port)
+  (write-serialized-sexp x port)
+  (write-char #\; port))
+
+(define (write-serialized-sexp x port)
+  (cond [(eq? x #f) 
+         (write-char #\f port)]
+        [(eq? x #t) 
+         (write-char #\t port)]
+        [(eq? x '()) 
+         (write-char #\n port)]
+        [(char? x)
+         (write-char #\c port)
+         (write-serialized-char x port)]
+        [(number? x)
+         (write-char (if (exact? x) #\i #\j) port)
+         (write-string (number->string x 10) port)]
+        [(list? x)
+         (write-char #\l port)
+         (write-serialized-size (length x) port)
+         (do ([x x (cdr x)]) [(null? x)]
+           (write-serialized-element (car x) port))]
+        [(pair? x)
+         (write-char #\p port)
+         (write-serialized-element (car x) port) 
+         (write-serialized-element (cdr x) port)]
+        [(vector? x)
+         (write-char #\v port)
+         (write-serialized-size (vector-length x) port)
+         (do ([i 0 (fx+ i 1)]) [(fx=? i (vector-length x))]
+           (write-serialized-element (vector-ref x i) port))]
+        [(string? x)
+         (write-char #\s port)
+         (write-serialized-size (string-length x) port)
+         (do ([i 0 (fx+ i 1)]) [(fx=? i (string-length x))]
+           (write-serialized-char (string-ref x i) port))]
+        [(bytevector? x)
+         (write-char #\b port)
+         (write-serialized-size (bytevector-length x) port)
+         (do ([i 0 (fx+ i 1)]) [(fx=? i (bytevector-length x))]
+           (write-serialized-byte (bytevector-u8-ref x i) port))]
+        [(symbol? x)
+         (write-char #\y port)
+         (let ([x (symbol->string x)])
+           (write-serialized-size (string-length x) port)
+           (do ([i 0 (fx+ i 1)]) [(fx=? i (string-length x))]
+             (write-serialized-char (string-ref x i) port)))]
+        [(box? x)
+         (write-char #\z port)
+         (write-serialized-element (unbox x) port)]
+        [else (c-error "cannot encode literal" x)]))
+
+(define (write-serialized-arg arg port)
+  (if (and (number? arg) (exact? arg) (fx<=? 0 arg) (fx<=? arg 9))
+      (write-char (string-ref "0123456789" arg) port)
+      (begin (write-char #\( port)
+            (write-serialized-sexp arg port)
+            (write-char #\) port))))
+
+
+;---------------------------------------------------------------------------------------------
+; Compiler producing serialized code
+;---------------------------------------------------------------------------------------------
+
+(define (c-error msg . args)
+  (error* (string-append "compiler: " msg) args))
+
+(define find-free*
+  (lambda (x* b)
+    (if (null? x*)
+        '()
+        (set-union 
+          (find-free (car x*) b) 
+          (find-free* (cdr x*) b)))))
+
+(define find-free
+  (lambda (x b)
+    (record-case x
+      [quote (obj) 
+       '()]
+      [ref (id)
+       (if (set-member? id b) '() (list id))]
+      [set! (id exp)
+       (set-union
+         (if (set-member? id b) '() (list id))
+         (find-free exp b))]
+      [set& (id)
+       (if (set-member? id b) '() (list id))]
+      [lambda (idsi exp)
+       (find-free exp (set-union (flatten-idslist idsi) b))]
+      [lambda* clauses
+       (find-free* (map cadr clauses) b)]
+      [letcc (kid exp)
+       (find-free exp (set-union (list kid) b))]
+      [withcc (kexp exp)
+       (set-union (find-free kexp b) (find-free exp b))]
+      [if (test then else)
+       (set-union
+         (find-free test b)
+         (set-union (find-free then b) (find-free else b)))]
+      [begin exps
+       (find-free* exps b)]
+      [integrable (ig . args)
+       (find-free* args b)]
+      [call (exp . args)
+       (set-union (find-free exp b) (find-free* args b))]
+      [define tail
+       (c-error "misplaced define form" x)])))
+
+(define find-sets*
+  (lambda (x* v)
+    (if (null? x*)
+        '()
+        (set-union 
+          (find-sets (car x*) v) 
+          (find-sets* (cdr x*) v)))))
+
+(define find-sets
+  (lambda (x v)
+    (record-case x
+      [quote (obj) 
+       '()]
+      [ref (id)
+       '()]
+      [set! (id x)
+       (set-union
+         (if (set-member? id v) (list id) '())
+         (find-sets x v))]
+      [set& (id)
+       (if (set-member? id v) (list id) '())]
+      [lambda (idsi exp)
+       (find-sets exp (set-minus v (flatten-idslist idsi)))]
+      [lambda* clauses
+       (find-sets* (map cadr clauses) v)]
+      [letcc (kid exp)
+       (find-sets exp (set-minus v (list kid)))]
+      [withcc (kexp exp)
+       (set-union (find-sets kexp v) (find-sets exp v))]
+      [begin exps
+       (find-sets* exps v)]
+      [if (test then else)
+       (set-union
+         (find-sets test v)
+         (set-union (find-sets then v) (find-sets else v)))]
+      [integrable (ig . args)
+       (find-sets* args v)]
+      [call (exp . args)
+       (set-union (find-sets exp v) (find-sets* args v))]
+      [define tail
+       (c-error "misplaced define form" x)])))
+
+(define codegen
+  ; x: Scheme Core expression to compile
+  ; l: local var list (with #f placeholders for nonvar slots)
+  ; f: free var list
+  ; s: set! var set
+  ; g: global var set
+  ; k: #f: x goes to ac, N: x is to be returned after (sdrop n)
+  ; port: output code goes here
+  (lambda (x l f s g k port)
+    (record-case x
+      [quote (obj)
+       (case obj
+          [(#t) (write-char #\t port)]
+          [(#f) (write-char #\f port)]
+          [(()) (write-char #\n port)]
+          [else (write-char #\' port) (write-serialized-arg obj port)])
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [ref (id)
+       (cond [(posq id l) => ; local
+              (lambda (n) 
+                (write-char #\. port)
+                (write-serialized-arg n port)
+                (if (set-member? id s) (write-char #\^ port)))]
+             [(posq id f) => ; free
+              (lambda (n) 
+                (write-char #\: port)
+                (write-serialized-arg n port)
+                (if (set-member? id s) (write-char #\^ port)))]
+             [else ; global
+              (write-char #\@ port)
+              (write-serialized-arg id port)])
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [set! (id x)
+       (codegen x l f s g #f port)
+       (cond [(posq id l) => ; local
+              (lambda (n) 
+                (write-char #\. port) (write-char #\! port)
+                (write-serialized-arg n port))]
+             [(posq id f) => ; free
+              (lambda (n) 
+                (write-char #\: port) (write-char #\! port)
+                (write-serialized-arg n port))]
+             [else ; global
+              (write-char #\@ port) (write-char #\! port)
+              (write-serialized-arg id port)])
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [set& (id)
+       (cond [(posq id l) => ; local
+              (lambda (n) 
+                (write-char #\. port)
+                (write-serialized-arg n port))]
+             [(posq id f) => ; free
+              (lambda (n) 
+                (write-char #\: port)
+                (write-serialized-arg n port))]
+             [else ; global
+              (write-char #\` port)
+              (write-serialized-arg id port)])
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [begin exps
+       (let loop ([xl exps])
+         (when (pair? xl)
+           (let ([k (if (pair? (cdr xl)) #f k)])
+             (codegen (car xl) l f s g k port)
+             (loop (cdr xl)))))
+       (when (and k (null? exps)) (write-char #\] port) (write-serialized-arg k port))]
+      [if (test then else)
+       (codegen test l f s g #f port)
+       (write-char #\? port)
+       (write-char #\{ port)
+       (codegen then l f s g k port)
+       (write-char #\} port)
+       (cond [k ; tail call: 'then' arm exits, so br around is not needed
+              (codegen else l f s g k port)]
+             [(equal? else '(begin)) ; non-tail with void 'else' arm
+              ] ; no code needed -- ac retains #f from failed test
+             [else ; non-tail with 'else' expression; needs br 
+              (write-char #\{ port)
+              (codegen else l f s g k port)
+              (write-char #\} port)])]              
+      [lambda (idsi exp)
+       (let* ([ids (flatten-idslist idsi)]
+              [free (set-minus (find-free exp ids) g)]
+              [sets (find-sets exp ids)])
+         (do ([free (reverse free) (cdr free)] [l l (cons #f l)]) [(null? free)]
+           ; note: called with empty set! var list
+           ; to make sure no dereferences are generated
+           (codegen (list 'ref (car free)) l f '() g #f port)
+           (write-char #\, port))
+         (write-char #\& port)
+         (write-serialized-arg (length free) port)
+         (write-char #\{ port)
+         (cond [(list? idsi)
+                (write-char #\% port)
+                (write-serialized-arg (length idsi) port)]
+               [else
+                (write-char #\% port) (write-char #\! port)
+                (write-serialized-arg (idslist-req-count idsi) port)])
+         (do ([ids ids (cdr ids)] [n 0 (fx+ n 1)]) [(null? ids)]
+           (when (set-member? (car ids) sets)
+             (write-char #\# port)
+             (write-serialized-arg n port)))
+         (codegen exp ids free 
+           (set-union sets (set-intersect s free))
+           g (length ids) port)
+         (write-char #\} port))
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [lambda* clauses
+       (do ([clauses (reverse clauses) (cdr clauses)] [l l (cons #f l)]) 
+            [(null? clauses)]
+         (codegen (cadr (car clauses)) l f s g #f port)
+         (write-char #\% port) (write-char #\x port)
+         (write-char #\, port))
+       (write-char #\& port)
+       (write-serialized-arg (length clauses) port)
+       (write-char #\{ port)
+       (do ([clauses clauses (cdr clauses)] [i 0 (fx+ i 1)]) 
+            [(null? clauses)]
+         (let* ([arity (caar clauses)] [cnt (car arity)] [rest? (cadr arity)])
+           (write-char #\| port)
+           (if rest? (write-char #\! port))
+           (write-serialized-arg cnt port)
+           (write-serialized-arg i port)))
+       (write-char #\% port) (write-char #\% port)
+       (write-char #\} port)
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [letcc (kid exp)
+       (let* ([ids (list kid)] [sets (find-sets exp ids)]
+              [news (set-union (set-minus s ids) sets)]) 
+         (cond [k ; tail position with k locals on stack to be disposed of
+                (write-char #\k port) (write-serialized-arg k port)
+                (write-char #\, port)
+                (when (set-member? kid sets) 
+                  (write-char #\# port) (write-char #\0 port))
+                ; stack map here: kid on top
+                (codegen exp (cons kid l) f news g (fx+ k 1) port)]
+               [else ; non-tail position 
+                (write-char #\$ port) (write-char #\{ port)
+                (write-char #\k port) (write-char #\0 port)
+                (write-char #\, port)
+                (when (set-member? kid sets) 
+                  (write-char #\# port) (write-char #\0 port))
+                ; stack map here: kid on top, two-slot frame under it
+                (codegen exp (cons kid (cons #f (cons #f l))) f news g #f port)
+                (write-char #\_ port) (write-serialized-arg 3 port)
+                (write-char #\} port)]))]
+      [withcc (kexp exp)
+       (cond [(memq (car exp) '(quote ref lambda)) ; exp is a constant, return it
+              (codegen exp l f s g #f port) 
+              (write-char #\, port) ; stack map after: k on top
+              (codegen kexp (cons #f l) f s g #f port)
+              (write-char #\w port) (write-char #\! port)]
+             [else ; exp is not a constant, thunk it and call it from k
+              (codegen (list 'lambda '() exp) l f s g #f port) 
+              (write-char #\, port) ; stack map after: k on top
+              (codegen kexp (cons #f l) f s g #f port)
+              (write-char #\w port)])]
+      [integrable (ig . args)
+       (let ([igty (integrable-type ig)] [igc0 (integrable-code ig 0)])
+         (case igty
+            [(#\0 #\1 #\2 #\3) ; 1st arg in a, others on stack
+             (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
+               [(null? args)]
+               (codegen (car args) l f s g #f port)
+               (unless (null? (cdr args)) (write-char #\, port)))
+             (write-string igc0 port)]
+            [(#\p) ; (length args) >= 0
+             (if (null? args)
+                 (let ([igc1 (integrable-code ig 1)])
+                   (write-string igc1 port))
+                 (let ([opc (fx- (length args) 1)])
+                   (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
+                     [(null? args)]
+                     (codegen (car args) l f s g #f port)
+                     (unless (null? (cdr args)) (write-char #\, port)))
+                   (do ([i 0 (fx+ i 1)]) [(fx>=? i opc)]
+                     (write-string igc0 port))))]
+            [(#\m) ; (length args) >= 1
+             (if (null? (cdr args))
+                 (let ([igc1 (integrable-code ig 1)])
+                   (codegen (car args) l f s g #f port)
+                   (write-string igc1 port))
+                 (let ([opc (fx- (length args) 1)])
+                   (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
+                     [(null? args)]
+                     (codegen (car args) l f s g #f port)
+                     (unless (null? (cdr args)) (write-char #\, port)))
+                   (do ([i 0 (fx+ i 1)]) [(fx>=? i opc)]
+                     (write-string igc0 port))))]
+            [(#\c) ; (length args) >= 2
+             (let ([opc (fx- (length args) 1)] [args (reverse args)])
+               (codegen (car args) l f s g #f port)
+               (write-char #\, port)
+               (do ([args (cdr args) (cdr args)] [l (cons #f l) (cons #f (cons #f l))]) 
+                 [(null? args)]
+                 (codegen (car args) l f s g #f port)
+                 (unless (null? (cdr args)) (write-char #\, port) (write-char #\, port)))
+               (do ([i 0 (fx+ i 1)]) [(fx>=? i opc)]
+                 (unless (fxzero? i) (write-char #\; port)) 
+                 (write-string igc0 port)))]
+            [(#\x) ; (length args) >= 1
+             (let ([opc (fx- (length args) 1)])
+               (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
+                 [(null? args)]
+                 (codegen (car args) l f s g #f port)
+                 (unless (null? (cdr args)) (write-char #\, port)))
+               (do ([i 0 (fx+ i 1)]) [(fx>=? i opc)]
+                 (write-string igc0 port)))]
+            [(#\u) ; 0 <= (length args) <= 1
+             (if (null? args)
+                 (write-string (integrable-code ig 1) port)
+                 (codegen (car args) l f s g #f port))
+             (write-string igc0 port)]
+            [(#\b) ; 1 <= (length args) <= 2
+             (if (null? (cdr args))
+                 (write-string (integrable-code ig 1) port)
+                 (codegen (cadr args) l f s g #f port))
+             (write-char #\, port)
+             (codegen (car args) (cons #f l) f s g #f port)
+             (write-string igc0 port)]
+            [(#\t) ; 2 <= (length args) <= 3
+             (if (null? (cddr args))
+                 (write-string (integrable-code ig 1) port)
+                 (codegen (caddr args) l f s g #f port))
+             (write-char #\, port)
+             (codegen (cadr args) (cons #f l) f s g #f port)
+             (write-char #\, port)
+             (codegen (car args) (cons #f (cons #f l)) f s g #f port)
+             (write-string igc0 port)]
+            [(#\#) ; (length args) >= 0
+             (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
+               [(null? args)]
+               (codegen (car args) l f s g #f port)
+               (write-char #\, port))
+             (write-string igc0 port)
+             (write-serialized-arg (length args) port)]
+            [else (c-error "unsupported integrable type" igty)]))
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [call (exp . args)
+       (cond [(and (eq? (car exp) 'lambda) (list? (cadr exp))
+                   (fx=? (length args) (length (cadr exp))))
+              ; let-like call; compile as special lambda + call combo
+              (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
+                [(null? args)]
+                (codegen (car args) l f s g #f port)
+                (write-char #\, port))
+              (let* ([ids (cadr exp)] [exp (caddr exp)]
+                     [sets (find-sets exp ids)]
+                     [news (set-union (set-minus s ids) sets)]
+                     [newl (append ids l)]) ; with real names
+                (do ([ids ids (cdr ids)] [n 0 (fx+ n 1)]) [(null? ids)]
+                  (when (set-member? (car ids) sets)
+                    (write-char #\# port)
+                    (write-serialized-arg n port)))
+                (if k 
+                    (codegen exp newl f news g (fx+ k (length args)) port)
+                    (begin 
+                      (codegen exp newl f news g #f port)
+                      (write-char #\_ port)
+                      (write-serialized-arg (length args) port))))]
+             [k ; tail call with k elements under arguments
+              (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
+                [(null? args) (codegen exp l f s g #f port)]
+                (codegen (car args) l f s g #f port)
+                (write-char #\, port))
+              (write-char #\[ port)
+              (write-serialized-arg k port)
+              (write-serialized-arg (length args) port)]
+             [else ; non-tail call; 'save' puts 2 extra elements on the stack!
+              (write-char #\$ port) (write-char #\{ port)
+              (do ([args (reverse args) (cdr args)] [l (cons #f (cons #f l)) (cons #f l)]) 
+                [(null? args) (codegen exp l f s g #f port)]
+                (codegen (car args) l f s g #f port)
+                (write-char #\, port))
+              (write-char #\[ port)
+              (write-serialized-arg 0 port)
+              (write-serialized-arg (length args) port)
+              (write-char #\} port)])]
+      [define tail
+       (c-error "misplaced define form" x)])))
+
+(define (compile-to-string x)
+  (let ([p (open-output-string)])
+    (codegen x '() '() '() (find-free x '()) #f p)                   
+    (get-output-string p)))
+
+
+;---------------------------------------------------------------------------------------------
+; Code deserialization and execution
+;---------------------------------------------------------------------------------------------
+
+;(define (execute-thunk-closure t) (t))
+
+; (define (make-closure code) ...) -- need builtin?
+
+;(define execute
+;  (lambda (code)
+;    (execute-thunk-closure (make-closure code))))
+
+;(define decode-sexp deserialize-sexp)
+
+;(define decode deserialize-code)
+
+;(define (evaluate x)
+;  (execute (decode (compile-to-string (transform #f x)))))
+
+
+;---------------------------------------------------------------------------------------------
+; Environments
+;---------------------------------------------------------------------------------------------
+
 ; new lookup procedure for alist-like macro environments
 
 (define (env-lookup id env full?) ;=> location (| #f)
@@ -677,6 +1160,12 @@
 (define (root-environment id)
   (env-lookup id *root-environment* #t))
 
+
+;---------------------------------------------------------------------------------------------
+; Evaluation
+;---------------------------------------------------------------------------------------------
+
+
 (define (transform! x)
   (let ([t (xform #t x root-environment)])
     (when (and (syntax-match? '(define-syntax * *) t) (id? (cadr t))) ; (procedure? (caddr t))
@@ -694,5 +1183,20 @@
       (let ([t (transform! x)])
         (write t) 
         (newline))
+      (loop (read p)))) 
+  (close-input-port p))
+
+(define (visit/c f) 
+  (define p (open-input-file f)) 
+  (let loop ([x (read p)]) 
+    (unless (eof-object? x)
+      (let ([t (transform! x)])
+        (write t) (newline)
+        (let exec ([x t]) 
+          (record-case x
+            [begin x* (for-each exec x*)]
+            [define (i v) (exec (list 'set! i v))]
+            [define-syntax (i m)]
+            [else (write (compile-to-string x)) (newline)])))
       (loop (read p)))) 
   (close-input-port p))
