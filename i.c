@@ -3426,6 +3426,16 @@ define_instruction(igco) {
   gonexti(); 
 }
 
+define_instruction(vmclo) {
+  int i, n = get_fixnum(*ip++);
+  if (n < 1) fail("invalid closure size");
+  hp_reserve(vmclobsz(n));
+  for (i = n-1; i >= 0; --i) *--hp = sref(i);
+  ac = hend_vmclo(n);
+  sdrop(n);
+  gonexti();
+}
+
 define_instruction(hshim) {
   unsigned long long v = (unsigned long long)ac, base = 0; obj b = spop(); 
   if (v && isaptr(v)) failtype(v, "immediate value");

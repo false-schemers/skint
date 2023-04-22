@@ -439,7 +439,7 @@
            (location-set-val! (env (car ids)) (xform #t (car inits) env))
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
-(define (xform-begin tail env) ; top-level
+(define (xform-begin tail env) ; non-internal
   (if (list? tail)
       (let ([xexps (map (lambda (sexp) (xform #f sexp env)) tail)])
         (if (and (pair? xexps) (null? (cdr xexps)))
@@ -447,7 +447,7 @@
             (cons 'begin xexps)))
       (x-error "improper begin form" (cons 'begin! tail))))
 
-(define (xform-define tail env) ; top-level
+(define (xform-define tail env) ; non-internal
   (cond [(and (list2? tail) (null? (car tail))) ; idless
          (xform #f (cadr tail) env)]
         [(and (list2? tail) (id? (car tail)))
@@ -459,7 +459,7 @@
         [else 
          (x-error "improper define form" (cons 'define tail))]))
 
-(define (xform-define-syntax tail env) ; top-level
+(define (xform-define-syntax tail env) ; non-internal
   (if (and (list2? tail) (id? (car tail)))
       (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))
       (x-error "improper define-syntax form" (cons 'define-syntax tail))))
@@ -1078,6 +1078,11 @@
     (codegen x '() '() '() (find-free x '()) #f p)                   
     (get-output-string p)))
 
+(define (compile-to-thunk-code x)
+  (let ([p (open-output-string)])
+    (codegen x '() '() '() (find-free x '()) 0 p)                   
+    (get-output-string p)))
+
 
 ;---------------------------------------------------------------------------------------------
 ; Code deserialization and execution
@@ -1158,23 +1163,78 @@
                    (loop l))])))))))
 
 (define (root-environment id)
-  (env-lookup id *root-environment* #t))
+  ; new protocol for top-level envs
+  (if (pair? id)
+      (record-case id
+        [define (i) i]
+        [define-syntax (i) (env-lookup i *root-environment* #t)])
+      (env-lookup id *root-environment* #t)))
 
 
 ;---------------------------------------------------------------------------------------------
 ; Evaluation
 ;---------------------------------------------------------------------------------------------
 
+(define (error* msg args)
+  (apply error (cons msg args)))
 
+; transformation of top-level form should process begin, define, and define-syntax
+; explicitly, so that they can produce and observe side effects on env
+
+(define (eval-top-form x env)
+  (if (pair? x)
+      (let ([hval (xform #t (car x) env)])
+        (cond
+          [(eq? hval 'begin)
+           (let loop ([x* (cdr x)])
+             (when (pair? x*) 
+               (eval-top-form (car x*) env)
+               (loop (cdr x*))))]
+          [(eq? hval 'define)
+           ; new protocol for top-level envs
+           (let* ([core (xform-define (cdr x) env)]
+                  [res (env (list 'define (cadr core)))])
+             (if res ; symbol (runtime store key) or #f
+                 (compile-and-run-core-expr (list 'set! res (caddr core)))
+                 (x-error "identifier cannot be (re)defined in env"
+                   (cadr core) env)))]
+          [(eq? hval 'define-syntax)
+           ; new protocol for top-level envs
+           (let* ([core (xform-define-syntax (cdr x) env)]
+                  [res (env (list 'define-syntax (cadr core)))])
+             (if res ; macro location or #f
+                 (location-set-val! res (caddr core))
+                 (x-error "identifier cannot be (re)defined as syntax in env"
+                   (cadr core) env)))]
+          [(procedure? hval)
+           (eval-top-form (hval x env) env)]
+          [(integrable? hval)
+           (compile-and-run-core-expr 
+             (xform-integrable hval (cdr x) env))]
+          [else
+           (compile-and-run-core-expr 
+             (xform #f x env))]))
+      (compile-and-run-core-expr 
+        (xform #f x env))))
+
+(define *verbose* #f)
+
+(define (compile-and-run-core-expr core)
+  (unless (pair? core) (x-error "unexpected transformed output" core))
+  (when *verbose* (write core) (newline))
+  (when (eq? (car core) 'define) (set-car! core 'set!))
+  (let ([code (compile-to-thunk-code core)])
+    (when *verbose* (write code) (newline))
+    (let* ([cl (closure (deserialize-code code))] [r (cl)])
+      (when *verbose* (write r) (newline)))))
+  
+#|
 (define (transform! x)
   (let ([t (xform #t x root-environment)])
     (when (and (syntax-match? '(define-syntax * *) t) (id? (cadr t))) ; (procedure? (caddr t))
-        (let ([loc (env-lookup (cadr t) *root-environment* #t)])
+        (let ([loc (root-environment (cadr t))])
           (when loc (location-set-val! loc (caddr t)))))
     t)) 
-
-(define (error* msg args)
-  (apply error (cons msg args)))
   
 (define (visit f) 
   (define p (open-input-file f)) 
@@ -1197,6 +1257,19 @@
             [begin x* (for-each exec x*)]
             [define (i v) (exec (list 'set! i v))]
             [define-syntax (i m)]
-            [else (write (compile-to-string x)) (newline)])))
+            [else (write (compile-to-thunk-code x)) (newline)])))
       (loop (read p)))) 
   (close-input-port p))
+|#
+
+
+(define (visit/x f) 
+  (define p (open-input-file f)) 
+  (let loop ([x (read p)]) 
+    (unless (eof-object? x)
+      (when *verbose* (write x) (newline))
+      (eval-top-form x root-environment)
+      (when *verbose* (newline))
+      (loop (read p)))) 
+  (close-input-port p))
+

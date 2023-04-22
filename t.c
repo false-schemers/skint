@@ -537,6 +537,10 @@ char *t_code[] = {
   "%1P51,${.2,f,${n,.8,@(y9:find-free)[02},n,n,n,.9,@(y7:codegen)[07}.0P9"
   "0]2",
 
+  "P", "compile-to-thunk-code",
+  "%1P51,${.2,'0,${n,.8,@(y9:find-free)[02},n,n,n,.9,@(y7:codegen)[07}.0P"
+  "90]2",
+
   "P", "env-lookup",
   "%3.0K0?{.0,@(y7:old-den)[31}.1,,#0.4,.3,.2,&3{%1.0p?{:1,.1aaq?{.0ad]1}"
   ".0d,:0^[11}.0V0?{.0V3,.0,:1H2,.0,.3V4,.0,:1A3,.0?{.0d]5}:1U5,.0?{.0}{:"
@@ -553,30 +557,42 @@ char *t_code[] = {
   "2}.5,:2^[71}f]5}.!0.0^_1[01}_1_1_1@!(y18:*root-environment*)",
 
   "P", "root-environment",
-  "%1t,@(y18:*root-environment*),.2,@(y10:env-lookup)[13",
-
-  "P", "transform!",
-  "%1${@(y16:root-environment),.3,t,@(y5:xform)[03},${.2,'(l3:y13:define-"
-  "syntax;y1:*;y1:*;),@(y13:syntax-match?)[02}?{${.2da,@(y3:id?)[01}}{f}?"
-  "{${t,@(y18:*root-environment*),.4da,@(y10:env-lookup)[03},.0?{.1dda,.1"
-  "sz}_1}.0]2",
+  "%1.0p?{'(y6:define),.1aq?{.0d,&0{%1.0]1},@(y13:apply-to-list)[12}'(y13"
+  ":define-syntax),.1aq?{.0d,&0{%1t,@(y18:*root-environment*),.2,@(y10:en"
+  "v-lookup)[13},@(y13:apply-to-list)[12}'(y16:record-case-miss)]1}t,@(y1"
+  "8:*root-environment*),.2,@(y10:env-lookup)[13",
 
   "P", "error*",
   "%2.1,.1c,@(y5:error),@(y13:apply-to-list)[22",
 
-  "P", "visit",
-  "%1,#0${.3,@(y15:open-input-file)[01}.!0${${.4^,@(y4:read)[01},,#0.4,.1"
-  ",&2{%1.0R8~?{${.2,@(y10:transform!)[01},Po,.1W5PoW6_1${:1^,@(y4:read)["
-  "01},:0^[11}]1}.!0.0^_1[01}.0^P60]2",
+  "P", "eval-top-form",
+  "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."
+  "0p?{${:1,.3a,@(y13:eval-top-form)[02}.0d,:0^[11}]1}.!0.0^_1[31}'(y6:de"
+  "fine),.1q?{${.4,.4d,@(y12:xform-define)[02},${.2da,'(y6:define),l2,.6["
+  "01},.0?{.1dda,.1,'(y4:set!),l3,@(y25:compile-and-run-core-expr)[51}.4,"
+  ".2da,'(s39:identifier cannot be (re)defined in env),@(y7:x-error)[53}'"
+  "(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define-syntax)[02},${.2d"
+  "a,'(y13:define-syntax),l2,.6[01},.0?{.1dda,.1sz]5}.4,.2da,'(s49:identi"
+  "fier cannot be (re)defined as syntax in env),@(y7:x-error)[53}.0K0?{.2"
+  ",${.5,.5,.5[02},@(y13:eval-top-form)[32}.0U0?{${.4,.4d,.4,@(y16:xform-"
+  "integrable)[03},@(y25:compile-and-run-core-expr)[31}${.4,.4,f,@(y5:xfo"
+  "rm)[03},@(y25:compile-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},"
+  "@(y25:compile-and-run-core-expr)[21",
 
-  "P", "visit/c",
+  "C", 0,
+  "f@!(y9:*verbose*)",
+
+  "P", "compile-and-run-core-expr",
+  "%1.0p~?{${.2,'(s29:unexpected transformed output),@(y7:x-error)[02}}@("
+  "y9:*verbose*)?{Po,.1W5PoW6}'(y6:define),.1aq?{'(y4:set!),.1sa}${.2,@(y"
+  "21:compile-to-thunk-code)[01},@(y9:*verbose*)?{Po,.1W5PoW6}.0U4,U91,${"
+  ".2[00},@(y9:*verbose*)?{Po,.1W5PoW6]4}]4",
+
+  "P", "visit/x",
   "%1,#0${.3,@(y15:open-input-file)[01}.!0${${.4^,@(y4:read)[01},,#0.4,.1"
-  ",&2{%1.0R8~?{${.2,@(y10:transform!)[01},Po,.1W5PoW6${.2,,#0.0,&1{%1'(y"
-  "5:begin),.1aq?{.0d,:0,&1{%!0.0,:0^,@(y10:%25for-each1)[12},@(y13:apply"
-  "-to-list)[12}'(y6:define),.1aq?{.0d,:0,&1{%2.1,.1,'(y4:set!),l3,:0^[21"
-  "},@(y13:apply-to-list)[12}'(y13:define-syntax),.1aq?{.0d,&0{%2]2},@(y1"
-  "3:apply-to-list)[12}Po,${.3,@(y17:compile-to-string)[01}W5PoW6]1}.!0.0"
-  "^_1[01}_1${:1^,@(y4:read)[01},:0^[11}]1}.!0.0^_1[01}.0^P60]2",
+  ",&2{%1.0R8~?{@(y9:*verbose*)?{Po,.1W5PoW6}${@(y16:root-environment),.3"
+  ",@(y13:eval-top-form)[02}@(y9:*verbose*)?{PoW6}${:1^,@(y4:read)[01},:0"
+  "^[11}]1}.!0.0^_1[01}.0^P60]2",
 
   0, 0, 0
 };
