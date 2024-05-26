@@ -134,7 +134,6 @@
 ;  <core> -> (set& <id>)
 ;  <core> -> (lambda <ids> <core>) where <ids> -> (<id> ...) | (<id> ... . <id>) | <id>
 ;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>) 
-;  <core> -> (syntax-lambda (<id> ...) <core>)
 ;  <core> -> (letcc <id> <core>) 
 ;  <core> -> (withcc <core> <core>) 
 ;  <core> -> (begin <core> ...)
@@ -147,6 +146,16 @@
 
 ;  <core> -> (define <id> <core>)
 ;  <core> -> (define-syntax <id> <transformer>)
+
+;  These names are bound to specials never returned by xform:
+
+;  (syntax <value>)
+;  (body <expr or def> ...)
+;  (syntax-lambda (<id> ...) <expr>)
+;  (syntax-rules (<id> ...) <rule> ...)
+;  (syntax-length <form>)
+;  (syntax-error <msg> <arg> ...)
+
 
 (define idslist?
   (lambda (x)
@@ -192,10 +201,11 @@
 ; <denotation>  ->  <location>
 ; <location>    ->  #&<value>
 ; <value>       ->  <special> | <core>
-; <special>     ->  <builtin> | <transformer>
+; <special>     ->  <builtin> | <integrable> | <transformer>
 ; <builtin>     ->  syntax | quote | set! | set& | if | lambda | lambda* |
 ;                   letcc | withcc | body | begin | define | define-syntax |
-;                   syntax-lambda | syntax-rules | syntax-length | syntax-error  
+;                   syntax-lambda | syntax-rules | syntax-length | syntax-error
+; <integrable>  ->  <fixnum serving as index in internal integrables table>
 ; <transformer> ->  <procedure of exp and env returning exp>
 
 (define-syntax  val-core?          pair?)
@@ -210,6 +220,12 @@
 (define (old-den id)               (cdr (id)))
 (define (id? x)                    (or (symbol? x) (procedure? x)))
 (define (id->sym id)               (if (symbol? id) id (old-sym id)))
+
+; Expand-time environments map identifiers (symbolic or thunked) to denotations, i.e. locations
+; containing either a <special> or a <core> value. In normal case, <core> value is (ref <gid>),
+; where <gid> is a key in run-time store, aka *globals*. Environments should allocate new locations
+; as needed, so every identifier gets mapped to one. Expand-time environments are represented as
+; one-argument procedures.
 
 (define (extend-xenv env id bnd)   (lambda (i) (if (eq? id i) bnd (env i))))
 
@@ -232,7 +248,7 @@
 ; xform receives Scheme s-expressions and returns either Core Scheme <core>
 ; (always a pair) or special-form, which is either a builtin (a symbol) or
 ; a transformer (a procedure). Appos? flag is true when the context can
-; allow xform to return a transformer; otherwise, only <core> is accepted. 
+; allow xform to return a special; otherwise, only <core> is returned. 
 
 (define (xform appos? sexp env)
   (cond [(id? sexp) 
@@ -468,6 +484,7 @@
   (if (and (list2+? tail) (andmap id? (car tail)))
       (let ([vars (car tail)] [macenv env] [forms (cdr tail)])
         ; return a transformer that wraps xformed body in (syntax ...)
+        ; to make sure xform treats it as final <core> form and exits the loop
         (lambda (use useenv)
           (if (and (list1+? use) (fx=? (length vars) (length (cdr use))))
               (let loop ([vars vars] [exps (cdr use)] [env macenv])
@@ -476,7 +493,7 @@
                     (loop (cdr vars) (cdr exps)
                       (add-location (car vars) 
                         (xform #t (car exps) useenv) env))))  
-              (x-error "invalif syntax-lambda application" use))))  
+              (x-error "invalid syntax-lambda application" use))))  
       (x-error "improper syntax-lambda body" (cons 'syntax-lambda tail))))
 
 (define (xform-syntax-rules tail env)

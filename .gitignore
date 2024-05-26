@@ -56,3 +56,7 @@ save/
 
 tests/r5rstest.ss
 tests/r7rstest.ss
+tmp1
+tmp2
+tmp3
+skint
