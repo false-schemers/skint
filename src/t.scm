@@ -190,7 +190,8 @@
 ; Macro transformer (from Scheme to Scheme Core) derived from Al Petrofsky's EIOD 1.17
 ;---------------------------------------------------------------------------------------------
 
-; An environment is a procedure that accepts any identifier and returns a denotation.
+; An environment is a procedure that accepts any identifier and access type and returns a 
+; denotation. Access type is one of these symbols: ref, set!, define, define-syntax.
 ; The denotation of an identifier is its macro location, which is a cell storing the 
 ; identifier's current syntactic value. Location's value can be changed later.
 
@@ -225,15 +226,23 @@
 ; containing either a <special> or a <core> value. In normal case, <core> value is (ref <gid>),
 ; where <gid> is a key in run-time store, aka *globals*. Environments should allocate new locations
 ; as needed, so every identifier gets mapped to one. Expand-time environments are represented as
-; one-argument procedures.
+; two-argument procedures, where the second argument is an access type symbol.
 
-(define (extend-xenv env id bnd)   (lambda (i) (if (eq? id i) bnd (env i))))
+(define (extend-xenv-local id val env)
+  (let ([loc (make-location val)])
+    (lambda (i at) 
+      (if (eq? id i)
+          (case at [(ref set!) loc] [else #f]) 
+          (env i at)))))
 
-(define (add-location key val env) ; adds as-is     
-  (extend-xenv env key (make-location val)))
+(define (add-local-var id gid env)
+  (extend-xenv-local id (list 'ref gid) env))
 
-(define (add-var var val env) ; adds renamed var as <core>
-  (extend-xenv env var (make-location (list 'ref val))))
+(define (xenv-lookup env id at)
+  (or (env id at)
+      (error* "transformer: invalid identifier access" (list id at))))
+
+(define (xenv-ref env id) (xenv-lookup env id 'ref))
 
 (define (xform-sexp->datum sexp)
   (let conv ([sexp sexp])
@@ -290,7 +299,7 @@
                                       (xform-call hval tail env)))]))]))
 
 (define (xform-ref id env)
-  (let ([den (env id)])
+  (let ([den (xenv-ref env id)])
     (cond [(eq? (location-val den) '...) (x-error "improper use of ...")]
           [else (location-val den)])))
 
@@ -301,7 +310,7 @@
 
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
-      (let ([den (env (car tail))] [xexp (xform #f (cadr tail) env)])
+      (let ([den (xenv-lookup env (car tail) 'set!)] [xexp (xform #f (cadr tail) env)])
         (cond [(location-special? den) (location-set-val! den xexp) '(begin)]
               [else (let ([val (location-val den)])
                       (if (eq? (car val) 'ref)
@@ -311,7 +320,7 @@
 
 (define (xform-set& tail env)
   (if (list1? tail)
-      (let ([den (env (car tail))])      
+      (let ([den (xenv-lookup env (car tail) 'set!)])      
         (cond [(location-special? den) (x-error "set& of a non-variable")]
               [else (let ([val (location-val den)])
                       (if (eq? (car val) 'ref)
@@ -354,12 +363,12 @@
       (let loop ([vars (car tail)] [ienv env] [ipars '()])
         (cond [(pair? vars)
                (let* ([var (car vars)] [nvar (gensym (id->sym var))])
-                 (loop (cdr vars) (add-var var nvar ienv) (cons nvar ipars)))]
+                 (loop (cdr vars) (add-local-var var nvar ienv) (cons nvar ipars)))]
               [(null? vars)
                (list 'lambda (reverse ipars) (xform-body (cdr tail) ienv))]
               [else ; improper 
                (let* ([var vars] [nvar (gensym (id->sym var))] 
-                      [ienv (add-var var nvar ienv)])
+                      [ienv (add-local-var var nvar ienv)])
                  (list 'lambda (append (reverse ipars) nvar)
                    (xform-body (cdr tail) ienv)))]))
       (x-error "improper lambda body" (cons 'lambda tail))))
@@ -383,7 +392,7 @@
   (if (and (list2+? tail) (id? (car tail)))
       (let* ([var (car tail)] [nvar (gensym (id->sym var))])
         (list 'letcc nvar 
-          (xform-body (cdr tail) (add-var var nvar env))))
+          (xform-body (cdr tail) (add-local-var var nvar env))))
       (x-error "improper letcc form" (cons 'letcc tail))))
 
 (define (xform-withcc tail env)
@@ -416,18 +425,18 @@
                            (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))]
                         [(and (list2? tail) (id? (car tail)))
                          (let* ([id (car tail)] [init (cadr tail)]
-                                [nid (gensym (id->sym id))] [env (add-var id nid env)])
+                                [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
                         [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
                          (let* ([id (caar tail)] [lambda-id (new-id 'lambda (make-location 'lambda))] 
                                 [init (cons lambda-id (cons (cdar tail) (cdr tail)))]
-                                [nid (gensym (id->sym id))] [env (add-var id nid env)])
+                                [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
                         [else (x-error "improper define form" first)])]
                  [(define-syntax) ; internal
                   (if (and (list2? tail) (id? (car tail))) 
                       (let* ([id (car tail)] [init (cadr tail)]
-                             [env (add-location id '(undefined) env)])
+                             [env (extend-xenv-local id '(undefined) env)])
                         (loop env (cons id ids) (cons init inits) (cons #t nids) rest))
                       (x-error "improper define-syntax form" first))]
                  [else
@@ -452,7 +461,7 @@
              (cons (xform-set! (list (car ids) (car inits)) env) sets)
              (cons (car nids) lids))]
           [else ; define-syntax
-           (location-set-val! (env (car ids)) (xform #t (car inits) env))
+           (location-set-val! (xenv-lookup env (car ids) 'set!) (xform #t (car inits) env))
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
 (define (xform-begin tail env) ; non-internal
@@ -491,7 +500,7 @@
                 (if (null? vars)
                     (list 'syntax (xform-body forms env))
                     (loop (cdr vars) (cdr exps)
-                      (add-location (car vars) 
+                      (extend-xenv-local (car vars) 
                         (xform #t (car exps) useenv) env))))  
               (x-error "invalid syntax-lambda application" use))))  
       (x-error "improper syntax-lambda body" (cons 'syntax-lambda tail))))
@@ -529,7 +538,7 @@
   (define (ellipsis? x)
     (if ellipsis
         (eq? x ellipsis)
-        (and (id? x) (ellipsis-denotation? (mac-env x)))))
+        (and (id? x) (ellipsis-denotation? (xenv-ref mac-env x)))))
 
   ; List-ids returns a list of the non-ellipsis ids in a
   ; pattern or template for which (pred? id) is true.  If
@@ -558,7 +567,8 @@
           (cond
             [(id? pat)
               (if (pat-literal? pat)
-                  (continue-if (and (id? sexp) (eq? (use-env sexp) (mac-env pat))))
+                  (continue-if 
+                    (and (id? sexp) (eq? (xenv-ref use-env sexp) (xenv-ref mac-env pat))))
                   (cons (cons pat sexp) bindings))]
             [(vector? pat)
              (or (vector? sexp) (fail))
@@ -589,7 +599,7 @@
     ; fresh ids, but that's okay because when we go to retrieve a
     ; fresh id, assq will always retrieve the first one.
     (define new-literals
-      (map (lambda (id) (cons id (new-id (id->sym id) (mac-env id))))
+      (map (lambda (id) (cons id (new-id (id->sym id) (xenv-ref mac-env id))))
            (list-ids tmpl #t
              (lambda (id) (not (assq id top-bindings))))))
 
@@ -1125,17 +1135,18 @@
 ; Environments
 ;---------------------------------------------------------------------------------------------
 
-; new lookup procedure for alist-like macro environments
+; new lookup procedure for explicit macro environments
 
-(define (env-lookup id env full?) ;=> location (| #f)
+(define (env-lookup id env at) ;=> location (| #f)
   (if (procedure? id)
-      (old-den id) ; nonsymbolic ids can't be globally bound
+      ; nonsymbolic ids can't be (re)defined
+      (case at [(ref set!) (old-den id)] [else #f])
       (let loop ([env env])
-        (cond [(pair? env)
+        (cond [(pair? env) ; imported
                (if (eq? (caar env) id)
-                   (cdar env) ; location
+                   (case at [(ref set!) (cdar env)] [else #f])
                    (loop (cdr env)))]
-              [(vector? env) ; root
+              [(vector? env) ; root (can be extended)
                (let* ([n (vector-length env)] [i (immediate-hash id n)]
                       [al (vector-ref env i)] [p (assq id al)])
                  (if p (cdr p)
@@ -1144,9 +1155,9 @@
                        (vector-set! env i (cons (cons id loc) al))
                        loc)))]
               [(string? env) ; module prefix
-               (and full?
+               (and (memq at '(define define-syntax))
                  (let ([gid (string->symbol (string-append env (symbol->string id)))])
-                   (env-lookup gid *root-environment* #t)))]
+                   (env-lookup gid *root-environment* 'ref)))]
               [else ; finite env 
                #f]))))
 
@@ -1170,8 +1181,8 @@
                  (loop l)]
                 [(and (pair? v) (eq? (car v) 'syntax-rules))
                  (body
-                   (define (sr-env id) 
-                     (env-lookup id *root-environment* #t))
+                   (define (sr-env id at) 
+                     (env-lookup id *root-environment* at))
                    (define sr-v
                      (if (id? (cadr v))
                          (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
@@ -1179,13 +1190,8 @@
                    (put! k (make-location sr-v))
                    (loop l))])))))))
 
-(define (root-environment id)
-  ; new protocol for top-level envs
-  (if (pair? id)
-      (record-case id
-        [define (i) i]
-        [define-syntax (i) (env-lookup i *root-environment* #t)])
-      (env-lookup id *root-environment* #t)))
+(define (root-environment id at)
+  (env-lookup id *root-environment* at))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1210,17 +1216,18 @@
           [(eq? hval 'define)
            ; new protocol for top-level envs
            (let* ([core (xform-define (cdr x) env)]
-                  [res (env (list 'define (cadr core)))])
-             (if res ; symbol (runtime store key) or #f
-                 (compile-and-run-core-expr (list 'set! res (caddr core)))
-                 (x-error "identifier cannot be (re)defined in env"
+                  [loc (xenv-lookup env (cadr core) 'define)])
+             (if (and loc (syntax-match? '(ref *) (location-val loc)))
+                 (compile-and-run-core-expr 
+                   (list 'set! (cadr (location-val loc)) (caddr core)))
+                 (x-error "identifier cannot be (re)defined in env" 
                    (cadr core) env)))]
           [(eq? hval 'define-syntax)
            ; new protocol for top-level envs
            (let* ([core (xform-define-syntax (cdr x) env)]
-                  [res (env (list 'define-syntax (cadr core)))])
-             (if res ; macro location or #f
-                 (location-set-val! res (caddr core))
+                  [loc (xenv-lookup env (cadr core) 'define-syntax)])
+             (if loc ; location or #f
+                 (location-set-val! loc (caddr core))
                  (x-error "identifier cannot be (re)defined as syntax in env"
                    (cadr core) env)))]
           [(procedure? hval)
