@@ -1194,6 +1194,161 @@
   (env-lookup id *root-environment* at))
 
 
+; standard library environments 
+
+(define *std-lib->env* '())
+
+(for-each
+  (lambda (r)
+    (define (key->lib k)
+      (case k
+        [(w) '(scheme write)]
+        [(t) '(scheme time)]
+        [(p) '(scheme repl)]
+        [(r) '(scheme read)]
+        [(v) '(scheme r5rs)]
+        [(u) '(scheme r5rs-null)]
+        [(s) '(scheme process-context)]
+        [(d) '(scheme load)]
+        [(z) '(scheme lazy)]
+        [(i) '(scheme inexact)]
+        [(f) '(scheme file)]
+        [(e) '(scheme eval)]
+        [(x) '(scheme cxr)]
+        [(o) '(scheme complex)]
+        [(h) '(scheme char)]
+        [(l) '(scheme case-lambda)]
+        [(b) '(scheme base)]))
+    (define (put-loc! env k loc)
+      (let* ([n (vector-length env)] [i (immediate-hash k n)] 
+            [al (vector-ref env i)] [p (assq k al)])
+        (cond [p (set-cdr! p loc)]
+              [else (vector-set! env i (cons (cons k loc) al))])))
+    (define (get-env-vec! lib)
+      (cond
+        [(assoc lib *std-lib->env*) => cdr]
+        [else (let* ([n 37] ; use prime number
+                    [env (make-vector n '())])
+                (set! *std-lib->env* (cons (cons lib env) *std-lib->env*))
+                env)]))
+    (let loop ([name (car r)] [keys (cdr r)])
+      (unless (null? keys)
+        (put-loc! (get-env-vec! (key->lib (car keys))) name (root-environment name 'ref))
+        (loop name (cdr keys)))))
+  '((* v b) (+ v b) (- v b) (... v u b) (/ v b) (< v b)
+    (<= v b) (= v b) (=> v u b) (> v b) (>= v b) (_ b) (abs v b)
+    (and v u b) (append v b) (apply v b) (assoc v b) (assq v b)
+    (assv v b) (begin v u b) (binary-port? b) (boolean=? b)
+    (boolean? v b) (bytevector b) (bytevector-append b)
+    (bytevector-copy b) (bytevector-copy! b)
+    (bytevector-length b) (bytevector-u8-ref b)
+    (bytevector-u8-set! b) (bytevector? b) (caar v b) (cadr v b)
+    (call-with-current-continuation v b) (call-with-port b)
+    (call-with-values v b) (call/cc b) (car v b) (case v u b)
+    (cdar v b) (cddr v b) (cdr v b) (ceiling v b)
+    (char->integer v b) (char-ready? v b) (char<=? v b)
+    (char<? v b) (char=? v b) (char>=? v b) (char>? v b)
+    (char? b) (close-input-port v b) (close-output-port v b)
+    (close-port b) (complex? v b) (cond v u b) (cond-expand b)
+    (cons v b) (current-error-port b) (current-input-port v b)
+    (current-output-port v b) (define v u b)
+    (define-record-type b) (define-syntax v u b)
+    (define-values b) (denominator v b) (do v u b)
+    (dynamic-wind v b) (else v u b) (eof-object b)
+    (eof-object? v b) (eq? v b) (equal? v b) (eqv? v b)
+    (error b) (error-object-irritants b)
+    (error-object-message b) (error-object? b) (even? v b)
+    (exact b) (exact-integer-sqrt b) (exact-integer? b)
+    (exact? v b) (expt v b) (features b) (file-error? b)
+    (floor v b) (floor-quotient b) (floor-remainder b)
+    (floor/ b) (flush-output-port b) (for-each v b) (gcd v b)
+    (get-output-bytevector b) (get-output-string b) (guard b)
+    (if v u b) (include b) (include-ci b) (inexact b)
+    (inexact? v b) (input-port-open? b) (input-port? v b)
+    (integer->char v b) (integer? v b) (lambda v u b) (lcm v b)
+    (length v b) (let v u b) (let* v u b) (let*-values b)
+    (let-syntax v u b) (let-values b) (letrec v u b) (letrec* b)
+    (letrec-syntax v u b) (list v b) (list->string v b)
+    (list->vector v b) (list-copy b) (list-ref v b)
+    (list-set! b) (list-tail v b) (list? v b)
+    (make-bytevector b) (make-list b) (make-parameter b)
+    (make-string v b) (make-vector v b) (map v b) (max v b)
+    (member v b) (memq v b) (memv v b) (min v b) (modulo v b)
+    (negative? v b) (newline v b) (not v b) (null? v b)
+    (number->string v b) (number? v b) (numerator v b)
+    (odd? v b) (open-input-bytevector b) (open-input-string b)
+    (open-output-bytevector b) (open-output-string b) (or v u b)
+    (output-port-open? b) (output-port? v b) (pair? v b)
+    (parameterize b) (peek-char v b) (peek-u8 b) (port? b)
+    (positive? v b) (procedure? v b) (quasiquote v u b)
+    (quote v u b) (quotient v b) (raise b) (raise-continuable b)
+    (rational? v b) (rationalize v b) (read-bytevector b)
+    (read-bytevector! b) (read-char v b) (read-error? b)
+    (read-line b) (read-string b) (read-u8 b) (real? v b)
+    (remainder v b) (reverse v b) (round v b) (set! v b)
+    (set-car! v b) (set-cdr! v b) (square b) (string v b)
+    (string->list v b) (string->number v b) (string->symbol v b)
+    (string->utf8 b) (string->vector b) (string-append v b)
+    (string-copy v b) (string-copy! b) (string-fill! v b)
+    (string-for-each b) (string-length v b) (string-map b)
+    (string-ref v b) (string-set! v b) (string<=? v b)
+    (string<? v b) (string=? v b) (string>=? v b) (string>? v b)
+    (string? v b) (substring v b) (symbol->string v b)
+    (symbol=? b) (symbol? v b) (syntax-error b)
+    (syntax-rules v u b) (textual-port? b) (truncate v b)
+    (truncate-quotient b) (truncate-remainder b) (truncate/ b)
+    (u8-ready? b) (unless b) (unquote v u b)
+    (unquote-splicing v u b) (utf8->string b) (values v b)
+    (vector v b) (vector->list v b) (vector->string b)
+    (vector-append b) (vector-copy b) (vector-copy! b)
+    (vector-fill! v b) (vector-for-each b) (vector-length v b)
+    (vector-map b) (vector-ref v b) (vector-set! v b)
+    (vector? v b) (when b) (with-exception-handler b)
+    (write-bytevector b) (write-char v b) (write-string b)
+    (write-u8 b) (zero? v b) (case-lambda l)
+    (char-alphabetic? v h) (char-ci<=? v h) (char-ci<? v h)
+    (char-ci=? v h) (char-ci>=? v h) (char-ci>? v h)
+    (char-downcase v h) (char-foldcase h) (char-lower-case? v h)
+    (char-numeric? v h) (char-upcase v h) (char-upper-case? v h)
+    (char-whitespace? v h) (digit-value h) (string-ci<=? v h)
+    (string-ci<? v h) (string-ci=? v h) (string-ci>=? v h)
+    (string-ci>? v h) (string-downcase h) (string-foldcase h)
+    (string-upcase h) (angle v o) (imag-part v o)
+    (magnitude v o) (make-polar v o) (make-rectangular v o)
+    (real-part v o) (caaar v x) (caadr v x) (cadar v x)
+    (caddr v x) (cdaar v x) (cdadr v x) (cddar v x) (cdddr v x)
+    (caaaar v x) (caaadr v x) (caadar v x) (caaddr v x)
+    (cadaar v x) (cadadr v x) (caddar v x) (cadddr v x)
+    (cdaaar v x) (cdaadr v x) (cdadar v x) (cdaddr v x)
+    (cddaar v x) (cddadr v x) (cdddar v x) (cddddr v x)
+    (environment e) (eval v e) (call-with-input-file v f)
+    (call-with-output-file v f) (delete-file f) (file-exists? f)
+    (open-binary-input-file f) (open-binary-output-file f)
+    (open-input-file v f) (open-output-file v f)
+    (with-input-from-file v f) (with-output-to-file v f)
+    (acos v z i) (asin v z i) (atan v z i) (cos v z i)
+    (exp v z i) (finite? z i) (infinite? i) (log v i) (nan? i)
+    (sin v i) (sqrt v i) (tan v i) (delay v u z) (delay-force z)
+    (force v z) (make-promise z) (promise? z) (load v d)
+    (command-line s) (emergency-exit s) (exit s)
+    (get-environment-variable s) (get-environment-variables s)
+    (display w v) (exact->inexact v) (inexact->exact v)
+    (interaction-environment p v) (null-environment v)
+    (read r v) (scheme-report-environment v) (write w v)
+    (current-jiffy t) (current-second t) (jiffies-per-second t)
+    (write-shared w) (write-simple w)))
+
+(define (std-lib->env lib)
+  (cond [(assoc lib *std-lib->env*) =>
+         (lambda (lv)
+           (let* ([v (cdr lv)] [n (vector-length v)])
+             (lambda (id at)
+               (and (eq? at 'ref)
+                 (let* ([i (immediate-hash id n)] [al (vector-ref v i)] [p (assq id al)])
+                   (if p (cdr p) #f))))))]
+        [else #f]))
+
+
 ;---------------------------------------------------------------------------------------------
 ; Evaluation
 ;---------------------------------------------------------------------------------------------
