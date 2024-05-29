@@ -1142,27 +1142,27 @@
       ; nonsymbolic ids can't be (re)defined
       (case at [(ref set!) (old-den id)] [else #f])
       (let loop ([env env])
-        (cond [(pair? env) ; imported
+        (cond [(pair? env) ; imported: ref-only
                (if (eq? (caar env) id)
-                   (case at [(ref set!) (cdar env)] [else #f])
+                   (case at [(ref) (cdar env)] [else #f])
                    (loop (cdr env)))]
               [(vector? env) ; root (can be extended)
                (let* ([n (vector-length env)] [i (immediate-hash id n)]
                       [al (vector-ref env i)] [p (assq id al)])
                  (if p (cdr p)
-                     ; implicitly append integrables and "naked" globals
+                     ; implicitly/on demand append integrables and "naked" globals
                      (let ([loc (make-location (or (lookup-integrable id) (list 'ref id)))])
                        (vector-set! env i (cons (cons id loc) al))
                        loc)))]
-              [(string? env) ; module prefix
-               (and (memq at '(define define-syntax))
+              [(string? env) ; module prefix = module internals: full access
+               (and (memq at '(ref set! define define-syntax))
                  (let ([gid (string->symbol (string-append env (symbol->string id)))])
                    (env-lookup gid *root-environment* 'ref)))]
               [else ; finite env 
                #f]))))
 
 
-; make root environment from the list of initial transformers
+; make root environment (a vector) from the list of initial transformers
 
 (define *root-environment*
   (let* ([n 101] ; use prime number
@@ -1204,40 +1204,90 @@
 ; transformation of top-level form should process begin, define, and define-syntax
 ; explicitly, so that they can produce and observe side effects on env
 
+(define (visit-top-form x env)
+  (if (pair? x)
+      (let ([hval (xform #t (car x) env)])
+        (cond
+          [(eq? hval 'begin)
+           ; splice
+           (let loop ([x* (cdr x)])
+             (when (pair? x*) 
+               (visit-top-form (car x*) env)
+               (loop (cdr x*))))]
+          [(eq? hval 'define)
+           ; use new protocol for top-level envs
+           (let* ([core (xform-define (cdr x) env)]
+                  [loc (xenv-lookup env (cadr core) 'define)])
+             (if (and loc (syntax-match? '(ref *) (location-val loc)))
+                 #t
+                 (x-error "identifier cannot be (re)defined in env:" 
+                   (cadr core) env)))]
+          [(eq? hval 'define-syntax)
+           ; use new protocol for top-level envs
+           (let* ([core (xform-define-syntax (cdr x) env)]
+                  [loc (xenv-lookup env (cadr core) 'define-syntax)])
+             (if loc ; location or #f
+                 (location-set-val! loc (caddr core)) ; modifies env!
+                 (x-error "identifier cannot be (re)defined as syntax in env:"
+                   (cadr core) env)))]
+          [(procedure? hval)
+           ; transformer: apply and loop
+           (visit-top-form (hval x env) env)]
+          [(integrable? hval)
+           ; no env effect possible here
+           #t]
+          [(symbol? hval)
+           ; other specials: no env effect possible here (?? set! ??)
+           #t]
+          [else
+           ; regular call: no env effect possible here
+           #t]))
+      ; var refs and literals : xform for access check
+      #t))
+
 (define (eval-top-form x env)
   (if (pair? x)
       (let ([hval (xform #t (car x) env)])
         (cond
           [(eq? hval 'begin)
+           ; splice
            (let loop ([x* (cdr x)])
              (when (pair? x*) 
                (eval-top-form (car x*) env)
                (loop (cdr x*))))]
           [(eq? hval 'define)
-           ; new protocol for top-level envs
+           ; use new protocol for top-level envs
            (let* ([core (xform-define (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define)])
              (if (and loc (syntax-match? '(ref *) (location-val loc)))
                  (compile-and-run-core-expr 
                    (list 'set! (cadr (location-val loc)) (caddr core)))
-                 (x-error "identifier cannot be (re)defined in env" 
+                 (x-error "identifier cannot be (re)defined in env:" 
                    (cadr core) env)))]
           [(eq? hval 'define-syntax)
-           ; new protocol for top-level envs
+           ; use new protocol for top-level envs
            (let* ([core (xform-define-syntax (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define-syntax)])
              (if loc ; location or #f
                  (location-set-val! loc (caddr core))
-                 (x-error "identifier cannot be (re)defined as syntax in env"
+                 (x-error "identifier cannot be (re)defined as syntax in env:"
                    (cadr core) env)))]
           [(procedure? hval)
+           ; transformer: apply and loop
            (eval-top-form (hval x env) env)]
           [(integrable? hval)
+           ; integrable application
            (compile-and-run-core-expr 
              (xform-integrable hval (cdr x) env))]
-          [else
+          [(symbol? hval)
+           ; other specials
            (compile-and-run-core-expr 
-             (xform #f x env))]))
+             (xform #f x env))]
+          [else
+           ; regular call
+           (compile-and-run-core-expr 
+             (xform-call hval (cdr x) env))]))
+      ; var refs and literals
       (compile-and-run-core-expr 
         (xform #f x env))))
 
@@ -1286,6 +1336,15 @@
   (close-input-port p))
 |#
 
+(define (visit/v f) 
+  (define p (open-input-file f)) 
+  (let loop ([x (read p)]) 
+    (unless (eof-object? x)
+      (when *verbose* (write x) (newline))
+      (visit-top-form x root-environment)
+      (when *verbose* (newline))
+      (loop (read p)))) 
+  (close-input-port p))
 
 (define (visit/x f) 
   (define p (open-input-file f)) 

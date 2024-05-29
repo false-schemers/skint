@@ -552,11 +552,11 @@ char *t_code[] = {
 
   "P", "env-lookup",
   "%3.0K0?{.2,'(l2:y3:ref;y4:set!;),.1A1?{.1,@(y7:old-den)[41}f]4}.1,,#0."
-  "4,.3,.2,&3{%1.0p?{:1,.1aaq?{:2,'(l2:y3:ref;y4:set!;),.1A1?{.1ad]2}f]2}"
-  ".0d,:0^[11}.0V0?{.0V3,.0,:1H2,.0,.3V4,.0,:1A3,.0?{.0d]5}:1U5,.0?{.0}{:"
-  "1,'(y3:ref),l2}_1b,.2,.1,:1cc,.4,.7V5.0]6}.0S0?{'(l2:y6:define;y13:def"
-  "ine-syntax;),:2A0?{:1X4,.1S6X5,'(y3:ref),@(y18:*root-environment*),.2,"
-  "@(y10:env-lookup)[23}f]1}f]1}.!0.0^_1[31",
+  "4,.3,.2,&3{%1.0p?{:1,.1aaq?{:2,'(y3:ref),.1v?{.1ad]2}f]2}.0d,:0^[11}.0"
+  "V0?{.0V3,.0,:1H2,.0,.3V4,.0,:1A3,.0?{.0d]5}:1U5,.0?{.0}{:1,'(y3:ref),l"
+  "2}_1b,.2,.1,:1cc,.4,.7V5.0]6}.0S0?{'(l4:y3:ref;y4:set!;y6:define;y13:d"
+  "efine-syntax;),:2A0?{:1X4,.1S6X5,'(y3:ref),@(y18:*root-environment*),."
+  "2,@(y10:env-lookup)[23}f]1}f]1}.!0.0^_1[31",
 
   "C", 0,
   "'(i101),n,.1V2,,#0.2,.2,&2{%2:1,.1H2,.0,:0V4,.0,.3A3,.0?{.4,.1sd]5}.1,"
@@ -573,20 +573,33 @@ char *t_code[] = {
   "P", "error*",
   "%2.1,.1c,@(y5:error),@(y13:apply-to-list)[22",
 
+  "P", "visit-top-form",
+  "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."
+  "0p?{${:1,.3a,@(y14:visit-top-form)[02}.0d,:0^[11}]1}.!0.0^_1[31}'(y6:d"
+  "efine),.1q?{${.4,.4d,@(y12:xform-define)[02},${'(y6:define),.3da,.7,@("
+  "y11:xenv-lookup)[03},.0?{${.2z,'(l2:y3:ref;y1:*;),@(y13:syntax-match?)"
+  "[02}}{f}?{t]5}.4,.2da,'(s40:identifier cannot be (re)defined in env:),"
+  "@(y7:x-error)[53}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define"
+  "-syntax)[02},${'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03},.0?"
+  "{.1dda,.1sz]5}.4,.2da,'(s50:identifier cannot be (re)defined as syntax"
+  " in env:),@(y7:x-error)[53}.0K0?{.2,${.5,.5,.5[02},@(y14:visit-top-for"
+  "m)[32}.0U0?{t]3}.0Y0?{t]3}t]3}t]2",
+
   "P", "eval-top-form",
   "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."
   "0p?{${:1,.3a,@(y13:eval-top-form)[02}.0d,:0^[11}]1}.!0.0^_1[31}'(y6:de"
   "fine),.1q?{${.4,.4d,@(y12:xform-define)[02},${'(y6:define),.3da,.7,@(y"
   "11:xenv-lookup)[03},.0?{${.2z,'(l2:y3:ref;y1:*;),@(y13:syntax-match?)["
   "02}}{f}?{.1dda,.1zda,'(y4:set!),l3,@(y25:compile-and-run-core-expr)[51"
-  "}.4,.2da,'(s39:identifier cannot be (re)defined in env),@(y7:x-error)["
-  "53}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define-syntax)[02},$"
-  "{'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03},.0?{.1dda,.1sz]5}"
-  ".4,.2da,'(s49:identifier cannot be (re)defined as syntax in env),@(y7:"
-  "x-error)[53}.0K0?{.2,${.5,.5,.5[02},@(y13:eval-top-form)[32}.0U0?{${.4"
-  ",.4d,.4,@(y16:xform-integrable)[03},@(y25:compile-and-run-core-expr)[3"
-  "1}${.4,.4,f,@(y5:xform)[03},@(y25:compile-and-run-core-expr)[31}${.3,."
-  "3,f,@(y5:xform)[03},@(y25:compile-and-run-core-expr)[21",
+  "}.4,.2da,'(s40:identifier cannot be (re)defined in env:),@(y7:x-error)"
+  "[53}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define-syntax)[02},"
+  "${'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03},.0?{.1dda,.1sz]5"
+  "}.4,.2da,'(s50:identifier cannot be (re)defined as syntax in env:),@(y"
+  "7:x-error)[53}.0K0?{.2,${.5,.5,.5[02},@(y13:eval-top-form)[32}.0U0?{${"
+  ".4,.4d,.4,@(y16:xform-integrable)[03},@(y25:compile-and-run-core-expr)"
+  "[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y25:compile-and-run-core-expr)[3"
+  "1}${.4,.4d,.4,@(y10:xform-call)[03},@(y25:compile-and-run-core-expr)[3"
+  "1}${.3,.3,f,@(y5:xform)[03},@(y25:compile-and-run-core-expr)[21",
 
   "C", 0,
   "f@!(y9:*verbose*)",
@@ -596,6 +609,12 @@ char *t_code[] = {
   "y9:*verbose*)?{Po,.1W5PoW6}'(y6:define),.1aq?{'(y4:set!),.1sa}${.2,@(y"
   "21:compile-to-thunk-code)[01},@(y9:*verbose*)?{Po,.1W5PoW6}.0U4,U91,${"
   ".2[00},@(y9:*verbose*)?{Po,.1W5PoW6]4}]4",
+
+  "P", "visit/v",
+  "%1,#0${.3,@(y15:open-input-file)[01}.!0${${.4^,@(y4:read)[01},,#0.4,.1"
+  ",&2{%1.0R8~?{@(y9:*verbose*)?{Po,.1W5PoW6}${@(y16:root-environment),.3"
+  ",@(y14:visit-top-form)[02}@(y9:*verbose*)?{PoW6}${:1^,@(y4:read)[01},:"
+  "0^[11}]1}.!0.0^_1[01}.0^P60]2",
 
   "P", "visit/x",
   "%1,#0${.3,@(y15:open-input-file)[01}.!0${${.4^,@(y4:read)[01},,#0.4,.1"
