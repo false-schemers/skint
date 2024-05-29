@@ -1198,8 +1198,16 @@
 ; Evaluation
 ;---------------------------------------------------------------------------------------------
 
+(define *reset* #f)
+
 (define (error* msg args)
-  (apply error (cons msg args)))
+  (if (procedure? *reset*)
+      (let ([p (current-error-port)])
+        (display msg p) (newline p)
+        (for-each (lambda (arg) (write arg p) (newline p)) args)
+        (*reset* #f))
+      (apply error (cons msg args)))) 
+
 
 ; transformation of top-level form should process begin, define, and define-syntax
 ; explicitly, so that they can produce and observe side effects on env
@@ -1302,40 +1310,6 @@
     (let* ([cl (closure (deserialize-code code))] [r (cl)])
       (when *verbose* (write r) (newline)))))
   
-#|
-(define (transform! x)
-  (let ([t (xform #t x root-environment)])
-    (when (and (syntax-match? '(define-syntax * *) t) (id? (cadr t))) ; (procedure? (caddr t))
-        (let ([loc (root-environment (cadr t))])
-          (when loc (location-set-val! loc (caddr t)))))
-    t)) 
-  
-(define (visit f) 
-  (define p (open-input-file f)) 
-  (let loop ([x (read p)]) 
-    (unless (eof-object? x)
-      (let ([t (transform! x)])
-        (write t) 
-        (newline))
-      (loop (read p)))) 
-  (close-input-port p))
-
-(define (visit/c f) 
-  (define p (open-input-file f)) 
-  (let loop ([x (read p)]) 
-    (unless (eof-object? x)
-      (let ([t (transform! x)])
-        (write t) (newline)
-        (let exec ([x t]) 
-          (record-case x
-            [begin x* (for-each exec x*)]
-            [define (i v) (exec (list 'set! i v))]
-            [define-syntax (i m)]
-            [else (write (compile-to-thunk-code x)) (newline)])))
-      (loop (read p)))) 
-  (close-input-port p))
-|#
-
 (define (visit/v f) 
   (define p (open-input-file f)) 
   (let loop ([x (read p)]) 
@@ -1355,4 +1329,103 @@
       (when *verbose* (newline))
       (loop (read p)))) 
   (close-input-port p))
+
+
+;---------------------------------------------------------------------------------------------
+; REPL
+;---------------------------------------------------------------------------------------------
+
+(define (repl-environment id at) ; FIXME: need to happen in a "repl." namespace
+  (env-lookup id *root-environment* at))
+
+(define (repl-compile-and-run-core-expr core)
+  (when *verbose* (display "TRANSFORM =>") (newline) (write core) (newline))
+  (unless (pair? core) (x-error "unexpected transformed output" core))
+  (let ([code (compile-to-thunk-code core)] [start #f])
+    (when *verbose* 
+      (display "COMPILE-TO-STRING =>") (newline) (display code) (newline)
+      (display "DECODE+EXECUTE =>") (newline)
+      (set! start (current-jiffy)))
+    (let* ([cl (closure (deserialize-code code))] [res (cl)])
+      (when *verbose* 
+        (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
+        (display " ms.") (newline))
+      (unless (eq? res (void)) (write res) (newline)))))      
+
+(define (repl-eval-top-form x env)
+  (letcc catch
+    (set! *reset* catch)
+    (if (pair? x)
+        (let ([hval (xform #t (car x) env)])
+          (cond
+            [(eq? hval 'begin)
+            ; splice
+            (let loop ([x* (cdr x)])
+              (when (pair? x*) 
+                (repl-eval-top-form (car x*) env)
+                (loop (cdr x*))))]
+            [(eq? hval 'define)
+            ; use new protocol for top-level envs
+            (let* ([core (xform-define (cdr x) env)]
+                    [loc (xenv-lookup env (cadr core) 'define)])
+              (if (and loc (syntax-match? '(ref *) (location-val loc)))
+                  (repl-compile-and-run-core-expr 
+                    (list 'set! (cadr (location-val loc)) (caddr core)))
+                  (x-error "identifier cannot be (re)defined in env:" 
+                    (cadr core) env)))]
+            [(eq? hval 'define-syntax)
+            ; use new protocol for top-level envs
+            (let* ([core (xform-define-syntax (cdr x) env)]
+                    [loc (xenv-lookup env (cadr core) 'define-syntax)])
+              (if loc ; location or #f
+                  (location-set-val! loc (caddr core))
+                  (x-error "identifier cannot be (re)defined as syntax in env:"
+                    (cadr core) env))
+              (when *verbose* (display "SYNTAX INSTALLED: ") (write (cadr core)) (newline)))]
+            [(procedure? hval)
+            ; transformer: apply and loop
+            (repl-eval-top-form (hval x env) env)]
+            [(integrable? hval)
+            ; integrable application
+            (repl-compile-and-run-core-expr 
+              (xform-integrable hval (cdr x) env))]
+            [(symbol? hval)
+            ; other specials
+            (repl-compile-and-run-core-expr 
+              (xform #f x env))]
+            [else
+            ; regular call
+            (repl-compile-and-run-core-expr 
+              (xform-call hval (cdr x) env))]))
+        ; var refs and literals
+        (repl-compile-and-run-core-expr 
+          (xform #f x env)))))
+
+(define (repl-read iport)
+  (when (eq? iport (current-input-port))
+    (display "\nskint] "))
+  (read iport))
+
+(define (repl-from-port iport)
+  (let loop ([x (repl-read iport)])
+    (unless (eof-object? x)
+      (repl-eval-top-form x repl-environment)
+      (loop (repl-read iport)))))
+
+(define (repl-file fname)
+  (define iport (open-input-file fname))
+  (repl-from-port iport)
+  (close-input-port iport))
+
+(define (benchmark-file fname)
+  (define iport (open-input-file fname))
+  (unless (syntax-match? '(load "libl.sf") (read iport))
+    (error "unexpected benchmark file format" fname))
+  (repl-from-port iport)
+  (repl-eval-top-form '(main #f) repl-environment)  
+  (close-input-port iport))
+
+(define (run-repl)
+  (repl-from-port (current-input-port)))
+
 
