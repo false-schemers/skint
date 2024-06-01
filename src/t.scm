@@ -1227,14 +1227,17 @@
     (define (get-env-vec! lib)
       (cond
         [(assoc lib *std-lib->env*) => cdr]
-        [else (let* ([n 37] ; use prime number
-                    [env (make-vector n '())])
+        [else (let* ([n (if (eq? lib '(skint repl)) 101 37)] ; use prime number
+                     [env (make-vector n '())])
                 (set! *std-lib->env* (cons (cons lib env) *std-lib->env*))
                 env)]))
     (let loop ([name (car r)] [keys (cdr r)])
-      (unless (null? keys)
-        (put-loc! (get-env-vec! (key->lib (car keys))) name (root-environment name 'ref))
-        (loop name (cdr keys)))))
+      (cond 
+        [(null? keys)
+         (put-loc! (get-env-vec! '(skint repl)) name (root-environment name 'ref))]
+        [else
+         (put-loc! (get-env-vec! (key->lib (car keys))) name (root-environment name 'ref))
+         (loop name (cdr keys))])))
   '((* v b) (+ v b) (- v b) (... v u b) (/ v b) (< v b)
     (<= v b) (= v b) (=> v u b) (> v b) (>= v b) (_ b) (abs v b)
     (and v u b) (append v b) (apply v b) (assoc v b) (assq v b)
@@ -1341,11 +1344,18 @@
 (define (std-lib->env lib)
   (cond [(assoc lib *std-lib->env*) =>
          (lambda (lv)
-           (let* ([v (cdr lv)] [n (vector-length v)])
-             (lambda (id at)
-               (and (eq? at 'ref)
-                 (let* ([i (immediate-hash id n)] [al (vector-ref v i)] [p (assq id al)])
-                   (if p (cdr p) #f))))))]
+           (let* ([v (cdr lv)] [n (vector-length v)]) 
+             (if (eq? lib '(skint repl))
+                 (lambda (id at)
+                   (let* ([i (immediate-hash id n)] [al (vector-ref v i)] [p (assq id al)])
+                     (if p (cdr p)
+                         (let ([loc (make-location (list 'ref id))])
+                           (vector-set! v i (cons (cons id loc) al))
+                           loc))))
+                 (lambda (id at)
+                   (and (eq? at 'ref)
+                     (let* ([i (immediate-hash id n)] [al (vector-ref v i)] [p (assq id al)])
+                       (if p (cdr p) #f)))))))]
         [else #f]))
 
 
