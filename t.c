@@ -66,6 +66,9 @@ char *t_code[] = {
   "P", "list2+?",
   "%1.0p?{.0d,@(y7:list1+?)[11}f]1",
 
+  "P", "error*",
+  "%2${.3,.3,f,@(y12:error-object)[03},@(y5:raise)[21",
+
   "P", "idslist?",
   "%1.0u?{t]1}.0p?{${.2a,@(y3:id?)[01}?{.0d,@(y8:idslist?)[11}f]1}.0,@(y3"
   ":id?)[11",
@@ -728,14 +731,6 @@ char *t_code[] = {
   "1,.6cc,.4,:0V5.0]6}]5}.1,.1,&2{%2'(y3:ref),.2q?{:0,.1H2,.0,:1V4,.0,.3A"
   "3,.0?{.0d]5}f]5}f]2}]5}f]2",
 
-  "C", 0,
-  "f@!(y7:*reset*)",
-
-  "P", "error*",
-  "%2@(y7:*reset*)K0?{Pe,.0,.2W4.0W6${.4,.3,&1{%1:0,.1W5:0W6]1},@(y10:%25"
-  "for-each1)[02}f,@(y7:*reset*)[31}.1,.1c,@(y5:error),@(y13:apply-to-lis"
-  "t)[22",
-
   "P", "visit-top-form",
   "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."
   "0p?{${:1,.3a,@(y14:visit-top-form)[02}.0d,:0^[11}]1}.!0.0^_1[31}'(y6:d"
@@ -797,44 +792,51 @@ char *t_code[] = {
   "000)*W5Po,'(s4: ms.)W4PoW6}Y9,.1q~?{Po,.1W5PoW6]5}]5",
 
   "P", "repl-eval-top-form",
-  "%2k2,.0@!(y7:*reset*).1p?{${.4,.4a,t,@(y5:xform)[03},'(y5:begin),.1q?{"
-  ".2d,,#0.5,.1,&2{%1.0p?{${:1,.3a,@(y18:repl-eval-top-form)[02}.0d,:0^[1"
-  "1}]1}.!0.0^_1[41}'(y6:define),.1q?{${.5,.5d,@(y12:xform-define)[02},${"
-  "'(y6:define),.3da,.8,@(y11:xenv-lookup)[03},.0?{${.2z,'(l2:y3:ref;y1:*"
-  ";),@(y13:syntax-match?)[02}}{f}?{.1dda,.1zda,'(y4:set!),l3,@(y30:repl-"
-  "compile-and-run-core-expr)[61}.5,.2da,'(s40:identifier cannot be (re)d"
-  "efined in env:),@(y7:x-error)[63}'(y13:define-syntax),.1q?{${.5,.5d,@("
-  "y19:xform-define-syntax)[02},${'(y13:define-syntax),.3da,.8,@(y11:xenv"
-  "-lookup)[03},.0?{.1dda,.1sz}{${.7,.4da,'(s50:identifier cannot be (re)"
-  "defined as syntax in env:),@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s18"
-  ":SYNTAX INSTALLED: )W4Po,.2daW5PoW6]6}]6}.0K0?{.3,${.6,.6,.5[02},@(y18"
-  ":repl-eval-top-form)[42}.0U0?{${.5,.5d,.4,@(y16:xform-integrable)[03},"
-  "@(y30:repl-compile-and-run-core-expr)[41}.0Y0?{${.5,.5,f,@(y5:xform)[0"
-  "3},@(y30:repl-compile-and-run-core-expr)[41}${.5,.5d,.4,@(y10:xform-ca"
-  "ll)[03},@(y30:repl-compile-and-run-core-expr)[41}${.4,.4,f,@(y5:xform)"
-  "[03},@(y30:repl-compile-and-run-core-expr)[31",
+  "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."
+  "0p?{${:1,.3a,@(y18:repl-eval-top-form)[02}.0d,:0^[11}]1}.!0.0^_1[31}'("
+  "y6:define),.1q?{${.4,.4d,@(y12:xform-define)[02},${'(y6:define),.3da,."
+  "7,@(y11:xenv-lookup)[03},.0?{${.2z,'(l2:y3:ref;y1:*;),@(y13:syntax-mat"
+  "ch?)[02}}{f}?{.1dda,.1zda,'(y4:set!),l3,@(y30:repl-compile-and-run-cor"
+  "e-expr)[51}.4,.2da,'(s40:identifier cannot be (re)defined in env:),@(y"
+  "7:x-error)[53}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define-sy"
+  "ntax)[02},${'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03},.0?{.1"
+  "dda,.1sz}{${.6,.4da,'(s50:identifier cannot be (re)defined as syntax i"
+  "n env:),@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s18:SYNTAX INSTALLED: "
+  ")W4Po,.2daW5PoW6]5}]5}.0K0?{.2,${.5,.5,.5[02},@(y18:repl-eval-top-form"
+  ")[32}.0U0?{${.4,.4d,.4,@(y16:xform-integrable)[03},@(y30:repl-compile-"
+  "and-run-core-expr)[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30:repl-compi"
+  "le-and-run-core-expr)[31}${.4,.4d,.4,@(y10:xform-call)[03},@(y30:repl-"
+  "compile-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},@(y30:repl-com"
+  "pile-and-run-core-expr)[21",
 
   "P", "repl-read",
-  "%1Pi,.1q?{Po,'(s8:%0askint] )W4}.0,@(y4:read)[11",
+  "%2.1?{PoW6Po,.2W4Po,'(s1: )W4}.0,@(y4:read)[21",
 
   "P", "repl-from-port",
-  "%1${.2,@(y9:repl-read)[01},,#0.2,.1,&2{%1.0R8~?{${@(y16:repl-environme"
-  "nt),.3,@(y18:repl-eval-top-form)[02}${:1,@(y9:repl-read)[01},:0^[11}]1"
-  "}.!0.0^_1[11",
+  "%3${k0,.0,${.2,.8,.(i10),.9,&4{%0:3,&1{%!0.0,&1{%0:0,@(y6:values),@(y1"
+  "3:apply-to-list)[02},:0[11},:0,:1,:2,&3{%0${:1,:2,@(y9:repl-read)[02},"
+  ",#0:0,:2,:1,.3,&4{%1.0R8~?{${:3,.3,@(y18:repl-eval-top-form)[02}${:1,:"
+  "2,@(y9:repl-read)[02},:0^[11}]1}.!0.0^_1[01},@(y16:call-with-values)[0"
+  "2},.9,.9,.9,.6,&4{%1${k0,.0,${.6,:1,:2,:3,&4{%0:3,${.2,@(y13:error-obj"
+  "ect?)[01}?{Pe,.0,${.4,@(y20:error-object-message)[01}W4.0W6${${.5,@(y2"
+  "2:error-object-irritants)[01},.3,&1{%1:0,.1W5:0W6]1},@(y10:%25for-each"
+  "1)[02}_1:0?{:0,:1,:2,@(y14:repl-from-port)[13}]1}Pe,.0,'(s14:Unknown e"
+  "rror:)W4.0W6.0,.2W5.0W6_1:0?{:0,:1,:2,@(y14:repl-from-port)[13}]1},:0["
+  "01}_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[30",
 
   "P", "repl-file",
-  "%1,#0${.3,@(y15:open-input-file)[01}.!0${.2^,@(y14:repl-from-port)[01}"
-  ".0^P60]2",
+  "%2,#0${.3,@(y15:open-input-file)[01}.!0${f,.5,.4^,@(y14:repl-from-port"
+  ")[03}.0^P60]3",
 
   "P", "benchmark-file",
   "%1,#0${.3,@(y15:open-input-file)[01}.!0${${.4^,@(y4:read)[01},'(l2:y4:"
   "load;s7:libl.sf;),@(y13:syntax-match?)[02}~?{${.3,'(s32:unexpected ben"
-  "chmark file format),@(y5:error)[02}}${.2^,@(y14:repl-from-port)[01}${@"
-  "(y16:repl-environment),'(l2:y4:main;f;),@(y18:repl-eval-top-form)[02}."
-  "0^P60]2",
+  "chmark file format),@(y5:error)[02}}${f,@(y16:repl-environment),.4^,@("
+  "y14:repl-from-port)[03}${@(y16:repl-environment),'(l2:y4:main;f;),@(y1"
+  "8:repl-eval-top-form)[02}.0^P60]2",
 
   "P", "run-repl",
-  "%0Pi,@(y14:repl-from-port)[01",
+  "%0'(s6:skint]),@(y16:repl-environment),Pi,@(y14:repl-from-port)[03",
 
   0, 0, 0
 };
