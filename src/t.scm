@@ -58,30 +58,46 @@
          (apply (lambda ids exp ...) (cdr id))
          (record-case id clause ...))]))
 
-(define syntax-match?
-  (lambda (pat exp)
-    (or (eq? pat '*)
-        (equal? exp pat)
-        (and (pair? pat)
-             (cond
-              [(and (eq? (car pat) '$)
-                    (pair? (cdr pat))
-                    (null? (cddr pat)))
-               (eq? exp (cadr pat))]
-              [(and (pair? (cdr pat))
-                    (eq? (cadr pat) '...)
-                    (null? (cddr pat)))
-               (let ([pat (car pat)])
-                 (define (f lst)
-                   (or (null? lst)
-                       (and (pair? lst)
-                            (syntax-match? pat (car lst))
-                            (f (cdr lst)))))  
-                 (f exp))]
-              [else
-               (and (pair? exp)
-                    (syntax-match? (car pat) (car exp))
-                    (syntax-match? (cdr pat) (cdr exp)))])))))
+(define (sexp-match? pat x)
+  (or (eq? pat '*)
+      (and (eq? pat '<symbol>) (symbol? x))
+      (and (eq? pat '<string>) (string? x))
+      (eq? x pat)
+      (and (pair? pat)
+            (cond [(and (eq? (car pat) '...)
+                        (pair? (cdr pat))
+                        (null? (cddr pat)))
+                  (eq? x (cadr pat))]
+                  [(and (pair? (cdr pat))
+                        (eq? (cadr pat) '...)
+                        (null? (cddr pat)))
+                  (let ([pat (car pat)])
+                    (if (eq? pat '*)
+                        (list? x)
+                        (let loop ([lst x])
+                          (or (null? lst)
+                              (and (pair? lst)
+                                    (sexp-match? pat (car lst))
+                                    (loop (cdr lst)))))))]
+                  [else
+                  (and (pair? x)
+                        (sexp-match? (car pat) (car x))
+                        (sexp-match? (cdr pat) (cdr x)))]))))
+
+(define-syntax sexp-case
+  (syntax-rules (else)
+    [(_ (key ...) clauses ...)
+     (let ([atom-key (key ...)])
+       (sexp-case atom-key clauses ...))]
+    [(_ key (else result1 result2 ...))
+     (begin result1 result2 ...)]
+    [(_ key (pat result1 result2 ...))
+     (if (sexp-match? 'pat key)
+         (begin result1 result2 ...))]
+    [(_ key (pat result1 result2 ...) clause clauses ...)
+     (if (sexp-match? 'pat key)
+         (begin result1 result2 ...)
+         (sexp-case key clause clauses ...))]))
 
 ; unique symbol generator (poor man's version)
 (define gensym
@@ -115,6 +131,14 @@
     (if (null? rest) x 
         (cons x (loop (car rest) (cdr rest))))))
 
+(define (append* lst)
+  (cond [(null? lst) '()]
+        [(null? (cdr lst)) (car lst)]
+        [else (append (car lst) (append* (cdr lst)))]))
+
+(define (string-append* l) 
+  (apply string-append l)) 
+
 (define (andmap p l)
   (if (pair? l) (and (p (car l)) (andmap p (cdr l))) #t))
 
@@ -123,8 +147,15 @@
 (define (list2? x) (and (pair? x) (list1? (cdr x))))
 (define (list2+? x) (and (pair? x) (list1+? (cdr x))))
 
+(define (read-code-sexp port)
+  ; for now, we will just use read with no support for circular structures
+  (read-simple port))
+
 (define (error* msg args)
   (raise (error-object #f msg args)))
+
+(define (warning* msg args)
+  (print-error-message (string-append "Warning: " msg) args (current-error-port)))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -738,6 +769,9 @@
 (define (c-error msg . args)
   (error* (string-append "compiler: " msg) args))
 
+(define (c-warning msg . args)
+  (warning* (string-append "compiler: " msg) args))
+
 (define find-free*
   (lambda (x* b)
     (if (null? x*)
@@ -1115,23 +1149,182 @@
 
 
 ;---------------------------------------------------------------------------------------------
-; Code deserialization and execution
+; Path and file name resolution
 ;---------------------------------------------------------------------------------------------
 
-;(define (execute-thunk-closure t) (t))
+(define (path-strip-directory filename)
+  (let loop ([l (reverse (string->list filename))] [r '()])
+    (cond [(null? l) (list->string r)]
+          [(memv (car l) '(#\\ #\/ #\:)) (list->string r)]
+          [else (loop (cdr l) (cons (car l) r))])))
 
-; (define (make-closure code) ...) -- need builtin?
+(define (path-directory filename)
+  (let loop ([l (reverse (string->list filename))])
+    (cond [(null? l) ""]
+          [(memv (car l) '(#\\ #\/ #\:)) (list->string (reverse l))]
+          [else (loop (cdr l))])))
 
-;(define execute
-;  (lambda (code)
-;    (execute-thunk-closure (make-closure code))))
+(define (path-strip-extension filename) ;; improved
+  (let loop ([l (reverse (string->list filename))])
+    (cond [(null? l) filename]
+          [(eqv? (car l) #\.) (list->string (reverse (cdr l)))]
+          [(memv (car l) '(#\\ #\/ #\:)) filename]
+          [else (loop (cdr l))])))
 
-;(define decode-sexp deserialize-sexp)
+#;(define (path-extension filename)
+  (let loop ([l (reverse (string->list filename))] [r '()])
+    (cond [(null? l) ""]
+          [(memv (car l) '(#\\ #\/ #\:)) ""]
+          [(eqv? (car l) #\.) (list->string (cons #\. r))]
+          [else (loop (cdr l) (cons (car l) r))])))
 
-;(define decode deserialize-code)
+(define (base-path-separator basepath)
+  (let ([l (reverse (string->list basepath))])
+    (cond [(null? l) #f]
+          [(memv (car l) '(#\\ #\/)) (car l)]
+          [else #f])))
 
-;(define (evaluate x)
-;  (execute (decode (compile-to-string (transform #f x)))))
+(define (path-relative? filename)
+  (let ([l (string->list filename)])
+    (cond [(null? l) #f]
+          [(memv (car l) '(#\\ #\/)) #f]
+          [(and (> (length l) 3) (char-alphabetic? (car l)) (eqv? (cadr l) #\:) (eqv? (caddr l) #\\)) #f]
+          [else #t])))
+
+(define (file-resolve-relative-to-base-path filename basepath)
+  (if (and (path-relative? filename) (base-path-separator basepath))
+      (string-append basepath filename) ; leading . and .. to be resolved by OS
+      filename))
+
+; hacks for relative file name resolution
+
+(define *current-file-stack* '())
+
+(define (current-file) ;=> filename of #f
+  (and (pair? *current-file-stack*) (car *current-file-stack*)))
+
+(define (with-current-file filename thunk)
+  (dynamic-wind
+    (lambda () (set! *current-file-stack* (cons filename *current-file-stack*)))
+    thunk
+    (lambda () (set! *current-file-stack* (cdr *current-file-stack*)))))
+
+(define (file-resolve-relative-to-current filename) ; => resolved or original filename 
+  (if (path-relative? filename)
+      (let ([cf (current-file)])
+        (if cf (file-resolve-relative-to-base-path filename (path-directory cf)) filename))
+      filename))
+
+
+;---------------------------------------------------------------------------------------------
+; Library names and library file lookup
+;---------------------------------------------------------------------------------------------
+
+(define (listname-segment->string s)
+  (cond [(symbol? s) (symbol->string s)]
+        [(number? s) (number->string s)]
+        [(string? s) s]
+        [else (c-error "invalid symbolic file name element" s)]))
+
+(define modname-separator "_")
+
+(define (listname->modname listname)
+  (define sep modname-separator)
+  (let loop ([l listname] [r '()])
+    (if (pair? l)
+        (loop (cdr l) 
+              (if (null? r) 
+                  (cons (listname-segment->string (car l)) r) 
+                  (cons (listname-segment->string (car l)) (cons sep r))))
+        (string-append* (reverse r)))))
+
+(define (listname->path listname basepath ext)
+  (define sep 
+    (let ([sc (base-path-separator basepath)])
+      (if sc (string sc) (c-error "library path does not end in separator" basepath))))
+  (let loop ([l listname] [r '()])
+    (if (pair? l)
+        (loop (cdr l) 
+              (if (null? r) 
+                  (cons (listname-segment->string (car l)) r) 
+                  (cons (listname-segment->string (car l)) (cons sep r))))
+        (file-resolve-relative-to-base-path (string-append* (reverse (cons ext r))) basepath))))
+
+
+; hacks for locating library files
+
+(define *library-path-list* '())
+
+(define (add-library-path! path)
+  (if (base-path-separator path)
+      (set! *library-path-list* (append *library-path-list* (list path)))
+      (c-error "library path should end in directory separator" path))) 
+
+(define (find-library-path libname) ;=> name of existing .sld file or #f
+  (let loop ([l *library-path-list*])
+    (if (null? l)
+        #f
+        (let ([p (listname->path libname (car l) ".sld")]) 
+          (if (and p (file-exists? p)) p (loop (cdr l)))))))
+
+(define (resolve-input-file/lib-name name) ;=> path (or error is signalled)
+  (define filepath
+    (if (string? name)
+        (file-resolve-relative-to-current name)
+        (find-library-path name)))
+  (if (not filepath)
+      (if (string? name)
+          (c-error "cannot resolve file name to a file:" name)
+          (c-error "cannot resolve library name to a file:" name 'in *library-path-list*)))
+  (if (not (file-exists? filepath)) 
+      (c-error "cannot resolve file or library name to an existing file:" name '=> filepath))
+  filepath)
+
+(define (call-with-input-file/lib name ci? proc) ;=> (proc filepath port), called while name is current-file
+  (let ([filepath (resolve-input-file/lib-name name)])
+    (with-current-file filepath
+      (lambda ()
+        (call-with-input-file filepath
+          (lambda (port) 
+            (when ci? (set-port-fold-case! port #t))
+            (proc filepath port)))))))
+
+(define (call-with-file/lib-sexps name ci? proc) ;=> (proc sexps), called while name is current-file
+  (call-with-input-file/lib name ci? ;=>
+    (lambda (filepath port)
+      (let loop ([sexps '()])
+        (let ([s (read-code-sexp port)])
+          (if (eof-object? s)
+              (proc (reverse! sexps))
+              (loop (cons s sexps))))))))
+
+(define (for-each-file/lib-sexp proc name ci?) ; proc called while name is current-file
+  (call-with-input-file/lib name ci? ;=>
+    (lambda (filepath port)
+      (let loop ()
+        (let ([s (read-code-sexp port)])
+          (unless (eof-object? s) (proc s) (loop)))))))
+
+(define (file/lib->modname name)
+  (cond [(and (pair? name) (list? name)) (listname->modname name)]
+        [(string? name) (path-strip-extension (path-strip-directory name))]
+        [else (c-error "illegal file or library name:" name)]))
+  
+(define (file/lib/stdin->modname name)
+  (if (and (string? name) (string=? name "-"))
+      "stdin"
+      (file/lib->modname name)))
+
+; name prefixes
+
+(define (fully-qualified-prefix modname)
+  (string-append modname "."))
+
+(define (fully-qualified-library-prefix lib)
+  (fully-qualified-prefix (file/lib->modname lib)))
+
+(define (fully-qualified-library-prefixed-name lib id)
+  (string-append (file/lib->modname lib) "." (symbol->string id)))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1197,7 +1390,7 @@
   (env-lookup id *root-environment* at))
 
 
-; standard library environments 
+; standard library environments in sexp form 
 
 (define *std-lib->env* '())
 
@@ -1205,29 +1398,18 @@
   (lambda (r)
     (define (key->lib k)
       (case k
-        [(w) '(scheme write)]
-        [(t) '(scheme time)]
-        [(p) '(scheme repl)]
-        [(r) '(scheme read)]
-        [(v) '(scheme r5rs)]
-        [(u) '(scheme r5rs-null)]
-        [(s) '(scheme process-context)]
-        [(d) '(scheme load)]
-        [(z) '(scheme lazy)]
-        [(i) '(scheme inexact)]
-        [(f) '(scheme file)]
-        [(e) '(scheme eval)]
-        [(x) '(scheme cxr)]
-        [(o) '(scheme complex)]
-        [(h) '(scheme char)]
-        [(l) '(scheme case-lambda)]
-        [(b) '(scheme base)]))
+        [(w) '(scheme write)]   [(t) '(scheme time)]  [(p) '(scheme repl)]
+        [(r) '(scheme read)]    [(v) '(scheme r5rs)]  [(u) '(scheme r5rs-null)] 
+        [(d) '(scheme load)]    [(z) '(scheme lazy)]  [(s) '(scheme process-context)]
+        [(i) '(scheme inexact)] [(f) '(scheme file)]  [(e) '(scheme eval)]
+        [(o) '(scheme complex)] [(h) '(scheme char)]  [(l) '(scheme case-lambda)]
+        [(x) '(scheme cxr)]     [(b) '(scheme base)]))
     (define (put-loc! env k loc)
       (let* ([n (vector-length env)] [i (immediate-hash k n)] 
             [al (vector-ref env i)] [p (assq k al)])
         (cond [p (set-cdr! p loc)]
               [else (vector-set! env i (cons (cons k loc) al))])))
-    (define (get-env-vec! lib)
+    (define (get-env! lib)
       (cond
         [(assoc lib *std-lib->env*) => cdr]
         [else (let* ([n (if (eq? lib '(skint repl)) 101 37)] ; use prime number
@@ -1237,112 +1419,72 @@
     (let loop ([name (car r)] [keys (cdr r)])
       (cond 
         [(null? keys)
-         (put-loc! (get-env-vec! '(skint repl)) name (root-environment name 'ref))]
+         (put-loc! (get-env! '(skint repl)) name (root-environment name 'ref))]
         [else
-         (put-loc! (get-env-vec! (key->lib (car keys))) name (root-environment name 'ref))
+         (put-loc! (get-env! (key->lib (car keys))) name (root-environment name 'ref))
          (loop name (cdr keys))])))
-  '((* v b) (+ v b) (- v b) (... v u b) (/ v b) (< v b)
-    (<= v b) (= v b) (=> v u b) (> v b) (>= v b) (_ b) (abs v b)
-    (and v u b) (append v b) (apply v b) (assoc v b) (assq v b)
-    (assv v b) (begin v u b) (binary-port? b) (boolean=? b)
-    (boolean? v b) (bytevector b) (bytevector-append b)
-    (bytevector-copy b) (bytevector-copy! b)
-    (bytevector-length b) (bytevector-u8-ref b)
-    (bytevector-u8-set! b) (bytevector? b) (caar v b) (cadr v b)
-    (call-with-current-continuation v b) (call-with-port b)
-    (call-with-values v b) (call/cc b) (car v b) (case v u b)
-    (cdar v b) (cddr v b) (cdr v b) (ceiling v b)
-    (char->integer v b) (char-ready? v b) (char<=? v b)
-    (char<? v b) (char=? v b) (char>=? v b) (char>? v b)
-    (char? b) (close-input-port v b) (close-output-port v b)
-    (close-port b) (complex? v b) (cond v u b) (cond-expand b)
-    (cons v b) (current-error-port b) (current-input-port v b)
-    (current-output-port v b) (define v u b)
-    (define-record-type b) (define-syntax v u b)
-    (define-values b) (denominator v b) (do v u b)
-    (dynamic-wind v b) (else v u b) (eof-object b)
-    (eof-object? v b) (eq? v b) (equal? v b) (eqv? v b)
-    (error b) (error-object-irritants b)
-    (error-object-message b) (error-object? b) (even? v b)
-    (exact b) (exact-integer-sqrt b) (exact-integer? b)
-    (exact? v b) (expt v b) (features b) (file-error? b)
-    (floor v b) (floor-quotient b) (floor-remainder b)
-    (floor/ b) (flush-output-port b) (for-each v b) (gcd v b)
-    (get-output-bytevector b) (get-output-string b) (guard b)
-    (if v u b) (include b) (include-ci b) (inexact b)
-    (inexact? v b) (input-port-open? b) (input-port? v b)
-    (integer->char v b) (integer? v b) (lambda v u b) (lcm v b)
-    (length v b) (let v u b) (let* v u b) (let*-values b)
-    (let-syntax v u b) (let-values b) (letrec v u b) (letrec* b)
-    (letrec-syntax v u b) (list v b) (list->string v b)
-    (list->vector v b) (list-copy b) (list-ref v b)
-    (list-set! b) (list-tail v b) (list? v b)
-    (make-bytevector b) (make-list b) (make-parameter b)
-    (make-string v b) (make-vector v b) (map v b) (max v b)
-    (member v b) (memq v b) (memv v b) (min v b) (modulo v b)
-    (negative? v b) (newline v b) (not v b) (null? v b)
-    (number->string v b) (number? v b) (numerator v b)
-    (odd? v b) (open-input-bytevector b) (open-input-string b)
-    (open-output-bytevector b) (open-output-string b) (or v u b)
-    (output-port-open? b) (output-port? v b) (pair? v b)
-    (parameterize b) (peek-char v b) (peek-u8 b) (port? b)
-    (positive? v b) (procedure? v b) (quasiquote v u b)
-    (quote v u b) (quotient v b) (raise b) (raise-continuable b)
-    (rational? v b) (rationalize v b) (read-bytevector b)
-    (read-bytevector! b) (read-char v b) (read-error? b)
-    (read-line b) (read-string b) (read-u8 b) (real? v b)
-    (remainder v b) (reverse v b) (round v b) (set! v b)
-    (set-car! v b) (set-cdr! v b) (square b) (string v b)
-    (string->list v b) (string->number v b) (string->symbol v b)
-    (string->utf8 b) (string->vector b) (string-append v b)
-    (string-copy v b) (string-copy! b) (string-fill! v b)
-    (string-for-each b) (string-length v b) (string-map b)
-    (string-ref v b) (string-set! v b) (string<=? v b)
-    (string<? v b) (string=? v b) (string>=? v b) (string>? v b)
-    (string? v b) (substring v b) (symbol->string v b)
-    (symbol=? b) (symbol? v b) (syntax-error b)
-    (syntax-rules v u b) (textual-port? b) (truncate v b)
-    (truncate-quotient b) (truncate-remainder b) (truncate/ b)
-    (u8-ready? b) (unless b) (unquote v u b)
-    (unquote-splicing v u b) (utf8->string b) (values v b)
-    (vector v b) (vector->list v b) (vector->string b)
-    (vector-append b) (vector-copy b) (vector-copy! b)
-    (vector-fill! v b) (vector-for-each b) (vector-length v b)
-    (vector-map b) (vector-ref v b) (vector-set! v b)
-    (vector? v b) (when b) (with-exception-handler b)
-    (write-bytevector b) (write-char v b) (write-string b)
-    (write-u8 b) (zero? v b) (case-lambda l)
-    (char-alphabetic? v h) (char-ci<=? v h) (char-ci<? v h)
-    (char-ci=? v h) (char-ci>=? v h) (char-ci>? v h)
-    (char-downcase v h) (char-foldcase h) (char-lower-case? v h)
-    (char-numeric? v h) (char-upcase v h) (char-upper-case? v h)
-    (char-whitespace? v h) (digit-value h) (string-ci<=? v h)
-    (string-ci<? v h) (string-ci=? v h) (string-ci>=? v h)
-    (string-ci>? v h) (string-downcase h) (string-foldcase h)
-    (string-upcase h) (angle v o) (imag-part v o)
-    (magnitude v o) (make-polar v o) (make-rectangular v o)
-    (real-part v o) (caaar v x) (caadr v x) (cadar v x)
-    (caddr v x) (cdaar v x) (cdadr v x) (cddar v x) (cdddr v x)
-    (caaaar v x) (caaadr v x) (caadar v x) (caaddr v x)
-    (cadaar v x) (cadadr v x) (caddar v x) (cadddr v x)
-    (cdaaar v x) (cdaadr v x) (cdadar v x) (cdaddr v x)
-    (cddaar v x) (cddadr v x) (cdddar v x) (cddddr v x)
-    (environment e) (eval v e) (call-with-input-file v f)
-    (call-with-output-file v f) (delete-file f) (file-exists? f)
-    (open-binary-input-file f) (open-binary-output-file f)
-    (open-input-file v f) (open-output-file v f)
-    (with-input-from-file v f) (with-output-to-file v f)
-    (acos v z i) (asin v z i) (atan v z i) (cos v z i)
-    (exp v z i) (finite? z i) (infinite? i) (log v i) (nan? i)
-    (sin v i) (sqrt v i) (tan v i) (delay v u z) (delay-force z)
-    (force v z) (make-promise z) (promise? z) (load v d)
-    (command-line s) (emergency-exit s) (exit s)
-    (get-environment-variable s) (get-environment-variables s)
-    (display w v) (exact->inexact v) (inexact->exact v)
-    (interaction-environment p v) (null-environment v)
-    (read r v) (scheme-report-environment v) (write w v)
-    (current-jiffy t) (current-second t) (jiffies-per-second t)
-    (write-shared w) (write-simple w)))
+  '((* v b) (+ v b) (- v b) (... v u b) (/ v b) (< v b) (<= v b) (= v b) (=> v u b) (> v b) (>= v b)
+    (_ b) (abs v b) (and v u b) (append v b) (apply v b) (assoc v b) (assq v b) (assv v b) (begin v u b)
+    (binary-port? b) (boolean=? b) (boolean? v b) (bytevector b) (bytevector-append b)
+    (bytevector-copy b) (bytevector-copy! b) (bytevector-length b) (bytevector-u8-ref b)
+    (bytevector-u8-set! b) (bytevector? b) (caar v b) (cadr v b) (call-with-current-continuation v b)
+    (call-with-port b) (call-with-values v b) (call/cc b) (car v b) (case v u b) (cdar v b) (cddr v b)
+    (cdr v b) (ceiling v b) (char->integer v b) (char-ready? v b) (char<=? v b) (char<? v b)
+    (char=? v b) (char>=? v b) (char>? v b) (char? b) (close-input-port v b) (close-output-port v b)
+    (close-port b) (complex? v b) (cond v u b) (cond-expand b) (cons v b) (current-error-port b)
+    (current-input-port v b) (current-output-port v b) (define v u b) (define-record-type b)
+    (define-syntax v u b) (define-values b) (denominator v b) (do v u b) (dynamic-wind v b) (else v u b)
+    (eof-object b) (eof-object? v b) (eq? v b) (equal? v b) (eqv? v b) (error b)
+    (error-object-irritants b) (error-object-message b) (error-object? b) (even? v b) (exact b)
+    (exact-integer-sqrt b) (exact-integer? b) (exact? v b) (expt v b) (features b) (file-error? b)
+    (floor v b) (floor-quotient b) (floor-remainder b) (floor/ b) (flush-output-port b) (for-each v b)
+    (gcd v b) (get-output-bytevector b) (get-output-string b) (guard b) (if v u b) (include b)
+    (include-ci b) (inexact b) (inexact? v b) (input-port-open? b) (input-port? v b) (integer->char v b)
+    (integer? v b) (lambda v u b) (lcm v b) (length v b) (let v u b) (let* v u b) (let*-values b)
+    (let-syntax v u b) (let-values b) (letrec v u b) (letrec* b) (letrec-syntax v u b) (list v b)
+    (list->string v b) (list->vector v b) (list-copy b) (list-ref v b) (list-set! b) (list-tail v b)
+    (list? v b) (make-bytevector b) (make-list b) (make-parameter b) (make-string v b) (make-vector v b)
+    (map v b) (max v b) (member v b) (memq v b) (memv v b) (min v b) (modulo v b) (negative? v b)
+    (newline v b) (not v b) (null? v b) (number->string v b) (number? v b) (numerator v b) (odd? v b)
+    (open-input-bytevector b) (open-input-string b) (open-output-bytevector b) (open-output-string b)
+    (or v u b) (output-port-open? b) (output-port? v b) (pair? v b) (parameterize b) (peek-char v b)
+    (peek-u8 b) (port? b) (positive? v b) (procedure? v b) (quasiquote v u b) (quote v u b)
+    (quotient v b) (raise b) (raise-continuable b) (rational? v b) (rationalize v b) (read-bytevector b)
+    (read-bytevector! b) (read-char v b) (read-error? b) (read-line b) (read-string b) (read-u8 b)
+    (real? v b) (remainder v b) (reverse v b) (round v b) (set! v b) (set-car! v b) (set-cdr! v b)
+    (square b) (string v b) (string->list v b) (string->number v b) (string->symbol v b)
+    (string->utf8 b) (string->vector b) (string-append v b) (string-copy v b) (string-copy! b)
+    (string-fill! v b) (string-for-each b) (string-length v b) (string-map b) (string-ref v b)
+    (string-set! v b) (string<=? v b) (string<? v b) (string=? v b) (string>=? v b) (string>? v b)
+    (string? v b) (substring v b) (symbol->string v b) (symbol=? b) (symbol? v b) (syntax-error b)
+    (syntax-rules v u b) (textual-port? b) (truncate v b) (truncate-quotient b) (truncate-remainder b)
+    (truncate/ b) (u8-ready? b) (unless b) (unquote v u b) (unquote-splicing v u b) (utf8->string b)
+    (values v b) (vector v b) (vector->list v b) (vector->string b) (vector-append b) (vector-copy b)
+    (vector-copy! b) (vector-fill! v b) (vector-for-each b) (vector-length v b) (vector-map b)
+    (vector-ref v b) (vector-set! v b) (vector? v b) (when b) (with-exception-handler b)
+    (write-bytevector b) (write-char v b) (write-string b) (write-u8 b) (zero? v b) (case-lambda l)
+    (char-alphabetic? v h) (char-ci<=? v h) (char-ci<? v h) (char-ci=? v h) (char-ci>=? v h)
+    (char-ci>? v h) (char-downcase v h) (char-foldcase h) (char-lower-case? v h) (char-numeric? v h)
+    (char-upcase v h) (char-upper-case? v h) (char-whitespace? v h) (digit-value h) (string-ci<=? v h)
+    (string-ci<? v h) (string-ci=? v h) (string-ci>=? v h) (string-ci>? v h) (string-downcase h)
+    (string-foldcase h) (string-upcase h) (angle v o) (imag-part v o) (magnitude v o) (make-polar v o)
+    (make-rectangular v o) (real-part v o) (caaar v x) (caadr v x) (cadar v x) (caddr v x) (cdaar v x)
+    (cdadr v x) (cddar v x) (cdddr v x) (caaaar v x) (caaadr v x) (caadar v x) (caaddr v x) (cadaar v x)
+    (cadadr v x) (caddar v x) (cadddr v x) (cdaaar v x) (cdaadr v x) (cdadar v x) (cdaddr v x)
+    (cddaar v x) (cddadr v x) (cdddar v x) (cddddr v x) (environment e) (eval v e)
+    (call-with-input-file v f) (call-with-output-file v f) (delete-file f) (file-exists? f)
+    (open-binary-input-file f) (open-binary-output-file f) (open-input-file v f) (open-output-file v f)
+    (with-input-from-file v f) (with-output-to-file v f) (acos v z i) (asin v z i) (atan v z i)
+    (cos v z i) (exp v z i) (finite? z i) (infinite? i) (log v i) (nan? i) (sin v i) (sqrt v i)
+    (tan v i) (delay v u z) (delay-force z) (force v z) (make-promise z) (promise? z) (load v d)
+    (command-line s) (emergency-exit s) (exit s) (get-environment-variable s)
+    (get-environment-variables s) (display w v) (exact->inexact v) (inexact->exact v)
+    (interaction-environment p v) (null-environment v) (read r v) (scheme-report-environment v)
+    (write w v) (current-jiffy t) (current-second t) (jiffies-per-second t) (write-shared w)
+    (write-simple w)
+    ; skint extras go into (skint repl) environment only
+    (box?) (box) (unbox) (set-box!)
+    ))
 
 (define (std-lib->env lib)
   (cond [(assoc lib *std-lib->env*) =>
@@ -1383,7 +1525,7 @@
            ; use new protocol for top-level envs
            (let* ([core (xform-define (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define)])
-             (if (and loc (syntax-match? '(ref *) (location-val loc)))
+             (if (and loc (sexp-match? '(ref *) (location-val loc)))
                  #t
                  (x-error "identifier cannot be (re)defined in env:" 
                    (cadr core) env)))]
@@ -1424,7 +1566,7 @@
            ; use new protocol for top-level envs
            (let* ([core (xform-define (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define)])
-             (if (and loc (syntax-match? '(ref *) (location-val loc)))
+             (if (and loc (sexp-match? '(ref *) (location-val loc)))
                  (compile-and-run-core-expr 
                    (list 'set! (cadr (location-val loc)) (caddr core)))
                  (x-error "identifier cannot be (re)defined in env:" 
@@ -1469,22 +1611,22 @@
   
 (define (visit/v f) 
   (define p (open-input-file f)) 
-  (let loop ([x (read p)]) 
+  (let loop ([x (read-code-sexp p)]) 
     (unless (eof-object? x)
       (when *verbose* (write x) (newline))
       (visit-top-form x root-environment)
       (when *verbose* (newline))
-      (loop (read p)))) 
+      (loop (read-code-sexp p)))) 
   (close-input-port p))
 
 (define (visit/x f) 
   (define p (open-input-file f)) 
-  (let loop ([x (read p)]) 
+  (let loop ([x (read-code-sexp p)]) 
     (unless (eof-object? x)
       (when *verbose* (write x) (newline))
       (eval-top-form x root-environment)
       (when *verbose* (newline))
-      (loop (read p)))) 
+      (loop (read-code-sexp p)))) 
   (close-input-port p))
 
 
@@ -1523,7 +1665,7 @@
           ; use new protocol for top-level envs
           (let* ([core (xform-define (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define)])
-            (if (and loc (syntax-match? '(ref *) (location-val loc)))
+            (if (and loc (sexp-match? '(ref *) (location-val loc)))
                 (repl-compile-and-run-core-expr 
                   (list 'set! (cadr (location-val loc)) (caddr core)))
                 (x-error "identifier cannot be (re)defined in env:" 
@@ -1558,7 +1700,7 @@
 
 (define (repl-read iport prompt)
   (when prompt (newline) (display prompt) (display " "))
-  (read iport))
+  (read-code-sexp iport))
 
 (define (repl-from-port iport env prompt)
   (guard (err 
@@ -1585,7 +1727,7 @@
 
 (define (benchmark-file fname)
   (define iport (open-input-file fname))
-  (unless (syntax-match? '(load "libl.sf") (read iport))
+  (unless (sexp-match? '(load "libl.sf") (read-code-sexp iport))
     (error "unexpected benchmark file format" fname))
   (repl-from-port iport repl-environment #f)
   (repl-eval-top-form '(main #f) repl-environment)  

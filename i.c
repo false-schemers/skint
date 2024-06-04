@@ -3240,6 +3240,22 @@ define_instruction(fop) {
   gonexti();
 }
 
+define_instruction(pfc) {
+  ckr(ac);
+  /* port-fold-case NYI: return false for now */
+  ac = bool_obj(0);
+  gonexti();
+}
+
+define_instruction(spfc) {
+  ckr(ac); 
+  if (spop() != bool_obj(0)) {
+    /* set-port-fold-case! NYI: ignore for now */
+  }
+  gonexti();
+}
+
+
 define_instruction(gos) {
   cxtype_oport_t *vt; ckw(ac);
   vt = ckoportvt(ac);

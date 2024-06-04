@@ -1534,7 +1534,7 @@
 (define (%read port simple?)
   (define-syntax r-error
     (syntax-rules () [(_ p msg a ...) (read-error msg a ... 'port: p)]))
-
+  (define fold-case? (port-fold-case? port))
   (define shared '())
   (define (make-shared-ref loc) (lambda () (unbox loc)))
   (define (shared-ref? form) (procedure? form))
@@ -1839,10 +1839,15 @@
                (if (or hash? (char-numeric? c) 
                      (char=? c #\+) (char=? c #\-) (char=? c #\.))   
                    (cond [(string=? s ".") dot]
-                         [(suspect-number-or-symbol-peculiar? hash? c l s) (string->symbol s)]
+                         [(suspect-number-or-symbol-peculiar? hash? c l s)
+                          (if fold-case? 
+                              (string->symbol (string-foldcase s))
+                              (string->symbol s))]
                          [(string->number s)]
                          [else (r-error p "unsupported number syntax (implementation restriction)" s)])
-                   (string->symbol s)))]
+                   (if fold-case? 
+                       (string->symbol (string-foldcase s))
+                       (string->symbol s))))]
             [(char=? c #\#)
              (read-char p) 
              (loop (peek-char p) (cons c l) #t)]
