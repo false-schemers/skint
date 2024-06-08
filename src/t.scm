@@ -1357,11 +1357,13 @@
                (and (memq at '(ref set! define define-syntax))
                  (let ([gid (string->symbol (string-append env (symbol->string id)))])
                    (env-lookup gid *root-environment* 'ref)))]
+              [(procedure? env)
+               (env id at)]
               [else ; finite env 
                #f]))))
 
 
-; make root environment (a vector) from the list of initial transformers
+; make explicit root environment (a vector) from the list of initial transformers
 
 (define *root-environment*
   (let* ([n 101] ; use prime number
@@ -1393,9 +1395,9 @@
   (env-lookup id *root-environment* at))
 
 
-; standard library environments in sexp form 
+; standard library environments in alist form (used as import envs) 
 
-(define *std-lib->env* '())
+(define *std-lib->alist-env* '())
 
 (for-each
   (lambda (r)
@@ -1407,18 +1409,15 @@
         [(i) '(scheme inexact)] [(f) '(scheme file)]  [(e) '(scheme eval)]
         [(o) '(scheme complex)] [(h) '(scheme char)]  [(l) '(scheme case-lambda)]
         [(x) '(scheme cxr)]     [(b) '(scheme base)]))
-    (define (put-loc! env k loc)
-      (let* ([n (vector-length env)] [i (immediate-hash k n)] 
-            [al (vector-ref env i)] [p (assq k al)])
+    (define (put-loc! e k loc)
+      (let ([p (assq k (cdr e))])
         (cond [p (set-cdr! p loc)]
-              [else (vector-set! env i (cons (cons k loc) al))])))
+              [else (set-cdr! e (cons (cons k loc) (cdr e)))])))
     (define (get-env! lib)
-      (cond
-        [(assoc lib *std-lib->env*) => cdr]
-        [else (let* ([n (if (eq? lib '(repl)) 101 37)] ; use prime number
-                     [env (make-vector n '())])
-                (set! *std-lib->env* (cons (cons lib env) *std-lib->env*))
-                env)]))
+      (or (assoc lib *std-lib->alist-env*)
+          (let ([p (cons lib '())])
+            (set! *std-lib->alist-env* (cons p *std-lib->alist-env*))
+            p)))
     (let loop ([name (car r)] [keys (cdr r)])
       (cond 
         [(null? keys) ; all go to (repl)
@@ -1485,35 +1484,23 @@
     (interaction-environment p v) (null-environment v) (read r v) (scheme-report-environment v)
     (write w v) (current-jiffy t) (current-second t) (jiffies-per-second t) (write-shared w)
     (write-simple w)
-    ; skint extras go into (repl) only
+    ; skint extras go into (repl) only - not to be confused with (scheme repl)
     (box?) (box) (unbox) (set-box!)
     ))
 
-(define (std-lib->env lib)
-  (cond [(assoc lib *std-lib->env*) =>
-         (lambda (lv)
-           (let* ([v (cdr lv)] [n (vector-length v)]) 
-             (if (eq? lib '(skint repl))
-                 (lambda (id at)
-                   (let* ([i (immediate-hash id n)] [al (vector-ref v i)] [p (assq id al)])
-                     (if p (cdr p)
-                         (let ([loc (make-location (list 'ref id))])
-                           (vector-set! v i (cons (cons id loc) al))
-                           loc))))
-                 (lambda (id at)
-                   (and (eq? at 'ref)
-                     (let* ([i (immediate-hash id n)] [al (vector-ref v i)] [p (assq id al)])
-                       (if p (cdr p) #f)))))))]
+(define (std-lib->alist-env lib)
+  (cond [(assoc lib *std-lib->alist-env*) => cdr]
         [else #f]))
 
-(define (std-lib->alist lib)
-  (cond [(assoc lib *std-lib->env*) =>
-         (lambda (p)
-           (define lv (cdr p))
-           (let loop ([i 0] [n (vector-length lv)] [al '()])
-             (if (= i n) al
-                 (loop (+ i 1) n (append (vector-ref lv i) al)))))]
+(define (std-lib->env lib)
+  (cond [(std-lib->alist-env lib) =>
+         (lambda (al)
+           (lambda (id at)
+             (and (eq? at 'ref)
+               (let ([p (assq id al)])
+                 (if p (cdr p) #f)))))]
         [else #f]))
+
 
 ; combine explicit finite env1 with finite or infinite env2
 ; env1 here is a proper alist of bindings ((<id> . <location>) ...)
