@@ -663,8 +663,8 @@ char *t_code[] = {
 
   "P", "call-with-input-file/lib",
   "%3${.2,@(y27:resolve-input-file/lib-name)[01},.2,.1,.5,&3{%0:0,:1,:2,&"
-  "3{%1:0?{${t,.3,@(y19:set-port-fold-case!)[02}}.0,:1,:2[12},:1,@(y20:ca"
-  "ll-with-input-file)[02},.1,@(y17:with-current-file)[42",
+  "3{%1:0?{t,.1P79}.0,:1,:2[12},:1,@(y20:call-with-input-file)[02},.1,@(y"
+  "17:with-current-file)[42",
 
   "P", "call-with-file/lib-sexps",
   "%3.2,&1{%2n,,#0.3,:0,.2,&3{%1${:2,@(y14:read-code-sexp)[01},.0R8?{.1A9"
@@ -696,19 +696,20 @@ char *t_code[] = {
   "P", "env-lookup",
   "%3.0K0?{.2,'(l2:y3:ref;y4:set!;),.1A1?{.1,@(y7:old-den)[41}f]4}.1,,#0."
   "4,.3,.2,&3{%1.0p?{:1,.1aaq?{:2,'(y3:ref),.1v?{.1ad]2}f]2}.0d,:0^[11}.0"
-  "V0?{.0V3,.0,:1H2,.0,.3V4,.0,:1A3,.0?{.0d]5}:1U5,.0?{.0}{:1,'(y3:ref),l"
-  "2}_1b,.2,.1,:1cc,.4,.7V5.0]6}.0S0?{'(l4:y3:ref;y4:set!;y6:define;y13:d"
-  "efine-syntax;),:2A0?{:1X4,.1S6X5,'(y3:ref),@(y18:*root-environment*),."
-  "2,@(y10:env-lookup)[23}f]1}f]1}.!0.0^_1[31",
+  "V0?{.0V3,.0,:1H2,.0,.3V4,.0,:1A3,.0?{:2,'(y3:ref),.1v?{.1da]6}.1dda?{f"
+  "]6}.1da]6}:1U5,.0?{.0}{:1,'(y3:ref),l2}_1b,.2,f,.2,:1,l3c,.4,.7V5.0]6}"
+  ".0S0?{'(l4:y3:ref;y4:set!;y6:define;y13:define-syntax;),:2A0?{:1X4,.1S"
+  "6X5,'(y3:ref),@(y18:*root-environment*),.2,@(y10:env-lookup)[23}f]1}f]"
+  "1}.!0.0^_1[31",
 
   "C", 0,
-  "'(i101),n,.1V2,,#0.2,.2,&2{%2:1,.1H2,.0,:0V4,.0,.3A3,.0?{.4,.1sd]5}.1,"
-  ".5,.5cc,.3,:0V5]5}.!0${U1,,#0.0,.5,.7,&3{%1.0u?{:0]1}.0d,.1a,.0d,.1a,."
-  "1Y0,.0?{.0}{.2N0}_1?{${.3b,.3,:1^[02}.3,:2^[51}.1p?{'(y12:syntax-rules"
-  "),.2aq}{f}?{,,#0#1&0{%2.1,@(y18:*root-environment*),.2,@(y10:env-looku"
-  "p)[23}.!0${.5da,@(y3:id?)[01}?{${.5ddd,.6dda,.7da,.5^,@(y13:syntax-rul"
-  "es*)[04}}{${.5dd,.6da,f,.5^,@(y13:syntax-rules*)[04}}.!1${.3^b,.5,:1^["
-  "02}.5,:2^[71}f]5}.!0.0^_1[01}_1_1_1@!(y18:*root-environment*)",
+  "'(i101),n,.1V2,,#0.2,.2,&2{%2:1,.1H2,.0,:0V4,.0,.3A3,.0?{.4,.1dsa]5}.1"
+  ",t,.6,.6,l3c,.3,:0V5]5}.!0${U1,,#0.0,.5,.7,&3{%1.0u?{:0]1}.0d,.1a,.0d,"
+  ".1a,.1Y0,.0?{.0}{.2N0}_1?{${.3b,.3,:1^[02}.3,:2^[51}.1p?{'(y12:syntax-"
+  "rules),.2aq}{f}?{,,#0#1&0{%2.1,@(y18:*root-environment*),.2,@(y10:env-"
+  "lookup)[23}.!0${.5da,@(y3:id?)[01}?{${.5ddd,.6dda,.7da,.5^,@(y13:synta"
+  "x-rules*)[04}}{${.5dd,.6da,f,.5^,@(y13:syntax-rules*)[04}}.!1${.3^b,.5"
+  ",:1^[02}.5,:2^[71}f]5}.!0.0^_1[01}_1_1_1@!(y18:*root-environment*)",
 
   "P", "root-environment",
   "%2.1,@(y18:*root-environment*),.2,@(y10:env-lookup)[23",
@@ -859,18 +860,76 @@ char *t_code[] = {
   "cheme;y11:case-lambda;)]2}'(y1:x),.1v?{'(l2:y6:scheme;y3:cxr;)]2}'(y1:"
   "b),.1v?{'(l2:y6:scheme;y4:base;)]2}]2}.!0&0{%3.0V3,.0,.3H2,.0,.3V4,.0,"
   ".5A3,.0?{.6,.1sd]7}.1,.7,.7cc,.3,.6V5]7}.!1&0{%1@(y14:*std-lib->env*),"
-  ".1A5,.0?{.0d]2}'(l2:y5:skint;y4:repl;),.2q?{'(i101)}{'(i37)},n,.1V2,@("
-  "y14:*std-lib->env*),.1,.5cc@!(y14:*std-lib->env*).0]4}.!2.3d,.4a,,#0.0"
-  ",.5,.5,.8,&4{%2.1u?{${'(y3:ref),.3,@(y16:root-environment)[02},.1,${'("
-  "l2:y5:skint;y4:repl;),:0^[01},:2^[23}${${'(y3:ref),.5,@(y16:root-envir"
-  "onment)[02},.3,${${.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0.0^_1[4"
-  "2},@(y10:%25for-each1)[02}",
+  ".1A5,.0?{.0d]2}'(l1:y4:repl;),.2q?{'(i101)}{'(i37)},n,.1V2,@(y14:*std-"
+  "lib->env*),.1,.5cc@!(y14:*std-lib->env*).0]4}.!2.3d,.4a,,#0.0,.5,.5,.8"
+  ",&4{%2.1u?{${'(y3:ref),.3,@(y16:root-environment)[02},.1,${'(l1:y4:rep"
+  "l;),:0^[01},:2^[23}${${'(y3:ref),.5,@(y16:root-environment)[02},.3,${$"
+  "{.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0.0^_1[42},@(y10:%25for-ea"
+  "ch1)[02}",
 
   "P", "std-lib->env",
   "%1@(y14:*std-lib->env*),.1A5,.0?{.0,.0d,.0V3,'(l2:y5:skint;y4:repl;),."
   "5q?{.0,.2,&2{%2:1,.1H2,.0,:0V4,.0,.3A3,.0?{.0d]5}.3,'(y3:ref),l2b,.2,."
   "1,.6cc,.4,:0V5.0]6}]5}.1,.1,&2{%2'(y3:ref),.2q?{:0,.1H2,.0,:1V4,.0,.3A"
   "3,.0?{.0d]5}f]5}f]2}]5}f]2",
+
+  "P", "std-lib->alist",
+  "%1@(y14:*std-lib->env*),.1A5,.0?{.0,,#0.1d.!0n,.1^V3,'0,,#0.4,.1,&2{%3"
+  ".1,.1=?{.2]3}.2,.1,:1^V4L6,.2,'1,.3+,:0^[33}.!0.0^_1[43}f]2",
+
+  "P", "adjoin-env",
+  "%2.0u?{.1]2}${.3,.3d,@(y10:adjoin-env)[02},${'(y3:ref),.3,.5aa,@(y10:e"
+  "nv-lookup)[03},.0?{.0,.0,.4adq?{.2]5}.0,.4ad,.5aa,'(s39:multiple ident"
+  "ifier bindings on import:),@(y7:c-error)[54}.1,.3ac]4",
+
+  "P", "adjoin-env/shadow",
+  "%2.0u?{.1]2}${.3,.3d,@(y17:adjoin-env/shadow)[02},${'(y3:ref),.3,.5aa,"
+  "@(y10:env-lookup)[03},.0?{.0,@(y1:a),.4adq?{.2]5}${.5ad,'(y4:now:),@(y"
+  "1:a),'(y4:was:),.9aa,'(s42:old identifier binding shadowed on import:)"
+  ",@(y9:c-warning)[06}.2,.4ac]5}.1,.3ac]4",
+
+  "P", "make-local-env",
+  "%3.2,.1,,#0.0,.5,&2{%2.0u?{${:0,@(y11:lib-public?)[01}?{t,.2L6]2}${:0,"
+  "@(y30:fully-qualified-library-prefix)[01},.2L6]2}.0a,${.2,'(y8:<symbol"
+  ">),@(y11:sexp-match?)[02}?{.2}{${.2,'(l3:y6:rename;y8:<symbol>;y8:<sym"
+  "bol>;),@(y11:sexp-match?)[02}?{.2}{${.3a,'(s30:invalid export spec in "
+  "export:),@(y7:c-error)[02}}}_1,.1d,:1^[22}.!0.0^_1[32",
+
+  "P", "make-export-env",
+  "%3,#0.3,.3,.3,&3{%3.2,.2A3?{:0,.2,'(s32:duplicate external id in expor"
+  "t:),@(y7:c-error)[33}:2,.1A3,.0?{.0,.4,.1d,.5cc]5}.3,${.4,:1,@(y32:ful"
+  "ly-qualified-library-location)[02},.4cc]4}.!0${.4,@(y11:lib-public?)[0"
+  "1}?{.1,.0?{.0}{.4p}_1?{.2,'(s26:module cannot be imported:),@(y7:c-err"
+  "or)[42}n]4}n,.2,,#0.3,.1,&2{%2.0u?{.1]2}.0a,${.2,'(y8:<symbol>),@(y11:"
+  "sexp-match?)[02}?{${.4,.4a,.5a,:1^[03}}{${.2,'(l3:y6:rename;y8:<symbol"
+  ">;y8:<symbol>;),@(y11:sexp-match?)[02}?{${.4,.4adda,.5ada,:1^[03}}{${."
+  "3a,'(s30:invalid export spec in export:),@(y7:c-error)[02}}}_1,.1d,:0^"
+  "[22}.!0.0^_1[42",
+
+  "C", 0,
+  "n@!(y20:*library-info-cache*)",
+
+  "P", "make-library-info",
+  "%0f,'4V2]0",
+
+  "P", "library-available?",
+  "%1@(y20:*library-info-cache*),.1A5?{t]1}.0S0?{.0,@(y32:file-resolve-re"
+  "lative-to-current)[11}.0p?{.0L0}{f}?{.0,@(y17:find-library-path)[11}f]"
+  "1",
+
+  "P", "lookup-library-info",
+  "%1@(y20:*library-info-cache*),.1A5,.0?{.0d]2}${.3,@(y14:std-lib->alist"
+  ")[01},.0?{.0,,#0${@(y17:make-library-info)[00}.!0@(y20:*library-info-c"
+  "ache*),.1^,.6cc@!(y20:*library-info-cache*)n,'0,.2^V5.1,'1,.2^V5${.3,@"
+  "(y3:car),@(y5:%25map1)[02},'2,.2^V5n,'3,.2^V5.0^]5}${@(y17:make-librar"
+  "y-info)[00},@(y20:*library-info-cache*),.1,.5cc@!(y20:*library-info-ca"
+  "che*).0]4",
+
+  "P", "get-library-info",
+  "%3,,#0#1${.4,@(y19:lookup-library-info)[01}.!0.0,&1{%4.0,'0,:0^V5.1,'1"
+  ",:0^V5.2,'2,:0^V5.3,'3,:0^V5]4}.!1'0,.1^V4~?{${.3,.5,.7,&3{%1:2^,.1,:1"
+  ",:0[13},f,.6,@(y24:call-with-file/lib-sexps)[03}}'3,.1^V4,'2,.2^V4,'1,"
+  ".3^V4,'0,.4^V4,.8[54",
 
   "P", "visit-top-form",
   "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."

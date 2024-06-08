@@ -1342,13 +1342,16 @@
                (if (eq? (caar env) id)
                    (case at [(ref) (cdar env)] [else #f])
                    (loop (cdr env)))]
-              [(vector? env) ; root (can be extended)
+              [(vector? env) ; extendable, keeps imported? flags
                (let* ([n (vector-length env)] [i (immediate-hash id n)]
                       [al (vector-ref env i)] [p (assq id al)])
-                 (if p (cdr p)
+                 (if p ; p is (key loc imported?)
+                     (case at 
+                       [(ref) (cadr p)] 
+                       [else (if (caddr p) #f (cadr p))]) ; imported can be ref-d only 
                      ; implicitly/on demand append integrables and "naked" globals
                      (let ([loc (make-location (or (lookup-integrable id) (list 'ref id)))])
-                       (vector-set! env i (cons (cons id loc) al))
+                       (vector-set! env i (cons (list id loc #f) al)) ; not imported
                        loc)))]
               [(string? env) ; module prefix = module internals: full access
                (and (memq at '(ref set! define define-syntax))
@@ -1365,8 +1368,8 @@
          [env (make-vector n '())]) 
     (define (put! k loc)
       (let* ([i (immediate-hash k n)] [al (vector-ref env i)] [p (assq k al)])
-        (cond [p (set-cdr! p loc)]
-              [else (vector-set! env i (cons (cons k loc) al))])))
+        (cond [p (set-car! (cdr p) loc)]
+              [else (vector-set! env i (cons (list k loc #t) al))])))
     (let loop ([l (initial-transformers)])
       (if (null? l) env
           (let ([p (car l)] [l (cdr l)])
@@ -1412,14 +1415,14 @@
     (define (get-env! lib)
       (cond
         [(assoc lib *std-lib->env*) => cdr]
-        [else (let* ([n (if (eq? lib '(skint repl)) 101 37)] ; use prime number
+        [else (let* ([n (if (eq? lib '(repl)) 101 37)] ; use prime number
                      [env (make-vector n '())])
                 (set! *std-lib->env* (cons (cons lib env) *std-lib->env*))
                 env)]))
     (let loop ([name (car r)] [keys (cdr r)])
       (cond 
-        [(null? keys)
-         (put-loc! (get-env! '(skint repl)) name (root-environment name 'ref))]
+        [(null? keys) ; all go to (repl)
+         (put-loc! (get-env! '(repl)) name (root-environment name 'ref))]
         [else
          (put-loc! (get-env! (key->lib (car keys))) name (root-environment name 'ref))
          (loop name (cdr keys))])))
@@ -1482,7 +1485,7 @@
     (interaction-environment p v) (null-environment v) (read r v) (scheme-report-environment v)
     (write w v) (current-jiffy t) (current-second t) (jiffies-per-second t) (write-shared w)
     (write-simple w)
-    ; skint extras go into (skint repl) environment only
+    ; skint extras go into (repl) only
     (box?) (box) (unbox) (set-box!)
     ))
 
@@ -1502,6 +1505,140 @@
                      (let* ([i (immediate-hash id n)] [al (vector-ref v i)] [p (assq id al)])
                        (if p (cdr p) #f)))))))]
         [else #f]))
+
+(define (std-lib->alist lib)
+  (cond [(assoc lib *std-lib->env*) =>
+         (lambda (p)
+           (define lv (cdr p))
+           (let loop ([i 0] [n (vector-length lv)] [al '()])
+             (if (= i n) al
+                 (loop (+ i 1) n (append (vector-ref lv i) al)))))]
+        [else #f]))
+
+; combine explicit finite env1 with finite or infinite env2
+; env1 here is a proper alist of bindings ((<id> . <location>) ...)
+; env2 can be any environment -- explicit or implicit, finite or not
+
+(define (adjoin-env env1 env2) ;=> env12
+  (if (null? env1) env2
+      (let ([env2 (adjoin-env (cdr env1) env2)])
+        (cond [(env-lookup (caar env1) env2 'ref) => 
+               (lambda (loc) ; ? loc is not auto-mapped even when env2 supports it
+                  (if (eq? (cdar env1) loc)
+                      env2 ; repeat of same id with same binding is allowed
+                      (c-error "multiple identifier bindings on import:" 
+                        (caar env1) (cdar env1) loc)))]
+              [else (cons (car env1) env2)]))))
+
+; this variant is used in repl; it allows shadowing of old bindings with new ones
+; todo: remove duplicates by starting ; with the env1 and appending non-duplicate parts of env2
+
+(define (adjoin-env/shadow env1 env2) ;=> env12
+  (if (null? env1) env2
+      (let ([env2 (adjoin-env/shadow (cdr env1) env2)])
+        (cond [(env-lookup (caar env1) env2 'ref) => 
+               (lambda (loc) ; ? loc is not auto-mapped even when env2 supports it
+                  (if (eq? (cdar env1) a)
+                      env2 ; repeat of same id with same binding is allowed
+                      (begin
+                        (c-warning "old identifier binding shadowed on import:" 
+                          (caar env1) 'was: a 'now: (cdar env1))
+                        (cons (car env1) env2))))]
+              [else (cons (car env1) env2)]))))
+
+; local environment is made for expansion of thislib library's body forms
+; it is made of explicit import environment followed by a view to lib-specific 
+; global locations in root environment, normally prefixed with library name
+; NB: import-env is expected to be explicit and limited (just an alist) 
+
+(define (make-local-env esps thislib import-env) ;=> env (infinite)
+  (let loop ([esps esps] [env import-env])
+    (if (null? esps)
+        (if (lib-public? thislib)
+            ; all non-exported definitions are public and in global namespace under their own names
+            (append env #t) ; unprefixed view into global namespace (limited use) 
+            ; otherwise they are in global namespace under mangled names
+            (append env (fully-qualified-library-prefix thislib)))
+        (loop (cdr esps) ; just for syntax checking
+          (sexp-case (car esps) 
+            [<symbol> env]
+            [(rename <symbol> <symbol>) env]
+            [else (c-error "invalid export spec in export:" (car esps))])))))          
+
+; environment for import from thislib library into outside libs or programs
+
+(define (make-export-env esps thislib import-env) ;=> env (finite, alist) 
+  (define (extend-export lid eid env)
+    (cond [(assq eid env) (c-error "duplicate external id in export:" eid esps)]
+          [(assq lid import-env) => ; re-exported imported id, keep using imported binding under eid
+           (lambda (b) (cons (cons eid (cdr b)) env))] 
+          [else (cons (cons eid (fully-qualified-library-location thislib lid)) env)]))
+  (if (lib-public? thislib)
+      (if (or esps (pair? import-env))
+          (c-error "module cannot be imported:" thislib)
+          '())
+      (let loop ([esps esps] [env '()])
+        (if (null? esps)
+            env
+            (loop (cdr esps)
+              (sexp-case (car esps) 
+                [<symbol> (extend-export (car esps) (car esps) env)]
+                [(rename <symbol> <symbol>) (extend-export (cadr (car esps)) (caddr (car esps)) env)]
+                [else (c-error "invalid export spec in export:" (car esps))]))))))
+
+
+;---------------------------------------------------------------------------------------------
+; Library processing info cache
+;---------------------------------------------------------------------------------------------
+
+; we have to cache loaded libraries, so stores are not hit on repeat loads/visits
+; of/to the same library
+
+(define *library-info-cache* '())
+
+;; library info: #(used-libs import-env export-specs beg-forms)
+(define (make-library-info) (make-vector 4 #f)) 
+
+(define (library-available? lib)
+  (cond [(assoc lib *library-info-cache*) #t]
+        [(string? lib) (file-resolve-relative-to-current lib)]
+        [(and (pair? lib) (list? lib)) (find-library-path lib)]
+        [else #f]))
+
+(define (lookup-library-info lib) ;=> li (possibly non-inited)
+  (cond [(assoc lib *library-info-cache*) => cdr]
+        [(std-lib->alist lib) =>
+         (lambda (al)
+           (define li (make-library-info))
+           (set! *library-info-cache* 
+             (cons (cons lib li) *library-info-cache*))
+           (vector-set! li 0 '())
+           (vector-set! li 1 al)
+           (vector-set! li 2 (map car al))
+           (vector-set! li 3 '())
+           li)]
+        [else 
+         (let ([li (make-library-info)]) 
+           (set! *library-info-cache* 
+             (cons (cons lib li) *library-info-cache*)) 
+           li)]))
+
+; main hub for library info -- calls process if library info is not inited
+(define (get-library-info lib process return) ;=> (return used-libs import-env export-specs beg-forms)
+  (define li (lookup-library-info lib))
+  (define (update-li! used-libs import-env export-specs beg-forms)
+    (vector-set! li 0 used-libs)
+    (vector-set! li 1 import-env)
+    (vector-set! li 2 export-specs)
+    (vector-set! li 3 beg-forms))
+  (unless (vector-ref li 0) ; not inited?
+    (call-with-file/lib-sexps lib #f
+      (lambda (all-forms) ; need to split off header forms
+        (process lib all-forms update-li!))))
+  (return (vector-ref li 0) 
+          (vector-ref li 1) 
+          (vector-ref li 2) 
+          (vector-ref li 3)))
 
 
 ;---------------------------------------------------------------------------------------------
