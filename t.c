@@ -20,15 +20,18 @@ char *t_code[] = {
   "ct)[02},.1ac]2}.1,.1d,@(y13:set-intersect)[22",
 
   "S", "record-case",
-  "l6:y12:syntax-rules;l1:y4:else;;l2:l4:y11:record-case;py2:pa;y2:ir;;y6"
+  "l7:y12:syntax-rules;l1:y4:else;;l2:l4:y11:record-case;py2:pa;y2:ir;;y6"
   ":clause;y3:...;;l3:y3:let;l1:l2:y2:id;py2:pa;y2:ir;;;;l4:y11:record-ca"
   "se;y2:id;y6:clause;y3:...;;;;l2:l2:y11:record-case;y2:id;;l2:y5:quote;"
   "y16:record-case-miss;;;l2:l3:y11:record-case;y2:id;l3:y4:else;y3:exp;y"
-  "3:...;;;l3:y5:begin;y3:exp;y3:...;;;l2:l5:y11:record-case;y2:id;l4:y3:"
-  "key;y3:ids;y3:exp;y3:...;;y6:clause;y3:...;;l4:y2:if;l3:y3:eq?;l2:y3:c"
-  "ar;y2:id;;l2:y5:quote;y3:key;;;l3:y5:apply;l4:y6:lambda;y3:ids;y3:exp;"
-  "y3:...;;l2:y3:cdr;y2:id;;;l4:y11:record-case;y2:id;y6:clause;y3:...;;;"
-  ";",
+  "3:...;;;l3:y5:begin;y3:exp;y3:...;;;l2:l5:y11:record-case;y2:id;l4:l2:"
+  "y3:key;y3:...;;y3:ids;y3:exp;y3:...;;y6:clause;y3:...;;l4:y2:if;l3:y4:"
+  "memq;l2:y3:car;y2:id;;l2:y5:quote;l2:y3:key;y3:...;;;;l3:y5:apply;l4:y"
+  "6:lambda;y3:ids;y3:exp;y3:...;;l2:y3:cdr;y2:id;;;l4:y11:record-case;y2"
+  ":id;y6:clause;y3:...;;;;l2:l5:y11:record-case;y2:id;l4:y3:key;y3:ids;y"
+  "3:exp;y3:...;;y6:clause;y3:...;;l4:y2:if;l3:y3:eq?;l2:y3:car;y2:id;;l2"
+  ":y5:quote;y3:key;;;l3:y5:apply;l4:y6:lambda;y3:ids;y3:exp;y3:...;;l2:y"
+  "3:cdr;y2:id;;;l4:y11:record-case;y2:id;y6:clause;y3:...;;;;",
 
   "P", "sexp-match?",
   "%2'(y1:*),.1q,.0?{.0]3}'(y8:<symbol>),.2q?{.2Y0}{f},.0?{.0]4}'(y8:<str"
@@ -284,8 +287,8 @@ char *t_code[] = {
 
   "P", "xform-begin",
   "%2.0L0?{${.2,.4,&1{%1:0,.1,f,@(y5:xform)[13},@(y5:%25map1)[02},.0p?{.0"
-  "du}{f}?{.0a]3}.0,'(y5:begin)c]3}.0,'(y6:begin!)c,'(s19:improper begin "
-  "form),@(y7:x-error)[22",
+  "du}{f}?{.0a]3}.0,'(y5:begin)c]3}.0,'(y5:begin)c,'(s19:improper begin f"
+  "orm),@(y7:x-error)[22",
 
   "P", "xform-define",
   "%2${.2,@(y6:list2?)[01}?{.0au}{f}?{.1,.1da,f,@(y5:xform)[23}${.2,@(y6:"
@@ -356,6 +359,23 @@ char *t_code[] = {
   ",.5,:1,.4,&5{%1.0u?{${:3,'(s14:invalid syntax),@(y7:x-error)[02}}.0a,."
   "0a,.1da,${:2,:3,.5,:4^[03},.0?{.0,.0,.3,.5,:1^[63}.4d,:0^[51}.!0.0^_1["
   "21}](i12)",
+
+  "P", "make-include-transformer",
+  "%1,#0${'(y5:begin)b,'(y5:begin),@(y6:new-id)[02}.!0.1,.1,&2{%2${.2,@(y"
+  "7:list1+?)[01}?{n,.1d,,#0.0,:1,:0,&3{%2.0u?{${.3A9,@(y7:%25append),@(y"
+  "13:apply-to-list)[02},:0^c]2}.1,.1,:2,&3{%1:2,.1c,:1d,:0^[12},:1,.2a,@"
+  "(y24:call-with-file/lib-sexps)[23}.!0.0^_1[22}.0,'(s14:invalid syntax)"
+  ",@(y7:x-error)[22}]2",
+
+  "P", "if-feature-available-transformer",
+  "%2.0L0?{'4,.1g=}{f}?{.0ddda,.1dda,.2da,${${.4,@(y17:xform-sexp->datum)"
+  "[01},@(y18:feature-available?)[01}?{.1]5}.2]5}.0,'(s14:invalid syntax)"
+  ",@(y7:x-error)[22",
+
+  "P", "if-library-available-transformer",
+  "%2.0L0?{'4,.1g=}{f}?{.0ddda,.1dda,.2da,${${.4,@(y17:xform-sexp->datum)"
+  "[01},@(y18:library-available?)[01}?{.1]5}.2]5}.0,'(s14:invalid syntax)"
+  ",@(y7:x-error)[22",
 
   "P", "write-serialized-char",
   "%2'(c%25),.1C=,.0?{.0}{'(c%22),.2C=,.0?{.0}{'(c%5c),.3C=,.0?{.0}{'(c )"
@@ -703,13 +723,35 @@ char *t_code[] = {
   "K0?{:1,:2,.2[12}f]1}.!0.0^_1[31",
 
   "C", 0,
-  "'(i101),n,.1V2,,#0.2,.2,&2{%2:1,.1H2,.0,:0V4,.0,.3A3,.0?{.4,.1dsa]5}.1"
-  ",t,.6,.6,l3c,.3,:0V5]5}.!0${U1,,#0.0,.5,.7,&3{%1.0u?{:0]1}.0d,.1a,.0d,"
-  ".1a,.1Y0,.0?{.0}{.2N0}_1?{${.3b,.3,:1^[02}.3,:2^[51}.1p?{'(y12:syntax-"
-  "rules),.2aq}{f}?{,,#0#1&0{%2.1,@(y18:*root-environment*),.2,@(y10:env-"
-  "lookup)[23}.!0${.5da,@(y3:id?)[01}?{${.5ddd,.6dda,.7da,.5^,@(y13:synta"
-  "x-rules*)[04}}{${.5dd,.6da,f,.5^,@(y13:syntax-rules*)[04}}.!1${.3^b,.5"
-  ",:1^[02}.5,:2^[71}f]5}.!0.0^_1[01}_1_1_1@!(y18:*root-environment*)",
+  "n,'(i101)V2@!(y18:*root-environment*)",
+
+  "P", "define-in-root-environment!",
+  "%3@(y18:*root-environment*),.0V3,.0,.3H2,.0,.3V4,.0,.5A3,.0?{.6,.1dsa."
+  "7,.1ddsa]8}.1,.8,.8,.8,l3c,.3,.6V5]8",
+
+  "C", 0,
+  "${t,${f,@(y24:make-include-transformer)[01}b,'(y7:include),@(y27:defin"
+  "e-in-root-environment!)[03}",
+
+  "C", 0,
+  "${t,${t,@(y24:make-include-transformer)[01}b,'(y10:include-ci),@(y27:d"
+  "efine-in-root-environment!)[03}",
+
+  "C", 0,
+  "${t,@(y32:if-feature-available-transformer)b,'(y20:if-feature-availabl"
+  "e),@(y27:define-in-root-environment!)[03}",
+
+  "C", 0,
+  "${t,@(y32:if-library-available-transformer)b,'(y20:if-library-availabl"
+  "e),@(y27:define-in-root-environment!)[03}",
+
+  "C", 0,
+  "&0{%2t,.2,.2,@(y27:define-in-root-environment!)[23},${U1,,#0.0,.5,&2{%"
+  "1.0u?{'(y2:ok)]1}.0d,.1a,.0d,.1a,.1Y0,.0?{.0}{.2N0}_1?{${.3b,.3,:0[02}"
+  ".3,:1^[51}.1p?{'(y12:syntax-rules),.2aq}{f}?{,,#0#1&0{%2.1,@(y18:*root"
+  "-environment*),.2,@(y10:env-lookup)[23}.!0${.5da,@(y3:id?)[01}?{${.5dd"
+  "d,.6dda,.7da,.5^,@(y13:syntax-rules*)[04}}{${.5dd,.6da,f,.5^,@(y13:syn"
+  "tax-rules*)[04}}.!1${.3^b,.5,:0[02}.5,:1^[71}f]5}.!0.0^_1[01}_1",
 
   "P", "root-environment",
   "%2.1,@(y18:*root-environment*),.2,@(y10:env-lookup)[23",

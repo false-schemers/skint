@@ -192,7 +192,31 @@
   (syntax-rules ()
     [(_ [args . forms] ...) (lambda* [args (lambda args . forms)] ...)]))
 
-;cond-expand
+(define-syntax %if-expand
+  (syntax-rules (and or not library)
+    [(_ (and) con alt) con]
+    [(_ (and r) con alt) (%if-expand r con alt)]
+    [(_ (and r . r*) con alt) (%if-expand r (%if-expand (and . r*) con alt) alt)]
+    [(_ (or) con alt) alt]
+    [(_ (or r) con alt) (%if-expand r con alt)]
+    [(_ (or r . r*) con alt) (%if-expand r con (%if-expand (or . r*) con alt))]
+    [(_ (not r) con alt) (%if-expand r alt con)]
+    [(_ (library l) con alt) 
+     (if-library-available l con alt)] ; macro defined later in t.scm
+    [(_ (x . y) con alt) 
+     (syntax-error "unrecognized cond-expand feature requirement:" (x . y))]
+    [(_ f con alt)
+     (if-feature-available f con alt)])) ; macro defined later in t.scm
+
+(define-syntax cond-expand
+  (syntax-rules (else)
+    [(_) (void)]
+    [(_ [else . exps])
+      (begin . exps)]
+    [(_ [x] . rest)
+      (%if-expand x (begin) (cond-expand . rest))]
+    [(_ [x . exps] . rest)
+      (%if-expand x (begin . exps) (cond-expand . rest))]))         
 
 
 ;---------------------------------------------------------------------------------------------
@@ -401,6 +425,8 @@
 ; (fixnum->string x (radix 10))
 ; (string->fixnum s (radix 10))
 
+;TBD:
+;
 ;fx-width
 ;fx-greatest
 ;fx-least
@@ -960,6 +986,8 @@
 ; Bytevectors
 ;---------------------------------------------------------------------------------------------
 
+; integrables:
+;
 ; (bytevector? x)
 ; (make-bytevector n (u8 0))
 ; (bytevector u8 ...)
@@ -1915,11 +1943,16 @@
 ; System interface
 ;---------------------------------------------------------------------------------------------
 
-;load
+; integrables:
+;
 ; (file-exists? s)
 ; (delete-file s)
 ; (rename-file sold snew) +
 ; (%argv-ref i) +
+; (get-environment-variable s)
+; (current-second)
+; (current-jiffy)
+; (jiffies-per-second)
 
 (define (command-line)
   (let loop ([r '()] [i 0])
@@ -1928,16 +1961,14 @@
           (loop (cons arg r) (fx+ i 1))
           (reverse! r)))))
 
+(define (features) '(r7rs exact-closed skint skint-1.0.0))
+
+(define (feature-available? f)
+  (and (symbol? f) (memq f (features))))
+
+;TBD:
+;
+;load
 ;exit
 ;emergency-exit
-
-;(get-environment-variable s)
 ;get-environment-variables
-
-; (current-second)
-; (current-jiffy)
-; (jiffies-per-second)
-
-;features
-
-

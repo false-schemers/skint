@@ -53,6 +53,10 @@
      'record-case-miss]
     [(record-case id [else exp ...])
      (begin exp ...)]
+    [(record-case id [(key ...) ids exp ...] clause ...)
+     (if (memq (car id) '(key ...))
+         (apply (lambda ids exp ...) (cdr id))
+         (record-case id clause ...))] 
     [(record-case id [key ids exp ...] clause ...)
      (if (eq? (car id) 'key)
          (apply (lambda ids exp ...) (cdr id))
@@ -504,7 +508,7 @@
         (if (and (pair? xexps) (null? (cdr xexps)))
             (car xexps) ; (begin x) => x
             (cons 'begin xexps)))
-      (x-error "improper begin form" (cons 'begin! tail))))
+      (x-error "improper begin form" (cons 'begin tail))))
 
 (define (xform-define tail env) ; non-internal
   (cond [(and (list2? tail) (null? (car tail))) ; idless
@@ -679,6 +683,32 @@
         (cond [(match-pattern pat use use-env) =>
                (lambda (bindings) (expand-template pat tmpl bindings))]
               [else (loop (cdr rules))])))))
+
+; hand-made transformers (use functionality defined below)
+
+(define (make-include-transformer ci?)
+  (define begin-id (new-id 'begin (make-location 'begin)))
+  (lambda (sexp env)
+    (if (list1+? sexp)
+        (let loop ([files (cdr sexp)] [exp-lists '()])
+          (if (null? files)
+              (cons begin-id (apply append (reverse! exp-lists)))
+              (call-with-file/lib-sexps (car files) ci? ;=>
+                (lambda (exp-list)
+                  (loop (cdr files) (cons exp-list exp-lists))))))
+        (x-error "invalid syntax" sexp))))
+
+(define (if-feature-available-transformer sexp env)
+  (if (and (list? sexp) (= (length sexp) 4))
+      (let ([r (cadr sexp)] [con (caddr sexp)] [alt (cadddr sexp)])
+        (if (feature-available? (xform-sexp->datum r)) con alt))
+      (x-error "invalid syntax" sexp)))
+
+(define (if-library-available-transformer sexp env)
+  (if (and (list? sexp) (= (length sexp) 4))
+      (let ([r (cadr sexp)] [con (caddr sexp)] [alt (cadddr sexp)])
+        (if (library-available? (xform-sexp->datum r)) con alt))
+      (x-error "invalid syntax" sexp)))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1363,33 +1393,54 @@
                #f]))))
 
 
-; make explicit root environment (a vector) from the list of initial transformers
+; make explicit root environment (a vector) and fill it
 
 (define *root-environment*
-  (let* ([n 101] ; use prime number
-         [env (make-vector n '())]) 
-    (define (put! k loc)
-      (let* ([i (immediate-hash k n)] [al (vector-ref env i)] [p (assq k al)])
-        (cond [p (set-car! (cdr p) loc)]
-              [else (vector-set! env i (cons (list k loc #t) al))])))
-    (let loop ([l (initial-transformers)])
-      (if (null? l) env
-          (let ([p (car l)] [l (cdr l)])
-            (let ([k (car p)] [v (cdr p)])
-              (cond
-                [(or (symbol? v) (number? v)) 
-                 (put! k (make-location v))
-                 (loop l)]
-                [(and (pair? v) (eq? (car v) 'syntax-rules))
-                 (body
-                   (define (sr-env id at) 
-                     (env-lookup id *root-environment* at))
-                   (define sr-v
-                     (if (id? (cadr v))
-                         (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
-                         (syntax-rules* sr-env #f (cadr v) (cddr v))))
-                   (put! k (make-location sr-v))
-                   (loop l))])))))))
+  (make-vector 101 '())) ; use prime number
+
+(define (define-in-root-environment! name loc imported?)
+  (let* ([env *root-environment*] [n (vector-length env)]
+         [i (immediate-hash name n)] [al (vector-ref env i)] 
+         [p (assq name al)])
+    (if p 
+        (begin (set-car! (cdr p) loc) (set-car! (cddr p) imported?))
+        (vector-set! env i (cons (list name loc imported?) al)))))
+
+; put handmade ones first! 
+
+(define-in-root-environment! 'include 
+  (make-location (make-include-transformer #f)) #t)
+
+(define-in-root-environment! 'include-ci 
+  (make-location (make-include-transformer #t)) #t)
+
+(define-in-root-environment! 'if-feature-available 
+  (make-location if-feature-available-transformer) #t)
+
+(define-in-root-environment! 'if-library-available 
+  (make-location if-library-available-transformer) #t)
+
+; now put the builtins (lazily) and others
+
+(let ([put! (lambda (k loc) (define-in-root-environment! k loc #t))]) 
+  (let loop ([l (initial-transformers)])
+    (if (null? l) 'ok
+        (let ([p (car l)] [l (cdr l)])
+          (let ([k (car p)] [v (cdr p)])
+            (cond
+              [(or (symbol? v) (number? v)) 
+               (put! k (make-location v))
+               (loop l)]
+              [(and (pair? v) (eq? (car v) 'syntax-rules))
+               (body
+                 (define (sr-env id at) 
+                   (env-lookup id *root-environment* at))
+                 (define sr-v
+                   (if (id? (cadr v))
+                       (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
+                       (syntax-rules* sr-env #f (cadr v) (cddr v))))
+                 (put! k (make-location sr-v))
+                 (loop l))]))))))
 
 (define (root-environment id at)
   (env-lookup id *root-environment* at))

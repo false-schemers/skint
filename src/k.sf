@@ -63,6 +63,10 @@
      'record-case-miss]
     [(record-case id [else exp ...])
      (begin exp ...)]
+    [(record-case id [(key ...) ids exp ...] clause ...)
+     (if (memq (car id) '(key ...))
+         (apply (lambda ids exp ...) (cdr id))
+         (record-case id clause ...))] 
     [(record-case id [key ids exp ...] clause ...)
      (if (eq? (car id) 'key)
          (apply (lambda ids exp ...) (cdr id))
