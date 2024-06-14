@@ -255,11 +255,13 @@
 (define-syntax  location-set-val!  set-box!)
 
 (define (location-special? l)      (not (pair? (unbox l))))
-(define (new-id sym den)           (define p (cons sym den)) (lambda () p))
+(define (new-id sym den rename)    (define p (list sym den rename)) (lambda () p))
 (define (old-sym id)               (car (id)))
-(define (old-den id)               (cdr (id)))
+(define (old-den id)               (cadr (id)))
+(define (old-rename id)            (or (caddr (id)) (lambda (nid) nid)))
 (define (id? x)                    (or (symbol? x) (procedure? x)))
 (define (id->sym id)               (if (symbol? id) id (old-sym id)))
+(define (id-rename-as id nid)      (if (symbol? id) nid ((old-rename id) nid)))
 
 ; Expand-time environments map identifiers (symbolic or thunked) to denotations, i.e. locations
 ; containing either a <special> or a <core> value. In normal case, <core> value is (ref <gid>),
@@ -469,7 +471,7 @@
                                 [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
                         [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
-                         (let* ([id (caar tail)] [lambda-id (new-id 'lambda (make-location 'lambda))] 
+                         (let* ([id (caar tail)] [lambda-id (new-id 'lambda (make-location 'lambda) #f)] 
                                 [init (cons lambda-id (cons (cdar tail) (cdr tail)))]
                                 [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
@@ -640,9 +642,16 @@
     ; fresh ids, but that's okay because when we go to retrieve a
     ; fresh id, assq will always retrieve the first one.
     (define new-literals
-      (map (lambda (id) (cons id (new-id (id->sym id) (xenv-ref mac-env id))))
-           (list-ids tmpl #t
-             (lambda (id) (not (assq id top-bindings))))))
+      (body
+        (define nl
+          (map (lambda (id) 
+                 (cons id 
+                   (new-id (id->sym id)
+                     (xenv-ref mac-env id)
+                     (lambda (nid) (cond [(assq nid nl) => cdr] [else nid])))))
+               (list-ids tmpl #t
+                 (lambda (id) (not (assq id top-bindings))))))
+        nl))
 
     (define ellipsis-vars
       (list-ids pat #f not-pat-literal?))
@@ -690,7 +699,7 @@
 ; hand-made transformers (use functionality defined below)
 
 (define (make-include-transformer ci?)
-  (define begin-id (new-id 'begin (make-location 'begin)))
+  (define begin-id (new-id 'begin (make-location 'begin) #f))
   (lambda (sexp env)
     (if (list1+? sexp)
         (let loop ([files (cdr sexp)] [exp-lists '()])
