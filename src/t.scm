@@ -167,6 +167,7 @@
 ;---------------------------------------------------------------------------------------------
 
 ;  <core> -> (quote <object>)
+;  <core> -> (const <id>) ; immutable variant of ref 
 ;  <core> -> (ref <id>)
 ;  <core> -> (set! <id> <core>)
 ;  <core> -> (set& <id>)
@@ -349,21 +350,23 @@
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
       (let ([den (xenv-lookup env (car tail) 'set!)] [xexp (xform #f (cadr tail) env)])
-        (cond [(location-special? den) (location-set-val! den xexp) '(begin)]
-              [else (let ([val (location-val den)])
-                      (if (eq? (car val) 'ref)
-                          (list 'set! (cadr val) xexp)
-                          (x-error "set! to non-identifier form")))]))
+        (if (location-special? den) ;; was (location-set-val! den xexp) '(begin)
+            (x-error "set! to macro or integrable identifier" (cons 'set! tail))
+            (let ([val (location-val den)])
+              (if (eq? (car val) 'ref)
+                  (list 'set! (cadr val) xexp)
+                  (x-error "set! is not allowed" (cons 'set! tail))))))
       (x-error "improper set! form" (cons 'set! tail))))
 
 (define (xform-set& tail env)
   (if (list1? tail)
       (let ([den (xenv-lookup env (car tail) 'set!)])      
-        (cond [(location-special? den) (x-error "set& of a non-variable")]
-              [else (let ([val (location-val den)])
-                      (if (eq? (car val) 'ref)
-                          (list 'set& (cadr val))
-                          (x-error "set& of a non-variable")))]))
+        (if (location-special? den) 
+            (x-error "set& of macro or integrable identifier" (cons 'set& tail))
+            (let ([val (location-val den)])
+              (if (eq? (car val) 'ref)
+                  (list 'set& (cadr val))
+                  (x-error "set& is not allowed" (cons 'set! tail))))))
       (x-error "improper set& form" (cons 'set& tail))))
 
 (define (xform-if tail env)
@@ -815,7 +818,7 @@
     (record-case x
       [quote (obj) 
        '()]
-      [ref (id)
+      [(ref const) (id)
        (if (set-member? id b) '() (list id))]
       [set! (id exp)
        (set-union
@@ -857,7 +860,7 @@
     (record-case x
       [quote (obj) 
        '()]
-      [ref (id)
+      [(ref const) (id)
        '()]
       [set! (id x)
        (set-union
@@ -903,7 +906,7 @@
           [(()) (write-char #\n port)]
           [else (write-char #\' port) (write-serialized-arg obj port)])
        (when k (write-char #\] port) (write-serialized-arg k port))]
-      [ref (id)
+      [(ref const) (id)
        (cond [(posq id l) => ; local
               (lambda (n) 
                 (write-char #\. port)
