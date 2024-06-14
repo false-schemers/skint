@@ -1033,20 +1033,21 @@ char *t_code[] = {
   "P", "repl-eval-top-form",
   "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."
   "0p?{${:1,.3a,@(y18:repl-eval-top-form)[02}.0d,:0^[11}]1}.!0.0^_1[31}'("
-  "y6:define),.1q?{${.4,.4d,@(y12:xform-define)[02},${'(y6:define),.3da,."
-  "7,@(y11:xenv-lookup)[03},.0?{${.2z,'(l2:y3:ref;y1:*;),@(y11:sexp-match"
-  "?)[02}}{f}?{.1dda,.1zda,'(y4:set!),l3,@(y30:repl-compile-and-run-core-"
-  "expr)[51}.4,.2da,'(s40:identifier cannot be (re)defined in env:),@(y7:"
-  "x-error)[53}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define-synt"
-  "ax)[02},${'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03},.0?{.1dd"
-  "a,.1sz}{${.6,.4da,'(s50:identifier cannot be (re)defined as syntax in "
-  "env:),@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s18:SYNTAX INSTALLED: )W"
-  "4Po,.2daW5PoW6]5}]5}.0K0?{.2,${.5,.5,.5[02},@(y18:repl-eval-top-form)["
-  "32}.0U0?{${.4,.4d,.4,@(y16:xform-integrable)[03},@(y30:repl-compile-an"
-  "d-run-core-expr)[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30:repl-compile"
-  "-and-run-core-expr)[31}${.4,.4d,.4,@(y10:xform-call)[03},@(y30:repl-co"
-  "mpile-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},@(y30:repl-compi"
-  "le-and-run-core-expr)[21",
+  "y6:define),.1q?{.1dau}{f}?{.2,.2dda,@(y18:repl-eval-top-form)[32}'(y6:"
+  "define),.1q?{${.4,.4d,@(y12:xform-define)[02},${'(y6:define),.3da,.7,@"
+  "(y11:xenv-lookup)[03},.0?{${.2z,'(l2:y3:ref;y1:*;),@(y11:sexp-match?)["
+  "02}}{f}?{.1dda,.1zda,'(y4:set!),l3,@(y30:repl-compile-and-run-core-exp"
+  "r)[51}.4,.2da,'(s40:identifier cannot be (re)defined in env:),@(y7:x-e"
+  "rror)[53}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define-syntax)"
+  "[02},${'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03},.0?{.1dda,."
+  "1sz}{${.6,.4da,'(s50:identifier cannot be (re)defined as syntax in env"
+  ":),@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s18:SYNTAX INSTALLED: )W4Po"
+  ",.2daW5PoW6]5}]5}.0K0?{.2,${.5,.5,.5[02},@(y18:repl-eval-top-form)[32}"
+  ".0U0?{${.4,.4d,.4,@(y16:xform-integrable)[03},@(y30:repl-compile-and-r"
+  "un-core-expr)[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30:repl-compile-an"
+  "d-run-core-expr)[31}${.4,.4d,.4,@(y10:xform-call)[03},@(y30:repl-compi"
+  "le-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},@(y30:repl-compile-"
+  "and-run-core-expr)[21",
 
   "P", "repl-read",
   "%2.1?{PoW6Po,.2W4Po,'(s1: )W4}.0,@(y14:read-code-sexp)[21",

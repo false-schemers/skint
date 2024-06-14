@@ -1834,44 +1834,47 @@
       (let ([hval (xform #t (car x) env)])
         (cond
           [(eq? hval 'begin)
-          ; splice
-          (let loop ([x* (cdr x)])
-            (when (pair? x*) 
-              (repl-eval-top-form (car x*) env)
-              (loop (cdr x*))))]
+           ; splice
+           (let loop ([x* (cdr x)])
+             (when (pair? x*) 
+               (repl-eval-top-form (car x*) env)
+               (loop (cdr x*))))]
+          [(and (eq? hval 'define) (null? (cadr x)))
+           ; special idless define
+           (repl-eval-top-form (caddr x) env)]
           [(eq? hval 'define)
-          ; use new protocol for top-level envs
-          (let* ([core (xform-define (cdr x) env)]
+           ; use new protocol for top-level envs
+           (let* ([core (xform-define (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define)])
-            (if (and loc (sexp-match? '(ref *) (location-val loc)))
-                (repl-compile-and-run-core-expr 
-                  (list 'set! (cadr (location-val loc)) (caddr core)))
-                (x-error "identifier cannot be (re)defined in env:" 
-                  (cadr core) env)))]
+             (if (and loc (sexp-match? '(ref *) (location-val loc)))
+                 (repl-compile-and-run-core-expr 
+                   (list 'set! (cadr (location-val loc)) (caddr core)))
+                 (x-error "identifier cannot be (re)defined in env:" 
+                   (cadr core) env)))]
           [(eq? hval 'define-syntax)
-          ; use new protocol for top-level envs
-          (let* ([core (xform-define-syntax (cdr x) env)]
+           ; use new protocol for top-level envs
+           (let* ([core (xform-define-syntax (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define-syntax)])
-            (if loc ; location or #f
-                (location-set-val! loc (caddr core))
-                (x-error "identifier cannot be (re)defined as syntax in env:"
-                  (cadr core) env))
-            (when *verbose* (display "SYNTAX INSTALLED: ") (write (cadr core)) (newline)))]
+             (if loc ; location or #f
+                 (location-set-val! loc (caddr core))
+                 (x-error "identifier cannot be (re)defined as syntax in env:"
+                   (cadr core) env))
+             (when *verbose* (display "SYNTAX INSTALLED: ") (write (cadr core)) (newline)))]
           [(procedure? hval)
-          ; transformer: apply and loop
-          (repl-eval-top-form (hval x env) env)]
+           ; transformer: apply and loop
+           (repl-eval-top-form (hval x env) env)]
           [(integrable? hval)
-          ; integrable application
-          (repl-compile-and-run-core-expr 
-            (xform-integrable hval (cdr x) env))]
+           ; integrable application
+           (repl-compile-and-run-core-expr 
+             (xform-integrable hval (cdr x) env))]
           [(symbol? hval)
-          ; other specials
-          (repl-compile-and-run-core-expr 
-            (xform #f x env))]
+           ; other specials
+           (repl-compile-and-run-core-expr 
+             (xform #f x env))]
           [else
-          ; regular call
-          (repl-compile-and-run-core-expr 
-            (xform-call hval (cdr x) env))]))
+           ; regular call
+           (repl-compile-and-run-core-expr 
+             (xform-call hval (cdr x) env))]))
       ; var refs and literals
       (repl-compile-and-run-core-expr 
         (xform #f x env))))
