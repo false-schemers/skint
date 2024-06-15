@@ -1597,8 +1597,10 @@ define_instruction(ltos) {
   obj l = ac; int n = 0, i, *d;
   while (is_pair(l)) { l = pair_cdr(l); ++n; }
   d = allocstring(n, ' ');
-  for (i = 0; i < n; ac = pair_cdr(ac), ++i)
-    sdatachars(d)[i] = get_char(pair_car(ac));
+  for (i = 0; i < n; ac = pair_cdr(ac), ++i) {
+    obj x = pair_car(ac); ckc(x);
+    sdatachars(d)[i] = get_char(x);
+  }
   ac = string_obj(d);
   gonexti();
 }

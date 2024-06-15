@@ -1262,6 +1262,37 @@
 ; Library names and library file lookup
 ;---------------------------------------------------------------------------------------------
 
+(define (listname->symbol lib)
+  (define postfix "/")
+  (define prefix "")
+  (define commons '(#\- #\< #\= #\>))
+  (define symbol-prefix "/")
+  (define number-prefix ".")
+  (define (mangle-symbol sym)
+    (let loop ([lst (string->list (symbol->string sym))] [text '()])
+      (cond [(null? lst) 
+             (list->string (reverse text))]
+            [(or (char-alphabetic? (car lst)) (char-numeric? (car lst)))
+             (loop (cdr lst) (cons (car lst) text))]
+            [(memv (car lst) commons)
+             (loop (cdr lst) (cons (car lst) text))]
+            [else
+             (let* ([s (number->string (char->integer (car lst)) 16)]
+                    [s (if (< (string-length s) 2) (string-append "0" s) s)]
+                    [l (cons #\% (string->list (string-upcase s)))])
+               (loop (cdr lst) (append (reverse l) text)))])))
+  (define (mangle-number num)
+    (number->string num))
+  (unless (list? lib) (x-error "invalid library name" lib))
+  (let loop ([lst lib] [parts (list prefix)])
+    (if (null? lst)
+        (string->symbol (apply string-append (reverse (cons postfix parts))))
+        (cond [(symbol? (car lst))
+               (loop (cdr lst) (cons (mangle-symbol (car lst)) (cons symbol-prefix parts)))]
+              [(exact-integer? (car lst))
+               (loop (cdr lst) (cons (mangle-number (car lst)) (cons number-prefix parts)))]
+              [else (x-error "invalid library name" lib)]))))
+
 (define (listname-segment->string s)
   (cond [(symbol? s) (symbol->string s)]
         [(number? s) (number->string s)]
