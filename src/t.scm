@@ -1262,42 +1262,40 @@
 ; Library names and library file lookup
 ;---------------------------------------------------------------------------------------------
 
-(define (listname->symbol lib)
-  (define postfix "/")
-  (define prefix "")
-  (define commons '(#\- #\< #\= #\>))
-  (define symbol-prefix "/")
-  (define number-prefix ".")
-  (define (mangle-symbol sym)
+  (define (mangle-symbol->string sym)
+    (define safe '(#\! #\$ #\- #\_ #\=))
     (let loop ([lst (string->list (symbol->string sym))] [text '()])
       (cond [(null? lst) 
              (list->string (reverse text))]
-            [(or (char-alphabetic? (car lst)) (char-numeric? (car lst)))
+            [(or (char-lower-case? (car lst)) (char-numeric? (car lst)))
              (loop (cdr lst) (cons (car lst) text))]
-            [(memv (car lst) commons)
+            [(memv (car lst) safe)
              (loop (cdr lst) (cons (car lst) text))]
-            [else
+            [else ; use % encoding for everything else
              (let* ([s (number->string (char->integer (car lst)) 16)]
                     [s (if (< (string-length s) 2) (string-append "0" s) s)]
-                    [l (cons #\% (string->list (string-upcase s)))])
+                    [l (cons #\% (string->list (string-downcase s)))])
                (loop (cdr lst) (append (reverse l) text)))])))
-  (define (mangle-number num)
-    (number->string num))
+
+(define (listname->symbol lib)
+  (define postfix "")
+  (define prefix "lib:/")
+  (define symbol-prefix "/")
+  (define number-prefix "/")
   (unless (list? lib) (x-error "invalid library name" lib))
   (let loop ([lst lib] [parts (list prefix)])
     (if (null? lst)
         (string->symbol (apply string-append (reverse (cons postfix parts))))
         (cond [(symbol? (car lst))
-               (loop (cdr lst) (cons (mangle-symbol (car lst)) (cons symbol-prefix parts)))]
+               (loop (cdr lst) (cons (mangle-symbol->string (car lst)) (cons symbol-prefix parts)))]
               [(exact-integer? (car lst))
-               (loop (cdr lst) (cons (mangle-number (car lst)) (cons number-prefix parts)))]
+               (loop (cdr lst) (cons (number->string (car lst)) (cons number-prefix parts)))]
               [else (x-error "invalid library name" lib)]))))
 
 (define (listname-segment->string s)
-  (cond [(symbol? s) (symbol->string s)]
-        [(number? s) (number->string s)]
-        [(string? s) s]
-        [else (c-error "invalid symbolic file name element" s)]))
+  (cond [(symbol? s) (mangle-symbol->string s)]
+        [(exact-integer? s) (number->string s)]
+        [else (c-error "invalid library name name element" s)]))
 
 (define modname-separator "_")
 
