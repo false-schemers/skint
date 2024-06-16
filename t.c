@@ -171,28 +171,32 @@ char *t_code[] = {
   "'(y3:ref),l2]4}.0K0?{.3,${.6,.6,.5[02},.3,@(y5:xform)[43}.0p~?{.0,'(s2"
   "7:improper use of syntax form),@(y7:x-error)[42}.0]4}.1p~?{.2,.2,l1,@("
   "y11:xform-quote)[32}.1a,.2d,${.6,.4,t,@(y5:xform)[03},.0,'(y6:syntax),"
-  ".1v?{.2a]7}'(y5:quote),.1v?{.6,.3,@(y11:xform-quote)[72}'(y4:set!),.1v"
-  "?{.6,.3,@(y10:xform-set!)[72}'(y4:set&),.1v?{.6,.3,@(y10:xform-set&)[7"
-  "2}'(y2:if),.1v?{.6,.3,@(y8:xform-if)[72}'(y6:lambda),.1v?{.6,.3,@(y12:"
-  "xform-lambda)[72}'(y7:lambda*),.1v?{.6,.3,@(y13:xform-lambda*)[72}'(y5"
-  ":letcc),.1v?{.6,.3,@(y11:xform-letcc)[72}'(y6:withcc),.1v?{.6,.3,@(y12"
-  ":xform-withcc)[72}'(y4:body),.1v?{.4,.7,.4,@(y10:xform-body)[73}'(y5:b"
-  "egin),.1v?{.6,.3,@(y11:xform-begin)[72}'(y6:define),.1v?{.6,.3,@(y12:x"
-  "form-define)[72}'(y13:define-syntax),.1v?{.6,.3,@(y19:xform-define-syn"
-  "tax)[72}'(y13:syntax-lambda),.1v?{.4,.7,.4,@(y19:xform-syntax-lambda)["
-  "73}'(y12:syntax-rules),.1v?{.6,.3,@(y18:xform-syntax-rules)[72}'(y13:s"
-  "yntax-length),.1v?{.6,.3,@(y19:xform-syntax-length)[72}'(y12:syntax-er"
-  "ror),.1v?{.6,.3,@(y18:xform-syntax-error)[72}.1U0?{.6,.3,.3,@(y16:xfor"
-  "m-integrable)[73}.1K0?{.6,${.9,.9,.6[02},.6,@(y5:xform)[73}.6,.3,.3,@("
-  "y10:xform-call)[73",
+  ".1v?{.6,.3,@(y12:xform-syntax)[72}'(y5:quote),.1v?{.6,.3,@(y11:xform-q"
+  "uote)[72}'(y4:set!),.1v?{.6,.3,@(y10:xform-set!)[72}'(y4:set&),.1v?{.6"
+  ",.3,@(y10:xform-set&)[72}'(y2:if),.1v?{.6,.3,@(y8:xform-if)[72}'(y6:la"
+  "mbda),.1v?{.6,.3,@(y12:xform-lambda)[72}'(y7:lambda*),.1v?{.6,.3,@(y13"
+  ":xform-lambda*)[72}'(y5:letcc),.1v?{.6,.3,@(y11:xform-letcc)[72}'(y6:w"
+  "ithcc),.1v?{.6,.3,@(y12:xform-withcc)[72}'(y4:body),.1v?{.4,.7,.4,@(y1"
+  "0:xform-body)[73}'(y5:begin),.1v?{.6,.3,@(y11:xform-begin)[72}'(y6:def"
+  "ine),.1v?{.6,.3,@(y12:xform-define)[72}'(y13:define-syntax),.1v?{.6,.3"
+  ",@(y19:xform-define-syntax)[72}'(y13:syntax-lambda),.1v?{.4,.7,.4,@(y1"
+  "9:xform-syntax-lambda)[73}'(y12:syntax-rules),.1v?{.6,.3,@(y18:xform-s"
+  "yntax-rules)[72}'(y13:syntax-length),.1v?{.6,.3,@(y19:xform-syntax-len"
+  "gth)[72}'(y12:syntax-error),.1v?{.6,.3,@(y18:xform-syntax-error)[72}.1"
+  "U0?{.6,.3,.3,@(y16:xform-integrable)[73}.1K0?{.6,${.9,.9,.6[02},.6,@(y"
+  "5:xform)[73}.6,.3,.3,@(y10:xform-call)[73",
 
-  "P", "xform-ref",
-  "%2${.2,.4,@(y8:xenv-ref)[02},'(y3:...),.1zq?{'(s19:improper use of ..."
-  "),@(y7:x-error)[31}.0z]3",
+  "P", "xform-syntax",
+  "%2${.2,@(y6:list1?)[01}?{.0a]2}.0,'(y6:syntax)c,'(s20:improper syntax "
+  "form),@(y7:x-error)[22",
 
   "P", "xform-quote",
   "%2${.2,@(y6:list1?)[01}?{${.2a,@(y17:xform-sexp->datum)[01},'(y5:quote"
   "),l2]2}.0,'(y5:quote)c,'(s19:improper quote form),@(y7:x-error)[22",
+
+  "P", "xform-ref",
+  "%2${.2,.4,@(y8:xenv-ref)[02},'(y3:...),.1zq?{'(s19:improper use of ..."
+  "),@(y7:x-error)[31}.0z]3",
 
   "P", "xform-set!",
   "%2${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,f,@(y5:xfo"
@@ -453,9 +457,10 @@ char *t_code[] = {
   "find-free*)[12},@(y13:apply-to-list)[22}'(y10:integrable),.1aq?{.0d,.2"
   ",&1{%!1:0,.1,@(y10:find-free*)[22},@(y13:apply-to-list)[22}'(y4:call),"
   ".1aq?{.0d,.2,&1{%!1${:0,.3,@(y10:find-free*)[02},${:0,.5,@(y9:find-fre"
-  "e)[02},@(y9:set-union)[22},@(y13:apply-to-list)[22}'(y6:define),.1aq?{"
-  ".0d,.1,&1{%!0:0,'(s21:misplaced define form),@(y7:c-error)[12},@(y13:a"
-  "pply-to-list)[22}'(y16:record-case-miss)]2",
+  "e)[02},@(y9:set-union)[22},@(y13:apply-to-list)[22}'(y3:asm),.1aq?{.0d"
+  ",&0{%1n]1},@(y13:apply-to-list)[22}'(y6:define),.1aq?{.0d,.1,&1{%!0:0,"
+  "'(s21:misplaced define form),@(y7:c-error)[12},@(y13:apply-to-list)[22"
+  "}'(y16:record-case-miss)]2",
 
   "P", "find-sets*",
   "%2.0u?{n]2}${.3,.3d,@(y10:find-sets*)[02},${.4,.4a,@(y9:find-sets)[02}"
@@ -481,8 +486,9 @@ char *t_code[] = {
   "10:integrable),.1aq?{.0d,.2,&1{%!1:0,.1,@(y10:find-sets*)[22},@(y13:ap"
   "ply-to-list)[22}'(y4:call),.1aq?{.0d,.2,&1{%!1${:0,.3,@(y10:find-sets*"
   ")[02},${:0,.5,@(y9:find-sets)[02},@(y9:set-union)[22},@(y13:apply-to-l"
-  "ist)[22}'(y6:define),.1aq?{.0d,.1,&1{%!0:0,'(s21:misplaced define form"
-  "),@(y7:c-error)[12},@(y13:apply-to-list)[22}'(y16:record-case-miss)]2",
+  "ist)[22}'(y3:asm),.1aq?{.0d,&0{%1n]1},@(y13:apply-to-list)[22}'(y6:def"
+  "ine),.1aq?{.0d,.1,&1{%!0:0,'(s21:misplaced define form),@(y7:c-error)["
+  "12},@(y13:apply-to-list)[22}'(y16:record-case-miss)]2",
 
   "P", "codegen",
   "%7'(y5:quote),.1aq?{.0d,.6,.8,&2{%1.0,t,.1v?{:0,'(ct)W0}{f,.1v?{:0,'(c"
@@ -597,9 +603,11 @@ char *t_code[] = {
   ":4,f,:1,:2,:3,.6,:0,@(y7:codegen)[27}${:4,f,:1,:2,:3,.8,.8a,@(y7:codeg"
   "en)[07}:4,'(c,)W0.1,fc,.1d,:5^[22}.!0.0^_1[02}:5,'(c[)W0${:5,'0,@(y20:"
   "write-serialized-arg)[02}${:5,.3g,@(y20:write-serialized-arg)[02}:5,'("
-  "c})W0]2},@(y13:apply-to-list)[72}'(y6:define),.1aq?{.0d,.1,&1{%!0:0,'("
-  "s21:misplaced define form),@(y7:c-error)[12},@(y13:apply-to-list)[72}'"
-  "(y16:record-case-miss)]7",
+  "c})W0]2},@(y13:apply-to-list)[72}'(y3:asm),.1aq?{.0d,.6,.8,&2{%1${:0,."
+  "3,@(y12:write-string)[02}:1?{:0,'(c])W0:0,:1,@(y20:write-serialized-ar"
+  "g)[12}]1},@(y13:apply-to-list)[72}'(y6:define),.1aq?{.0d,.1,&1{%!0:0,'"
+  "(s21:misplaced define form),@(y7:c-error)[12},@(y13:apply-to-list)[72}"
+  "'(y16:record-case-miss)]7",
 
   "P", "compile-to-string",
   "%1P51,${.2,f,${n,.8,@(y9:find-free)[02},n,n,n,.9,@(y7:codegen)[07}.0P9"
