@@ -180,6 +180,7 @@
 ;  <core> -> (if <core> <core> <core>)
 ;  <core> -> (call <core> <core> ...) 
 ;  <core> -> (integrable <ig> <core> ...) where <ig> is an index in the integrables table
+;  <core> -> (asm <igs>) where <igs> is ig string leaving result in ac, e.g. "'2,'1+" 
 
 ;  NB: (begin) is legit, returns unspecified value
 ;  on top level, these two extra core forms are legal:
@@ -317,7 +318,7 @@
         [else 
          (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
            (case hval
-             [(syntax)        (car tail)] ; internal use only
+             [(syntax)        (xform-syntax        tail env)]
              [(quote)         (xform-quote         tail env)]
              [(set!)          (xform-set!          tail env)]
              [(set&)          (xform-set&          tail env)]
@@ -340,15 +341,20 @@
                                       (xform appos? (hval sexp env) env)
                                       (xform-call hval tail env)))]))]))
 
-(define (xform-ref id env)
-  (let ([den (xenv-ref env id)])
-    (cond [(eq? (location-val den) '...) (x-error "improper use of ...")]
-          [else (location-val den)])))
+(define (xform-syntax tail env)
+  (if (list1? tail)
+      (car tail) ; must be <core>, todo: check?
+      (x-error "improper syntax form" (cons 'syntax tail))))
 
 (define (xform-quote tail env)
   (if (list1? tail)
       (list 'quote (xform-sexp->datum (car tail)))
       (x-error "improper quote form" (cons 'quote tail))))
+
+(define (xform-ref id env)
+  (let ([den (xenv-ref env id)])
+    (cond [(eq? (location-val den) '...) (x-error "improper use of ...")]
+          [else (location-val den)])))
 
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
@@ -859,6 +865,8 @@
        (find-free* args b)]
       [call (exp . args)
        (set-union (find-free exp b) (find-free* args b))]
+      [asm (cstr)
+       '()]
       [define tail
        (c-error "misplaced define form" x)])))
 
@@ -901,6 +909,8 @@
        (find-sets* args v)]
       [call (exp . args)
        (set-union (find-sets exp v) (find-sets* args v))]
+      [asm (cstr)
+       '()]
       [define tail
        (c-error "misplaced define form" x)])))
 
@@ -1182,6 +1192,9 @@
               (write-serialized-arg 0 port)
               (write-serialized-arg (length args) port)
               (write-char #\} port)])]
+      [asm (cstr)
+       (write-string cstr port)
+       (when k (write-char #\] port) (write-serialized-arg k port))]
       [define tail
        (c-error "misplaced define form" x)])))
 
