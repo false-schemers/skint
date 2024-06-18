@@ -64,6 +64,7 @@
 
 (define (sexp-match? pat x)
   (or (eq? pat '*)
+      (and (eq? pat '<id>) (or (symbol? x) (procedure? x)))
       (and (eq? pat '<symbol>) (symbol? x))
       (and (eq? pat '<string>) (string? x))
       (eq? x pat)
