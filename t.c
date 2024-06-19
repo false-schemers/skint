@@ -89,6 +89,9 @@ char *t_code[] = {
   "P", "list2+?",
   "%1.0p?{.0d,@(y7:list1+?)[11}f]1",
 
+  "P", "list3?",
+  "%1.0p?{.0d,@(y6:list2?)[11}f]1",
+
   "P", "read-code-sexp",
   "%1.0,@(y11:read-simple)[11",
 
@@ -459,9 +462,9 @@ char *t_code[] = {
   ",&1{%!1:0,.1,@(y10:find-free*)[22},@(y13:apply-to-list)[22}'(y4:call),"
   ".1aq?{.0d,.2,&1{%!1${:0,.3,@(y10:find-free*)[02},${:0,.5,@(y9:find-fre"
   "e)[02},@(y9:set-union)[22},@(y13:apply-to-list)[22}'(y3:asm),.1aq?{.0d"
-  ",&0{%1n]1},@(y13:apply-to-list)[22}'(y6:define),.1aq?{.0d,.1,&1{%!0:0,"
-  "'(s21:misplaced define form),@(y7:c-error)[12},@(y13:apply-to-list)[22"
-  "}'(y16:record-case-miss)]2",
+  ",&0{%1n]1},@(y13:apply-to-list)[22}'(l2:y6:define;y13:define-syntax;),"
+  ".1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced definition form),@(y7:c-error)["
+  "12},@(y13:apply-to-list)[22}'(y16:record-case-miss)]2",
 
   "P", "find-sets*",
   "%2.0u?{n]2}${.3,.3d,@(y10:find-sets*)[02},${.4,.4a,@(y9:find-sets)[02}"
@@ -487,9 +490,10 @@ char *t_code[] = {
   "10:integrable),.1aq?{.0d,.2,&1{%!1:0,.1,@(y10:find-sets*)[22},@(y13:ap"
   "ply-to-list)[22}'(y4:call),.1aq?{.0d,.2,&1{%!1${:0,.3,@(y10:find-sets*"
   ")[02},${:0,.5,@(y9:find-sets)[02},@(y9:set-union)[22},@(y13:apply-to-l"
-  "ist)[22}'(y3:asm),.1aq?{.0d,&0{%1n]1},@(y13:apply-to-list)[22}'(y6:def"
-  "ine),.1aq?{.0d,.1,&1{%!0:0,'(s21:misplaced define form),@(y7:c-error)["
-  "12},@(y13:apply-to-list)[22}'(y16:record-case-miss)]2",
+  "ist)[22}'(y3:asm),.1aq?{.0d,&0{%1n]1},@(y13:apply-to-list)[22}'(l2:y6:"
+  "define;y13:define-syntax;),.1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced defi"
+  "nition form),@(y7:c-error)[12},@(y13:apply-to-list)[22}'(y16:record-ca"
+  "se-miss)]2",
 
   "P", "codegen",
   "%7'(y5:quote),.1aq?{.0d,.6,.8,&2{%1.0,t,.1v?{:0,'(ct)W0}{f,.1v?{:0,'(c"
@@ -606,9 +610,9 @@ char *t_code[] = {
   "write-serialized-arg)[02}${:5,.3g,@(y20:write-serialized-arg)[02}:5,'("
   "c})W0]2},@(y13:apply-to-list)[72}'(y3:asm),.1aq?{.0d,.6,.8,&2{%1${:0,."
   "3,@(y12:write-string)[02}:1?{:0,'(c])W0:0,:1,@(y20:write-serialized-ar"
-  "g)[12}]1},@(y13:apply-to-list)[72}'(y6:define),.1aq?{.0d,.1,&1{%!0:0,'"
-  "(s21:misplaced define form),@(y7:c-error)[12},@(y13:apply-to-list)[72}"
-  "'(y16:record-case-miss)]7",
+  "g)[12}]1},@(y13:apply-to-list)[72}'(l2:y6:define;y13:define-syntax;),."
+  "1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced definition form),@(y7:c-error)[1"
+  "2},@(y13:apply-to-list)[72}'(y16:record-case-miss)]7",
 
   "P", "compile-to-string",
   "%1P51,${.2,f,${n,.8,@(y9:find-free)[02},n,n,n,.9,@(y7:codegen)[07}.0P9"

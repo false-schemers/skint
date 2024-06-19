@@ -151,6 +151,7 @@
 (define (list1+? x) (and (pair? x) (list? (cdr x))))
 (define (list2? x) (and (pair? x) (list1? (cdr x))))
 (define (list2+? x) (and (pair? x) (list1+? (cdr x))))
+(define (list3? x) (and (pair? x) (list2? (cdr x))))
 
 (define (read-code-sexp port)
   ; for now, we will just use read with no support for circular structures
@@ -867,8 +868,8 @@
        (set-union (find-free exp b) (find-free* args b))]
       [asm (cstr)
        '()]
-      [define tail
-       (c-error "misplaced define form" x)])))
+      [(define define-syntax) tail
+       (c-error "misplaced definition form" x)])))
 
 (define find-sets*
   (lambda (x* v)
@@ -911,8 +912,8 @@
        (set-union (find-sets exp v) (find-sets* args v))]
       [asm (cstr)
        '()]
-      [define tail
-       (c-error "misplaced define form" x)])))
+      [(define define-syntax) tail
+       (c-error "misplaced definition form" x)])))
 
 (define codegen
   ; x: Scheme Core expression to compile
@@ -1195,8 +1196,8 @@
       [asm (cstr)
        (write-string cstr port)
        (when k (write-char #\] port) (write-serialized-arg k port))]
-      [define tail
-       (c-error "misplaced define form" x)])))
+      [(define define-syntax) tail
+       (c-error "misplaced definition form" x)])))
 
 (define (compile-to-string x)
   (let ([p (open-output-string)])
