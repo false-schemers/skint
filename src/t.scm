@@ -67,27 +67,31 @@
       (and (eq? pat '<id>) (or (symbol? x) (procedure? x)))
       (and (eq? pat '<symbol>) (symbol? x))
       (and (eq? pat '<string>) (string? x))
-      (eq? x pat)
+      (eqv? x pat)
       (and (pair? pat)
-            (cond [(and (eq? (car pat) '...)
-                        (pair? (cdr pat))
-                        (null? (cddr pat)))
-                  (eq? x (cadr pat))]
-                  [(and (pair? (cdr pat))
-                        (eq? (cadr pat) '...)
-                        (null? (cddr pat)))
+           (cond [(and (eq? (car pat) '...)
+                       (pair? (cdr pat))
+                       (null? (cddr pat)))
+                  (eqv? x (cadr pat))]
+                 [(and (pair? (cdr pat))
+                       (eq? (cadr pat) '...)
+                       (null? (cddr pat)))
                   (let ([pat (car pat)])
                     (if (eq? pat '*)
                         (list? x)
                         (let loop ([lst x])
                           (or (null? lst)
                               (and (pair? lst)
-                                    (sexp-match? pat (car lst))
-                                    (loop (cdr lst)))))))]
-                  [else
+                                   (sexp-match? pat (car lst))
+                                   (loop (cdr lst)))))))]
+                 [else
                   (and (pair? x)
-                        (sexp-match? (car pat) (car x))
-                        (sexp-match? (cdr pat) (cdr x)))]))))
+                       (sexp-match? (car pat) (car x))
+                       (sexp-match? (cdr pat) (cdr x)))]))
+      (and (vector? pat) (vector? x) 
+           (sexp-match? (vector->list pat) (vector->list x)))
+      (and (box? pat) (box? x) 
+           (sexp-match? (unbox pat) (unbox x)))))
 
 (define-syntax sexp-case
   (syntax-rules (else)
@@ -125,6 +129,12 @@
             [(eq? x (car l)) n]
             [else (loop (cdr l) (fx+ n 1))]))))
 
+(define rassq
+  (lambda (x al)
+    (and (pair? al)
+         (let ([a (car al)])
+           (if (eq? x (cdr a)) a (rassq x (cdr al)))))))
+
 (define list-diff
   (lambda (l t)
     (if (or (null? l) (eq? l t))
@@ -146,6 +156,9 @@
 
 (define (andmap p l)
   (if (pair? l) (and (p (car l)) (andmap p (cdr l))) #t))
+
+(define (ormap p l)
+  (if (pair? l) (or (p (car l)) (ormap p (cdr l))) #f))
 
 (define (list1? x) (and (pair? x) (null? (cdr x))))
 (define (list1+? x) (and (pair? x) (list? (cdr x))))
@@ -258,13 +271,22 @@
 (define-syntax  location-set-val!  set-box!)
 
 (define (location-special? l)      (not (pair? (unbox l))))
-(define (new-id sym den rename)    (define p (list sym den rename)) (lambda () p))
+(define (new-id sym den getlits)   (define p (list sym den getlits)) (lambda () p))
 (define (old-sym id)               (car (id)))
 (define (old-den id)               (cadr (id)))
-(define (old-rename id)            (or (caddr (id)) (lambda (nid) nid)))
+(define (old-literals id)          ((or (caddr (id)) (lambda () '()))))
 (define (id? x)                    (or (symbol? x) (procedure? x)))
 (define (id->sym id)               (if (symbol? id) id (old-sym id)))
-(define (id-rename-as id nid)      (if (symbol? id) nid ((old-rename id) nid)))
+
+; take a possibly renamed target id, and find image for nid
+(define (id-rename-as id nid)
+  (let loop ([id id])
+    (if (symbol? id) nid
+        (let* ([lits (old-literals id)] [oid->id (rassq id lits)])
+          (unless oid->id (x-error "id-rename-as failed: not found in its own lits" id))
+          (let ([renamed-nid (loop (car oid->id))])
+            (cond [(assq renamed-nid lits) => cdr]
+                  [else renamed-nid]))))))
 
 ; Expand-time environments map identifiers (symbolic or thunked) to denotations, i.e. locations
 ; containing either a <special> or a <core> value. In normal case, <core> value is (ref <gid>),
@@ -657,13 +679,8 @@
     (define new-literals
       (body
         (define nl
-          (map (lambda (id) 
-                 (cons id 
-                   (new-id (id->sym id)
-                     (xenv-ref mac-env id)
-                     (lambda (nid) (cond [(assq nid nl) => cdr] [else nid])))))
-               (list-ids tmpl #t
-                 (lambda (id) (not (assq id top-bindings))))))
+          (map (lambda (id) (cons id (new-id (id->sym id) (xenv-ref mac-env id) (lambda () nl))))
+               (list-ids tmpl #t (lambda (id) (not (assq id top-bindings))))))
         nl))
 
     (define ellipsis-vars
@@ -1282,20 +1299,20 @@
 ; Library names and library file lookup
 ;---------------------------------------------------------------------------------------------
 
-  (define (mangle-symbol->string sym)
-    (define safe '(#\! #\$ #\- #\_ #\=))
-    (let loop ([lst (string->list (symbol->string sym))] [text '()])
-      (cond [(null? lst) 
-             (list->string (reverse text))]
-            [(or (char-lower-case? (car lst)) (char-numeric? (car lst)))
-             (loop (cdr lst) (cons (car lst) text))]
-            [(memv (car lst) safe)
-             (loop (cdr lst) (cons (car lst) text))]
-            [else ; use % encoding for everything else
-             (let* ([s (number->string (char->integer (car lst)) 16)]
-                    [s (if (< (string-length s) 2) (string-append "0" s) s)]
-                    [l (cons #\% (string->list (string-downcase s)))])
-               (loop (cdr lst) (append (reverse l) text)))])))
+(define (mangle-symbol->string sym)
+  (define safe '(#\! #\$ #\- #\_ #\=))
+  (let loop ([lst (string->list (symbol->string sym))] [text '()])
+    (cond [(null? lst) 
+            (list->string (reverse text))]
+          [(or (char-lower-case? (car lst)) (char-numeric? (car lst)))
+            (loop (cdr lst) (cons (car lst) text))]
+          [(memv (car lst) safe)
+            (loop (cdr lst) (cons (car lst) text))]
+          [else ; use % encoding for everything else
+            (let* ([s (number->string (char->integer (car lst)) 16)]
+                  [s (if (< (string-length s) 2) (string-append "0" s) s)]
+                  [l (cons #\% (string->list (string-downcase s)))])
+              (loop (cdr lst) (append (reverse l) text)))])))
 
 (define (listname->symbol lib)
   (define postfix "")
@@ -1316,18 +1333,6 @@
   (cond [(symbol? s) (mangle-symbol->string s)]
         [(exact-integer? s) (number->string s)]
         [else (c-error "invalid library name name element" s)]))
-
-(define modname-separator "_")
-
-(define (listname->modname listname)
-  (define sep modname-separator)
-  (let loop ([l listname] [r '()])
-    (if (pair? l)
-        (loop (cdr l) 
-              (if (null? r) 
-                  (cons (listname-segment->string (car l)) r) 
-                  (cons (listname-segment->string (car l)) (cons sep r))))
-        (string-append* (reverse r)))))
 
 (define (listname->path listname basepath ext)
   (define sep 
@@ -1396,26 +1401,10 @@
         (let ([s (read-code-sexp port)])
           (unless (eof-object? s) (proc s) (loop)))))))
 
-(define (file/lib->modname name)
-  (cond [(and (pair? name) (list? name)) (listname->modname name)]
-        [(string? name) (path-strip-extension (path-strip-directory name))]
-        [else (c-error "illegal file or library name:" name)]))
-  
-(define (file/lib/stdin->modname name)
-  (if (and (string? name) (string=? name "-"))
-      "stdin"
-      (file/lib->modname name)))
-
 ; name prefixes
 
-(define (fully-qualified-prefix modname)
-  (string-append modname "."))
-
-(define (fully-qualified-library-prefix lib)
-  (fully-qualified-prefix (file/lib->modname lib)))
-
 (define (fully-qualified-library-prefixed-name lib id)
-  (string-append (file/lib->modname lib) "." (symbol->string id)))
+  (string->symbol (string-append (symbol->string (listname->symbol lib)) "?" (symbol->string id))))
 
 
 ;---------------------------------------------------------------------------------------------
