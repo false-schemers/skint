@@ -108,6 +108,9 @@
          (begin result1 result2 ...)
          (sexp-case key clause clauses ...))]))
 
+(define symbol-append
+  (lambda syms (string->symbol (apply string-append (map symbol->string syms)))))
+
 ; unique symbol generator (poor man's version)
 (define gensym
   (let ([gsc 0])
@@ -195,6 +198,7 @@
 ;  <core> -> (call <core> <core> ...) 
 ;  <core> -> (integrable <ig> <core> ...) where <ig> is an index in the integrables table
 ;  <core> -> (asm <igs>) where <igs> is ig string leaving result in ac, e.g. "'2,'1+" 
+;  <core> -> (once <gid> <core>) where gid is always resolved as global
 
 ;  NB: (begin) is legit, returns unspecified value
 ;  on top level, these two extra core forms are legal:
@@ -306,7 +310,7 @@
 
 (define (xenv-lookup env id at)
   (or (env id at)
-      (error* "transformer: invalid identifier access" (list id at))))
+      (error* "transformer: invalid identifier access" (list id (id->sym id) at))))
 
 (define (xenv-ref env id) (xenv-lookup env id 'ref))
 
@@ -885,6 +889,8 @@
        (set-union (find-free exp b) (find-free* args b))]
       [asm (cstr)
        '()]
+      [once (gid exp)
+       (find-free exp b)]
       [(define define-syntax) tail
        (c-error "misplaced definition form" x)])))
 
@@ -929,6 +935,8 @@
        (set-union (find-sets exp v) (find-sets* args v))]
       [asm (cstr)
        '()]
+      [once (gid exp)
+       (find-sets exp)]
       [(define define-syntax) tail
        (c-error "misplaced definition form" x)])))
 
@@ -1213,6 +1221,11 @@
       [asm (cstr)
        (write-string cstr port)
        (when k (write-char #\] port) (write-serialized-arg k port))]
+      [once (gid exp)
+       (codegen `(if (integrable ,(lookup-integrable 'eq?) (ref ,gid) (quote #t)) 
+                     (begin)
+                     (begin (set! ,gid (quote #t)) ,exp)) 
+          l f s g k port)]
       [(define define-syntax) tail
        (c-error "misplaced definition form" x)])))
 
@@ -1404,7 +1417,7 @@
 ; name prefixes
 
 (define (fully-qualified-library-prefixed-name lib id)
-  (string->symbol (string-append (symbol->string (listname->symbol lib)) "?" (symbol->string id))))
+  (symbol-append (if (symbol? lib) lib (listname->symbol lib)) '? id))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1601,6 +1614,18 @@
                (let ([p (assq id al)])
                  (if p (cdr p) #f)))))]
         [else #f]))
+
+; add std libraries to root env as expand time mappings of library's symbolic name
+; to an identifyer-syntax expanding into (quote (<init-code> . <eal>)) form
+(for-each
+  (let ([syntax-id (new-id 'syntax (make-location 'syntax) #f)])
+    (lambda (p) 
+      (let* ([lib (car p)] [eal (cdr p)] [sym (listname->symbol lib)])
+        (define (libid-transformer sexp env)
+          (list syntax-id (list 'quote (cons '(begin) eal))))
+        (define-in-root-environment! sym 
+          (make-location libid-transformer) #t))))
+  *std-lib->alist-env*)
 
 
 ; combine explicit finite env1 with finite or infinite env2

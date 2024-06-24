@@ -56,6 +56,10 @@ char *t_code[] = {
   "quote;y3:pat;;y3:key;;l4:y5:begin;y7:result1;y7:result2;y3:...;;l5:y9:"
   "sexp-case;y3:key;y6:clause;y7:clauses;y3:...;;;;",
 
+  "P", "symbol-append",
+  "%!0${${.4,@(y14:symbol->string),@(y5:%25map1)[02},@(y14:%25string-appe"
+  "nd),@(y13:apply-to-list)[02}X5]1",
+
   "C", 0,
   "'0,#0.0,&1{%!0'1,:0^I+:!0.0u?{'(i10),:0^X6,'(s1:#)S6X5]1}.0aY0?{'(i10)"
   ",:0^X6,'(s1:#)S6,.1aX4S6X5]1}'0:!0]1}_1@!(y6:gensym)",
@@ -167,8 +171,8 @@ char *t_code[] = {
   "%3.2,.2,'(y3:ref),l2,.2,@(y17:extend-xenv-local)[33",
 
   "P", "xenv-lookup",
-  "%3${.4,.4,.4[02},.0?{.0]4}.3,.3,l2,'(s38:transformer: invalid identifi"
-  "er access),@(y6:error*)[42",
+  "%3${.4,.4,.4[02},.0?{.0]4}.3,${.5,@(y7:id->sym)[01},.4,l3,'(s38:transf"
+  "ormer: invalid identifier access),@(y6:error*)[42",
 
   "P", "xenv-ref",
   "%2'(y3:ref),.2,.2,@(y11:xenv-lookup)[23",
@@ -473,9 +477,10 @@ char *t_code[] = {
   ",&1{%!1:0,.1,@(y10:find-free*)[22},@(y13:apply-to-list)[22}'(y4:call),"
   ".1aq?{.0d,.2,&1{%!1${:0,.3,@(y10:find-free*)[02},${:0,.5,@(y9:find-fre"
   "e)[02},@(y9:set-union)[22},@(y13:apply-to-list)[22}'(y3:asm),.1aq?{.0d"
-  ",&0{%1n]1},@(y13:apply-to-list)[22}'(l2:y6:define;y13:define-syntax;),"
-  ".1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced definition form),@(y7:c-error)["
-  "12},@(y13:apply-to-list)[22}'(y16:record-case-miss)]2",
+  ",&0{%1n]1},@(y13:apply-to-list)[22}'(y4:once),.1aq?{.0d,.2,&1{%2:0,.2,"
+  "@(y9:find-free)[22},@(y13:apply-to-list)[22}'(l2:y6:define;y13:define-"
+  "syntax;),.1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced definition form),@(y7:"
+  "c-error)[12},@(y13:apply-to-list)[22}'(y16:record-case-miss)]2",
 
   "P", "find-sets*",
   "%2.0u?{n]2}${.3,.3d,@(y10:find-sets*)[02},${.4,.4a,@(y9:find-sets)[02}"
@@ -501,10 +506,11 @@ char *t_code[] = {
   "10:integrable),.1aq?{.0d,.2,&1{%!1:0,.1,@(y10:find-sets*)[22},@(y13:ap"
   "ply-to-list)[22}'(y4:call),.1aq?{.0d,.2,&1{%!1${:0,.3,@(y10:find-sets*"
   ")[02},${:0,.5,@(y9:find-sets)[02},@(y9:set-union)[22},@(y13:apply-to-l"
-  "ist)[22}'(y3:asm),.1aq?{.0d,&0{%1n]1},@(y13:apply-to-list)[22}'(l2:y6:"
-  "define;y13:define-syntax;),.1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced defi"
-  "nition form),@(y7:c-error)[12},@(y13:apply-to-list)[22}'(y16:record-ca"
-  "se-miss)]2",
+  "ist)[22}'(y3:asm),.1aq?{.0d,&0{%1n]1},@(y13:apply-to-list)[22}'(y4:onc"
+  "e),.1aq?{.0d,&0{%2.1,@(y9:find-sets)[21},@(y13:apply-to-list)[22}'(l2:"
+  "y6:define;y13:define-syntax;),.1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced d"
+  "efinition form),@(y7:c-error)[12},@(y13:apply-to-list)[22}'(y16:record"
+  "-case-miss)]2",
 
   "P", "codegen",
   "%7'(y5:quote),.1aq?{.0d,.6,.8,&2{%1.0,t,.1v?{:0,'(ct)W0}{f,.1v?{:0,'(c"
@@ -621,9 +627,13 @@ char *t_code[] = {
   "write-serialized-arg)[02}${:5,.3g,@(y20:write-serialized-arg)[02}:5,'("
   "c})W0]2},@(y13:apply-to-list)[72}'(y3:asm),.1aq?{.0d,.6,.8,&2{%1${:0,."
   "3,@(y12:write-string)[02}:1?{:0,'(c])W0:0,:1,@(y20:write-serialized-ar"
-  "g)[12}]1},@(y13:apply-to-list)[72}'(l2:y6:define;y13:define-syntax;),."
-  "1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced definition form),@(y7:c-error)[1"
-  "2},@(y13:apply-to-list)[72}'(y16:record-case-miss)]7",
+  "g)[12}]1},@(y13:apply-to-list)[72}'(y4:once),.1aq?{.0d,.7,.7,.7,.7,.7,"
+  ".7,&6{%2:5,:4,:3,:2,:1,:0,n,n,.9c,n,n,tc,'(y5:quote)cc,.9c,'(y4:set!)c"
+  "c,'(y5:begin)cc,n,'(y5:begin)cc,n,n,tc,'(y5:quote)cc,n,.9c,'(y3:ref)cc"
+  ",'(y3:eq?)U5c,'(y10:integrable)cc,'(y2:if)c,@(y7:codegen)[27},@(y13:ap"
+  "ply-to-list)[72}'(l2:y6:define;y13:define-syntax;),.1aA0?{.0d,.1,&1{%!"
+  "0:0,'(s25:misplaced definition form),@(y7:c-error)[12},@(y13:apply-to-"
+  "list)[72}'(y16:record-case-miss)]7",
 
   "P", "compile-to-string",
   "%1P51,${.2,f,${n,.8,@(y9:find-free)[02},n,n,n,.9,@(y7:codegen)[07}.0P9"
@@ -733,8 +743,8 @@ char *t_code[] = {
   ":0[01}:1^[10}]1}.!0.0^_1[20},.3,.3,@(y24:call-with-input-file/lib)[33",
 
   "P", "fully-qualified-library-prefixed-name",
-  "%2${.3X4,'(s1:?),${.6,@(y16:listname->symbol)[01}X4,@(y14:%25string-ap"
-  "pend)[03}X5]2",
+  "%2.1,'(y1:?),.2Y0?{.2}{${.4,@(y16:listname->symbol)[01}},@(y13:symbol-"
+  "append)[23",
 
   "P", "env-lookup",
   "%3.0K0?{.2,'(l2:y3:ref;y4:set!;),.1A1?{.1,@(y7:old-den)[41}f]4}.1,,#0."
@@ -937,6 +947,12 @@ char *t_code[] = {
   "P", "std-lib->env",
   "%1${.2,@(y18:std-lib->alist-env)[01},.0?{.0,.0,&1{%2'(y3:ref),.2q?{:0,"
   ".1A3,.0?{.0d]3}f]3}f]2}]3}f]2",
+
+  "C", 0,
+  "${@(y20:*std-lib->alist-env*),${f,'(y6:syntax)b,'(y6:syntax),@(y6:new-"
+  "id)[03},.0,&1{%1.0a,.1d,${.3,@(y16:listname->symbol)[01},,#0.2,:0,&2{%"
+  "2:1,'(l1:y5:begin;)c,'(y5:quote),l2,:0,l2]2}.!0t,.1^b,.3,@(y27:define-"
+  "in-root-environment!)[53}_1,@(y10:%25for-each1)[02}",
 
   "P", "adjoin-env",
   "%2.0u?{.1]2}${.3,.3d,@(y10:adjoin-env)[02},${'(y3:ref),.3,.5aa,@(y10:e"
