@@ -130,6 +130,8 @@ char *t_code[] = {
 
   "A", "val-core?", "pair?",
 
+  "A", "location?", "box?",
+
   "A", "make-location", "box",
 
   "A", "location-val", "unbox",
