@@ -197,7 +197,7 @@ declare_instruction(atest1,     "%1",           0,  NULL,                       
 declare_instruction(atest2,     "%2",           0,  NULL,                        0,  NULL) 
 declare_instruction(atest3,     "%3",           0,  NULL,                        0,  NULL) 
 declare_instruction(atest4,     "%4",           0,  NULL,                        0,  NULL) 
-declare_instruction(brnotlt,    "<?",          'b', NULL,                        0,  NULL) 
+/* declare_instruction(brnotlt,    "<?",          'b', NULL,                        0,  NULL) */
 declare_instruction(pushsub,    "-,",           0,  NULL,                        0,  NULL) 
 
 /* type checks: integrables but no globals  */

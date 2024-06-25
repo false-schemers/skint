@@ -3779,6 +3779,7 @@ define_instruction(scall44) {
   sdrop(4); callsubi();
 }
 
+/* <? combo gets in a way of decoding ;>? from (if (< 1 2 3) 4 5)
 define_instruction(brnotlt) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
@@ -3798,6 +3799,7 @@ define_instruction(brnotlt) {
     gonexti(); 
   }
 }
+*/
 
 define_instruction(pushsub) {
   obj x = ac, y = spop();

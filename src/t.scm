@@ -270,6 +270,7 @@
 
 (define-syntax  val-core?          pair?)
 
+(define-syntax  location?          box?)
 (define-syntax  make-location      box)
 (define-syntax  location-val       unbox)
 (define-syntax  location-set-val!  set-box!)
