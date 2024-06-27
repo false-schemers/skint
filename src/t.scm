@@ -356,7 +356,7 @@
              [(letcc)         (xform-letcc         tail env)]
              [(withcc)        (xform-withcc        tail env)]
              [(body)          (xform-body          tail env appos?)]
-             [(begin)         (xform-begin         tail env)]
+             [(begin)         (xform-begin         tail env appos?)]
              [(define)        (xform-define        tail env)]
              [(define-syntax) (xform-define-syntax tail env)]
              [(syntax-lambda) (xform-syntax-lambda tail env appos?)]
@@ -547,12 +547,11 @@
            (location-set-val! (xenv-lookup env (car ids) 'set!) (xform #t (car inits) env))
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
-(define (xform-begin tail env) ; non-internal
+(define (xform-begin tail env appos?) ; non-internal
   (if (list? tail)
-      (let ([xexps (map (lambda (sexp) (xform #f sexp env)) tail)])
-        (if (and (pair? xexps) (null? (cdr xexps)))
-            (car xexps) ; (begin x) => x
-            (cons 'begin xexps)))
+      (if (list1? tail)
+          (xform appos? (car tail) env) ; (begin x) == x
+          (cons 'begin (map (lambda (sexp) (xform #f sexp env)) tail)))
       (x-error "improper begin form" (cons 'begin tail))))
 
 (define (xform-define tail env) ; non-internal
@@ -735,15 +734,24 @@
 
 (define (make-include-transformer ci?)
   (define begin-id (new-id 'begin (make-location 'begin) #f))
+  (define (push-current-file-transformer sexp env)
+    (unless (and (list2? sexp) (string? (cadr sexp))) (x-error "invalid syntax" sexp))
+    (push-current-file! (cadr sexp)) (list begin-id))
+  (define (pop-current-file-transformer sexp env)
+    (unless (list1? sexp) (x-error "invalid syntax" sexp))
+    (pop-current-file!) (list begin-id))
+  (define push-cf-id (new-id 'push-cf (make-location push-current-file-transformer) #f))
+  (define pop-cf-id (new-id 'pop-cf (make-location pop-current-file-transformer) #f))
   (lambda (sexp env)
-    (if (list1+? sexp)
-        (let loop ([files (cdr sexp)] [exp-lists '()])
-          (if (null? files)
-              (cons begin-id (apply append (reverse! exp-lists)))
-              (call-with-file/lib-sexps (car files) ci? ;=>
-                (lambda (exp-list)
-                  (loop (cdr files) (cons exp-list exp-lists))))))
-        (x-error "invalid syntax" sexp))))
+    (unless (list1+? sexp) (x-error "invalid syntax" sexp))
+    (let loop ([files (cdr sexp)] [exp-lists '()])
+      (if (null? files)
+          (cons begin-id (apply append (reverse! exp-lists)))
+          (let* ([filepath (file-resolve-relative-to-current (car files))]
+                  [sexps (read-file-sexps filepath ci?)]
+                  [wrapped-sexps `((,push-cf-id ,filepath) ,@sexps (,pop-cf-id))])
+            (loop (cdr files) (cons wrapped-sexps exp-lists)))))))
+
 
 (define (if-feature-available-transformer sexp env)
   (if (and (list? sexp) (= (length sexp) 4))
@@ -1293,14 +1301,26 @@
 
 (define *current-file-stack* '())
 
+(define (current-file-stack) *current-file-stack*)
+(define (set-current-file-stack! s) (set! *current-file-stack* s))
+
 (define (current-file) ;=> filename of #f
   (and (pair? *current-file-stack*) (car *current-file-stack*)))
 
+(define (push-current-file! filename)
+ (when (member filename *current-file-stack* string=?)
+   (x-error "circularity in include file chain" filename))
+ (set! *current-file-stack* (cons filename *current-file-stack*)))
+
+(define (pop-current-file!)
+ (unless (null? *current-file-stack*)
+   (set! *current-file-stack* (cdr *current-file-stack*))))
+
 (define (with-current-file filename thunk)
   (dynamic-wind
-    (lambda () (set! *current-file-stack* (cons filename *current-file-stack*)))
+    (lambda () (push-current-file! filename))
     thunk
-    (lambda () (set! *current-file-stack* (cdr *current-file-stack*)))))
+    (lambda () (pop-current-file!))))
 
 (define (file-resolve-relative-to-current filename) ; => resolved or original filename 
   (if (path-relative? filename)
@@ -1389,6 +1409,16 @@
   (if (not (file-exists? filepath)) 
       (c-error "cannot resolve file or library name to an existing file:" name '=> filepath))
   filepath)
+
+(define (read-file-sexps filepath ci?)
+  (call-with-input-file filepath
+    (lambda (port) 
+      (when ci? (set-port-fold-case! port #t))
+      (let loop ([sexps '()])
+        (let ([s (read-code-sexp port)])
+          (if (eof-object? s)
+              (reverse! sexps)
+              (loop (cons s sexps))))))))
 
 (define (call-with-input-file/lib name ci? proc) ;=> (proc filepath port), called while name is current-file
   (let ([filepath (resolve-input-file/lib-name name)])
@@ -1957,17 +1987,20 @@
   (read-code-sexp iport))
 
 (define (repl-from-port iport env prompt)
+  (define cfs (current-file-stack))
   (guard (err 
           [(error-object? err)
            (let ([p (current-error-port)])
             (display (error-object-message err) p) (newline p)
             (for-each (lambda (arg) (write arg p) (newline p)) 
               (error-object-irritants err)))
+           (set-current-file-stack! cfs)
            (when prompt (repl-from-port iport env prompt))]
           [else 
            (let ([p (current-error-port)])
              (display "Unknown error:" p) (newline p)
              (write err p) (newline p))
+           (set-current-file-stack! cfs)
            (when prompt (repl-from-port iport env prompt))])
     (let loop ([x (repl-read iport prompt)])
       (unless (eof-object? x)
@@ -1988,6 +2021,7 @@
   (close-input-port iport))
 
 (define (run-repl)
+  (set-current-file-stack! '())
   (repl-from-port 
     (current-input-port) 
     repl-environment

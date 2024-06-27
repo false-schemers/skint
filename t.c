@@ -198,14 +198,14 @@ char *t_code[] = {
   "mbda),.1v?{.6,.3,@(y12:xform-lambda)[72}'(y7:lambda*),.1v?{.6,.3,@(y13"
   ":xform-lambda*)[72}'(y5:letcc),.1v?{.6,.3,@(y11:xform-letcc)[72}'(y6:w"
   "ithcc),.1v?{.6,.3,@(y12:xform-withcc)[72}'(y4:body),.1v?{.4,.7,.4,@(y1"
-  "0:xform-body)[73}'(y5:begin),.1v?{.6,.3,@(y11:xform-begin)[72}'(y6:def"
-  "ine),.1v?{.6,.3,@(y12:xform-define)[72}'(y13:define-syntax),.1v?{.6,.3"
-  ",@(y19:xform-define-syntax)[72}'(y13:syntax-lambda),.1v?{.4,.7,.4,@(y1"
-  "9:xform-syntax-lambda)[73}'(y12:syntax-rules),.1v?{.6,.3,@(y18:xform-s"
-  "yntax-rules)[72}'(y13:syntax-length),.1v?{.6,.3,@(y19:xform-syntax-len"
-  "gth)[72}'(y12:syntax-error),.1v?{.6,.3,@(y18:xform-syntax-error)[72}.1"
-  "U0?{.6,.3,.3,@(y16:xform-integrable)[73}.1K0?{.6,${.9,.9,.6[02},.6,@(y"
-  "5:xform)[73}.6,.3,.3,@(y10:xform-call)[73",
+  "0:xform-body)[73}'(y5:begin),.1v?{.4,.7,.4,@(y11:xform-begin)[73}'(y6:"
+  "define),.1v?{.6,.3,@(y12:xform-define)[72}'(y13:define-syntax),.1v?{.6"
+  ",.3,@(y19:xform-define-syntax)[72}'(y13:syntax-lambda),.1v?{.4,.7,.4,@"
+  "(y19:xform-syntax-lambda)[73}'(y12:syntax-rules),.1v?{.6,.3,@(y18:xfor"
+  "m-syntax-rules)[72}'(y13:syntax-length),.1v?{.6,.3,@(y19:xform-syntax-"
+  "length)[72}'(y12:syntax-error),.1v?{.6,.3,@(y18:xform-syntax-error)[72"
+  "}.1U0?{.6,.3,.3,@(y16:xform-integrable)[73}.1K0?{.6,${.9,.9,.6[02},.6,"
+  "@(y5:xform)[73}.6,.3,.3,@(y10:xform-call)[73",
 
   "P", "xform-syntax",
   "%2${.2,@(y6:list1?)[01}?{.0a]2}.0,'(y6:syntax)c,'(s20:improper syntax "
@@ -319,9 +319,9 @@ char *t_code[] = {
   "lookup)[03}sz.4,.4,.4d,.4d,.4d,:4^[55}.!0.0^_1[75",
 
   "P", "xform-begin",
-  "%2.0L0?{${.2,.4,&1{%1:0,.1,f,@(y5:xform)[13},@(y5:%25map1)[02},.0p?{.0"
-  "du}{f}?{.0a]3}.0,'(y5:begin)c]3}.0,'(y5:begin)c,'(s19:improper begin f"
-  "orm),@(y7:x-error)[22",
+  "%3.0L0?{${.2,@(y6:list1?)[01}?{.1,.1a,.4,@(y5:xform)[33}${.2,.4,&1{%1:"
+  "0,.1,f,@(y5:xform)[13},@(y5:%25map1)[02},'(y5:begin)c]3}.0,'(y5:begin)"
+  "c,'(s19:improper begin form),@(y7:x-error)[32",
 
   "P", "xform-define",
   "%2${.2,@(y6:list2?)[01}?{.0au}{f}?{.1,.1da,f,@(y5:xform)[23}${.2,@(y6:"
@@ -394,11 +394,17 @@ char *t_code[] = {
   ".3,.5,:1^[63}.4d,:0^[51}.!0.0^_1[21}](i12)",
 
   "P", "make-include-transformer",
-  "%1,#0${f,'(y5:begin)b,'(y5:begin),@(y6:new-id)[03}.!0.1,.1,&2{%2${.2,@"
-  "(y7:list1+?)[01}?{n,.1d,,#0.0,:1,:0,&3{%2.0u?{${.3A9,@(y7:%25append),@"
-  "(y13:apply-to-list)[02},:0^c]2}.1,.1,:2,&3{%1:2,.1c,:1d,:0^[12},:1,.2a"
-  ",@(y24:call-with-file/lib-sexps)[23}.!0.0^_1[22}.0,'(s14:invalid synta"
-  "x),@(y7:x-error)[22}]2",
+  "%1,,,,,#0#1#2#3#4${f,'(y5:begin)b,'(y5:begin),@(y6:new-id)[03}.!0.0,&1"
+  "{%2${.2,@(y6:list2?)[01}?{.0daS0}{f}~?{${.2,'(s14:invalid syntax),@(y7"
+  ":x-error)[02}}${.2da,@(y18:push-current-file!)[01}:0^,l1]2}.!1.0,&1{%2"
+  "${.2,@(y6:list1?)[01}~?{${.2,'(s14:invalid syntax),@(y7:x-error)[02}}$"
+  "{@(y17:pop-current-file!)[00}:0^,l1]2}.!2${f,.4^b,'(y7:push-cf),@(y6:n"
+  "ew-id)[03}.!3${f,.5^b,'(y6:pop-cf),@(y6:new-id)[03}.!4.3,.5,.7,.3,&4{%"
+  "2${.2,@(y7:list1+?)[01}~?{${.2,'(s14:invalid syntax),@(y7:x-error)[02}"
+  "}n,.1d,,#0:3,:2,.2,:1,:0,&5{%2.0u?{${.3A9,@(y7:%25append),@(y13:apply-"
+  "to-list)[02},:0^c]2}${.2a,@(y32:file-resolve-relative-to-current)[01},"
+  "${:1,.3,@(y15:read-file-sexps)[02},n,n,:3^cc,.1L6,n,.3c,:4^cc,.4,.1c,."
+  "4d,:2^[52}.!0.0^_1[22}]6",
 
   "P", "if-feature-available-transformer",
   "%2.0L0?{'4,.1g=}{f}?{.0ddda,.1dda,.2da,${${.4,@(y17:xform-sexp->datum)"
@@ -671,13 +677,27 @@ char *t_code[] = {
   "C", 0,
   "n@!(y20:*current-file-stack*)",
 
+  "P", "current-file-stack",
+  "%0@(y20:*current-file-stack*)]0",
+
+  "P", "set-current-file-stack!",
+  "%1.0@!(y20:*current-file-stack*)]1",
+
   "P", "current-file",
   "%0@(y20:*current-file-stack*)p?{@(y20:*current-file-stack*)a]0}f]0",
 
+  "P", "push-current-file!",
+  "%1${@(y8:string=?),@(y20:*current-file-stack*),.4,@(y7:%25member)[03}?"
+  "{${.2,'(s33:circularity in include file chain),@(y7:x-error)[02}}@(y20"
+  ":*current-file-stack*),.1c@!(y20:*current-file-stack*)]1",
+
+  "P", "pop-current-file!",
+  "%0@(y20:*current-file-stack*)u~?{@(y20:*current-file-stack*)d@!(y20:*c"
+  "urrent-file-stack*)]0}]0",
+
   "P", "with-current-file",
-  "%2&0{%0@(y20:*current-file-stack*)d@!(y20:*current-file-stack*)]0},.2,"
-  ".2,&1{%0@(y20:*current-file-stack*),:0c@!(y20:*current-file-stack*)]0}"
-  ",@(y12:dynamic-wind)[23",
+  "%2&0{%0@(y17:pop-current-file!)[00},.2,.2,&1{%0:0,@(y18:push-current-f"
+  "ile!)[01},@(y12:dynamic-wind)[23",
 
   "P", "file-resolve-relative-to-current",
   "%1${.2,@(y14:path-relative?)[01}?{${@(y12:current-file)[00},.0?{${.2,@"
@@ -729,6 +749,11 @@ char *t_code[] = {
   ":in),.5,'(s38:cannot resolve library name to a file:),@(y7:c-error)[04"
   "}}}.0^F0~?{${.2^,'(y2:=>),.5,'(s56:cannot resolve file or library name"
   " to an existing file:),@(y7:c-error)[04}}.0^]2",
+
+  "P", "read-file-sexps",
+  "%2.1,&1{%1:0?{t,.1P79}n,,#0.2,.1,&2{%1${:1,@(y14:read-code-sexp)[01},."
+  "0R8?{.1A9]2}.1,.1c,:0^[21}.!0.0^_1[11},.1,@(y20:call-with-input-file)["
+  "22",
 
   "P", "call-with-input-file/lib",
   "%3${.2,@(y27:resolve-input-file/lib-name)[01},.2,.1,.5,&3{%0:0,:1,:2,&"
@@ -1093,16 +1118,18 @@ char *t_code[] = {
   "%2.1?{PoW6Po,.2W4Po,'(s1: )W4}.0,@(y14:read-code-sexp)[21",
 
   "P", "repl-from-port",
-  "%3${k0,.0,${.2,.8,.(i10),.9,&4{%0:3,&1{%!0.0,&1{%0:0,@(y6:values),@(y1"
-  "3:apply-to-list)[02},:0[11},:0,:1,:2,&3{%0${:1,:2,@(y9:repl-read)[02},"
-  ",#0:0,:2,:1,.3,&4{%1.0R8~?{${:3,.3,@(y18:repl-eval-top-form)[02}${:1,:"
-  "2,@(y9:repl-read)[02},:0^[11}]1}.!0.0^_1[01},@(y16:call-with-values)[0"
-  "2},.9,.9,.9,.6,&4{%1${k0,.0,${.6,:1,:2,:3,&4{%0:3,${.2,@(y13:error-obj"
-  "ect?)[01}?{Pe,.0,${.4,@(y20:error-object-message)[01}W4.0W6${${.5,@(y2"
-  "2:error-object-irritants)[01},.3,&1{%1:0,.1W5:0W6]1},@(y10:%25for-each"
-  "1)[02}_1:0?{:0,:1,:2,@(y14:repl-from-port)[13}]1}Pe,.0,'(s14:Unknown e"
-  "rror:)W4.0W6.0,.2W5.0W6_1:0?{:0,:1,:2,@(y14:repl-from-port)[13}]1},:0["
-  "01}_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[30",
+  "%3,#0${@(y18:current-file-stack)[00}.!0${k0,.0,${.2,.9,.(i11),.(i10),&"
+  "4{%0:3,&1{%!0.0,&1{%0:0,@(y6:values),@(y13:apply-to-list)[02},:0[11},:"
+  "0,:1,:2,&3{%0${:1,:2,@(y9:repl-read)[02},,#0:0,:2,:1,.3,&4{%1.0R8~?{${"
+  ":3,.3,@(y18:repl-eval-top-form)[02}${:1,:2,@(y9:repl-read)[02},:0^[11}"
+  "]1}.!0.0^_1[01},@(y16:call-with-values)[02},.(i10),.(i10),.(i10),.(i10"
+  "),.7,&5{%1${k0,.0,${.6,:1,:2,:3,:4,&5{%0:4,${.2,@(y13:error-object?)[0"
+  "1}?{Pe,.0,${.4,@(y20:error-object-message)[01}W4.0W6${${.5,@(y22:error"
+  "-object-irritants)[01},.3,&1{%1:0,.1W5:0W6]1},@(y10:%25for-each1)[02}_"
+  "1${:3^,@(y23:set-current-file-stack!)[01}:0?{:0,:1,:2,@(y14:repl-from-"
+  "port)[13}]1}Pe,.0,'(s14:Unknown error:)W4.0W6.0,.2W5.0W6_1${:3^,@(y23:"
+  "set-current-file-stack!)[01}:0?{:0,:1,:2,@(y14:repl-from-port)[13}]1},"
+  ":0[01}_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[40",
 
   "P", "repl-file",
   "%2,#0${.3,@(y15:open-input-file)[01}.!0${f,.5,.4^,@(y14:repl-from-port"
@@ -1116,7 +1143,8 @@ char *t_code[] = {
   ";f;),@(y18:repl-eval-top-form)[02}.0^P60]2",
 
   "P", "run-repl",
-  "%0'(s6:skint]),@(y16:repl-environment),Pi,@(y14:repl-from-port)[03",
+  "%0${n,@(y23:set-current-file-stack!)[01}'(s6:skint]),@(y16:repl-enviro"
+  "nment),Pi,@(y14:repl-from-port)[03",
 
   0, 0, 0
 };
