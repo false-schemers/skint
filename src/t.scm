@@ -748,8 +748,8 @@
       (if (null? files)
           (cons begin-id (apply append (reverse! exp-lists)))
           (let* ([filepath (file-resolve-relative-to-current (car files))]
-                  [sexps (read-file-sexps filepath ci?)]
-                  [wrapped-sexps `((,push-cf-id ,filepath) ,@sexps (,pop-cf-id))])
+                 [sexps (read-file-sexps filepath ci?)]
+                 [wrapped-sexps `((,push-cf-id ,filepath) ,@sexps (,pop-cf-id))])
             (loop (cdr files) (cons wrapped-sexps exp-lists)))))))
 
 
@@ -870,6 +870,10 @@
     (record-case x
       [quote (obj) 
        '()]
+      [gref (gid)
+       '()]
+      [gset! (gid exp)
+       (find-free exp b)]
       [(ref const) (id)
        (if (set-member? id b) '() (list id))]
       [set! (id exp)
@@ -916,12 +920,16 @@
     (record-case x
       [quote (obj) 
        '()]
+      [gref (gid)
+       '()]
+      [gset! (gid exp)
+       (find-sets exp v)]
       [(ref const) (id)
        '()]
-      [set! (id x)
+      [set! (id exp)
        (set-union
          (if (set-member? id v) (list id) '())
-         (find-sets x v))]
+         (find-sets exp v))]
       [set& (id)
        (if (set-member? id v) (list id) '())]
       [lambda (idsi exp)
@@ -945,7 +953,7 @@
       [asm (cstr)
        '()]
       [once (gid exp)
-       (find-sets exp)]
+       (find-sets exp v)]
       [(define define-syntax) tail
        (c-error "misplaced definition form" x)])))
 
@@ -965,6 +973,15 @@
           [(#f) (write-char #\f port)]
           [(()) (write-char #\n port)]
           [else (write-char #\' port) (write-serialized-arg obj port)])
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [gref (gid)
+       (write-char #\@ port)
+       (write-serialized-arg gid port)
+       (when k (write-char #\] port) (write-serialized-arg k port))]
+      [gset! (gid x)
+       (codegen x l f s g #f port)
+       (write-char #\@ port) (write-char #\! port)
+       (write-serialized-arg gid port)
        (when k (write-char #\] port) (write-serialized-arg k port))]
       [(ref const) (id)
        (cond [(posq id l) => ; local
@@ -1231,9 +1248,9 @@
        (write-string cstr port)
        (when k (write-char #\] port) (write-serialized-arg k port))]
       [once (gid exp)
-       (codegen `(if (integrable ,(lookup-integrable 'eq?) (ref ,gid) (quote #t)) 
+       (codegen `(if (integrable ,(lookup-integrable 'eq?) (gref ,gid) (quote #t)) 
                      (begin)
-                     (begin (set! ,gid (quote #t)) ,exp)) 
+                     (begin (gset! ,gid (quote #t)) ,exp)) 
           l f s g k port)]
       [(define define-syntax) tail
        (c-error "misplaced definition form" x)])))
