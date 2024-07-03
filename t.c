@@ -187,6 +187,9 @@ char *t_code[] = {
   "P", "x-error",
   "%!1.0,.2,'(s13:transformer: )S6,@(y6:error*)[22",
 
+  "P", "check-syntax",
+  "%3${.2,.4,@(y11:sexp-match?)[02}~?{.0,.3,@(y7:x-error)[32}]3",
+
   "P", "xform",
   "%3${.3,@(y3:id?)[01}?{${.4,.4,@(y9:xform-ref)[02},.1?{.0]4}.0U0?{.0U7,"
   "'(y3:ref),l2]4}.0K0?{.3,${.6,.6,.5[02},.3,@(y5:xform)[43}.0p~?{.0,'(s2"
@@ -401,20 +404,32 @@ char *t_code[] = {
   "{@(y17:pop-current-file!)[00}:0^,l1]2}.!2${f,.4^b,'(y7:push-cf),@(y6:n"
   "ew-id)[03}.!3${f,.5^b,'(y6:pop-cf),@(y6:new-id)[03}.!4.3,.5,.7,.3,&4{%"
   "2${.2,@(y7:list1+?)[01}~?{${.2,'(s14:invalid syntax),@(y7:x-error)[02}"
-  "}n,.1d,,#0:3,:2,.2,:1,:0,&5{%2.0u?{${.3A9,@(y7:%25append),@(y13:apply-"
-  "to-list)[02},:0^c]2}${.2a,@(y32:file-resolve-relative-to-current)[01},"
-  "${:1,.3,@(y15:read-file-sexps)[02},n,n,:3^cc,.1L6,n,.3c,:4^cc,.4,.1c,."
-  "4d,:2^[52}.!0.0^_1[22}]6",
+  "}n,.1d,,#0.3,:3,:2,.3,:1,:0,&6{%2.0u?{${.3A9,@(y7:%25append),@(y13:app"
+  "ly-to-list)[02},:0^c]2}${.2a,@(y32:file-resolve-relative-to-current)[0"
+  "1},.0S0?{.0F0}{f},.0?{t}{${:5,.5a,'(s14:cannot include),@(y7:x-error)["
+  "03}},${:1,.5,@(y15:read-file-sexps)[02},n,n,:3^cc,.1L6,n,.5c,:4^cc,.6,"
+  ".1c,.6d,:2^[72}.!0.0^_1[22}]6",
 
-  "P", "if-feature-available-transformer",
-  "%2.0L0?{'4,.1g=}{f}?{.0ddda,.1dda,.2da,${${.4,@(y17:xform-sexp->datum)"
-  "[01},@(y18:feature-available?)[01}?{.1]5}.2]5}.0,'(s14:invalid syntax)"
-  ",@(y7:x-error)[22",
+  "P", "preprocess-cond-expand",
+  "%2,#0.0,.2,&2{%3${'(y4:else),.3,:0[02}?{.1[30}${.2,@(y3:id?)[01}?{${${"
+  ".4,@(y7:id->sym)[01},@(y18:feature-available?)[01}?{.1[30}.2[30}${.2,@"
+  "(y6:list2?)[01}?{${'(y7:library),.3a,:0[02}}{f}?{${${.4da,@(y17:xform-"
+  "sexp->datum)[01},@(y18:library-available?)[01}?{.1[30}.2[30}${.2,@(y7:"
+  "list1+?)[01}?{${'(y3:and),.3a,:0[02}}{f}?{.0du?{.1[30}.0ddu?{.2,.2,.2d"
+  "a,:1^[33}.2,.3,.3,.3,:1,&4{%0:3,:2,:1dd,:1ac,:0^[03},.2da,:1^[33}${.2,"
+  "@(y7:list1+?)[01}?{${'(y2:or),.3a,:0[02}}{f}?{.0du?{.2[30}.0ddu?{.2,.2"
+  ",.2da,:1^[33}.2,.2,.2,:1,&4{%0:3,:2,:1dd,:1ac,:0^[03},.2,.2da,:1^[33}$"
+  "{.2,@(y6:list2?)[01}?{${'(y3:not),.3a,:0[02}}{f}?{.1,.3,.2da,:1^[33}'("
+  "s39:invalid cond-expand feature requirement),.1,@(y7:x-error)[32}.!0${"
+  "'(s26:invalid cond-expand syntax),'(l3:y4:<id>;l3:y1:*;y1:*;y3:...;;y3"
+  ":...;),.6,@(y12:check-syntax)[03}.2d,,#0.0,.3,&2{%1.0u?{n]1}.0,:1,&2{%"
+  "0:1d,:0^[01},.1,&1{%0:0ad]0},.2aa,:0^[13}.!0.0^_1[31",
 
-  "P", "if-library-available-transformer",
-  "%2.0L0?{'4,.1g=}{f}?{.0ddda,.1dda,.2da,${${.4,@(y17:xform-sexp->datum)"
-  "[01},@(y18:library-available?)[01}?{.1]5}.2]5}.0,'(s14:invalid syntax)"
-  ",@(y7:x-error)[22",
+  "P", "make-cond-expand-transformer",
+  "%0,#0${f,'(y5:begin)b,'(y5:begin),@(y6:new-id)[03}.!0.0,&1{%2,#0.2,&1{"
+  "%2${.2,@(y3:id?)[01}?{${.3,@(y16:root-environment),@(y8:xenv-ref)[02},"
+  "${.3,:0,@(y8:xenv-ref)[02}q]2}f]2}.!0${.3,.3^,@(y22:preprocess-cond-ex"
+  "pand)[02},:0^c]3}]1",
 
   "P", "write-serialized-char",
   "%2'(c%25),.1C=,.0?{.0}{'(c%22),.2C=,.0?{.0}{'(c%5c),.3C=,.0?{.0}{'(c )"
@@ -808,12 +823,8 @@ char *t_code[] = {
   "efine-in-root-environment!)[03}",
 
   "C", 0,
-  "${t,@(y32:if-feature-available-transformer)b,'(y20:if-feature-availabl"
-  "e),@(y27:define-in-root-environment!)[03}",
-
-  "C", 0,
-  "${t,@(y32:if-library-available-transformer)b,'(y20:if-library-availabl"
-  "e),@(y27:define-in-root-environment!)[03}",
+  "${t,${@(y28:make-cond-expand-transformer)[00}b,'(y11:cond-expand),@(y2"
+  "7:define-in-root-environment!)[03}",
 
   "C", 0,
   "&0{%2t,.2,.2,@(y27:define-in-root-environment!)[23},${U1,,#0.0,.5,&2{%"

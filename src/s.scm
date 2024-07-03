@@ -26,7 +26,8 @@
 ; (define-syntax kw form)
 ; (syntax-lambda (id ...) form ...) 
 ; (syntax-rules (lit ...) [pat templ] ...) 
-; (syntax-rules ellipsis (lit ...) [pat templ] ...) 
+; (syntax-rules ellipsis (lit ...) [pat templ] ...)
+; (cond-expand [ftest exp ...] ...) 
 
 (define-syntax let-syntax
   (syntax-rules ()
@@ -56,6 +57,7 @@
 
 (define-syntax let
   (syntax-rules ()
+    [(_ () . forms) (body . forms)]
     [(_ ([var init] ...) . forms)
      ((lambda (var ...) . forms) init ...)]
     [(_ name ([var init] ...) . forms)
@@ -191,33 +193,6 @@
 (define-syntax case-lambda
   (syntax-rules ()
     [(_ [args . forms] ...) (lambda* [args (lambda args . forms)] ...)]))
-
-(define-syntax %if-expand
-  (syntax-rules (and or not library)
-    [(_ (and) con alt) con]
-    [(_ (and r) con alt) (%if-expand r con alt)]
-    [(_ (and r . r*) con alt) (%if-expand r (%if-expand (and . r*) con alt) alt)]
-    [(_ (or) con alt) alt]
-    [(_ (or r) con alt) (%if-expand r con alt)]
-    [(_ (or r . r*) con alt) (%if-expand r con (%if-expand (or . r*) con alt))]
-    [(_ (not r) con alt) (%if-expand r alt con)]
-    [(_ (library l) con alt) 
-     (if-library-available l con alt)] ; macro defined later in t.scm
-    [(_ (x . y) con alt) 
-     (syntax-error "unrecognized cond-expand feature requirement:" (x . y))]
-    [(_ f con alt)
-     (if-feature-available f con alt)])) ; macro defined later in t.scm
-
-(define-syntax cond-expand
-  (syntax-rules (else)
-    [(_) (void)]
-    [(_ [else . exps])
-      (begin . exps)]
-    [(_ [x] . rest)
-      (%if-expand x (begin) (cond-expand . rest))]
-    [(_ [x . exps] . rest)
-      (%if-expand x (begin . exps) (cond-expand . rest))]))         
-
 
 ;---------------------------------------------------------------------------------------------
 ; Delayed evaluation

@@ -22,11 +22,11 @@ char *s_code[] = {
   ";py4:body;y5:forms;;;;",
 
   "S", "let",
-  "l4:y12:syntax-rules;n;l2:py1:_;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms"
-  ";;;l3:py6:lambda;pl2:y3:var;y3:...;;y5:forms;;;y4:init;y3:...;;;l2:py1"
-  ":_;py4:name;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms;;;;l3:l3:y6:letrec"
-  ";l1:l2:y4:name;py6:lambda;pl2:y3:var;y3:...;;y5:forms;;;;;y4:name;;y4:"
-  "init;y3:...;;;",
+  "l5:y12:syntax-rules;n;l2:py1:_;pn;y5:forms;;;py4:body;y5:forms;;;l2:py"
+  "1:_;pl2:l2:y3:var;y4:init;;y3:...;;y5:forms;;;l3:py6:lambda;pl2:y3:var"
+  ";y3:...;;y5:forms;;;y4:init;y3:...;;;l2:py1:_;py4:name;pl2:l2:y3:var;y"
+  "4:init;;y3:...;;y5:forms;;;;l3:l3:y6:letrec;l1:l2:y4:name;py6:lambda;p"
+  "l2:y3:var;y3:...;;y5:forms;;;;;y4:name;;y4:init;y3:...;;;",
 
   "S", "let*",
   "l4:y12:syntax-rules;n;l2:py1:_;pn;y5:forms;;;py4:body;y5:forms;;;l2:py"
@@ -149,29 +149,6 @@ char *s_code[] = {
   "S", "case-lambda",
   "l3:y12:syntax-rules;n;l2:l3:y1:_;py4:args;y5:forms;;y3:...;;l3:y7:lamb"
   "da*;l2:y4:args;py6:lambda;py4:args;y5:forms;;;;y3:...;;;",
-
-  "S", "%if-expand",
-  "l12:y12:syntax-rules;l4:y3:and;y2:or;y3:not;y7:library;;l2:l4:y1:_;l1:"
-  "y3:and;;y3:con;y3:alt;;y3:con;;l2:l4:y1:_;l2:y3:and;y1:r;;y3:con;y3:al"
-  "t;;l4:y10:%25if-expand;y1:r;y3:con;y3:alt;;;l2:l4:y1:_;py3:and;py1:r;y"
-  "2:r*;;;y3:con;y3:alt;;l4:y10:%25if-expand;y1:r;l4:y10:%25if-expand;py3"
-  ":and;y2:r*;;y3:con;y3:alt;;y3:alt;;;l2:l4:y1:_;l1:y2:or;;y3:con;y3:alt"
-  ";;y3:alt;;l2:l4:y1:_;l2:y2:or;y1:r;;y3:con;y3:alt;;l4:y10:%25if-expand"
-  ";y1:r;y3:con;y3:alt;;;l2:l4:y1:_;py2:or;py1:r;y2:r*;;;y3:con;y3:alt;;l"
-  "4:y10:%25if-expand;y1:r;y3:con;l4:y10:%25if-expand;py2:or;y2:r*;;y3:co"
-  "n;y3:alt;;;;l2:l4:y1:_;l2:y3:not;y1:r;;y3:con;y3:alt;;l4:y10:%25if-exp"
-  "and;y1:r;y3:alt;y3:con;;;l2:l4:y1:_;l2:y7:library;y1:l;;y3:con;y3:alt;"
-  ";l4:y20:if-library-available;y1:l;y3:con;y3:alt;;;l2:l4:y1:_;py1:x;y1:"
-  "y;;y3:con;y3:alt;;l3:y12:syntax-error;s45:unrecognized cond-expand fea"
-  "ture requirement:;py1:x;y1:y;;;;l2:l4:y1:_;y1:f;y3:con;y3:alt;;l4:y20:"
-  "if-feature-available;y1:f;y3:con;y3:alt;;;",
-
-  "S", "cond-expand",
-  "l6:y12:syntax-rules;l1:y4:else;;l2:l1:y1:_;;l1:y4:void;;;l2:l2:y1:_;py"
-  "4:else;y4:exps;;;py5:begin;y4:exps;;;l2:py1:_;pl1:y1:x;;y4:rest;;;l4:y"
-  "10:%25if-expand;y1:x;l1:y5:begin;;py11:cond-expand;y4:rest;;;;l2:py1:_"
-  ";ppy1:x;y4:exps;;y4:rest;;;l4:y10:%25if-expand;y1:x;py5:begin;y4:exps;"
-  ";py11:cond-expand;y4:rest;;;;",
 
   "C", 0,
   "@(y4:box?)@!(y8:promise?)",

@@ -325,6 +325,9 @@
 (define (x-error msg . args)
   (error* (string-append "transformer: " msg) args))
 
+(define (check-syntax sexp pat msg)
+  (unless (sexp-match? pat sexp) (x-error msg sexp)))
+
 ; xform receives Scheme s-expressions and returns either Core Scheme <core>
 ; (always a pair) or special-form, which is either a builtin (a symbol) or
 ; a transformer (a procedure). Appos? flag is true when the context can
@@ -606,7 +609,6 @@
         (apply x-error args)
         (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
 
-
 ; make transformer procedure from the rules
 
 (define (syntax-rules* mac-env ellipsis pat-literals rules)
@@ -748,22 +750,38 @@
       (if (null? files)
           (cons begin-id (apply append (reverse! exp-lists)))
           (let* ([filepath (file-resolve-relative-to-current (car files))]
+                 [fileok? (and (string? filepath) (file-exists? filepath))]
+                 [test (if fileok? #t (x-error "cannot include" (car files) sexp))]
                  [sexps (read-file-sexps filepath ci?)]
                  [wrapped-sexps `((,push-cf-id ,filepath) ,@sexps (,pop-cf-id))])
             (loop (cdr files) (cons wrapped-sexps exp-lists)))))))
 
+; return the right ce branch using (lit=? id sym) for literal match
+(define (preprocess-cond-expand lit=? sexp) ;=> (sexp ...)
+  (define (pp freq con alt)
+    (cond [(lit=? freq 'else) (con)]
+          [(id? freq) (if (feature-available? (id->sym freq)) (con) (alt))]
+          [(and (list2? freq) (lit=? (car freq) 'library))
+           (if (library-available? (xform-sexp->datum (cadr freq))) (con) (alt))]
+          [(and (list1+? freq) (lit=? (car freq) 'and))
+           (cond [(null? (cdr freq)) (con)] [(null? (cddr freq)) (pp (cadr freq) con alt)]
+                 [else (pp (cadr freq) (lambda () (pp (cons (car freq) (cddr freq)) con alt)) alt)])]
+          [(and (list1+? freq) (lit=? (car freq) 'or))
+           (cond [(null? (cdr freq)) (alt)] [(null? (cddr freq)) (pp (cadr freq) con alt)]
+                 [else (pp (cadr freq) con (lambda () (pp (cons (car freq) (cddr freq)) con alt)))])]
+          [(and (list2? freq) (lit=? (car freq) 'not)) (pp (cadr freq) alt con)]
+          [else (x-error freq "invalid cond-expand feature requirement")]))
+  (check-syntax sexp '(<id> (* * ...) ...) "invalid cond-expand syntax")
+  (let loop ([clauses (cdr sexp)])
+    (if (null? clauses) '()
+        (pp (caar clauses) (lambda () (cdar clauses)) (lambda () (loop (cdr clauses)))))))
 
-(define (if-feature-available-transformer sexp env)
-  (if (and (list? sexp) (= (length sexp) 4))
-      (let ([r (cadr sexp)] [con (caddr sexp)] [alt (cadddr sexp)])
-        (if (feature-available? (xform-sexp->datum r)) con alt))
-      (x-error "invalid syntax" sexp)))
-
-(define (if-library-available-transformer sexp env)
-  (if (and (list? sexp) (= (length sexp) 4))
-      (let ([r (cadr sexp)] [con (caddr sexp)] [alt (cadddr sexp)])
-        (if (library-available? (xform-sexp->datum r)) con alt))
-      (x-error "invalid syntax" sexp)))
+(define (make-cond-expand-transformer)
+  (define begin-id (new-id 'begin (make-location 'begin) #f))
+  (lambda (sexp env)
+    (define (lit=? id sym) ; match literal using free-id=? -like match
+      (and (id? id) (eq? (xenv-ref env id) (xenv-ref root-environment sym))))
+    (cons begin-id (preprocess-cond-expand lit=? sexp))))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1525,11 +1543,9 @@
 (define-in-root-environment! 'include-ci 
   (make-location (make-include-transformer #t)) #t)
 
-(define-in-root-environment! 'if-feature-available 
-  (make-location if-feature-available-transformer) #t)
+(define-in-root-environment! 'cond-expand 
+  (make-location (make-cond-expand-transformer)) #t)
 
-(define-in-root-environment! 'if-library-available 
-  (make-location if-library-available-transformer) #t)
 
 ; now put the builtins (lazily) and others
 

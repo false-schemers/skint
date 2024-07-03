@@ -1195,12 +1195,14 @@ define_instruction(memq) {
 }
 
 define_instruction(memv) {
-  ac = ismemv(ac, spop()); /* FIXME: ckp() */
+  obj l = spop(); ckl(l);
+  ac = ismemv(ac, l); /* FIXME: inline? */
   gonexti();
 }
 
 define_instruction(meme) {
-  ac = ismember(ac, spop()); /* FIXME: ckp() */
+  obj l = spop(); ckl(l);
+  ac = ismember(ac, l); /* FIXME: inline? */
   gonexti();
 }
 
@@ -1214,12 +1216,14 @@ define_instruction(assq) {
 }
 
 define_instruction(assv) {
-  ac = isassv(ac, spop()); /* FIXME: ckp() */
+  obj l = spop(); ckl(l);
+  ac = isassv(ac, l); /* FIXME: inline? */
   gonexti();
 }
 
 define_instruction(asse) {
-  ac = isassoc(ac, spop()); /* FIXME: ckp() */
+  obj l = spop(); ckl(l);
+  ac = isassoc(ac, l); /* FIXME: inline? */
   gonexti();
 }
 
@@ -3456,7 +3460,7 @@ define_instruction(vmclo) {
 
 define_instruction(hshim) {
   unsigned long long v = (unsigned long long)ac, base = 0; obj b = spop(); 
-  if (v && isaptr(v)) failtype(v, "immediate value");
+  if (v && isaptr(v)) { ac = fixnum_obj(0); gonexti(); }
   if (b) { ckk(b); base = get_fixnum(b); } 
   if (!base) base = 1 + (unsigned long long)FIXNUM_MAX;
   ac = fixnum_obj((fixnum_t)(v % base));
