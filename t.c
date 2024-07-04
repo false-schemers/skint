@@ -748,7 +748,7 @@ char *t_code[] = {
   "th)[22}.!0.0^_1[42",
 
   "C", 0,
-  "n@!(y19:*library-path-list*)",
+  "'(l1:s2:./;)@!(y19:*library-path-list*)",
 
   "P", "add-library-path!",
   "%1${.2,@(y19:base-path-separator)[01}?{.0,l1,@(y19:*library-path-list*"
@@ -756,8 +756,8 @@ char *t_code[] = {
   "irectory separator),@(y7:c-error)[12",
 
   "P", "find-library-path",
-  "%1@(y19:*library-path-list*),,#0.2,.1,&2{%1.0u?{f]1}${'(s4:.sld),.3a,:"
-  "1,@(y14:listname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:0^[21}.!0.0^_1[11",
+  "%1@(y19:*library-path-list*),,#0.0,.3,&2{%1.0p?{${'(s4:.sld),.3a,:0,@("
+  "y14:listname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:1^[21}f]1}.!0.0^_1[11",
 
   "P", "read-file-sexps",
   "%2.1,&1{%1:0?{t,.1P79}n,,#0.2,.1,&2{%1${:1,@(y14:read-code-sexp)[01},."

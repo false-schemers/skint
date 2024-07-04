@@ -1418,7 +1418,7 @@
 
 ; hacks for locating library files
 
-(define *library-path-list* '())
+(define *library-path-list* '("./"))
 
 (define (add-library-path! path)
   (if (base-path-separator path)
@@ -1427,10 +1427,9 @@
 
 (define (find-library-path libname) ;=> name of existing .sld file or #f
   (let loop ([l *library-path-list*])
-    (if (null? l)
-        #f
-        (let ([p (listname->path libname (car l) ".sld")]) 
-          (if (and p (file-exists? p)) p (loop (cdr l)))))))
+    (and (pair? l)
+         (let ([p (listname->path libname (car l) ".sld")]) 
+           (if (and p (file-exists? p)) p (loop (cdr l)))))))
 
 #;(define (resolve-input-file/lib-name name) ;=> path (or error is signalled)
   (define filepath
