@@ -1415,6 +1415,28 @@
                   (cons (listname-segment->string (car l)) (cons sep r))))
         (file-resolve-relative-to-base-path (string-append* (reverse (cons ext r))) basepath))))
 
+(define (symbol-libname? sym) ; integrable candidate
+  (let* ([str (symbol->string sym)] [sl (string-length str)])
+    (and (< 6 sl) 
+         (char=? (string-ref str 0) #\l)
+         (char=? (string-ref str 1) #\i)
+         (char=? (string-ref str 2) #\b)
+         (char=? (string-ref str 3) #\:)
+         (char=? (string-ref str 4) #\/)
+         (char=? (string-ref str 5) #\/)
+         (substring str 6 sl))))
+
+(define (symbol->listname sym) ;=> listname | #f
+  (let loop ([s (symbol-libname? sym)] [r '()])
+    (cond [(not s) (and (pair? r) (reverse! r))]
+          [(string-position #\/ s) =>
+           (lambda (n) (loop (substring s (+ n 1) (string-length s)) 
+                             (cons (string->symbol (substring s 0 n)) r)))]
+          [else (loop #f (cons (string->symbol s) r))])))
+      
+(define (libname->path libname basepath ext)
+  (let ([listname (if (symbol? libname) (symbol->listname libname) libname)])
+    (and (list1+? listname) (listname->path listname basepath ext))))
 
 ; hacks for locating library files
 
@@ -1428,7 +1450,7 @@
 (define (find-library-path libname) ;=> name of existing .sld file or #f
   (let loop ([l *library-path-list*])
     (and (pair? l)
-         (let ([p (listname->path libname (car l) ".sld")]) 
+         (let ([p (libname->path libname (car l) ".sld")]) 
            (if (and p (file-exists? p)) p (loop (cdr l)))))))
 
 #;(define (resolve-input-file/lib-name name) ;=> path (or error is signalled)
@@ -1479,11 +1501,10 @@
         (let ([s (read-code-sexp port)])
           (unless (eof-object? s) (proc s) (loop)))))))
 
-(define (library-available? lib)
-  (cond [(assoc lib *std-lib->alist-env*) #t] ; FIXME
-        [(string? lib) (file-resolve-relative-to-current lib)]
-        [(and (pair? lib) (list? lib)) (find-library-path lib)]
-        [else #f]))
+(define (library-available? lib) ;=> #f | filepath (external) | #t (loaded)
+  (cond [(string? lib) (file-resolve-relative-to-current lib)]
+        [(library-info lib #f) #t] ; builtin or preloaded
+        [else (and (or (symbol? lib) (list1+? lib)) (find-library-path lib))]))
 
 ; name prefixes
 
@@ -1577,10 +1598,19 @@
 (define (root-environment id at)
   (env-lookup id *root-environment* at))
 
+;---------------------------------------------------------------------------------------------
+; Library registry and built-in libraries
+;---------------------------------------------------------------------------------------------
 
-; standard library environments in alist form (used as import envs) 
+(define *library-registry* '()) ; alist of a form ((libsym . ic&ex) ...)
 
-(define *std-lib->alist-env* '())
+(define (library-info lib alloc?) ;=> (code . eal) | #f
+  (let ([key (if (symbol? lib) lib (listname->symbol lib))])
+    (cond [(assq key *library-registry*) => cdr]
+          [(not alloc?) #f]
+          [else (let ([ic&ex (cons '(begin) '())])
+                  (set! *library-registry* (cons (cons key ic&ex) *library-registry*))
+                  ic&ex)])))
 
 (for-each
   (lambda (r)
@@ -1592,22 +1622,17 @@
         [(i) '(scheme inexact)] [(f) '(scheme file)]  [(e) '(scheme eval)]
         [(o) '(scheme complex)] [(h) '(scheme char)]  [(l) '(scheme case-lambda)]
         [(x) '(scheme cxr)]     [(b) '(scheme base)]))
-    (define (put-loc! e k loc)
-      (let ([p (assq k (cdr e))])
-        (cond [p (set-cdr! p loc)]
-              [else (set-cdr! e (cons (cons k loc) (cdr e)))])))
-    (define (get-env! lib)
-      (or (assoc lib *std-lib->alist-env*)
-          (let ([p (cons lib '())])
-            (set! *std-lib->alist-env* (cons p *std-lib->alist-env*))
-            p)))
+    (define (get-env! lib) ;=> ic&ex 
+      (library-info lib #t))
+    (define (put-loc! ic&ex k loc)
+      (let ([p (assq k (cdr ic&ex))])
+        (cond [p (set-cdr! p loc)] [else (set-cdr! ic&ex (cons (cons k loc) (cdr ic&ex)))])))
     (let loop ([name (car r)] [keys (cdr r)])
-      (cond 
-        [(null? keys) ; all go to (repl)
-         (put-loc! (get-env! '(repl)) name (root-environment name 'ref))]
-        [else
-         (put-loc! (get-env! (key->lib (car keys))) name (root-environment name 'ref))
-         (loop name (cdr keys))])))
+      (cond [(null? keys) ; all go to (repl)
+             (put-loc! (get-env! '(repl)) name (root-environment name 'ref))]
+            [else
+             (put-loc! (get-env! (key->lib (car keys))) name (root-environment name 'ref))
+             (loop name (cdr keys))])))
   '((* v b) (+ v b) (- v b) (... v u b) (/ v b) (< v b) (<= v b) (= v b) (=> v u b) (> v b) (>= v b)
     (_ b) (abs v b) (and v u b) (append v b) (apply v b) (assoc v b) (assq v b) (assv v b) (begin v u b)
     (binary-port? b) (boolean=? b) (boolean? v b) (bytevector b) (bytevector-append b)
@@ -1673,35 +1698,16 @@
 
 ; add std libraries to root env as expand time mappings of library's symbolic name
 ; to an identifyer-syntax expanding into (quote (<init-code> . <eal>)) form
-(for-each
-  (let ([syntax-id (new-id 'syntax (make-location 'syntax) #f)])
+; NB: later, this will need to be done via auto-allocating denotations!
+(let ([syntax-id (new-id 'syntax (make-location 'syntax) #f)])
+  (for-each
     (lambda (p) 
-      (let* ([lib (car p)] [eal (cdr p)] [sym (listname->symbol lib)])
+      (let* ([sym (car p)] [ic&ex (cdr p)])
         (define (libid-transformer sexp env)
-          (list syntax-id (list 'quote (cons '(begin) eal))))
+          (list syntax-id (list 'quote ic&ex)))
         (define-in-root-environment! sym 
-          (make-location libid-transformer) #t))))
-  *std-lib->alist-env*)
-
-#|
-(define (std-lib->alist-env lib)
-  (cond [(assoc lib *std-lib->alist-env*) => cdr]
-        [else #f]))
-
-(define (std-lib->env lib)
-  (cond [(std-lib->alist-env lib) =>
-         (lambda (al)
-           (lambda (id at)
-             (and (eq? at 'ref)
-               (let ([p (assq id al)])
-                 (if p (cdr p) #f)))))]
-        [else #f]))
-|#
-
-
-;---------------------------------------------------------------------------------------------
-; Library processing
-;---------------------------------------------------------------------------------------------
+          (make-location libid-transformer) #t)))
+    *library-registry*))
 
 
 

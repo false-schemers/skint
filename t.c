@@ -747,6 +747,20 @@ char *t_code[] = {
   ":2cA8,@(y14:string-append*)[01},@(y34:file-resolve-relative-to-base-pa"
   "th)[22}.!0.0^_1[42",
 
+  "P", "symbol-libname?",
+  "%1.0X4,.0S3,.0,'6<?{'(cl),'0,.3S4C=?{'(ci),'1,.3S4C=?{'(cb),'2,.3S4C=?"
+  "{'(c:),'3,.3S4C=?{'(c/),'4,.3S4C=?{'(c/),'5,.3S4C=?{.0,'6,.3S7]3}f]3}f"
+  "]3}f]3}f]3}f]3}f]3}f]3",
+
+  "P", "symbol->listname",
+  "%1n,${.3,@(y15:symbol-libname?)[01},,#0.0,&1{%2.0~?{.1p?{.1A9]2}f]2}.0"
+  ",'(c/)S8,.0?{.0,.3,.1,'0,.5S7X5c,.3S3,'1,.3+,.5S7,:0^[42}.2,.2X5c,f,:0"
+  "^[32}.!0.0^_1[12",
+
+  "P", "libname->path",
+  "%3.0Y0?{${.2,@(y16:symbol->listname)[01}}{.0},${.2,@(y7:list1+?)[01}?{"
+  ".3,.3,.2,@(y14:listname->path)[43}f]4",
+
   "C", 0,
   "'(l1:s2:./;)@!(y19:*library-path-list*)",
 
@@ -757,7 +771,7 @@ char *t_code[] = {
 
   "P", "find-library-path",
   "%1@(y19:*library-path-list*),,#0.0,.3,&2{%1.0p?{${'(s4:.sld),.3a,:0,@("
-  "y14:listname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:1^[21}f]1}.!0.0^_1[11",
+  "y13:libname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:1^[21}f]1}.!0.0^_1[11",
 
   "P", "read-file-sexps",
   "%2.1,&1{%1:0?{t,.1P79}n,,#0.2,.1,&2{%1${:1,@(y14:read-code-sexp)[01},."
@@ -765,9 +779,9 @@ char *t_code[] = {
   "22",
 
   "P", "library-available?",
-  "%1@(y20:*std-lib->alist-env*),.1A5?{t]1}.0S0?{.0,@(y32:file-resolve-re"
-  "lative-to-current)[11}.0p?{.0L0}{f}?{.0,@(y17:find-library-path)[11}f]"
-  "1",
+  "%1.0S0?{.0,@(y32:file-resolve-relative-to-current)[11}${f,.3,@(y12:lib"
+  "rary-info)[02}?{t]1}.0Y0,.0?{.0}{${.3,@(y7:list1+?)[01}}_1?{.0,@(y17:f"
+  "ind-library-path)[11}f]1",
 
   "P", "fully-qualified-library-prefixed-name",
   "%2.1,'(y1:?),.2Y0?{.2}{${.4,@(y16:listname->symbol)[01}},@(y13:symbol-"
@@ -813,7 +827,12 @@ char *t_code[] = {
   "%2.1,@(y18:*root-environment*),.2,@(y10:env-lookup)[23",
 
   "C", 0,
-  "n@!(y20:*std-lib->alist-env*)",
+  "n@!(y18:*library-registry*)",
+
+  "P", "library-info",
+  "%2.0Y0?{.0}{${.2,@(y16:listname->symbol)[01}},@(y18:*library-registry*"
+  "),.1A3,.0?{.0d]4}.3~?{f]4}n,'(l1:y5:begin;)c,@(y18:*library-registry*)"
+  ",.1,.4cc@!(y18:*library-registry*).0]5",
 
   "C", 0,
   "${'(l343:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
@@ -956,19 +975,17 @@ char *t_code[] = {
   "e),.1v?{'(l2:y6:scheme;y4:eval;)]2}'(y1:o),.1v?{'(l2:y6:scheme;y7:comp"
   "lex;)]2}'(y1:h),.1v?{'(l2:y6:scheme;y4:char;)]2}'(y1:l),.1v?{'(l2:y6:s"
   "cheme;y11:case-lambda;)]2}'(y1:x),.1v?{'(l2:y6:scheme;y3:cxr;)]2}'(y1:"
-  "b),.1v?{'(l2:y6:scheme;y4:base;)]2}]2}.!0&0{%3.0d,.2A3,.0?{.3,.1sd]4}."
-  "1d,.4,.4cc,.2sd]4}.!1&0{%1@(y20:*std-lib->alist-env*),.1A5,.0?{.0]2}n,"
-  ".2c,@(y20:*std-lib->alist-env*),.1c@!(y20:*std-lib->alist-env*).0]3}.!"
-  "2.3d,.4a,,#0.0,.5,.5,.8,&4{%2.1u?{${'(y3:ref),.3,@(y16:root-environmen"
-  "t)[02},.1,${'(l1:y4:repl;),:0^[01},:2^[23}${${'(y3:ref),.5,@(y16:root-"
-  "environment)[02},.3,${${.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0.0"
-  "^_1[42},@(y10:%25for-each1)[02}",
+  "b),.1v?{'(l2:y6:scheme;y4:base;)]2}]2}.!0&0{%1t,.1,@(y12:library-info)"
+  "[12}.!1&0{%3.0d,.2A3,.0?{.3,.1sd]4}.1d,.4,.4cc,.2sd]4}.!2.3d,.4a,,#0.0"
+  ",.6,.5,.7,&4{%2.1u?{${'(y3:ref),.3,@(y16:root-environment)[02},.1,${'("
+  "l1:y4:repl;),:0^[01},:2^[23}${${'(y3:ref),.5,@(y16:root-environment)[0"
+  "2},.3,${${.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0.0^_1[42},@(y10:"
+  "%25for-each1)[02}",
 
   "C", 0,
-  "${@(y20:*std-lib->alist-env*),${f,'(y6:syntax)b,'(y6:syntax),@(y6:new-"
-  "id)[03},.0,&1{%1.0a,.1d,${.3,@(y16:listname->symbol)[01},,#0.2,:0,&2{%"
-  "2:1,'(l1:y5:begin;)c,'(y5:quote),l2,:0,l2]2}.!0t,.1^b,.3,@(y27:define-"
-  "in-root-environment!)[53}_1,@(y10:%25for-each1)[02}",
+  "${f,'(y6:syntax)b,'(y6:syntax),@(y6:new-id)[03},${@(y18:*library-regis"
+  "try*),.3,&1{%1.0a,.1d,,#0.1,:0,&2{%2:1,'(y5:quote),l2,:0,l2]2}.!0t,.1^"
+  "b,.4,@(y27:define-in-root-environment!)[43},@(y10:%25for-each1)[02}_1",
 
   "C", 0,
   "f@!(y9:*verbose*)",
