@@ -770,7 +770,7 @@
            (cond [(null? (cdr freq)) (alt)] [(null? (cddr freq)) (pp (cadr freq) con alt)]
                  [else (pp (cadr freq) con (lambda () (pp (cons (car freq) (cddr freq)) con alt)))])]
           [(and (list2? freq) (lit=? (car freq) 'not)) (pp (cadr freq) alt con)]
-          [else (x-error freq "invalid cond-expand feature requirement")]))
+          [else (x-error "invalid cond-expand feature requirement" freq)]))
   (check-syntax sexp '(<id> (* * ...) ...) "invalid cond-expand syntax")
   (let loop ([clauses (cdr sexp)])
     (if (null? clauses) '()
@@ -1288,7 +1288,7 @@
 ; Path and file name resolution
 ;---------------------------------------------------------------------------------------------
 
-(define (path-strip-directory filename)
+#;(define (path-strip-directory filename)
   (let loop ([l (reverse (string->list filename))] [r '()])
     (cond [(null? l) (list->string r)]
           [(memv (car l) '(#\\ #\/ #\:)) (list->string r)]
@@ -1300,7 +1300,7 @@
           [(memv (car l) '(#\\ #\/ #\:)) (list->string (reverse l))]
           [else (loop (cdr l))])))
 
-(define (path-strip-extension filename) ;; improved
+#;(define (path-strip-extension filename) ;; improved
   (let loop ([l (reverse (string->list filename))])
     (cond [(null? l) filename]
           [(eqv? (car l) #\.) (list->string (reverse (cdr l)))]
@@ -1432,7 +1432,7 @@
         (let ([p (listname->path libname (car l) ".sld")]) 
           (if (and p (file-exists? p)) p (loop (cdr l)))))))
 
-(define (resolve-input-file/lib-name name) ;=> path (or error is signalled)
+#;(define (resolve-input-file/lib-name name) ;=> path (or error is signalled)
   (define filepath
     (if (string? name)
         (file-resolve-relative-to-current name)
@@ -1455,7 +1455,7 @@
               (reverse! sexps)
               (loop (cons s sexps))))))))
 
-(define (call-with-input-file/lib name ci? proc) ;=> (proc filepath port), called while name is current-file
+#;(define (call-with-input-file/lib name ci? proc) ;=> (proc filepath port), called while name is current-file
   (let ([filepath (resolve-input-file/lib-name name)])
     (with-current-file filepath
       (lambda ()
@@ -1464,7 +1464,7 @@
             (when ci? (set-port-fold-case! port #t))
             (proc filepath port)))))))
 
-(define (call-with-file/lib-sexps name ci? proc) ;=> (proc sexps), called while name is current-file
+#;(define (call-with-file/lib-sexps name ci? proc) ;=> (proc sexps), called while name is current-file
   (call-with-input-file/lib name ci? ;=>
     (lambda (filepath port)
       (let loop ([sexps '()])
@@ -1473,12 +1473,18 @@
               (proc (reverse! sexps))
               (loop (cons s sexps))))))))
 
-(define (for-each-file/lib-sexp proc name ci?) ; proc called while name is current-file
+#;(define (for-each-file/lib-sexp proc name ci?) ; proc called while name is current-file
   (call-with-input-file/lib name ci? ;=>
     (lambda (filepath port)
       (let loop ()
         (let ([s (read-code-sexp port)])
           (unless (eof-object? s) (proc s) (loop)))))))
+
+(define (library-available? lib)
+  (cond [(assoc lib *std-lib->alist-env*) #t] ; FIXME
+        [(string? lib) (file-resolve-relative-to-current lib)]
+        [(and (pair? lib) (list? lib)) (find-library-path lib)]
+        [else #f]))
 
 ; name prefixes
 
@@ -1666,19 +1672,6 @@
     (box?) (box) (unbox) (set-box!)
     ))
 
-(define (std-lib->alist-env lib)
-  (cond [(assoc lib *std-lib->alist-env*) => cdr]
-        [else #f]))
-
-(define (std-lib->env lib)
-  (cond [(std-lib->alist-env lib) =>
-         (lambda (al)
-           (lambda (id at)
-             (and (eq? at 'ref)
-               (let ([p (assq id al)])
-                 (if p (cdr p) #f)))))]
-        [else #f]))
-
 ; add std libraries to root env as expand time mappings of library's symbolic name
 ; to an identifyer-syntax expanding into (quote (<init-code> . <eal>)) form
 (for-each
@@ -1691,262 +1684,38 @@
           (make-location libid-transformer) #t))))
   *std-lib->alist-env*)
 
-
-; combine explicit finite env1 with finite or infinite env2
-; env1 here is a proper alist of bindings ((<id> . <location>) ...)
-; env2 can be any environment -- explicit or implicit, finite or not
-
-(define (adjoin-env env1 env2) ;=> env12
-  (if (null? env1) env2
-      (let ([env2 (adjoin-env (cdr env1) env2)])
-        (cond [(env-lookup (caar env1) env2 'ref) => 
-               (lambda (loc) ; ? loc is not auto-mapped even when env2 supports it
-                  (if (eq? (cdar env1) loc)
-                      env2 ; repeat of same id with same binding is allowed
-                      (c-error "multiple identifier bindings on import:" 
-                        (caar env1) (cdar env1) loc)))]
-              [else (cons (car env1) env2)]))))
-
-; this variant is used in repl; it allows shadowing of old bindings with new ones
-; todo: remove duplicates by starting ; with the env1 and appending non-duplicate parts of env2
-
-(define (adjoin-env/shadow env1 env2) ;=> env12
-  (if (null? env1) env2
-      (let ([env2 (adjoin-env/shadow (cdr env1) env2)])
-        (cond [(env-lookup (caar env1) env2 'ref) => 
-               (lambda (loc) ; ? loc is not auto-mapped even when env2 supports it
-                  (if (eq? (cdar env1) a)
-                      env2 ; repeat of same id with same binding is allowed
-                      (begin
-                        (c-warning "old identifier binding shadowed on import:" 
-                          (caar env1) 'was: a 'now: (cdar env1))
-                        (cons (car env1) env2))))]
-              [else (cons (car env1) env2)]))))
-
-; local environment is made for expansion of thislib library's body forms
-; it is made of explicit import environment followed by a view to lib-specific 
-; global locations in root environment, normally prefixed with library name
-; NB: import-env is expected to be explicit and limited (just an alist) 
-
-(define (make-local-env esps thislib import-env) ;=> env (infinite)
-  (let loop ([esps esps] [env import-env])
-    (if (null? esps)
-        (if (lib-public? thislib)
-            ; all non-exported definitions are public and in global namespace under their own names
-            (append env #t) ; unprefixed view into global namespace (limited use) 
-            ; otherwise they are in global namespace under mangled names
-            (append env (fully-qualified-library-prefix thislib)))
-        (loop (cdr esps) ; just for syntax checking
-          (sexp-case (car esps) 
-            [<symbol> env]
-            [(rename <symbol> <symbol>) env]
-            [else (c-error "invalid export spec in export:" (car esps))])))))          
-
-; environment for import from thislib library into outside libs or programs
-
-(define (make-export-env esps thislib import-env) ;=> env (finite, alist) 
-  (define (extend-export lid eid env)
-    (cond [(assq eid env) (c-error "duplicate external id in export:" eid esps)]
-          [(assq lid import-env) => ; re-exported imported id, keep using imported binding under eid
-           (lambda (b) (cons (cons eid (cdr b)) env))] 
-          [else (cons (cons eid (fully-qualified-library-location thislib lid)) env)]))
-  (if (lib-public? thislib)
-      (if (or esps (pair? import-env))
-          (c-error "module cannot be imported:" thislib)
-          '())
-      (let loop ([esps esps] [env '()])
-        (if (null? esps)
-            env
-            (loop (cdr esps)
-              (sexp-case (car esps) 
-                [<symbol> (extend-export (car esps) (car esps) env)]
-                [(rename <symbol> <symbol>) (extend-export (cadr (car esps)) (caddr (car esps)) env)]
-                [else (c-error "invalid export spec in export:" (car esps))]))))))
-
-
-;---------------------------------------------------------------------------------------------
-; Library processing info cache
-;---------------------------------------------------------------------------------------------
-
-; we have to cache loaded libraries, so stores are not hit on repeat loads/visits
-; of/to the same library
-
-(define *library-info-cache* '())
-
-;; library info: #(used-libs import-env export-specs beg-forms)
-(define (make-library-info) (make-vector 4 #f)) 
-
-(define (library-available? lib)
-  (cond [(assoc lib *library-info-cache*) #t]
-        [(string? lib) (file-resolve-relative-to-current lib)]
-        [(and (pair? lib) (list? lib)) (find-library-path lib)]
+#|
+(define (std-lib->alist-env lib)
+  (cond [(assoc lib *std-lib->alist-env*) => cdr]
         [else #f]))
 
-(define (lookup-library-info lib) ;=> li (possibly non-inited)
-  (cond [(assoc lib *library-info-cache*) => cdr]
-        [(std-lib->alist lib) =>
+(define (std-lib->env lib)
+  (cond [(std-lib->alist-env lib) =>
          (lambda (al)
-           (define li (make-library-info))
-           (set! *library-info-cache* 
-             (cons (cons lib li) *library-info-cache*))
-           (vector-set! li 0 '())
-           (vector-set! li 1 al)
-           (vector-set! li 2 (map car al))
-           (vector-set! li 3 '())
-           li)]
-        [else 
-         (let ([li (make-library-info)]) 
-           (set! *library-info-cache* 
-             (cons (cons lib li) *library-info-cache*)) 
-           li)]))
+           (lambda (id at)
+             (and (eq? at 'ref)
+               (let ([p (assq id al)])
+                 (if p (cdr p) #f)))))]
+        [else #f]))
+|#
 
-; main hub for library info -- calls process if library info is not inited
-(define (get-library-info lib process return) ;=> (return used-libs import-env export-specs beg-forms)
-  (define li (lookup-library-info lib))
-  (define (update-li! used-libs import-env export-specs beg-forms)
-    (vector-set! li 0 used-libs)
-    (vector-set! li 1 import-env)
-    (vector-set! li 2 export-specs)
-    (vector-set! li 3 beg-forms))
-  (unless (vector-ref li 0) ; not inited?
-    (call-with-file/lib-sexps lib #f
-      (lambda (all-forms) ; need to split off header forms
-        (process lib all-forms update-li!))))
-  (return (vector-ref li 0) 
-          (vector-ref li 1) 
-          (vector-ref li 2) 
-          (vector-ref li 3)))
+
+;---------------------------------------------------------------------------------------------
+; Library processing
+;---------------------------------------------------------------------------------------------
+
 
 
 ;---------------------------------------------------------------------------------------------
 ; Evaluation
 ;---------------------------------------------------------------------------------------------
 
-; transformation of top-level form should process begin, define, and define-syntax
-; explicitly, so that they can produce and observe side effects on env
-
-(define (visit-top-form x env)
-  (if (pair? x)
-      (let ([hval (xform #t (car x) env)])
-        (cond
-          [(eq? hval 'begin)
-           ; splice
-           (let loop ([x* (cdr x)])
-             (when (pair? x*) 
-               (visit-top-form (car x*) env)
-               (loop (cdr x*))))]
-          [(eq? hval 'define)
-           ; use new protocol for top-level envs
-           (let* ([core (xform-define (cdr x) env)]
-                  [loc (xenv-lookup env (cadr core) 'define)])
-             (if (and loc (sexp-match? '(ref *) (location-val loc)))
-                 #t
-                 (x-error "identifier cannot be (re)defined in env:" 
-                   (cadr core) env)))]
-          [(eq? hval 'define-syntax)
-           ; use new protocol for top-level envs
-           (let* ([core (xform-define-syntax (cdr x) env)]
-                  [loc (xenv-lookup env (cadr core) 'define-syntax)])
-             (if loc ; location or #f
-                 (location-set-val! loc (caddr core)) ; modifies env!
-                 (x-error "identifier cannot be (re)defined as syntax in env:"
-                   (cadr core) env)))]
-          [(procedure? hval)
-           ; transformer: apply and loop
-           (visit-top-form (hval x env) env)]
-          [(integrable? hval)
-           ; no env effect possible here
-           #t]
-          [(symbol? hval)
-           ; other specials: no env effect possible here (?? set! ??)
-           #t]
-          [else
-           ; regular call: no env effect possible here
-           #t]))
-      ; var refs and literals : xform for access check
-      #t))
-
-(define (eval-top-form x env)
-  (if (pair? x)
-      (let ([hval (xform #t (car x) env)])
-        (cond
-          [(eq? hval 'begin)
-           ; splice
-           (let loop ([x* (cdr x)])
-             (when (pair? x*) 
-               (eval-top-form (car x*) env)
-               (loop (cdr x*))))]
-          [(eq? hval 'define)
-           ; use new protocol for top-level envs
-           (let* ([core (xform-define (cdr x) env)]
-                  [loc (xenv-lookup env (cadr core) 'define)])
-             (if (and loc (sexp-match? '(ref *) (location-val loc)))
-                 (compile-and-run-core-expr 
-                   (list 'set! (cadr (location-val loc)) (caddr core)))
-                 (x-error "identifier cannot be (re)defined in env:" 
-                   (cadr core) env)))]
-          [(eq? hval 'define-syntax)
-           ; use new protocol for top-level envs
-           (let* ([core (xform-define-syntax (cdr x) env)]
-                  [loc (xenv-lookup env (cadr core) 'define-syntax)])
-             (if loc ; location or #f
-                 (location-set-val! loc (caddr core))
-                 (x-error "identifier cannot be (re)defined as syntax in env:"
-                   (cadr core) env)))]
-          [(procedure? hval)
-           ; transformer: apply and loop
-           (eval-top-form (hval x env) env)]
-          [(integrable? hval)
-           ; integrable application
-           (compile-and-run-core-expr 
-             (xform-integrable hval (cdr x) env))]
-          [(symbol? hval)
-           ; other specials
-           (compile-and-run-core-expr 
-             (xform #f x env))]
-          [else
-           ; regular call
-           (compile-and-run-core-expr 
-             (xform-call hval (cdr x) env))]))
-      ; var refs and literals
-      (compile-and-run-core-expr 
-        (xform #f x env))))
-
-(define *verbose* #f)
-
-(define (compile-and-run-core-expr core)
-  (unless (pair? core) (x-error "unexpected transformed output" core))
-  (when *verbose* (write core) (newline))
-  (when (eq? (car core) 'define) (set-car! core 'set!))
-  (let ([code (compile-to-thunk-code core)])
-    (when *verbose* (write code) (newline))
-    (let* ([cl (closure (deserialize-code code))] [r (cl)])
-      (when *verbose* (write r) (newline)))))
-  
-(define (visit/v f) 
-  (define p (open-input-file f)) 
-  (let loop ([x (read-code-sexp p)]) 
-    (unless (eof-object? x)
-      (when *verbose* (write x) (newline))
-      (visit-top-form x root-environment)
-      (when *verbose* (newline))
-      (loop (read-code-sexp p)))) 
-  (close-input-port p))
-
-(define (visit/x f) 
-  (define p (open-input-file f)) 
-  (let loop ([x (read-code-sexp p)]) 
-    (unless (eof-object? x)
-      (when *verbose* (write x) (newline))
-      (eval-top-form x root-environment)
-      (when *verbose* (newline))
-      (loop (read-code-sexp p)))) 
-  (close-input-port p))
-
 
 ;---------------------------------------------------------------------------------------------
 ; REPL
 ;---------------------------------------------------------------------------------------------
+
+(define *verbose* #f)
 
 (define (repl-environment id at) ; FIXME: need to happen in a "repl." namespace
   (env-lookup id *root-environment* at))
@@ -1969,26 +1738,22 @@
   (if (pair? x)
       (let ([hval (xform #t (car x) env)])
         (cond
-          [(eq? hval 'begin)
-           ; splice
+          [(eq? hval 'begin) ; splice
            (let loop ([x* (cdr x)])
              (when (pair? x*) 
                (repl-eval-top-form (car x*) env)
                (loop (cdr x*))))]
-          [(and (eq? hval 'define) (null? (cadr x)))
-           ; special idless define
+          [(and (eq? hval 'define) (null? (cadr x))) ; special idless define
            (repl-eval-top-form (caddr x) env)]
-          [(eq? hval 'define)
-           ; use new protocol for top-level envs
+          [(eq? hval 'define) ; use new protocol for top-level envs
            (let* ([core (xform-define (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define)])
              (if (and loc (sexp-match? '(ref *) (location-val loc)))
                  (repl-compile-and-run-core-expr 
                    (list 'set! (cadr (location-val loc)) (caddr core)))
-                 (x-error "identifier cannot be (re)defined in env:" 
+                 (x-error "identifier cannot be (re)defined as variable in env:" 
                    (cadr core) env)))]
-          [(eq? hval 'define-syntax)
-           ; use new protocol for top-level envs
+          [(eq? hval 'define-syntax) ; use new protocol for top-level envs
            (let* ([core (xform-define-syntax (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define-syntax)])
              (if loc ; location or #f
@@ -1996,24 +1761,16 @@
                  (x-error "identifier cannot be (re)defined as syntax in env:"
                    (cadr core) env))
              (when *verbose* (display "SYNTAX INSTALLED: ") (write (cadr core)) (newline)))]
-          [(procedure? hval)
-           ; transformer: apply and loop
+          [(procedure? hval) ; transformer: apply and loop
            (repl-eval-top-form (hval x env) env)]
-          [(integrable? hval)
-           ; integrable application
-           (repl-compile-and-run-core-expr 
-             (xform-integrable hval (cdr x) env))]
-          [(symbol? hval)
-           ; other specials
-           (repl-compile-and-run-core-expr 
-             (xform #f x env))]
-          [else
-           ; regular call
-           (repl-compile-and-run-core-expr 
-             (xform-call hval (cdr x) env))]))
+          [(integrable? hval) ; integrable application
+           (repl-compile-and-run-core-expr (xform-integrable hval (cdr x) env))]
+          [(symbol? hval) ; other specials
+           (repl-compile-and-run-core-expr (xform #f x env))]
+          [else ; regular call
+           (repl-compile-and-run-core-expr (xform-call hval (cdr x) env))]))
       ; var refs and literals
-      (repl-compile-and-run-core-expr 
-        (xform #f x env))))
+      (repl-compile-and-run-core-expr (xform #f x env))))
 
 (define (repl-read iport prompt)
   (when prompt (newline) (display prompt) (display " "))

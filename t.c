@@ -419,8 +419,8 @@ char *t_code[] = {
   "a,:1^[33}.2,.3,.3,.3,:1,&4{%0:3,:2,:1dd,:1ac,:0^[03},.2da,:1^[33}${.2,"
   "@(y7:list1+?)[01}?{${'(y2:or),.3a,:0[02}}{f}?{.0du?{.2[30}.0ddu?{.2,.2"
   ",.2da,:1^[33}.2,.2,.2,:1,&4{%0:3,:2,:1dd,:1ac,:0^[03},.2,.2da,:1^[33}$"
-  "{.2,@(y6:list2?)[01}?{${'(y3:not),.3a,:0[02}}{f}?{.1,.3,.2da,:1^[33}'("
-  "s39:invalid cond-expand feature requirement),.1,@(y7:x-error)[32}.!0${"
+  "{.2,@(y6:list2?)[01}?{${'(y3:not),.3a,:0[02}}{f}?{.1,.3,.2da,:1^[33}.0"
+  ",'(s39:invalid cond-expand feature requirement),@(y7:x-error)[32}.!0${"
   "'(s26:invalid cond-expand syntax),'(l3:y4:<id>;l3:y1:*;y1:*;y3:...;;y3"
   ":...;),.6,@(y12:check-syntax)[03}.2d,,#0.0,.3,&2{%1.0u?{n]1}.0,:1,&2{%"
   "0:1d,:0^[01},.1,&1{%0:0ad]0},.2aa,:0^[13}.!0.0^_1[31",
@@ -676,17 +676,9 @@ char *t_code[] = {
   "%1P51,${.2,'0,${n,.8,@(y9:find-free)[02},n,n,n,.9,@(y7:codegen)[07}.0P"
   "90]2",
 
-  "P", "path-strip-directory",
-  "%1n,.1X2A8,,#0.0,&1{%2.0u?{.1X3]2}'(l3:c%5c;c/;c:;),.1aA1?{.1X3]2}.1,."
-  "1ac,.1d,:0^[22}.!0.0^_1[12",
-
   "P", "path-directory",
   "%1.0X2A8,,#0.0,&1{%1.0u?{'(s0:)]1}'(l3:c%5c;c/;c:;),.1aA1?{.0A8X3]1}.0"
   "d,:0^[11}.!0.0^_1[11",
-
-  "P", "path-strip-extension",
-  "%1.0X2A8,,#0.0,.3,&2{%1.0u?{:0]1}'(c.),.1av?{.0dA8X3]1}'(l3:c%5c;c/;c:"
-  ";),.1aA1?{:0]1}.0d,:1^[11}.!0.0^_1[11",
 
   "P", "base-path-separator",
   "%1.0X2A8,.0u?{f]2}'(l2:c%5c;c/;),.1aA1?{.0a]2}f]2",
@@ -767,32 +759,15 @@ char *t_code[] = {
   "%1@(y19:*library-path-list*),,#0.2,.1,&2{%1.0u?{f]1}${'(s4:.sld),.3a,:"
   "1,@(y14:listname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:0^[21}.!0.0^_1[11",
 
-  "P", "resolve-input-file/lib-name",
-  "%1,#0.1S0?{${.3,@(y32:file-resolve-relative-to-current)[01}}{${.3,@(y1"
-  "7:find-library-path)[01}}.!0.0^~?{.1S0?{${.3,'(s35:cannot resolve file"
-  " name to a file:),@(y7:c-error)[02}}{${@(y19:*library-path-list*),'(y2"
-  ":in),.5,'(s38:cannot resolve library name to a file:),@(y7:c-error)[04"
-  "}}}.0^F0~?{${.2^,'(y2:=>),.5,'(s56:cannot resolve file or library name"
-  " to an existing file:),@(y7:c-error)[04}}.0^]2",
-
   "P", "read-file-sexps",
   "%2.1,&1{%1:0?{t,.1P79}n,,#0.2,.1,&2{%1${:1,@(y14:read-code-sexp)[01},."
   "0R8?{.1A9]2}.1,.1c,:0^[21}.!0.0^_1[11},.1,@(y20:call-with-input-file)["
   "22",
 
-  "P", "call-with-input-file/lib",
-  "%3${.2,@(y27:resolve-input-file/lib-name)[01},.2,.1,.5,&3{%0:0,:1,:2,&"
-  "3{%1:0?{t,.1P79}.0,:1,:2[12},:1,@(y20:call-with-input-file)[02},.1,@(y"
-  "17:with-current-file)[42",
-
-  "P", "call-with-file/lib-sexps",
-  "%3.2,&1{%2n,,#0.3,:0,.2,&3{%1${:2,@(y14:read-code-sexp)[01},.0R8?{.1A9"
-  ",:1[21}.1,.1c,:0^[21}.!0.0^_1[21},.2,.2,@(y24:call-with-input-file/lib"
-  ")[33",
-
-  "P", "for-each-file/lib-sexp",
-  "%3.0,&1{%2,#0.2,.1,:0,&3{%0${:2,@(y14:read-code-sexp)[01},.0R8~?{${.2,"
-  ":0[01}:1^[10}]1}.!0.0^_1[20},.3,.3,@(y24:call-with-input-file/lib)[33",
+  "P", "library-available?",
+  "%1@(y20:*std-lib->alist-env*),.1A5?{t]1}.0S0?{.0,@(y32:file-resolve-re"
+  "lative-to-current)[11}.0p?{.0L0}{f}?{.0,@(y17:find-library-path)[11}f]"
+  "1",
 
   "P", "fully-qualified-library-prefixed-name",
   "%2.1,'(y1:?),.2Y0?{.2}{${.4,@(y16:listname->symbol)[01}},@(y13:symbol-"
@@ -989,121 +964,14 @@ char *t_code[] = {
   "environment)[02},.3,${${.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0.0"
   "^_1[42},@(y10:%25for-each1)[02}",
 
-  "P", "std-lib->alist-env",
-  "%1@(y20:*std-lib->alist-env*),.1A5,.0?{.0d]2}f]2",
-
-  "P", "std-lib->env",
-  "%1${.2,@(y18:std-lib->alist-env)[01},.0?{.0,.0,&1{%2'(y3:ref),.2q?{:0,"
-  ".1A3,.0?{.0d]3}f]3}f]2}]3}f]2",
-
   "C", 0,
   "${@(y20:*std-lib->alist-env*),${f,'(y6:syntax)b,'(y6:syntax),@(y6:new-"
   "id)[03},.0,&1{%1.0a,.1d,${.3,@(y16:listname->symbol)[01},,#0.2,:0,&2{%"
   "2:1,'(l1:y5:begin;)c,'(y5:quote),l2,:0,l2]2}.!0t,.1^b,.3,@(y27:define-"
   "in-root-environment!)[53}_1,@(y10:%25for-each1)[02}",
 
-  "P", "adjoin-env",
-  "%2.0u?{.1]2}${.3,.3d,@(y10:adjoin-env)[02},${'(y3:ref),.3,.5aa,@(y10:e"
-  "nv-lookup)[03},.0?{.0,.0,.4adq?{.2]5}.0,.4ad,.5aa,'(s39:multiple ident"
-  "ifier bindings on import:),@(y7:c-error)[54}.1,.3ac]4",
-
-  "P", "adjoin-env/shadow",
-  "%2.0u?{.1]2}${.3,.3d,@(y17:adjoin-env/shadow)[02},${'(y3:ref),.3,.5aa,"
-  "@(y10:env-lookup)[03},.0?{.0,@(y1:a),.4adq?{.2]5}${.5ad,'(y4:now:),@(y"
-  "1:a),'(y4:was:),.9aa,'(s42:old identifier binding shadowed on import:)"
-  ",@(y9:c-warning)[06}.2,.4ac]5}.1,.3ac]4",
-
-  "P", "make-local-env",
-  "%3.2,.1,,#0.0,.5,&2{%2.0u?{${:0,@(y11:lib-public?)[01}?{t,.2L6]2}${:0,"
-  "@(y30:fully-qualified-library-prefix)[01},.2L6]2}.0a,${.2,'(y8:<symbol"
-  ">),@(y11:sexp-match?)[02}?{.2}{${.2,'(l3:y6:rename;y8:<symbol>;y8:<sym"
-  "bol>;),@(y11:sexp-match?)[02}?{.2}{${.3a,'(s30:invalid export spec in "
-  "export:),@(y7:c-error)[02}}}_1,.1d,:1^[22}.!0.0^_1[32",
-
-  "P", "make-export-env",
-  "%3,#0.3,.3,.3,&3{%3.2,.2A3?{:0,.2,'(s32:duplicate external id in expor"
-  "t:),@(y7:c-error)[33}:2,.1A3,.0?{.0,.4,.1d,.5cc]5}.3,${.4,:1,@(y32:ful"
-  "ly-qualified-library-location)[02},.4cc]4}.!0${.4,@(y11:lib-public?)[0"
-  "1}?{.1,.0?{.0}{.4p}_1?{.2,'(s26:module cannot be imported:),@(y7:c-err"
-  "or)[42}n]4}n,.2,,#0.3,.1,&2{%2.0u?{.1]2}.0a,${.2,'(y8:<symbol>),@(y11:"
-  "sexp-match?)[02}?{${.4,.4a,.5a,:1^[03}}{${.2,'(l3:y6:rename;y8:<symbol"
-  ">;y8:<symbol>;),@(y11:sexp-match?)[02}?{${.4,.4adda,.5ada,:1^[03}}{${."
-  "3a,'(s30:invalid export spec in export:),@(y7:c-error)[02}}}_1,.1d,:0^"
-  "[22}.!0.0^_1[42",
-
-  "C", 0,
-  "n@!(y20:*library-info-cache*)",
-
-  "P", "make-library-info",
-  "%0f,'4V2]0",
-
-  "P", "library-available?",
-  "%1@(y20:*library-info-cache*),.1A5?{t]1}.0S0?{.0,@(y32:file-resolve-re"
-  "lative-to-current)[11}.0p?{.0L0}{f}?{.0,@(y17:find-library-path)[11}f]"
-  "1",
-
-  "P", "lookup-library-info",
-  "%1@(y20:*library-info-cache*),.1A5,.0?{.0d]2}${.3,@(y14:std-lib->alist"
-  ")[01},.0?{.0,,#0${@(y17:make-library-info)[00}.!0@(y20:*library-info-c"
-  "ache*),.1^,.6cc@!(y20:*library-info-cache*)n,'0,.2^V5.1,'1,.2^V5${.3,@"
-  "(y3:car),@(y5:%25map1)[02},'2,.2^V5n,'3,.2^V5.0^]5}${@(y17:make-librar"
-  "y-info)[00},@(y20:*library-info-cache*),.1,.5cc@!(y20:*library-info-ca"
-  "che*).0]4",
-
-  "P", "get-library-info",
-  "%3,,#0#1${.4,@(y19:lookup-library-info)[01}.!0.0,&1{%4.0,'0,:0^V5.1,'1"
-  ",:0^V5.2,'2,:0^V5.3,'3,:0^V5]4}.!1'0,.1^V4~?{${.3,.5,.7,&3{%1:2^,.1,:1"
-  ",:0[13},f,.6,@(y24:call-with-file/lib-sexps)[03}}'3,.1^V4,'2,.2^V4,'1,"
-  ".3^V4,'0,.4^V4,.8[54",
-
-  "P", "visit-top-form",
-  "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."
-  "0p?{${:1,.3a,@(y14:visit-top-form)[02}.0d,:0^[11}]1}.!0.0^_1[31}'(y6:d"
-  "efine),.1q?{${.4,.4d,@(y12:xform-define)[02},${'(y6:define),.3da,.7,@("
-  "y11:xenv-lookup)[03},.0?{${.2z,'(l2:y3:ref;y1:*;),@(y11:sexp-match?)[0"
-  "2}}{f}?{t]5}.4,.2da,'(s40:identifier cannot be (re)defined in env:),@("
-  "y7:x-error)[53}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define-s"
-  "yntax)[02},${'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03},.0?{."
-  "1dda,.1sz]5}.4,.2da,'(s50:identifier cannot be (re)defined as syntax i"
-  "n env:),@(y7:x-error)[53}.0K0?{.2,${.5,.5,.5[02},@(y14:visit-top-form)"
-  "[32}.0U0?{t]3}.0Y0?{t]3}t]3}t]2",
-
-  "P", "eval-top-form",
-  "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."
-  "0p?{${:1,.3a,@(y13:eval-top-form)[02}.0d,:0^[11}]1}.!0.0^_1[31}'(y6:de"
-  "fine),.1q?{${.4,.4d,@(y12:xform-define)[02},${'(y6:define),.3da,.7,@(y"
-  "11:xenv-lookup)[03},.0?{${.2z,'(l2:y3:ref;y1:*;),@(y11:sexp-match?)[02"
-  "}}{f}?{.1dda,.1zda,'(y4:set!),l3,@(y25:compile-and-run-core-expr)[51}."
-  "4,.2da,'(s40:identifier cannot be (re)defined in env:),@(y7:x-error)[5"
-  "3}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define-syntax)[02},${"
-  "'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03},.0?{.1dda,.1sz]5}."
-  "4,.2da,'(s50:identifier cannot be (re)defined as syntax in env:),@(y7:"
-  "x-error)[53}.0K0?{.2,${.5,.5,.5[02},@(y13:eval-top-form)[32}.0U0?{${.4"
-  ",.4d,.4,@(y16:xform-integrable)[03},@(y25:compile-and-run-core-expr)[3"
-  "1}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y25:compile-and-run-core-expr)[31}"
-  "${.4,.4d,.4,@(y10:xform-call)[03},@(y25:compile-and-run-core-expr)[31}"
-  "${.3,.3,f,@(y5:xform)[03},@(y25:compile-and-run-core-expr)[21",
-
   "C", 0,
   "f@!(y9:*verbose*)",
-
-  "P", "compile-and-run-core-expr",
-  "%1.0p~?{${.2,'(s29:unexpected transformed output),@(y7:x-error)[02}}@("
-  "y9:*verbose*)?{Po,.1W5PoW6}'(y6:define),.1aq?{'(y4:set!),.1sa}${.2,@(y"
-  "21:compile-to-thunk-code)[01},@(y9:*verbose*)?{Po,.1W5PoW6}.0U4,U91,${"
-  ".2[00},@(y9:*verbose*)?{Po,.1W5PoW6]4}]4",
-
-  "P", "visit/v",
-  "%1,#0${.3,@(y15:open-input-file)[01}.!0${${.4^,@(y14:read-code-sexp)[0"
-  "1},,#0.4,.1,&2{%1.0R8~?{@(y9:*verbose*)?{Po,.1W5PoW6}${@(y16:root-envi"
-  "ronment),.3,@(y14:visit-top-form)[02}@(y9:*verbose*)?{PoW6}${:1^,@(y14"
-  ":read-code-sexp)[01},:0^[11}]1}.!0.0^_1[01}.0^P60]2",
-
-  "P", "visit/x",
-  "%1,#0${.3,@(y15:open-input-file)[01}.!0${${.4^,@(y14:read-code-sexp)[0"
-  "1},,#0.4,.1,&2{%1.0R8~?{@(y9:*verbose*)?{Po,.1W5PoW6}${@(y16:root-envi"
-  "ronment),.3,@(y13:eval-top-form)[02}@(y9:*verbose*)?{PoW6}${:1^,@(y14:"
-  "read-code-sexp)[01},:0^[11}]1}.!0.0^_1[01}.0^P60]2",
 
   "P", "repl-environment",
   "%2.1,@(y18:*root-environment*),.2,@(y10:env-lookup)[23",
@@ -1123,17 +991,17 @@ char *t_code[] = {
   "define),.1q?{${.4,.4d,@(y12:xform-define)[02},${'(y6:define),.3da,.7,@"
   "(y11:xenv-lookup)[03},.0?{${.2z,'(l2:y3:ref;y1:*;),@(y11:sexp-match?)["
   "02}}{f}?{.1dda,.1zda,'(y4:set!),l3,@(y30:repl-compile-and-run-core-exp"
-  "r)[51}.4,.2da,'(s40:identifier cannot be (re)defined in env:),@(y7:x-e"
-  "rror)[53}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-define-syntax)"
-  "[02},${'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03},.0?{.1dda,."
-  "1sz}{${.6,.4da,'(s50:identifier cannot be (re)defined as syntax in env"
-  ":),@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s18:SYNTAX INSTALLED: )W4Po"
-  ",.2daW5PoW6]5}]5}.0K0?{.2,${.5,.5,.5[02},@(y18:repl-eval-top-form)[32}"
-  ".0U0?{${.4,.4d,.4,@(y16:xform-integrable)[03},@(y30:repl-compile-and-r"
-  "un-core-expr)[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30:repl-compile-an"
-  "d-run-core-expr)[31}${.4,.4d,.4,@(y10:xform-call)[03},@(y30:repl-compi"
-  "le-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},@(y30:repl-compile-"
-  "and-run-core-expr)[21",
+  "r)[51}.4,.2da,'(s52:identifier cannot be (re)defined as variable in en"
+  "v:),@(y7:x-error)[53}'(y13:define-syntax),.1q?{${.4,.4d,@(y19:xform-de"
+  "fine-syntax)[02},${'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03}"
+  ",.0?{.1dda,.1sz}{${.6,.4da,'(s50:identifier cannot be (re)defined as s"
+  "yntax in env:),@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s18:SYNTAX INST"
+  "ALLED: )W4Po,.2daW5PoW6]5}]5}.0K0?{.2,${.5,.5,.5[02},@(y18:repl-eval-t"
+  "op-form)[32}.0U0?{${.4,.4d,.4,@(y16:xform-integrable)[03},@(y30:repl-c"
+  "ompile-and-run-core-expr)[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30:rep"
+  "l-compile-and-run-core-expr)[31}${.4,.4d,.4,@(y10:xform-call)[03},@(y3"
+  "0:repl-compile-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},@(y30:r"
+  "epl-compile-and-run-core-expr)[21",
 
   "P", "repl-read",
   "%2.1?{PoW6Po,.2W4Po,'(s1: )W4}.0,@(y14:read-code-sexp)[21",
