@@ -594,8 +594,8 @@ char *t_code[] = {
 
   "P", "xform-import",
   "%4.1L0?{${.4,.4,.4c,@(y22:preprocess-import-sets)[02},.0,'(y5:quote),l"
-  "2,@(y3:lid),'(y6:import),l3]5}.1,.1c,'(s20:improper import form),@(y7:"
-  "x-error)[42",
+  "2,'(y6:import),l2]5}.1,.1c,'(s20:improper import form),@(y7:x-error)[4"
+  "2",
 
   "P", "write-serialized-char",
   "%2'(c%25),.1C=,.0?{.0}{'(c%22),.2C=,.0?{.0}{'(c%5c),.3C=,.0?{.0}{'(c )"
@@ -1186,12 +1186,15 @@ char *t_code[] = {
   "xenv-lookup)[03},.0?{.1dda,.0,&1{%2:0,@(y9:syntax-id),l2]2},.0,.3sz_1_"
   "1}{${.6,.4da,'(s50:identifier cannot be (re)defined as syntax in env:)"
   ",@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s19:LIBRARY INSTALLED: )W4Po,"
-  ".2daW5PoW6]5}]5}.0K0?{.2,${.5,.5,.5[02},@(y18:repl-eval-top-form)[32}."
-  "0U0?{${.4,.4d,.4,@(y16:xform-integrable)[03},@(y30:repl-compile-and-ru"
-  "n-core-expr)[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30:repl-compile-and"
-  "-run-core-expr)[31}${.4,.4d,.4,@(y10:xform-call)[03},@(y30:repl-compil"
-  "e-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},@(y30:repl-compile-a"
-  "nd-run-core-expr)[21",
+  ".2daW5PoW6]5}]5}'(y6:import),.1q?{${f,.5,.5d,.6a,@(y12:xform-import)[0"
+  "4},.0dada,.0a,.1d,,#0.7,&1{%1:0,.1dz,@(y9:syntax-id),l2,.2a,@(y16:defi"
+  "ne-syntax-id),l3,@(y18:repl-eval-top-form)[12}.!0${.4,@(y30:repl-compi"
+  "le-and-run-core-expr)[01}.1,.1^,@(y10:%25for-each1)[82}.0K0?{.2,${.5,."
+  "5,.5[02},@(y18:repl-eval-top-form)[32}.0U0?{${.4,.4d,.4,@(y16:xform-in"
+  "tegrable)[03},@(y30:repl-compile-and-run-core-expr)[31}.0Y0?{${.4,.4,f"
+  ",@(y5:xform)[03},@(y30:repl-compile-and-run-core-expr)[31}${.4,.4d,.4,"
+  "@(y10:xform-call)[03},@(y30:repl-compile-and-run-core-expr)[31}${.3,.3"
+  ",f,@(y5:xform)[03},@(y30:repl-compile-and-run-core-expr)[21",
 
   "P", "repl-read",
   "%2.1?{PoW6Po,.2W4Po,'(s1: )W4}.0,@(y14:read-code-sexp)[21",

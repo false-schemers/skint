@@ -1052,7 +1052,7 @@
 (define (xform-import head tail env appos?) ; non-internal
   (if (list? tail)
       (let ([ic&ex (preprocess-import-sets (cons head tail) env)])
-        (list 'import lid (list 'quote ic&ex)))
+        (list 'import (list 'quote ic&ex)))
       (x-error "improper import form" (cons head tail))))
 
 
@@ -2048,6 +2048,13 @@
                  (x-error "identifier cannot be (re)defined as syntax in env:"
                    (cadr core) env))
              (when *verbose* (display "LIBRARY INSTALLED: ") (write (cadr core)) (newline)))]
+          [(eq? hval 'import) ; splice as definitions
+           (let* ([core (xform-import (car x) (cdr x) env #f)] ; core is (import (quote ic&ex))
+                  [ic&ex (cadadr core)] [code (car ic&ex)] [eal (cdr ic&ex)])
+             (define (define-alias p) 
+               (repl-eval-top-form (list define-syntax-id (car p) (list syntax-id (location-val (cdr p)))) env))
+             (repl-compile-and-run-core-expr code)
+             (for-each define-alias eal))]
           [(procedure? hval) ; transformer: apply and loop
            (repl-eval-top-form (hval x env) env)]
           [(integrable? hval) ; integrable application
