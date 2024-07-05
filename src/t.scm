@@ -1448,9 +1448,10 @@
       (c-error "library path should end in directory separator" path))) 
 
 (define (find-library-path libname) ;=> name of existing .sld file or #f
+  (define listname (if (symbol? libname) (symbol->listname libname) libname))
   (let loop ([l *library-path-list*])
     (and (pair? l)
-         (let ([p (libname->path libname (car l) ".sld")]) 
+         (let ([p (listname->path libname (car l) ".sld")]) 
            (if (and p (file-exists? p)) p (loop (cdr l)))))))
 
 #;(define (resolve-input-file/lib-name name) ;=> path (or error is signalled)
@@ -1501,9 +1502,9 @@
         (let ([s (read-code-sexp port)])
           (unless (eof-object? s) (proc s) (loop)))))))
 
-(define (library-available? lib) ;=> #f | filepath (external) | #t (loaded)
+(define (library-available? lib) ;=> #f | filepath (external) | (code . eal) (loaded)
   (cond [(string? lib) (file-resolve-relative-to-current lib)]
-        [(library-info lib #f) #t] ; builtin or preloaded
+        [(library-info lib #f)] ; builtin or preloaded
         [else (and (or (symbol? lib) (list1+? lib)) (find-library-path lib))]))
 
 ; name prefixes

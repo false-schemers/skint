@@ -770,8 +770,9 @@ char *t_code[] = {
   "irectory separator),@(y7:c-error)[12",
 
   "P", "find-library-path",
-  "%1@(y19:*library-path-list*),,#0.0,.3,&2{%1.0p?{${'(s4:.sld),.3a,:0,@("
-  "y13:libname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:1^[21}f]1}.!0.0^_1[11",
+  "%1,#0.1Y0?{${.3,@(y16:symbol->listname)[01}}{.1}.!0@(y19:*library-path"
+  "-list*),,#0.0,.4,&2{%1.0p?{${'(s4:.sld),.3a,:0,@(y14:listname->path)[0"
+  "3},.0?{.0F0}{f}?{.0]2}.1d,:1^[21}f]1}.!0.0^_1[21",
 
   "P", "read-file-sexps",
   "%2.1,&1{%1:0?{t,.1P79}n,,#0.2,.1,&2{%1${:1,@(y14:read-code-sexp)[01},."
@@ -780,8 +781,8 @@ char *t_code[] = {
 
   "P", "library-available?",
   "%1.0S0?{.0,@(y32:file-resolve-relative-to-current)[11}${f,.3,@(y12:lib"
-  "rary-info)[02}?{t]1}.0Y0,.0?{.0}{${.3,@(y7:list1+?)[01}}_1?{.0,@(y17:f"
-  "ind-library-path)[11}f]1",
+  "rary-info)[02},.0?{.0]2}.1Y0,.0?{.0}{${.4,@(y7:list1+?)[01}}_1?{.1,@(y"
+  "17:find-library-path)[21}f]2",
 
   "P", "fully-qualified-library-prefixed-name",
   "%2.1,'(y1:?),.2Y0?{.2}{${.4,@(y16:listname->symbol)[01}},@(y13:symbol-"
