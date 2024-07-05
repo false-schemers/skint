@@ -328,6 +328,12 @@
 (define (check-syntax sexp pat msg)
   (unless (sexp-match? pat sexp) (x-error msg sexp)))
 
+(define syntax-id (new-id 'syntax (make-location 'syntax) #f))
+(define lambda-id (new-id 'lambda (make-location 'lambda) #f))
+(define begin-id (new-id 'begin (make-location 'begin) #f))
+(define define-id (new-id 'define (make-location 'define) #f))
+(define define-syntax-id (new-id 'define-syntax (make-location 'define-syntax) #f))
+
 ; xform receives Scheme s-expressions and returns either Core Scheme <core>
 ; (always a pair) or special-form, which is either a builtin (a symbol) or
 ; a transformer (a procedure). Appos? flag is true when the context can
@@ -349,23 +355,25 @@
         [else 
          (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
            (case hval
-             [(syntax)        (xform-syntax        tail env)]
-             [(quote)         (xform-quote         tail env)]
-             [(set!)          (xform-set!          tail env)]
-             [(set&)          (xform-set&          tail env)]
-             [(if)            (xform-if            tail env)]
-             [(lambda)        (xform-lambda        tail env)]
-             [(lambda*)       (xform-lambda*       tail env)]
-             [(letcc)         (xform-letcc         tail env)]
-             [(withcc)        (xform-withcc        tail env)]
-             [(body)          (xform-body          tail env appos?)]
-             [(begin)         (xform-begin         tail env appos?)]
-             [(define)        (xform-define        tail env)]
-             [(define-syntax) (xform-define-syntax tail env)]
-             [(syntax-lambda) (xform-syntax-lambda tail env appos?)]
-             [(syntax-rules)  (xform-syntax-rules  tail env)]
-             [(syntax-length) (xform-syntax-length tail env)]
-             [(syntax-error)  (xform-syntax-error  tail env)]
+             [(syntax)         (xform-syntax         tail env)]
+             [(quote)          (xform-quote          tail env)]
+             [(set!)           (xform-set!           tail env)]
+             [(set&)           (xform-set&           tail env)]
+             [(if)             (xform-if             tail env)]
+             [(lambda)         (xform-lambda         tail env)]
+             [(lambda*)        (xform-lambda*        tail env)]
+             [(letcc)          (xform-letcc          tail env)]
+             [(withcc)         (xform-withcc         tail env)]
+             [(body)           (xform-body           tail env appos?)]
+             [(begin)          (xform-begin          tail env appos?)]
+             [(define)         (xform-define         tail env)]
+             [(define-syntax)  (xform-define-syntax  tail env)]
+             [(syntax-lambda)  (xform-syntax-lambda  tail env appos?)]
+             [(syntax-rules)   (xform-syntax-rules   tail env)]
+             [(syntax-length)  (xform-syntax-length  tail env)]
+             [(syntax-error)   (xform-syntax-error   tail env)]
+             [(define-library) (xform-define-library head tail env appos?)]
+             [(import)         (xform-import         head tail env appos?)]
              [else            (if (integrable? hval)
                                   (xform-integrable hval tail env)
                                   (if (procedure? hval)
@@ -509,8 +517,7 @@
                                 [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
                         [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
-                         (let* ([id (caar tail)] [lambda-id (new-id 'lambda (make-location 'lambda) #f)] 
-                                [init (cons lambda-id (cons (cdar tail) (cdr tail)))]
+                         (let* ([id (caar tail)] [init (cons lambda-id (cons (cdar tail) (cdr tail)))]
                                 [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
                            (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
                         [else (x-error "improper define form" first)])]
@@ -735,7 +742,6 @@
 ; hand-made transformers (use functionality defined below)
 
 (define (make-include-transformer ci?)
-  (define begin-id (new-id 'begin (make-location 'begin) #f))
   (define (push-current-file-transformer sexp env)
     (unless (and (list2? sexp) (string? (cadr sexp))) (x-error "invalid syntax" sexp))
     (push-current-file! (cadr sexp)) (list begin-id))
@@ -777,11 +783,277 @@
         (pp (caar clauses) (lambda () (cdar clauses)) (lambda () (loop (cdr clauses)))))))
 
 (define (make-cond-expand-transformer)
-  (define begin-id (new-id 'begin (make-location 'begin) #f))
   (lambda (sexp env)
     (define (lit=? id sym) ; match literal using free-id=? -like match
       (and (id? id) (eq? (xenv-ref env id) (xenv-ref root-environment sym))))
     (cons begin-id (preprocess-cond-expand lit=? sexp))))
+
+; library transformers
+
+; code is a <core> scheme expression as produced by the expander
+(define (adjoin-code code1 code2) ;=> code12, in original order
+  (cond [(equal? code1 '(begin)) code2]
+        [(equal? code2 '(begin)) code1]
+        [(and (sexp-match? '(begin * ...) code1) (sexp-match? '(begin * ...) code2))
+         (cons 'begin (append (cdr code1) (cdr code2)))] 
+        [(sexp-match? '(begin * ...) code1) (cons 'begin (append (cdr code1) (list code2)))] 
+        [(sexp-match? '(begin * ...) code2) (cons 'begin (cons code1 (cdr code2)))] 
+        [else (list 'begin code1 code2)]))
+
+; eals are alist-like export lists ((<sym> . <den>) ...)
+(define (adjoin-eals eal1 eal2) ;=> eal12
+  (if (null? eal1) eal2
+      (let ([eal2 (adjoin-eals (cdr eal1) eal2)])
+        (cond [(assq (caar eal1) eal2) => 
+               (lambda (p)
+                  (if (eq? (cdar eal1) (cdr p))
+                      eal2 ; repeat of same id with same denotation is allowed
+                      (x-error "multiple identifier bindings on import" (car eal1) p)))]
+              [else (cons (car eal1) eal2)]))))
+
+; esps is a list of export specs, each spec is (<old-id> . <new-id>)
+(define (adjoin-esps esps1 esps2) ;=> esps12
+  (if (null? esps1) esps2 ; assume esps2 is already checked
+      (let ([esp (car esps1)] [esps (adjoin-esps (cdr esps1) esps2)])
+        (cond [(member esp esps) esps] ; duplicate, but same rename -- already checked, ok
+              [(assq (car esp) esps) => (lambda (p) (x-error "duplicate identifier exports" esp p))]
+              [(rassq (cdr esp) esps) => (lambda (p) (x-error "conflicting identifier exports" esp p))]
+              [else (cons esp esps)]))))
+
+(define (preprocess-import-sets sexp env) ;=> (init-core . exports-eal)
+  (define (twoids? x) (and (list2? x) (id? (car x)) (id? (cadr x)))) 
+  (define (libpart? x) (or (id? x) (exact-integer? x)))
+  (check-syntax sexp '(<id> * ...) "invalid import syntax")
+  (let* ([sid (car sexp)] ; reference id to capture names entered by user
+         [is-only-id (id-rename-as sid 'only)] [is-except-id (id-rename-as sid 'except)]
+         [is-rename-id (id-rename-as sid 'rename)] [is-prefix-id (id-rename-as sid 'prefix)]
+         [is-library-id (id-rename-as sid 'library)])
+    (define (pp s return)
+      (define special (and (list2+? s) (pair? (cadr s))))
+      (cond
+        [(and special (eq? (car s) is-only-id) (andmap id? (cddr s)))
+         (pp (cadr s) ;=>
+           (lambda (code al) 
+             (return code            
+               (let loop ([al al] [ids (map id->sym (cddr s))])
+                 (cond [(null? al) al]
+                       [(memq (caar al) ids) (cons (car al) (loop (cdr al) ids))]
+                       [else (loop (cdr al) ids)])))))]
+        [(and special (eq? (car s) is-except-id) (andmap id? (cddr s)))
+         (pp (cadr s) ;=>
+           (lambda (code al) 
+             (return code            
+               (let loop ([al al] [ids (map id->sym (cddr s))])
+                 (cond [(null? al) al]
+                       [(memq (caar al) ids) (loop (cdr al) ids)]
+                       [else (cons (car al) (loop (cdr al) ids))])))))]
+        [(and special (eq? (car s) is-prefix-id) (list2? (cdr s)) (id? (caddr s)))
+         (pp (cadr s) ;=>
+           (lambda (code al) 
+             (return code            
+               (let loop ([al al] [pfx (id->sym (caddr s))])
+                 (cond [(null? al) al]
+                       [else (let ([nn (symbol-append pfx (caar al))])
+                               (cons (cons nn (cdar al)) (loop (cdr al) pfx)))])))))]
+        [(and special (eq? (car s) is-rename-id) (andmap twoids? (cddr s)))
+         (pp (cadr s) ;=>
+           (lambda (code al) 
+             (return code            
+               (let loop ([al al] [idpairs (xform-sexp->datum (cddr s))])
+                 (cond [(null? al) al]
+                       [(assq (caar al) idpairs) => 
+                        (lambda (idpair) (cons (cons (cadr idpair) (cdar al)) (loop (cdr al) idpairs)))]
+                       [else (cons (car al) (loop (cdr al) idpairs))])))))]
+        [(and (list2+? s) (eq? (car s) is-library-id))
+         (let ([ic&ex (preprocess-library s env)])
+           (return (car ic&ex) (cdr ic&ex)))]
+        [(and (list1+? s) (andmap libpart? s))
+         (let* ([lib (xform-sexp->datum s)] 
+                [sym (if (symbol? lib) lib (listname->symbol lib))]
+                [core (xform #f sym env)]) ; #f to run id-syntax (in mac-env?)
+           (check-syntax core '(quote ((<symbol> * ...) (<symbol> . *) ...))
+             "library import set does not refer to a valid library")
+           (return (caadr core) (cdadr core)))]
+        [else
+         (x-error "invalid import set in import" s)]))
+    (let loop ([isets (cdr sexp)] [code '(begin)] [eal '()])
+      (if (null? isets)
+          (cons code eal)
+          (pp (car isets) ;=>
+            (lambda (new-code new-eal)
+              (loop (cdr isets) 
+                (adjoin-code code new-code)
+                (adjoin-eals new-eal eal))))))))
+
+(define (preprocess-library-declarations sexp env)  ;=> (init-code import-eal esps forms)
+  (check-syntax sexp '(<id> (<id> * ...) ...) "invalid library declarations syntax")
+  (let* ([sid (car sexp)] ; reference id to capture names entered by user
+         [ld-export-id (id-rename-as sid 'export)] [ld-import-id (id-rename-as sid 'import)]
+         [ld-include-id (id-rename-as sid 'include)] [ld-include-ci-id (id-rename-as sid 'include-ci)]         
+         [ld-begin-id (id-rename-as sid 'begin)] [ld-rename-id (id-rename-as sid 'rename)] 
+         [ld-cond-expand-id (id-rename-as sid 'cond-expand)]
+         [ld-push-cf-id (id-rename-as sid 'push-cf)] [ld-pop-cf-id (id-rename-as sid 'pop-cf)]
+         [ld-library-declarations-id (id-rename-as sid 'library-declarations)]
+         [ld-include-library-declarations-id (id-rename-as sid 'include-library-declarations)]
+         [include-id (new-id 'include (make-location (make-include-transformer #f)) #f)]
+         [include-ci-id (new-id 'include-ci (make-location (make-include-transformer #t)) #f)])
+    (define (toesps ee esps) ;=> ((<old-id> . <new-id>) ...)
+      (cond [(null? ee) (reverse! esps)]
+            [(id? (car ee)) (let ([s (id->sym (car ee))]) (toesps (cdr ee) (adjoin-esps (list (cons s s)) esps)))]
+            [(and (sexp-match? '(<id> <id> <id>) (car ee)) (eq? (caar ee) ld-rename-id))
+             (toesps (cdr ee) (adjoin-esps (list (cons (id->sym (cadar ee)) (id->sym (caddar ee)))) esps))]
+            [else (x-error "invalid export spec element" (xform-sexp->datum (car ee)))]))
+    (let loop ([decls (cdr sexp)] [code '(begin)] [eal '()] [esps '()] [forms '()])
+      (if (null? decls)
+          (list code eal esps forms)
+          (let ([decl (car decls)] [decls (cdr decls)])
+            (cond ; precondition: decl matches (<id> * ...) 
+              [(eq? (car decl) ld-export-id)
+               (loop decls code eal (adjoin-esps (toesps (cdr decl) '()) esps) forms)]
+              [(and (list2? decl) (eq? (car decl) ld-import-id) (eq? (cadr decl) ld-import-id))
+               (let ([new-eal (list (cons 'import (make-location import-transformer)))])
+                 (loop decls code (adjoin-eals new-eal eal) esps forms))]
+              [(eq? (car decl) ld-import-id)
+               (let ([ic&ex (preprocess-import-sets decl env)])
+                 (let ([new-code (car ic&ex)] [new-eal (cdr ic&ex)])
+                   (loop decls (adjoin-code code new-code) (adjoin-eals new-eal eal) esps forms)))]
+              [(eq? (car decl) ld-library-declarations-id) ; splice
+               (loop (append (cdr decl) decls) code eal esps forms)]
+              [(eq? (car decl) ld-cond-expand-id) ; flatten and splice
+               (let ([lit=? (lambda (id sym) (and (id? id) (eq? id (id-rename-as sid sym))))])
+                 (loop (append (preprocess-cond-expand lit=? (cdr decl)) decls) code eal esps forms))]
+              [(eq? (car decl) ld-push-cf-id) ; internal
+               (check-syntax decl '(<id> <string>) "invalid library declarations syntax")
+               (push-current-file! (cadr decl))
+               (loop decls code eal esps forms)]
+              [(eq? (car decl) ld-pop-cf-id) ; internal
+               (check-syntax decl '(<id>) "invalid library declarations syntax")
+               (pop-current-file!)
+               (loop decls code eal esps forms)]
+              [(eq? (car decl) ld-include-library-declarations-id) ; splice
+               (check-syntax decl '(<id> <string> ...) "invalid include-library-declarations syntax")
+               (let lp ([files (reverse (cdr decl))] [decls decls])
+                 (if (null? files) (loop decls code eal esps forms)
+                     (let* ([filepath (file-resolve-relative-to-current (car files))]
+                            [fileok? (and (string? filepath) (file-exists? filepath))]
+                            [test (if fileok? #t (x-error "cannot include declarations" (car files) sexp))]
+                            [decl* (read-file-sexps filepath #f)]) ; no ci?
+                       (lp (cdr files) `((,ld-push-cf-id ,filepath) ,@decl* (,ld-pop-cf-id) . ,decls)))))]
+              [(eq? (car decl) ld-include-id)
+               (check-syntax decl '(<id> <string> ...) "invalid include library declaration syntax")
+               (loop decls code eal esps `(,@forms (,include-id . ,(cdr decl))))]
+              [(eq? (car decl) ld-include-ci-id)
+               (check-syntax decl '(<id> <string> ...) "invalid include-ci library declaration syntax")
+               (loop decls code eal esps `(,@forms (,include-ci-id . ,(cdr decl))))]
+              [(eq? (car decl) ld-begin-id)
+               (loop decls code eal esps (append forms (xform-sexp->datum (cdr decl))))]))))))
+        
+; make functional read-only environment from import al,
+; allowing fall-through to env for lib://foo/bar ids
+(define (ial->controlled-environment ial make-nid env)
+  (let ([v (make-vector 1 '())]) ; new ids go here
+    (lambda (id at)
+      (cond [(procedure? id) 
+             (and (memq at '(ref const)) (old-den id))]
+            [(assq id (vector-ref v 0)) => 
+             cdr] ; full access to new locations
+            [(assq id ial) => ; read-only acess to imports, no shadowing?
+             (lambda (b) (and (memq at '(ref const)) (cdr b)))] 
+            [(symbol-libname? id) ; read-only acess to libs 
+             (and (memq at '(ref const)) (env id at))]
+            [(memq at '(ref const set! define))
+             (let ([loc (make-location (list 'ref (make-nid id)))])
+               (vector-set! v 0 (cons (cons id loc) (vector-ref v 0)))
+               loc)]
+            [(memq at '(define-syntax))
+             (let ([loc (make-location '(undefined))])
+               (vector-set! v 0 (cons (cons id loc) (vector-ref v 0)))
+               loc)]
+            [else #f]))))
+
+(define (preprocess-library sexp env) ;=> (init-core . exports-eal)
+  ; generator of globals: use prefix or temporary if no prefix is given 
+  (define (make-nid id) 
+    (if (and (list2+? sexp) (id? (cadr sexp))) ; got library id
+        (fully-qualified-library-prefixed-name (id->sym (cadr sexp)) (id->sym id))
+        (gensym (id->sym id))))
+  ; (library lib? library-declaration ...)
+  (check-syntax sexp '(* * ...) "invalid library syntax")
+  (let* ([lid (if (and (list2+? sexp) (id? (cadr sexp))) (id->sym (cadr sexp)) #f)]
+         [decls (if lid (cddr sexp) (cdr sexp))] ; NB: mac env is used below to resolve lib names!
+         [icimesfs (preprocess-library-declarations (cons (car sexp) decls) env)])
+    (let* ([code (car icimesfs)] [ial (cadr icimesfs)] [esps (caddr icimesfs)] [forms (cadddr icimesfs)] 
+           [cenv (ial->controlled-environment ial make-nid env)] [eal '()])
+      (define (scan body code*) ;=> extended with side-effect on cenv
+        (if (null? body) 
+            code*
+            (let ([first (car body)] [rest (cdr body)])
+              (if (pair? first)
+                  (let* ([head (car first)] [tail (cdr first)] [hval (xform #t head cenv)])
+                    (case hval
+                      [(begin)
+                       (if (list? tail) 
+                           (scan (append tail rest) code*)
+                           (x-error "improper begin form" first))]
+                      [(define)
+                       (cond [(and (list2? tail) (null? (car tail))) ; idless
+                              (scan rest (cons (xform #f (cadr tail) cenv) code*))]
+                             [(and (list2? tail) (id? (car tail)))
+                              (unless (xenv-lookup cenv (car tail) 'define)
+                                (x-error "unexpected define for id" (car tail) first)) 
+                              (scan rest (cons (xform-set! tail cenv) code*))]
+                             [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
+                              (unless (xenv-lookup cenv (caar tail) 'define)
+                                (x-error "unexpected define for id" (caar tail) first)) 
+                              (let* ([id (caar tail)] [init (cons lambda-id (cons (cdar tail) (cdr tail)))])
+                                (scan rest (cons (xform-set! (list id init) cenv) code*)))]
+                             [else (x-error "improper define form" first)])]
+                      [(define-syntax)
+                       (cond [(and (list2? tail) (id? (car tail)))
+                              (let ([loc (xenv-lookup cenv (car tail) 'define-syntax)])
+                                (location-set-val! loc (xform #t (cadr tail) cenv))
+                                (scan rest code*))]
+                             [else (x-error "improper define-syntax form" first)])]
+                      ; TODO: check for built-in (export) and modify eal!
+                      [else
+                       (if (procedure? hval)
+                           (scan (cons (hval first cenv) rest) code*)
+                           (scan rest (cons (xform #f first cenv) code*)))]))
+                  (scan rest (cons (xform #f first cenv) code*)))))) 
+      (let* ([code* (scan forms '())] [forms-code (cons 'begin (reverse! code*))] 
+             [combined-code (adjoin-code code (if lid (list 'once lid forms-code) forms-code))])
+        ; walk through esps, fetching locations from cenv
+        (let loop ([esps esps] [eal eal])
+          (if (null? esps)
+              (cons combined-code (reverse! eal))
+              (let* ([lid (caar esps)] [eid (cdar esps)] [loc (cenv lid 'const)])
+                (cond [(not loc) (x-error "cannot export id" lid)]
+                      [(location-special? loc) (loop (cdr esps) (cons (cons eid loc) eal))]
+                      [else (let ([val (location-val loc)])
+                              (if (memq (car val) '(ref const))
+                                  (loop (cdr esps) (cons (cons eid (make-location (list 'const (cadr val)))) eal))
+                                  (x-error "cannot export code alias id" lid val)))]))))))))
+
+; note: define-library semantics does not depend on lexical context, and, as a syntax definition,
+; it should become available in local env immediately, even at definition-scanning phase -- so we
+; introduce new special <core> form define-library
+
+(define (xform-define-library head tail env appos?) ; non-internal
+  (if (and (list2+? tail) (list1+? (car tail)))
+      (let* ([name (xform-sexp->datum (car tail))] [sym (if (symbol? name) name (listname->symbol name))]
+             [libform (cons head (cons sym (cdr tail)))] ; NB: head is used as seed id for renamings
+             [ic&ex (preprocess-library libform env)] [lid (id-rename-as head sym)])
+        (list 'define-library lid (list 'quote ic&ex)))
+      (x-error "improper define-library form" (cons head tail))))
+
+; for now, we have no clear idea of how to process import in all possible contexts, so we will also
+; introduce new special <core> form import
+
+(define (xform-import head tail env appos?) ; non-internal
+  (if (list? tail)
+      (let ([ic&ex (preprocess-import-sets (cons head tail) env)])
+        (list 'import lid (list 'quote ic&ex)))
+      (x-error "improper import form" (cons head tail))))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -922,7 +1194,7 @@
        '()]
       [once (gid exp)
        (find-free exp b)]
-      [(define define-syntax) tail
+      [(define define-syntax define-library import) tail
        (c-error "misplaced definition form" x)])))
 
 (define find-sets*
@@ -972,7 +1244,7 @@
        '()]
       [once (gid exp)
        (find-sets exp v)]
-      [(define define-syntax) tail
+      [(define define-syntax define-library import) tail
        (c-error "misplaced definition form" x)])))
 
 (define codegen
@@ -1270,7 +1542,7 @@
                      (begin)
                      (begin (gset! ,gid (quote #t)) ,exp)) 
           l f s g k port)]
-      [(define define-syntax) tail
+      [(define define-syntax define-library import) tail
        (c-error "misplaced definition form" x)])))
 
 (define (compile-to-string x)
@@ -1767,6 +2039,15 @@
                  (x-error "identifier cannot be (re)defined as syntax in env:"
                    (cadr core) env))
              (when *verbose* (display "SYNTAX INSTALLED: ") (write (cadr core)) (newline)))]
+          [(eq? hval 'define-library) ; use new protocol for top-level envs
+           (let* ([core (xform-define-library (car x) (cdr x) env #f)]
+                  [loc (xenv-lookup env (cadr core) 'define-syntax)])
+             (if loc ; location or #f
+                 (let* ([qie (caddr core)] [val (lambda (sexp env) (list syntax-id qie))])
+                   (location-set-val! loc val)) ; wrapped in identifier-syntax transformer
+                 (x-error "identifier cannot be (re)defined as syntax in env:"
+                   (cadr core) env))
+             (when *verbose* (display "LIBRARY INSTALLED: ") (write (cadr core)) (newline)))]
           [(procedure? hval) ; transformer: apply and loop
            (repl-eval-top-form (hval x env) env)]
           [(integrable? hval) ; integrable application

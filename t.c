@@ -190,6 +190,22 @@ char *t_code[] = {
   "P", "check-syntax",
   "%3${.2,.4,@(y11:sexp-match?)[02}~?{.0,.3,@(y7:x-error)[32}]3",
 
+  "C", 0,
+  "${f,'(y6:syntax)b,'(y6:syntax),@(y6:new-id)[03}@!(y9:syntax-id)",
+
+  "C", 0,
+  "${f,'(y6:lambda)b,'(y6:lambda),@(y6:new-id)[03}@!(y9:lambda-id)",
+
+  "C", 0,
+  "${f,'(y5:begin)b,'(y5:begin),@(y6:new-id)[03}@!(y8:begin-id)",
+
+  "C", 0,
+  "${f,'(y6:define)b,'(y6:define),@(y6:new-id)[03}@!(y9:define-id)",
+
+  "C", 0,
+  "${f,'(y13:define-syntax)b,'(y13:define-syntax),@(y6:new-id)[03}@!(y16:"
+  "define-syntax-id)",
+
   "P", "xform",
   "%3${.3,@(y3:id?)[01}?{${.4,.4,@(y9:xform-ref)[02},.1?{.0]4}.0U0?{.0U7,"
   "'(y3:ref),l2]4}.0K0?{.3,${.6,.6,.5[02},.3,@(y5:xform)[43}.0p~?{.0,'(s2"
@@ -207,8 +223,10 @@ char *t_code[] = {
   "(y19:xform-syntax-lambda)[73}'(y12:syntax-rules),.1v?{.6,.3,@(y18:xfor"
   "m-syntax-rules)[72}'(y13:syntax-length),.1v?{.6,.3,@(y19:xform-syntax-"
   "length)[72}'(y12:syntax-error),.1v?{.6,.3,@(y18:xform-syntax-error)[72"
-  "}.1U0?{.6,.3,.3,@(y16:xform-integrable)[73}.1K0?{.6,${.9,.9,.6[02},.6,"
-  "@(y5:xform)[73}.6,.3,.3,@(y10:xform-call)[73",
+  "}'(y14:define-library),.1v?{.4,.7,.4,.6,@(y20:xform-define-library)[74"
+  "}'(y6:import),.1v?{.4,.7,.4,.6,@(y12:xform-import)[74}.1U0?{.6,.3,.3,@"
+  "(y16:xform-integrable)[73}.1K0?{.6,${.9,.9,.6[02},.6,@(y5:xform)[73}.6"
+  ",.3,.3,@(y10:xform-call)[73",
 
   "P", "xform-syntax",
   "%2${.2,@(y6:list1?)[01}?{.0a]2}.0,'(y6:syntax)c,'(s20:improper syntax "
@@ -298,17 +316,16 @@ char *t_code[] = {
   "[01}}{f}?{.2a,.3da,${${.5,@(y7:id->sym)[01},@(y6:gensym)[01},${.(i11),"
   ".3,.6,@(y13:add-local-var)[03},.9,.(i14),.3c,.(i14),.5c,.(i14),.7c,.4,"
   ":0^[(i15)5}${.4,@(y7:list2+?)[01}?{.2ap?{${.4aa,@(y3:id?)[01}?{${.4ad,"
-  "@(y8:idslist?)[01}}{f}}{f}}{f}?{.2aa,${f,'(y6:lambda)b,'(y6:lambda),@("
-  "y6:new-id)[03},.4d,.5adc,.1c,${${.6,@(y7:id->sym)[01},@(y6:gensym)[01}"
-  ",${.(i12),.3,.7,@(y13:add-local-var)[03},.(i10),.(i15),.3c,.(i15),.5c,"
-  ".(i15),.8c,.4,:0^[(i16)5}.4,'(s20:improper define form),@(y7:x-error)["
-  "(i11)2}'(y13:define-syntax),.1v?{${.4,@(y6:list2?)[01}?{${.4a,@(y3:id?"
-  ")[01}}{f}?{.2a,.3da,${.(i10),'(l1:y9:undefined;),.5,@(y17:extend-xenv-"
-  "local)[03},.8,.(i13),tc,.(i13),.4c,.(i13),.6c,.4,:0^[(i14)5}.4,'(s27:i"
-  "mproper define-syntax form),@(y7:x-error)[(i11)2}.1K0?{.5,${.9,.8,.6[0"
-  "2}c,.(i10),.(i10),.(i10),.(i10),:0^[(i11)5}:1,.7,.(i12),.(i12)A8,.(i12"
-  ")A8,.(i12)A8,@(y12:xform-labels)[(i11)6}:1,.1,.6,.6A8,.6A8,.6A8,@(y12:"
-  "xform-labels)[56}.!0.0^_1[35",
+  "@(y8:idslist?)[01}}{f}}{f}}{f}?{.2aa,.3d,.4adc,@(y9:lambda-id)c,${${.5"
+  ",@(y7:id->sym)[01},@(y6:gensym)[01},${.(i11),.3,.6,@(y13:add-local-var"
+  ")[03},.9,.(i14),.3c,.(i14),.5c,.(i14),.7c,.4,:0^[(i15)5}.4,'(s20:impro"
+  "per define form),@(y7:x-error)[(i11)2}'(y13:define-syntax),.1v?{${.4,@"
+  "(y6:list2?)[01}?{${.4a,@(y3:id?)[01}}{f}?{.2a,.3da,${.(i10),'(l1:y9:un"
+  "defined;),.5,@(y17:extend-xenv-local)[03},.8,.(i13),tc,.(i13),.4c,.(i1"
+  "3),.6c,.4,:0^[(i14)5}.4,'(s27:improper define-syntax form),@(y7:x-erro"
+  "r)[(i11)2}.1K0?{.5,${.9,.8,.6[02}c,.(i10),.(i10),.(i10),.(i10),:0^[(i1"
+  "1)5}:1,.7,.(i12),.(i12)A8,.(i12)A8,.(i12)A8,@(y12:xform-labels)[(i11)6"
+  "}:1,.1,.6,.6A8,.6A8,.6A8,@(y12:xform-labels)[56}.!0.0^_1[35",
 
   "P", "xform-labels",
   "%6,#0${.5,&0{%1t,.1q]1},@(y6:andmap)[02}.!0n,n,.5,.5,.5,,#0.0,.(i12),."
@@ -397,18 +414,17 @@ char *t_code[] = {
   ".3,.5,:1^[63}.4d,:0^[51}.!0.0^_1[21}](i12)",
 
   "P", "make-include-transformer",
-  "%1,,,,,#0#1#2#3#4${f,'(y5:begin)b,'(y5:begin),@(y6:new-id)[03}.!0.0,&1"
-  "{%2${.2,@(y6:list2?)[01}?{.0daS0}{f}~?{${.2,'(s14:invalid syntax),@(y7"
-  ":x-error)[02}}${.2da,@(y18:push-current-file!)[01}:0^,l1]2}.!1.0,&1{%2"
-  "${.2,@(y6:list1?)[01}~?{${.2,'(s14:invalid syntax),@(y7:x-error)[02}}$"
-  "{@(y17:pop-current-file!)[00}:0^,l1]2}.!2${f,.4^b,'(y7:push-cf),@(y6:n"
-  "ew-id)[03}.!3${f,.5^b,'(y6:pop-cf),@(y6:new-id)[03}.!4.3,.5,.7,.3,&4{%"
-  "2${.2,@(y7:list1+?)[01}~?{${.2,'(s14:invalid syntax),@(y7:x-error)[02}"
-  "}n,.1d,,#0.3,:3,:2,.3,:1,:0,&6{%2.0u?{${.3A9,@(y7:%25append),@(y13:app"
-  "ly-to-list)[02},:0^c]2}${.2a,@(y32:file-resolve-relative-to-current)[0"
-  "1},.0S0?{.0F0}{f},.0?{t}{${:5,.5a,'(s14:cannot include),@(y7:x-error)["
-  "03}},${:1,.5,@(y15:read-file-sexps)[02},n,n,:3^cc,.1L6,n,.5c,:4^cc,.6,"
-  ".1c,.6d,:2^[72}.!0.0^_1[22}]6",
+  "%1,,,,#0#1#2#3&0{%2${.2,@(y6:list2?)[01}?{.0daS0}{f}~?{${.2,'(s14:inva"
+  "lid syntax),@(y7:x-error)[02}}${.2da,@(y18:push-current-file!)[01}@(y8"
+  ":begin-id),l1]2}.!0&0{%2${.2,@(y6:list1?)[01}~?{${.2,'(s14:invalid syn"
+  "tax),@(y7:x-error)[02}}${@(y17:pop-current-file!)[00}@(y8:begin-id),l1"
+  "]2}.!1${f,.3^b,'(y7:push-cf),@(y6:new-id)[03}.!2${f,.4^b,'(y6:pop-cf),"
+  "@(y6:new-id)[03}.!3.2,.4,.6,&3{%2${.2,@(y7:list1+?)[01}~?{${.2,'(s14:i"
+  "nvalid syntax),@(y7:x-error)[02}}n,.1d,,#0.3,:2,:1,.3,:0,&5{%2.0u?{${."
+  "3A9,@(y7:%25append),@(y13:apply-to-list)[02},@(y8:begin-id)c]2}${.2a,@"
+  "(y32:file-resolve-relative-to-current)[01},.0S0?{.0F0}{f},.0?{t}{${:4,"
+  ".5a,'(s14:cannot include),@(y7:x-error)[03}},${:0,.5,@(y15:read-file-s"
+  "exps)[02},n,n,:2^cc,.1L6,n,.5c,:3^cc,.6,.1c,.6d,:1^[72}.!0.0^_1[22}]5",
 
   "P", "preprocess-cond-expand",
   "%2,#0.0,.2,&2{%3${'(y4:else),.3,:0[02}?{.1[30}${.2,@(y3:id?)[01}?{${${"
@@ -426,10 +442,160 @@ char *t_code[] = {
   "0:1d,:0^[01},.1,&1{%0:0ad]0},.2aa,:0^[13}.!0.0^_1[31",
 
   "P", "make-cond-expand-transformer",
-  "%0,#0${f,'(y5:begin)b,'(y5:begin),@(y6:new-id)[03}.!0.0,&1{%2,#0.2,&1{"
-  "%2${.2,@(y3:id?)[01}?{${.3,@(y16:root-environment),@(y8:xenv-ref)[02},"
-  "${.3,:0,@(y8:xenv-ref)[02}q]2}f]2}.!0${.3,.3^,@(y22:preprocess-cond-ex"
-  "pand)[02},:0^c]3}]1",
+  "%0&0{%2,#0.2,&1{%2${.2,@(y3:id?)[01}?{${.3,@(y16:root-environment),@(y"
+  "8:xenv-ref)[02},${.3,:0,@(y8:xenv-ref)[02}q]2}f]2}.!0${.3,.3^,@(y22:pr"
+  "eprocess-cond-expand)[02},@(y8:begin-id)c]3}]0",
+
+  "P", "adjoin-code",
+  "%2'(l1:y5:begin;),.1e?{.1]2}'(l1:y5:begin;),.2e?{.0]2}${.2,'(l3:y5:beg"
+  "in;y1:*;y3:...;),@(y11:sexp-match?)[02}?{${.3,'(l3:y5:begin;y1:*;y3:.."
+  ".;),@(y11:sexp-match?)[02}}{f}?{.1d,.1dL6,'(y5:begin)c]2}${.2,'(l3:y5:"
+  "begin;y1:*;y3:...;),@(y11:sexp-match?)[02}?{.1,l1,.1dL6,'(y5:begin)c]2"
+  "}${.3,'(l3:y5:begin;y1:*;y3:...;),@(y11:sexp-match?)[02}?{.1d,.1c,'(y5"
+  ":begin)c]2}.1,.1,'(y5:begin),l3]2",
+
+  "P", "adjoin-eals",
+  "%2.0u?{.1]2}${.3,.3d,@(y11:adjoin-eals)[02},.0,.2aaA3,.0?{.0,.0d,.4adq"
+  "?{.2]5}.0,.4a,'(s38:multiple identifier bindings on import),@(y7:x-err"
+  "or)[53}.1,.3ac]4",
+
+  "P", "adjoin-esps",
+  "%2.0u?{.1]2}${.3,.3d,@(y11:adjoin-esps)[02},.1a,.1,.1A2?{.1]4}.1,.1aA3"
+  ",.0?{.0,.0,.3,'(s28:duplicate identifier exports),@(y7:x-error)[63}${."
+  "4,.4d,@(y5:rassq)[02},.0?{.0,.0,.4,'(s30:conflicting identifier export"
+  "s),@(y7:x-error)[73}.3,.3c]6",
+
+  "P", "preprocess-import-sets",
+  "%2,,#0#1&0{%1${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}?{.0da,@(y3:id?"
+  ")[11}f]1}f]1}.!0&0{%1${.2,@(y3:id?)[01},.0?{.0]2}.1I0]2}.!1${'(s21:inv"
+  "alid import syntax),'(l3:y4:<id>;y1:*;y3:...;),.6,@(y12:check-syntax)["
+  "03}.2a,${'(y4:only),.3,@(y12:id-rename-as)[02},${'(y6:except),.4,@(y12"
+  ":id-rename-as)[02},${'(y6:rename),.5,@(y12:id-rename-as)[02},${'(y6:pr"
+  "efix),.6,@(y12:id-rename-as)[02},${'(y7:library),.7,@(y12:id-rename-as"
+  ")[02},,#0.(i10),.9,.3,.3,.(i11),.8,.8,.(i11),.(i13),&9{%2,#0${.3,@(y7:"
+  "list2+?)[01}?{.1dap}{f}.!0.0^?{:0,.2aq?{${.3dd,@(y3:id?),@(y6:andmap)["
+  "02}}{f}}{f}?{.1,.3,&2{%2${${:1dd,@(y7:id->sym),@(y5:%25map1)[02},.4,,#"
+  "0.0,&1{%2.0u?{.0]2}.1,.1aaA0?{${.3,.3d,:0^[02},.1ac]2}.1,.1d,:0^[22}.!"
+  "0.0^_1[02},.1,:0[22},.2da,:5^[32}.0^?{:1,.2aq?{${.3dd,@(y3:id?),@(y6:a"
+  "ndmap)[02}}{f}}{f}?{.1,.3,&2{%2${${:1dd,@(y7:id->sym),@(y5:%25map1)[02"
+  "},.4,,#0.0,&1{%2.0u?{.0]2}.1,.1aaA0?{.1,.1d,:0^[22}${.3,.3d,:0^[02},.1"
+  "ac]2}.!0.0^_1[02},.1,:0[22},.2da,:5^[32}.0^?{:2,.2aq?{${.3d,@(y6:list2"
+  "?)[01}?{${.3dda,@(y3:id?)[01}}{f}}{f}}{f}?{.1,.3,&2{%2${${:1dda,@(y7:i"
+  "d->sym)[01},.4,,#0.0,&1{%2.0u?{.0]2}${.2aa,.4,@(y13:symbol-append)[02}"
+  ",${.4,.4d,:0^[02},.2ad,.2cc]3}.!0.0^_1[02},.1,:0[22},.2da,:5^[32}.0^?{"
+  ":3,.2aq?{${.3dd,:4^,@(y6:andmap)[02}}{f}}{f}?{.1,.3,&2{%2${${:1dd,@(y1"
+  "7:xform-sexp->datum)[01},.4,,#0.0,&1{%2.0u?{.0]2}.1,.1aaA3,.0?{.0,${.5"
+  ",.5d,:0^[02},.3ad,.2dacc]4}${.4,.4d,:0^[02},.2ac]3}.!0.0^_1[02},.1,:0["
+  "22},.2da,:5^[32}${.3,@(y7:list2+?)[01}?{:6,.2aq}{f}?{${:8,.4,@(y18:pre"
+  "process-library)[02},.0d,.1a,.5[42}${.3,@(y7:list1+?)[01}?{${.3,:7^,@("
+  "y6:andmap)[02}}{f}?{${.3,@(y17:xform-sexp->datum)[01},.0Y0?{.0}{${.2,@"
+  "(y16:listname->symbol)[01}},${:8,.3,f,@(y5:xform)[03},${'(s52:library "
+  "import set does not refer to a valid library),'(l2:y5:quote;l3:l3:y8:<"
+  "symbol>;y1:*;y3:...;;py8:<symbol>;y1:*;;y3:...;;),.4,@(y12:check-synta"
+  "x)[03}.0dad,.1daa,.7[62}.1,'(s28:invalid import set in import),@(y7:x-"
+  "error)[32}.!0n,'(l1:y5:begin;),.(i11)d,,#0.0,.5,&2{%3.0u?{.2,.2c]3}.2,"
+  ".2,.2,:1,&4{%2${:3,.4,@(y11:adjoin-eals)[02},${.3,:2,@(y11:adjoin-code"
+  ")[02},:1d,:0^[23},.1a,:0^[32}.!0.0^_1[(i11)3",
+
+  "P", "preprocess-library-declarations",
+  "%2${'(s35:invalid library declarations syntax),'(l3:y4:<id>;l3:y4:<id>"
+  ";y1:*;y3:...;;y3:...;),.4,@(y12:check-syntax)[03}.0a,${'(y6:export),.3"
+  ",@(y12:id-rename-as)[02},${'(y6:import),.4,@(y12:id-rename-as)[02},${'"
+  "(y7:include),.5,@(y12:id-rename-as)[02},${'(y10:include-ci),.6,@(y12:i"
+  "d-rename-as)[02},${'(y5:begin),.7,@(y12:id-rename-as)[02},${'(y6:renam"
+  "e),.8,@(y12:id-rename-as)[02},${'(y11:cond-expand),.9,@(y12:id-rename-"
+  "as)[02},${'(y7:push-cf),.(i10),@(y12:id-rename-as)[02},${'(y6:pop-cf),"
+  ".(i11),@(y12:id-rename-as)[02},${'(y20:library-declarations),.(i12),@("
+  "y12:id-rename-as)[02},${'(y28:include-library-declarations),.(i13),@(y"
+  "12:id-rename-as)[02},${f,${f,@(y24:make-include-transformer)[01}b,'(y7"
+  ":include),@(y6:new-id)[03},${f,${t,@(y24:make-include-transformer)[01}"
+  "b,'(y10:include-ci),@(y6:new-id)[03},,#0.0,.9,&2{%2.0u?{.1A9]2}${.2a,@"
+  "(y3:id?)[01}?{${.2a,@(y7:id->sym)[01},${.4,.3,.4c,l1,@(y11:adjoin-esps"
+  ")[02},.2d,:1^[32}${.2a,'(l3:y4:<id>;y4:<id>;y4:<id>;),@(y11:sexp-match"
+  "?)[02}?{:0,.1aaq}{f}?{${.3,${.5adda,@(y7:id->sym)[01},${.6ada,@(y7:id-"
+  ">sym)[01}c,l1,@(y11:adjoin-esps)[02},.1d,:1^[22}${.2a,@(y17:xform-sexp"
+  "->datum)[01},'(s27:invalid export spec element),@(y7:x-error)[22}.!0n,"
+  "n,n,'(l1:y5:begin;),.(i19)d,,#0.(i19),.7,.(i20),.(i25),.(i14),.(i18),."
+  "(i26),.(i16),.(i29),.(i21),.(i21),.(i28),.(i20),.(i29),.(i21),.(i30),."
+  "(i16),&(i17){%5.0u?{.4,.4,.4,.4,l4]5}.0d,.1a,:(i16),.1aq?{.6,${.8,${n,"
+  ".7d,:(i15)^[02},@(y11:adjoin-esps)[02},.6,.6,.5,:0^[75}${.2,@(y6:list2"
+  "?)[01}?{:(i14),.1aq?{:(i14),.1daq}{f}}{f}?{@(y18:import-transformer)b,"
+  "'(y6:import)c,l1,.7,.7,${.9,.5,@(y11:adjoin-eals)[02},.7,.6,:0^[85}:(i"
+  "14),.1aq?{${:(i13),.3,@(y22:preprocess-import-sets)[02},.0d,.1a,.9,.9,"
+  "${.(i11),.6,@(y11:adjoin-eals)[02},${.5,.(i12),@(y11:adjoin-code)[02},"
+  ".8,:0^[(i10)5}:(i12),.1aq?{.6,.6,.6,.6,.5,.5dL6,:0^[75}:(i11),.1aq?{:("
+  "i10),&1{%2${.2,@(y3:id?)[01}?{${.3,:0,@(y12:id-rename-as)[02},.1q]2}f]"
+  "2},.7,.7,.7,.7,.6,${.8d,.8,@(y22:preprocess-cond-expand)[02}L6,:0^[85}"
+  ":7,.1aq?{${'(s35:invalid library declarations syntax),'(l2:y4:<id>;y8:"
+  "<string>;),.4,@(y12:check-syntax)[03}${.2da,@(y18:push-current-file!)["
+  "01}.6,.6,.6,.6,.5,:0^[75}:6,.1aq?{${'(s35:invalid library declarations"
+  " syntax),'(l1:y4:<id>;),.4,@(y12:check-syntax)[03}${@(y17:pop-current-"
+  "file!)[00}.6,.6,.6,.6,.5,:0^[75}:9,.1aq?{${'(s43:invalid include-libra"
+  "ry-declarations syntax),'(l3:y4:<id>;y8:<string>;y3:...;),.4,@(y12:che"
+  "ck-syntax)[03}.1,.1dA8,,#0:8,:7,:6,.3,:0,.(i11),.(i13),.(i15),.(i17),&"
+  "9{%2.0u?{:0,:1,:2,:3,.5,:4^[25}${.2a,@(y32:file-resolve-relative-to-cu"
+  "rrent)[01},.0S0?{.0F0}{f},.0?{t}{${:8,.5a,'(s27:cannot include declara"
+  "tions),@(y7:x-error)[03}},${f,.5,@(y15:read-file-sexps)[02},.5,n,:6cc,"
+  ".1L6,n,.5c,:7cc,.5d,:5^[62}.!0.0^_1[72}:5,.1aq?{${'(s42:invalid includ"
+  "e library declaration syntax),'(l3:y4:<id>;y8:<string>;y3:...;),.4,@(y"
+  "12:check-syntax)[03}n,.1d,:4cc,.7L6,.6,.6,.6,.5,:0^[75}:3,.1aq?{${'(s4"
+  "5:invalid include-ci library declaration syntax),'(l3:y4:<id>;y8:<stri"
+  "ng>;y3:...;),.4,@(y12:check-syntax)[03}n,.1d,:2cc,.7L6,.6,.6,.6,.5,:0^"
+  "[75}:1,.1aq?{${.2d,@(y17:xform-sexp->datum)[01},.7L6,.6,.6,.6,.5,:0^[7"
+  "5}f]7}.!0.0^_1[(i17)5",
+
+  "P", "ial->controlled-environment",
+  "%3n,'1V2,.0,.3,.5,.4,&4{%2.0K0?{'(l2:y3:ref;y5:const;),.2A0?{.0,@(y7:o"
+  "ld-den)[21}f]2}'0,:3V4,.1A3,.0?{.0d]3}:0,.2A3,.0?{.0,'(l2:y3:ref;y5:co"
+  "nst;),.5A0?{.0d]5}f]5}${.4,@(y15:symbol-libname?)[01}?{'(l2:y3:ref;y5:"
+  "const;),.4A0?{.3,.3,:1[42}f]4}'(l4:y3:ref;y5:const;y4:set!;y6:define;)"
+  ",.4A0?{${.4,:2[01},'(y3:ref),l2b,'0,:3V4,.1,.5cc,'0,:3V5.0]5}'(l1:y13:"
+  "define-syntax;),.4A0?{'(l1:y9:undefined;)b,'0,:3V4,.1,.5cc,'0,:3V5.0]5"
+  "}f]4}]4",
+
+  "P", "preprocess-library",
+  "%2,#0.1,&1{%1${:0,@(y7:list2+?)[01}?{${:0da,@(y3:id?)[01}}{f}?{${.2,@("
+  "y7:id->sym)[01},${:0da,@(y7:id->sym)[01},@(y37:fully-qualified-library"
+  "-prefixed-name)[12}${.2,@(y7:id->sym)[01},@(y6:gensym)[11}.!0${'(s22:i"
+  "nvalid library syntax),'(l3:y1:*;y1:*;y3:...;),.5,@(y12:check-syntax)["
+  "03}${.3,@(y7:list2+?)[01}?{${.3da,@(y3:id?)[01}}{f}?{${.3da,@(y7:id->s"
+  "ym)[01}}{f},.0?{.2dd}{.2d},${.6,.3,.7ac,@(y31:preprocess-library-decla"
+  "rations)[02},.0a,.1da,.2dda,.3ddda,${.(i11),.(i10)^,.6,@(y27:ial->cont"
+  "rolled-environment)[03},n,,#0.0,.3,&2{%2.0u?{.1]2}.0d,.1a,.0p?{.0a,.1d"
+  ",${:0,.4,t,@(y5:xform)[03},.0,'(y5:begin),.1v?{.2L0?{.7,.6,.4L6,:1^[82"
+  "}.4,'(s19:improper begin form),@(y7:x-error)[82}'(y6:define),.1v?{${.4"
+  ",@(y6:list2?)[01}?{.2au}{f}?{.7,${:0,.6da,f,@(y5:xform)[03}c,.6,:1^[82"
+  "}${.4,@(y6:list2?)[01}?{${.4a,@(y3:id?)[01}}{f}?{${'(y6:define),.5a,:0"
+  ",@(y11:xenv-lookup)[03}~?{${.6,.5a,'(s24:unexpected define for id),@(y"
+  "7:x-error)[03}}.7,${:0,.6,@(y10:xform-set!)[02}c,.6,:1^[82}${.4,@(y7:l"
+  "ist2+?)[01}?{.2ap?{${.4aa,@(y3:id?)[01}?{${.4ad,@(y8:idslist?)[01}}{f}"
+  "}{f}}{f}?{${'(y6:define),.5aa,:0,@(y11:xenv-lookup)[03}~?{${.6,.5aa,'("
+  "s24:unexpected define for id),@(y7:x-error)[03}}.2aa,.3d,.4adc,@(y9:la"
+  "mbda-id)c,.9,${:0,.4,.6,l2,@(y10:xform-set!)[02}c,.8,:1^[(i10)2}.4,'(s"
+  "20:improper define form),@(y7:x-error)[82}'(y13:define-syntax),.1v?{${"
+  ".4,@(y6:list2?)[01}?{${.4a,@(y3:id?)[01}}{f}?{${'(y13:define-syntax),."
+  "5a,:0,@(y11:xenv-lookup)[03},${:0,.6da,t,@(y5:xform)[03},.1sz.8,.7,:1^"
+  "[92}.4,'(s27:improper define-syntax form),@(y7:x-error)[82}.1K0?{.7,.6"
+  ",${:0,.9,.7[02}c,:1^[82}.7,${:0,.8,f,@(y5:xform)[03}c,.6,:1^[82}.3,${:"
+  "0,.4,f,@(y5:xform)[03}c,.2,:1^[42}.!0${n,.6,.4^[02},.0A9,'(y5:begin)c,"
+  "${.(i13)?{.2,.(i14),'(y4:once),l3}{.2},.(i11),@(y11:adjoin-code)[02},."
+  "4,.8,,#0.8,.1,.5,&3{%2.0u?{.1A9,:0c]2}.0aa,.1ad,${'(y5:const),.4,:2[02"
+  "},.0~?{.2,'(s16:cannot export id),@(y7:x-error)[52}${.2,@(y17:location"
+  "-special?)[01}?{.4,.1,.3cc,.4d,:1^[52}.0z,'(l2:y3:ref;y5:const;),.1aA0"
+  "?{.5,.1da,'(y5:const),l2b,.4cc,.5d,:1^[62}.0,.4,'(s27:cannot export co"
+  "de alias id),@(y7:x-error)[63}.!0.0^_1[(i16)2",
+
+  "P", "xform-define-library",
+  "%4${.3,@(y7:list2+?)[01}?{${.3a,@(y7:list1+?)[01}}{f}?{${.3a,@(y17:xfo"
+  "rm-sexp->datum)[01},.0Y0?{.0}{${.2,@(y16:listname->symbol)[01}},.3d,.1"
+  "c,.3c,${.7,.3,@(y18:preprocess-library)[02},${.4,.7,@(y12:id-rename-as"
+  ")[02},.1,'(y5:quote),l2,.1,'(y14:define-library),l3]9}.1,.1c,'(s28:imp"
+  "roper define-library form),@(y7:x-error)[42",
+
+  "P", "xform-import",
+  "%4.1L0?{${.4,.4,.4c,@(y22:preprocess-import-sets)[02},.0,'(y5:quote),l"
+  "2,@(y3:lid),'(y6:import),l3]5}.1,.1c,'(s20:improper import form),@(y7:"
+  "x-error)[42",
 
   "P", "write-serialized-char",
   "%2'(c%25),.1C=,.0?{.0}{'(c%22),.2C=,.0?{.0}{'(c%5c),.3C=,.0?{.0}{'(c )"
@@ -503,9 +669,10 @@ char *t_code[] = {
   "{.0d,.2,&1{%!1${:0,.3,@(y10:find-free*)[02},${:0,.5,@(y9:find-free)[02"
   "},@(y9:set-union)[22},@(y13:apply-to-list)[22}'(y3:asm),.1aq?{.0d,&0{%"
   "1n]1},@(y13:apply-to-list)[22}'(y4:once),.1aq?{.0d,.2,&1{%2:0,.2,@(y9:"
-  "find-free)[22},@(y13:apply-to-list)[22}'(l2:y6:define;y13:define-synta"
-  "x;),.1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced definition form),@(y7:c-err"
-  "or)[12},@(y13:apply-to-list)[22}'(y16:record-case-miss)]2",
+  "find-free)[22},@(y13:apply-to-list)[22}'(l4:y6:define;y13:define-synta"
+  "x;y14:define-library;y6:import;),.1aA0?{.0d,.1,&1{%!0:0,'(s25:misplace"
+  "d definition form),@(y7:c-error)[12},@(y13:apply-to-list)[22}'(y16:rec"
+  "ord-case-miss)]2",
 
   "P", "find-sets*",
   "%2.0u?{n]2}${.3,.3d,@(y10:find-sets*)[02},${.4,.4a,@(y9:find-sets)[02}"
@@ -534,10 +701,10 @@ char *t_code[] = {
   "o-list)[22}'(y4:call),.1aq?{.0d,.2,&1{%!1${:0,.3,@(y10:find-sets*)[02}"
   ",${:0,.5,@(y9:find-sets)[02},@(y9:set-union)[22},@(y13:apply-to-list)["
   "22}'(y3:asm),.1aq?{.0d,&0{%1n]1},@(y13:apply-to-list)[22}'(y4:once),.1"
-  "aq?{.0d,.2,&1{%2:0,.2,@(y9:find-sets)[22},@(y13:apply-to-list)[22}'(l2"
-  ":y6:define;y13:define-syntax;),.1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced "
-  "definition form),@(y7:c-error)[12},@(y13:apply-to-list)[22}'(y16:recor"
-  "d-case-miss)]2",
+  "aq?{.0d,.2,&1{%2:0,.2,@(y9:find-sets)[22},@(y13:apply-to-list)[22}'(l4"
+  ":y6:define;y13:define-syntax;y14:define-library;y6:import;),.1aA0?{.0d"
+  ",.1,&1{%!0:0,'(s25:misplaced definition form),@(y7:c-error)[12},@(y13:"
+  "apply-to-list)[22}'(y16:record-case-miss)]2",
 
   "P", "codegen",
   "%7'(y5:quote),.1aq?{.0d,.6,.8,&2{%1.0,t,.1v?{:0,'(ct)W0}{f,.1v?{:0,'(c"
@@ -663,10 +830,10 @@ char *t_code[] = {
   "'(y4:once),.1aq?{.0d,.7,.7,.7,.7,.7,.7,&6{%2:5,:4,:3,:2,:1,:0,n,n,.9c,"
   "n,n,tc,'(y5:quote)cc,.9c,'(y5:gset!)cc,'(y5:begin)cc,n,'(y5:begin)cc,n"
   ",n,tc,'(y5:quote)cc,n,.9c,'(y4:gref)cc,'(y3:eq?)U5c,'(y10:integrable)c"
-  "c,'(y2:if)c,@(y7:codegen)[27},@(y13:apply-to-list)[72}'(l2:y6:define;y"
-  "13:define-syntax;),.1aA0?{.0d,.1,&1{%!0:0,'(s25:misplaced definition f"
-  "orm),@(y7:c-error)[12},@(y13:apply-to-list)[72}'(y16:record-case-miss)"
-  "]7",
+  "c,'(y2:if)c,@(y7:codegen)[27},@(y13:apply-to-list)[72}'(l4:y6:define;y"
+  "13:define-syntax;y14:define-library;y6:import;),.1aA0?{.0d,.1,&1{%!0:0"
+  ",'(s25:misplaced definition form),@(y7:c-error)[12},@(y13:apply-to-lis"
+  "t)[72}'(y16:record-case-miss)]7",
 
   "P", "compile-to-string",
   "%1P51,${.2,f,${n,.8,@(y9:find-free)[02},n,n,n,.9,@(y7:codegen)[07}.0P9"
@@ -1014,12 +1181,17 @@ char *t_code[] = {
   "fine-syntax)[02},${'(y13:define-syntax),.3da,.7,@(y11:xenv-lookup)[03}"
   ",.0?{.1dda,.1sz}{${.6,.4da,'(s50:identifier cannot be (re)defined as s"
   "yntax in env:),@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s18:SYNTAX INST"
-  "ALLED: )W4Po,.2daW5PoW6]5}]5}.0K0?{.2,${.5,.5,.5[02},@(y18:repl-eval-t"
-  "op-form)[32}.0U0?{${.4,.4d,.4,@(y16:xform-integrable)[03},@(y30:repl-c"
-  "ompile-and-run-core-expr)[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30:rep"
-  "l-compile-and-run-core-expr)[31}${.4,.4d,.4,@(y10:xform-call)[03},@(y3"
-  "0:repl-compile-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},@(y30:r"
-  "epl-compile-and-run-core-expr)[21",
+  "ALLED: )W4Po,.2daW5PoW6]5}]5}'(y14:define-library),.1q?{${f,.5,.5d,.6a"
+  ",@(y20:xform-define-library)[04},${'(y13:define-syntax),.3da,.7,@(y11:"
+  "xenv-lookup)[03},.0?{.1dda,.0,&1{%2:0,@(y9:syntax-id),l2]2},.0,.3sz_1_"
+  "1}{${.6,.4da,'(s50:identifier cannot be (re)defined as syntax in env:)"
+  ",@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s19:LIBRARY INSTALLED: )W4Po,"
+  ".2daW5PoW6]5}]5}.0K0?{.2,${.5,.5,.5[02},@(y18:repl-eval-top-form)[32}."
+  "0U0?{${.4,.4d,.4,@(y16:xform-integrable)[03},@(y30:repl-compile-and-ru"
+  "n-core-expr)[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30:repl-compile-and"
+  "-run-core-expr)[31}${.4,.4d,.4,@(y10:xform-call)[03},@(y30:repl-compil"
+  "e-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},@(y30:repl-compile-a"
+  "nd-run-core-expr)[21",
 
   "P", "repl-read",
   "%2.1?{PoW6Po,.2W4Po,'(s1: )W4}.0,@(y14:read-code-sexp)[21",
