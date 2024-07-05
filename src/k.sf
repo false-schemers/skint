@@ -556,6 +556,8 @@
     (cons 'syntax-rules 'syntax-rules)
     (cons 'syntax-length 'syntax-length)
     (cons 'syntax-error 'syntax-error)
+    (cons 'define-library 'define-library)
+    (cons 'import 'import)
     (cons '... '...)))
 
 (define *top-transformer-env* #f)
