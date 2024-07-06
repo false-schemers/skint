@@ -138,6 +138,24 @@ char *t_code[] = {
 
   "A", "location-set-val!", "set-box!",
 
+  "A", "core?", "pair?",
+
+  "A", "transformer?", "procedure?",
+
+  "A", "library?", "vector?",
+
+  "A", "make-library", "vector",
+
+  "S", "library-code",
+  "l3:y12:syntax-rules;n;l2:l2:y1:_;y1:l;;l3:y10:vector-ref;y1:l;i0;;;",
+
+  "S", "library-exports",
+  "l3:y12:syntax-rules;n;l2:l2:y1:_;y1:l;;l3:y10:vector-ref;y1:l;i1;;;",
+
+  "S", "library-set-exports!",
+  "l3:y12:syntax-rules;n;l2:l3:y1:_;y1:l;y1:v;;l4:y11:vector-set!;y1:l;i1"
+  ";y1:v;;;",
+
   "P", "location-special?",
   "%1.0zp~]1",
 
@@ -227,7 +245,8 @@ char *t_code[] = {
   "tax-error)[72}'(y14:define-library),.1v?{.4,.7,.4,.6,@(y20:xform-defin"
   "e-library)[74}'(y6:import),.1v?{.4,.7,.4,.6,@(y12:xform-import)[74}.1U"
   "0?{.6,.3,.3,@(y16:xform-integrable)[73}.1K0?{.6,${.9,.9,.6[02},.6,@(y5"
-  ":xform)[73}.6,.3,.3,@(y10:xform-call)[73",
+  ":xform)[73}.1V0?{.5,.2,'(s23:improper use of library),@(y7:x-error)[73"
+  "}.6,.3,.3,@(y10:xform-call)[73",
 
   "P", "xform-quote",
   "%2${.2,@(y6:list1?)[01}?{${.2a,@(y17:xform-sexp->datum)[01},'(y5:quote"
@@ -473,30 +492,29 @@ char *t_code[] = {
   "03}.2a,${'(y4:only),.3,@(y12:id-rename-as)[02},${'(y6:except),.4,@(y12"
   ":id-rename-as)[02},${'(y6:rename),.5,@(y12:id-rename-as)[02},${'(y6:pr"
   "efix),.6,@(y12:id-rename-as)[02},${'(y7:library),.7,@(y12:id-rename-as"
-  ")[02},,#0.(i10),.9,.3,.3,.(i11),.8,.8,.(i11),.(i13),&9{%2,#0${.3,@(y7:"
-  "list2+?)[01}?{.1dap}{f}.!0.0^?{:0,.2aq?{${.3dd,@(y3:id?),@(y6:andmap)["
-  "02}}{f}}{f}?{.1,.3,&2{%2${${:1dd,@(y7:id->sym),@(y5:%25map1)[02},.4,,#"
-  "0.0,&1{%2.0u?{.0]2}.1,.1aaA0?{${.3,.3d,:0^[02},.1ac]2}.1,.1d,:0^[22}.!"
-  "0.0^_1[02},.1,:0[22},.2da,:5^[32}.0^?{:1,.2aq?{${.3dd,@(y3:id?),@(y6:a"
-  "ndmap)[02}}{f}}{f}?{.1,.3,&2{%2${${:1dd,@(y7:id->sym),@(y5:%25map1)[02"
-  "},.4,,#0.0,&1{%2.0u?{.0]2}.1,.1aaA0?{.1,.1d,:0^[22}${.3,.3d,:0^[02},.1"
-  "ac]2}.!0.0^_1[02},.1,:0[22},.2da,:5^[32}.0^?{:2,.2aq?{${.3d,@(y6:list2"
-  "?)[01}?{${.3dda,@(y3:id?)[01}}{f}}{f}}{f}?{.1,.3,&2{%2${${:1dda,@(y7:i"
-  "d->sym)[01},.4,,#0.0,&1{%2.0u?{.0]2}${.2aa,.4,@(y13:symbol-append)[02}"
-  ",${.4,.4d,:0^[02},.2ad,.2cc]3}.!0.0^_1[02},.1,:0[22},.2da,:5^[32}.0^?{"
-  ":3,.2aq?{${.3dd,:4^,@(y6:andmap)[02}}{f}}{f}?{.1,.3,&2{%2${${:1dd,@(y1"
-  "7:xform-sexp->datum)[01},.4,,#0.0,&1{%2.0u?{.0]2}.1,.1aaA3,.0?{.0,${.5"
-  ",.5d,:0^[02},.3ad,.2dacc]4}${.4,.4d,:0^[02},.2ac]3}.!0.0^_1[02},.1,:0["
-  "22},.2da,:5^[32}${.3,@(y7:list2+?)[01}?{:6,.2aq}{f}?{${:8,.4,@(y18:pre"
-  "process-library)[02},.0d,.1a,.5[42}${.3,@(y7:list1+?)[01}?{${.3,:7^,@("
-  "y6:andmap)[02}}{f}?{${.3,@(y17:xform-sexp->datum)[01},${.2,@(y16:listn"
-  "ame->symbol)[01},${:8,.3,f,@(y5:xform)[03},${'(s52:library import set "
-  "does not refer to a valid library),'(l2:y5:quote;l3:l3:y8:<symbol>;y1:"
-  "*;y3:...;;py8:<symbol>;y1:*;;y3:...;;),.4,@(y12:check-syntax)[03}.0dad"
-  ",.1daa,.7[62}.1,'(s28:invalid import set in import),@(y7:x-error)[32}."
-  "!0n,'(l1:y5:begin;),.(i11)d,,#0.0,.5,&2{%3.0u?{.2,.2c]3}.2,.2,.2,:1,&4"
-  "{%2${:3,.4,@(y11:adjoin-eals)[02},${.3,:2,@(y11:adjoin-code)[02},:1d,:"
-  "0^[23},.1a,:0^[32}.!0.0^_1[(i11)3",
+  ")[02},,#0.(i10),.7,.(i10),.4,.4,.(i12),.9,.9,.(i12),.(i14),&(i10){%2,#"
+  "0${.3,@(y7:list2+?)[01}?{.1dap}{f}.!0.0^?{:0,.2aq?{${.3dd,@(y3:id?),@("
+  "y6:andmap)[02}}{f}}{f}?{.1,.3,&2{%2${${:1dd,@(y7:id->sym),@(y5:%25map1"
+  ")[02},.4,,#0.0,&1{%2.0u?{.0]2}.1,.1aaA0?{${.3,.3d,:0^[02},.1ac]2}.1,.1"
+  "d,:0^[22}.!0.0^_1[02},.1,:0[22},.2da,:5^[32}.0^?{:1,.2aq?{${.3dd,@(y3:"
+  "id?),@(y6:andmap)[02}}{f}}{f}?{.1,.3,&2{%2${${:1dd,@(y7:id->sym),@(y5:"
+  "%25map1)[02},.4,,#0.0,&1{%2.0u?{.0]2}.1,.1aaA0?{.1,.1d,:0^[22}${.3,.3d"
+  ",:0^[02},.1ac]2}.!0.0^_1[02},.1,:0[22},.2da,:5^[32}.0^?{:2,.2aq?{${.3d"
+  ",@(y6:list2?)[01}?{${.3dda,@(y3:id?)[01}}{f}}{f}}{f}?{.1,.3,&2{%2${${:"
+  "1dda,@(y7:id->sym)[01},.4,,#0.0,&1{%2.0u?{.0]2}${.2aa,.4,@(y13:symbol-"
+  "append)[02},${.4,.4d,:0^[02},.2ad,.2cc]3}.!0.0^_1[02},.1,:0[22},.2da,:"
+  "5^[32}.0^?{:3,.2aq?{${.3dd,:4^,@(y6:andmap)[02}}{f}}{f}?{.1,.3,&2{%2${"
+  "${:1dd,@(y17:xform-sexp->datum)[01},.4,,#0.0,&1{%2.0u?{.0]2}.1,.1aaA3,"
+  ".0?{.0,${.5,.5d,:0^[02},.3ad,.2dacc]4}${.4,.4d,:0^[02},.2ac]3}.!0.0^_1"
+  "[02},.1,:0[22},.2da,:5^[32}${.3,@(y7:list2+?)[01}?{:6,.2aq}{f}?{${:9,."
+  "4,@(y18:preprocess-library)[02},.0d,.1a,.5[42}${.3,@(y7:list1+?)[01}?{"
+  "${.3,:7^,@(y6:andmap)[02}}{f}?{${.3,@(y17:xform-sexp->datum)[01},${.2,"
+  "@(y16:listname->symbol)[01},${.2,:8,@(y12:id-rename-as)[02},${:9,.3,@("
+  "y9:xform-ref)[02},.0V0~?{${.2,.6,'(s15:invalid library),@(y7:x-error)["
+  "03}}'1,.1V4,'0,.2V4,.8[72}.1,'(s28:invalid import set in import),@(y7:"
+  "x-error)[32}.!0n,'(l1:y5:begin;),.(i11)d,,#0.0,.5,&2{%3.0u?{.2,.2c]3}."
+  "2,.2,.2,:1,&4{%2${:3,.4,@(y11:adjoin-eals)[02},${.3,:2,@(y11:adjoin-co"
+  "de)[02},:1d,:0^[23},.1a,:0^[32}.!0.0^_1[(i11)3",
 
   "P", "preprocess-library-declarations",
   "%2${'(s35:invalid library declarations syntax),'(l3:y4:<id>;l3:y4:<id>"
@@ -588,13 +606,12 @@ char *t_code[] = {
   "%4${.3,@(y7:list2+?)[01}?{${.3a,@(y7:list1+?)[01}}{f}?{${.3a,@(y17:xfo"
   "rm-sexp->datum)[01},.0Y0?{.0}{${.2,@(y16:listname->symbol)[01}},.3d,.1"
   "c,.3c,${.7,.3,@(y18:preprocess-library)[02},${.4,.7,@(y12:id-rename-as"
-  ")[02},.1,'(y5:quote),l2,.1,'(y14:define-library),l3]9}.1,.1c,'(s28:imp"
-  "roper define-library form),@(y7:x-error)[42",
+  ")[02},.1d,.2a,V12,.1,'(y14:define-library),l3]9}.1,.1c,'(s28:improper "
+  "define-library form),@(y7:x-error)[42",
 
   "P", "xform-import",
-  "%4.1L0?{${.4,.4,.4c,@(y22:preprocess-import-sets)[02},.0,'(y5:quote),l"
-  "2,'(y6:import),l2]5}.1,.1c,'(s20:improper import form),@(y7:x-error)[4"
-  "2",
+  "%4.1L0?{${.4,.4,.4c,@(y22:preprocess-import-sets)[02},.0d,.1a,V12,'(y6"
+  ":import),l2]5}.1,.1c,'(s20:improper import form),@(y7:x-error)[42",
 
   "P", "write-serialized-char",
   "%2'(c%25),.1C=,.0?{.0}{'(c%22),.2C=,.0?{.0}{'(c%5c),.3C=,.0?{.0}{'(c )"
@@ -997,8 +1014,8 @@ char *t_code[] = {
   ";)b,@(y19:*listname-registry*),.1,.4cc@!(y19:*listname-registry*).0]4",
 
   "P", "library-info",
-  "%2${.3,.3,@(y15:listname-lookup)[02},.0?{.0z,.0p?{'(y5:quote),.1aq}{f}"
-  ",.0?{.1da]5}n,'(l1:y5:begin;)c,.0,'(y5:quote),l2,.4sz.0]6}f]3",
+  "%2${.3,.3,@(y15:listname-lookup)[02},.0?{.0z,.0V0?{.0]4}n,'(l1:y5:begi"
+  "n;),V12,.0,.3sz.0]5}f]3",
 
   "C", 0,
   "${'(l343:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
@@ -1142,16 +1159,16 @@ char *t_code[] = {
   "lex;)]2}'(y1:h),.1v?{'(l2:y6:scheme;y4:char;)]2}'(y1:l),.1v?{'(l2:y6:s"
   "cheme;y11:case-lambda;)]2}'(y1:x),.1v?{'(l2:y6:scheme;y3:cxr;)]2}'(y1:"
   "b),.1v?{'(l2:y6:scheme;y4:base;)]2}]2}.!0&0{%1t,.1,@(y12:library-info)"
-  "[12}.!1&0{%3.0d,.2A3,.0?{.3,.1sd]4}.1d,.4,.4cc,.2sd]4}.!2.3d,.4a,,#0.0"
-  ",.6,.5,.7,&4{%2.1u?{${'(y3:ref),.3,@(y16:root-environment)[02},.1,${'("
-  "l1:y4:repl;),:0^[01},:2^[23}${${'(y3:ref),.5,@(y16:root-environment)[0"
-  "2},.3,${${.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0.0^_1[42},@(y10:"
-  "%25for-each1)[02}",
+  "[12}.!1&0{%3'1,.1V4,.0,.3A3,.0?{.4,.1sd]5}.1,.5,.5cc,'1,.4V5]5}.!2.3d,"
+  ".4a,,#0.0,.6,.5,.7,&4{%2.1u?{${'(y3:ref),.3,@(y16:root-environment)[02"
+  "},.1,${'(l1:y4:repl;),:0^[01},:2^[23}${${'(y3:ref),.5,@(y16:root-envir"
+  "onment)[02},.3,${${.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0.0^_1[4"
+  "2},@(y10:%25for-each1)[02}",
 
   "C", 0,
-  "${@(y19:*listname-registry*),&0{%1.0a,.1dz,,#0.1,&1{%2:0,@(y15:syntax-"
-  "quote-id),l2]2}.!0t,.1^b,${.6,@(y16:listname->symbol)[01},@(y27:define"
-  "-in-root-environment!)[43},@(y10:%25for-each1)[02}",
+  "${@(y19:*listname-registry*),&0{%1.0dz,.1a,t,.2b,${.4,@(y16:listname->"
+  "symbol)[01},@(y27:define-in-root-environment!)[33},@(y10:%25for-each1)"
+  "[02}",
 
   "C", 0,
   "f@!(y9:*verbose*)",
@@ -1181,19 +1198,18 @@ char *t_code[] = {
   "yntax in env:),@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s18:SYNTAX INST"
   "ALLED: )W4Po,.2daW5PoW6]5}]5}'(y14:define-library),.1q?{${f,.5,.5d,.6a"
   ",@(y20:xform-define-library)[04},${'(y13:define-syntax),.3da,.7,@(y11:"
-  "xenv-lookup)[03},.0?{.1dda,.0,&1{%2:0,@(y15:syntax-quote-id),l2]2},.0,"
-  ".3sz_1_1}{${.6,.4da,'(s50:identifier cannot be (re)defined as syntax i"
-  "n env:),@(y7:x-error)[03}}@(y9:*verbose*)?{Po,'(s19:LIBRARY INSTALLED:"
-  " )W4Po,.2daW5PoW6]5}]5}'(y6:import),.1q?{${f,.5,.5d,.6a,@(y12:xform-im"
-  "port)[04},.0dada,.0a,.1d,,#0.7,&1{%1:0,.1dz,@(y15:syntax-quote-id),l2,"
-  ".2a,@(y16:define-syntax-id),l3,@(y18:repl-eval-top-form)[12}.!0${.4,@("
-  "y30:repl-compile-and-run-core-expr)[01}.1,.1^,@(y10:%25for-each1)[82}."
-  "0K0?{.2,${.5,.5,.5[02},@(y18:repl-eval-top-form)[32}.0U0?{${.4,.4d,.4,"
-  "@(y16:xform-integrable)[03},@(y30:repl-compile-and-run-core-expr)[31}."
-  "0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30:repl-compile-and-run-core-expr)[3"
-  "1}${.4,.4d,.4,@(y10:xform-call)[03},@(y30:repl-compile-and-run-core-ex"
-  "pr)[31}${.3,.3,f,@(y5:xform)[03},@(y30:repl-compile-and-run-core-expr)"
-  "[21",
+  "xenv-lookup)[03},.0?{.1dda,.0,.2sz_1}{${.6,.4da,'(s50:identifier canno"
+  "t be (re)defined as syntax in env:),@(y7:x-error)[03}}@(y9:*verbose*)?"
+  "{Po,'(s19:LIBRARY INSTALLED: )W4Po,.2daW5PoW6]5}]5}'(y6:import),.1q?{$"
+  "{f,.5,.5d,.6a,@(y12:xform-import)[04},.0da,'0,.1V4,'1,.2V4,,#0.7,&1{%1"
+  ":0,.1dz,@(y15:syntax-quote-id),l2,.2a,@(y16:define-syntax-id),l3,@(y18"
+  ":repl-eval-top-form)[12}.!0${.4,@(y30:repl-compile-and-run-core-expr)["
+  "01}.1,.1^,@(y10:%25for-each1)[82}.0K0?{.2,${.5,.5,.5[02},@(y18:repl-ev"
+  "al-top-form)[32}.0U0?{${.4,.4d,.4,@(y16:xform-integrable)[03},@(y30:re"
+  "pl-compile-and-run-core-expr)[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y30"
+  ":repl-compile-and-run-core-expr)[31}${.4,.4d,.4,@(y10:xform-call)[03},"
+  "@(y30:repl-compile-and-run-core-expr)[31}${.3,.3,f,@(y5:xform)[03},@(y"
+  "30:repl-compile-and-run-core-expr)[21",
 
   "P", "repl-read",
   "%2.1?{PoW6Po,.2W4Po,'(s1: )W4}.0,@(y14:read-code-sexp)[21",
