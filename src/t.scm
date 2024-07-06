@@ -208,7 +208,7 @@
 
 ;  These names are bound to specials never returned by xform:
 
-;  (syntax <value>)
+;  (syntax-quote <value>)
 ;  (body <expr or def> ...)
 ;  (syntax-lambda (<id> ...) <expr>)
 ;  (syntax-rules (<id> ...) <rule> ...)
@@ -262,7 +262,7 @@
 ; <location>    ->  #&<value>
 ; <value>       ->  <special> | <core>
 ; <special>     ->  <builtin> | <integrable> | <transformer>
-; <builtin>     ->  syntax | quote | set! | set& | if | lambda | lambda* |
+; <builtin>     ->  syntax-quote | quote | set! | set& | if | lambda | lambda* |
 ;                   letcc | withcc | body | begin | define | define-syntax |
 ;                   syntax-lambda | syntax-rules | syntax-length | syntax-error
 ; <integrable>  ->  <fixnum serving as index in internal integrables table>
@@ -328,11 +328,11 @@
 (define (check-syntax sexp pat msg)
   (unless (sexp-match? pat sexp) (x-error msg sexp)))
 
-(define syntax-id (new-id 'syntax (make-location 'syntax) #f))
 (define lambda-id (new-id 'lambda (make-location 'lambda) #f))
 (define begin-id (new-id 'begin (make-location 'begin) #f))
 (define define-id (new-id 'define (make-location 'define) #f))
 (define define-syntax-id (new-id 'define-syntax (make-location 'define-syntax) #f))
+(define syntax-quote-id (new-id 'syntax-quote (make-location 'syntax-quote) #f))
 
 ; xform receives Scheme s-expressions and returns either Core Scheme <core>
 ; (always a pair) or special-form, which is either a builtin (a symbol) or
@@ -355,7 +355,6 @@
         [else 
          (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
            (case hval
-             [(syntax)         (xform-syntax         tail env)]
              [(quote)          (xform-quote          tail env)]
              [(set!)           (xform-set!           tail env)]
              [(set&)           (xform-set&           tail env)]
@@ -368,6 +367,7 @@
              [(begin)          (xform-begin          tail env appos?)]
              [(define)         (xform-define         tail env)]
              [(define-syntax)  (xform-define-syntax  tail env)]
+             [(syntax-quote)   (xform-syntax-quote   tail env)]
              [(syntax-lambda)  (xform-syntax-lambda  tail env appos?)]
              [(syntax-rules)   (xform-syntax-rules   tail env)]
              [(syntax-length)  (xform-syntax-length  tail env)]
@@ -379,11 +379,6 @@
                                   (if (procedure? hval)
                                       (xform appos? (hval sexp env) env)
                                       (xform-call hval tail env)))]))]))
-
-(define (xform-syntax tail env)
-  (if (list1? tail)
-      (car tail) ; must be <core>, todo: check?
-      (x-error "improper syntax form" (cons 'syntax tail))))
 
 (define (xform-quote tail env)
   (if (list1? tail)
@@ -581,16 +576,21 @@
       (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))
       (x-error "improper define-syntax form" (cons 'define-syntax tail))))
 
+(define (xform-syntax-quote tail env)
+  (if (list1? tail)
+      (car tail) ; must be <core>, todo: check?
+      (x-error "improper syntax-quote form" (cons 'syntax-quote tail))))
+
 (define (xform-syntax-lambda tail env appos?)
   (if (and (list2+? tail) (andmap id? (car tail)))
       (let ([vars (car tail)] [macenv env] [forms (cdr tail)])
-        ; return a transformer that wraps xformed body in (syntax ...)
+        ; return a transformer that wraps xformed body in (syntax-quote ...)
         ; to make sure xform treats it as final <core> form and exits the loop
         (lambda (use useenv)
           (if (and (list1+? use) (fx=? (length vars) (length (cdr use))))
               (let loop ([vars vars] [exps (cdr use)] [env macenv])
                 (if (null? vars)
-                    (list syntax-id (xform-body forms env appos?))
+                    (list syntax-quote-id (xform-body forms env appos?))
                     (loop (cdr vars) (cdr exps)
                       (extend-xenv-local (car vars) 
                         (xform #t (car exps) useenv) env))))  
@@ -868,8 +868,7 @@
          (let ([ic&ex (preprocess-library s env)])
            (return (car ic&ex) (cdr ic&ex)))]
         [(and (list1+? s) (andmap libpart? s))
-         (let* ([lib (xform-sexp->datum s)] 
-                [sym (if (symbol? lib) lib (listname->symbol lib))]
+         (let* ([lib (xform-sexp->datum s)] [sym (listname->symbol lib)]
                 [core (xform #f sym env)]) ; #f to run id-syntax (in mac-env?)
            (check-syntax core '(quote ((<symbol> * ...) (<symbol> . *) ...))
              "library import set does not refer to a valid library")
@@ -1639,6 +1638,9 @@
 ; Library names and library file lookup
 ;---------------------------------------------------------------------------------------------
 
+(define (lnpart? x) (or (id? x) (exact-integer? x)))
+(define (listname? x) (and (list1+? x) (andmap lnpart? x))) 
+
 (define (mangle-symbol->string sym)
   (define safe '(#\! #\$ #\- #\_ #\=))
   (let loop ([lst (string->list (symbol->string sym))] [text '()])
@@ -1844,7 +1846,6 @@
 (define-in-root-environment! 'cond-expand 
   (make-location (make-cond-expand-transformer)) #t)
 
-
 ; now put the builtins (lazily) and others
 
 (let ([put! (lambda (k loc) (define-in-root-environment! k loc #t))]) 
@@ -1870,19 +1871,29 @@
 (define (root-environment id at)
   (env-lookup id *root-environment* at))
 
+
 ;---------------------------------------------------------------------------------------------
-; Library registry and built-in libraries
+; List-name registry and built-in libraries
 ;---------------------------------------------------------------------------------------------
 
-(define *library-registry* '()) ; alist of a form ((libsym . ic&ex) ...)
+(define *listname-registry* '()) ; alist of a form ((listname . <location>) ...)
 
-(define (library-info lib alloc?) ;=> (code . eal) | #f
-  (let ([key (if (symbol? lib) lib (listname->symbol lib))])
-    (cond [(assq key *library-registry*) => cdr]
-          [(not alloc?) #f]
-          [else (let ([ic&ex (cons '(begin) '())])
-                  (set! *library-registry* (cons (cons key ic&ex) *library-registry*))
-                  ic&ex)])))
+(define (listname-lookup listname alloc?) ;=> <location> | #f
+  (cond [(assoc listname *listname-registry*) => cdr]
+        [(not alloc?) #f]
+        [else (let ([loc (make-location '(undefined))])
+                (set! *listname-registry* (cons (cons listname loc) *listname-registry*))
+                loc)]))
+
+; specialized version for libraries
+(define (library-info listname alloc?) ;=> ic&ex | #f
+  (let ([loc (listname-lookup listname alloc?)])
+    (and loc 
+      (let* ([v (location-val loc)] [q? (and (pair? v) (eq? (car v) 'quote))])
+        (if q? (cadr v) 
+          (let ([ic&ex (cons '(begin) '())]) 
+            (location-set-val! loc (list 'quote ic&ex))
+            ic&ex))))))
 
 (for-each
   (lambda (r)
@@ -1971,15 +1982,13 @@
 ; add std libraries to root env as expand time mappings of library's symbolic name
 ; to an identifyer-syntax expanding into (quote (<init-code> . <eal>)) form
 ; NB: later, this will need to be done via auto-allocating denotations!
-(let ([syntax-id (new-id 'syntax (make-location 'syntax) #f)])
-  (for-each
-    (lambda (p) 
-      (let* ([sym (car p)] [ic&ex (cdr p)])
-        (define (libid-transformer sexp env)
-          (list syntax-id (list 'quote ic&ex)))
-        (define-in-root-environment! sym 
-          (make-location libid-transformer) #t)))
-    *library-registry*))
+(for-each
+  (lambda (p) ; we can rely on the fact that p is (listname . #&(quote ic&ex))
+    (let* ([listname (car p)] [val (location-val (cdr p))])
+      (define (libid-transformer sexp env) (list syntax-quote-id val))
+      (define-in-root-environment! (listname->symbol listname) 
+        (make-location libid-transformer) #t)))
+  *listname-registry*)
 
 
 
@@ -2042,7 +2051,7 @@
            (let* ([core (xform-define-library (car x) (cdr x) env #f)]
                   [loc (xenv-lookup env (cadr core) 'define-syntax)])
              (if loc ; location or #f
-                 (let* ([qie (caddr core)] [val (lambda (sexp env) (list syntax-id qie))])
+                 (let* ([qie (caddr core)] [val (lambda (sexp env) (list syntax-quote-id qie))])
                    (location-set-val! loc val)) ; wrapped in identifier-syntax transformer
                  (x-error "identifier cannot be (re)defined as syntax in env:"
                    (cadr core) env))
@@ -2051,7 +2060,8 @@
            (let* ([core (xform-import (car x) (cdr x) env #f)] ; core is (import (quote ic&ex))
                   [ic&ex (cadadr core)] [code (car ic&ex)] [eal (cdr ic&ex)])
              (define (define-alias p) 
-               (repl-eval-top-form (list define-syntax-id (car p) (list syntax-id (location-val (cdr p)))) env))
+               (repl-eval-top-form 
+                 (list define-syntax-id (car p) (list syntax-quote-id (location-val (cdr p)))) env))
              (repl-compile-and-run-core-expr code)
              (for-each define-alias eal))]
           [(procedure? hval) ; transformer: apply and loop
