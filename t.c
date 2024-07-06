@@ -128,8 +128,6 @@ char *t_code[] = {
   "P", "idslist-req-count",
   "%1.0p?{${.2d,@(y17:idslist-req-count)[01},'1I+]1}'0]1",
 
-  "A", "val-core?", "pair?",
-
   "A", "location?", "box?",
 
   "A", "make-location", "box",
@@ -138,11 +136,15 @@ char *t_code[] = {
 
   "A", "location-set-val!", "set-box!",
 
-  "A", "core?", "pair?",
+  "A", "val-core?", "pair?",
 
-  "A", "transformer?", "procedure?",
+  "A", "val-transformer?", "procedure?",
 
-  "A", "library?", "vector?",
+  "A", "val-integrable?", "integrable?",
+
+  "A", "val-builtin?", "symbol?",
+
+  "A", "val-library?", "vector?",
 
   "A", "make-library", "vector",
 
@@ -1010,12 +1012,12 @@ char *t_code[] = {
   "n@!(y19:*listname-registry*)",
 
   "P", "listname-lookup",
-  "%2@(y19:*listname-registry*),.1A5,.0?{.0d]3}.2~?{f]3}'(l1:y9:undefined"
-  ";)b,@(y19:*listname-registry*),.1,.4cc@!(y19:*listname-registry*).0]4",
+  "%2@(y19:*listname-registry*),.1A5,.0?{.0d]3}.2~?{f]3}n,'(l1:y5:begin;)"
+  ",V12b,@(y19:*listname-registry*),.1,.4cc@!(y19:*listname-registry*).0]"
+  "4",
 
   "P", "library-info",
-  "%2${.3,.3,@(y15:listname-lookup)[02},.0?{.0z,.0V0?{.0]4}n,'(l1:y5:begi"
-  "n;),V12,.0,.3sz.0]5}f]3",
+  "%2${.3,.3,@(y15:listname-lookup)[02},.0?{.0z]3}f]3",
 
   "C", 0,
   "${'(l343:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"

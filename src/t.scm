@@ -273,15 +273,15 @@
 ; <transformer> ->  <procedure of exp and env returning exp>
 ; <library>     ->  <vector of init-code and export-alist>
 
-(define-syntax  val-core?          pair?)
-
 (define-syntax  location?            box?)
 (define-syntax  make-location        box)
 (define-syntax  location-val         unbox)
 (define-syntax  location-set-val!    set-box!)
-(define-syntax  core?                pair?)
-(define-syntax  transformer?         procedure?)
-(define-syntax  library?             vector?)
+(define-syntax  val-core?            pair?)
+(define-syntax  val-transformer?     procedure?)
+(define-syntax  val-integrable?      integrable?)
+(define-syntax  val-builtin?         symbol?)
+(define-syntax  val-library?         vector?)
 (define-syntax  make-library         vector)
 (define-syntax  library-code         (syntax-rules () [(_ l) (vector-ref l 0)]))
 (define-syntax  library-exports      (syntax-rules () [(_ l) (vector-ref l 1)]))
@@ -355,11 +355,11 @@
   (cond [(id? sexp) 
          (let ([hval (xform-ref sexp env)])
            (cond [appos? hval]
-                 [(integrable? hval) ; integrable id-syntax
+                 [(val-integrable? hval) ; integrable id-syntax
                   (list 'ref (integrable-global hval))]
-                 [(transformer? hval) ; id-syntax
+                 [(val-transformer? hval) ; id-syntax
                   (xform appos? (hval sexp env) env)]
-                 [(not (core? hval)) ; other special used out of context 
+                 [(not (val-core? hval)) ; other special used out of context 
                   (x-error "improper use of syntax form" hval)]
                  [else hval]))] ; core 
         [(not (pair? sexp))
@@ -386,10 +386,10 @@
              [(syntax-error)   (xform-syntax-error   tail env)]
              [(define-library) (xform-define-library head tail env appos?)]
              [(import)         (xform-import         head tail env appos?)]
-             [else (cond [(integrable? hval)  (xform-integrable hval tail env)]
-                         [(transformer? hval) (xform appos? (hval sexp env) env)]
-                         [(library? hval)     (x-error "improper use of library" hval sexp)]
-                         [else                (xform-call hval tail env)])]))]))
+             [else (cond [(val-integrable? hval)  (xform-integrable hval tail env)]
+                         [(val-transformer? hval) (xform appos? (hval sexp env) env)]
+                         [(val-library? hval)     (x-error "improper use of library" hval sexp)]
+                         [else                    (xform-call hval tail env)])]))]))
 
 (define (xform-quote tail env)
   (if (list1? tail)
@@ -534,7 +534,7 @@
                         (loop env (cons id ids) (cons init inits) (cons #t nids) rest))
                       (x-error "improper define-syntax form" first))]
                  [else
-                  (if (transformer? hval)
+                  (if (val-transformer? hval)
                       (loop env ids inits nids (cons (hval first env) rest))
                       (xform-labels (reverse ids) (reverse inits) (reverse nids) body env appos?))])))
            (xform-labels (reverse ids) (reverse inits) (reverse nids) body env appos?)))]))
@@ -878,17 +878,11 @@
         [(and (list2+? s) (eq? (car s) is-library-id))
          (let ([ic&ex (preprocess-library s env)])
            (return (car ic&ex) (cdr ic&ex)))]
-        #;[(and (list1+? s) (andmap libpart? s))
-         (let* ([lib (xform-sexp->datum s)] [sym (listname->symbol lib)]
-                [core (xform #f sym env)]) ; #f to run id-syntax (in mac-env?)
-           (check-syntax core '(quote ((<symbol> * ...) (<symbol> . *) ...))
-             "library import set does not refer to a valid library")
-           (return (caadr core) (cdadr core)))]
         [(and (list1+? s) (andmap libpart? s))
          ; NB: this is 1/3 of listname->library interface
          (let* ([listname (xform-sexp->datum s)] [sym (listname->symbol listname)]
                 [id (id-rename-as sid sym)] [val (xform-ref id env)]) ; or should id be just sym?
-           (unless (library? val) (x-error "invalid library" listname val))
+           (unless (val-library? val) (x-error "invalid library" listname val))
            (return (library-code val) (library-exports val)))]
         [else
          (x-error "invalid import set in import" s)]))
@@ -1028,9 +1022,9 @@
                       [(eq? hval 'import)
                        (x-error "NYI: import inside library code" first)]
                       ; TODO: check for built-in (export) and modify eal!
-                      [(transformer? hval) ; apply transformer and loop
+                      [(val-transformer? hval) ; apply transformer and loop
                        (scan (cons (hval first cenv) rest) code*)]
-                      [(integrable? hval) ; integrable application
+                      [(val-integrable? hval) ; integrable application
                        (scan rest (cons (xform-integrable hval tail cenv) code*))]
                       [else ; other specials and calls (xform does not return libraries)
                        (scan rest (cons (xform #f first cenv) code*))]))
@@ -1059,7 +1053,6 @@
              [libform (cons head (cons sym (cdr tail)))] ; head is used as seed id for renamings
              [ic&ex (preprocess-library libform env)] [lid (id-rename-as head sym)])
         ; NB: this is 1/3 of listname->library interface
-        ;(list 'define-library lid (list 'quote ic&ex))
         (list 'define-library lid (make-library (car ic&ex) (cdr ic&ex))))
       (x-error "improper define-library form" (cons head tail))))
 
@@ -1578,31 +1571,11 @@
 ; Path and file name resolution
 ;---------------------------------------------------------------------------------------------
 
-#;(define (path-strip-directory filename)
-  (let loop ([l (reverse (string->list filename))] [r '()])
-    (cond [(null? l) (list->string r)]
-          [(memv (car l) '(#\\ #\/ #\:)) (list->string r)]
-          [else (loop (cdr l) (cons (car l) r))])))
-
 (define (path-directory filename)
   (let loop ([l (reverse (string->list filename))])
     (cond [(null? l) ""]
           [(memv (car l) '(#\\ #\/ #\:)) (list->string (reverse l))]
           [else (loop (cdr l))])))
-
-#;(define (path-strip-extension filename) ;; improved
-  (let loop ([l (reverse (string->list filename))])
-    (cond [(null? l) filename]
-          [(eqv? (car l) #\.) (list->string (reverse (cdr l)))]
-          [(memv (car l) '(#\\ #\/ #\:)) filename]
-          [else (loop (cdr l))])))
-
-#;(define (path-extension filename)
-  (let loop ([l (reverse (string->list filename))] [r '()])
-    (cond [(null? l) ""]
-          [(memv (car l) '(#\\ #\/ #\:)) ""]
-          [(eqv? (car l) #\.) (list->string (cons #\. r))]
-          [else (loop (cdr l) (cons (car l) r))])))
 
 (define (base-path-separator basepath)
   (let ([l (reverse (string->list basepath))])
@@ -1719,17 +1692,6 @@
          (char=? (string-ref str 5) #\/)
          (substring str 6 sl))))
 
-#;(define (symbol->listname sym) ;=> listname | #f
-  (let loop ([s (symbol-libname? sym)] [r '()])
-    (cond [(not s) (and (pair? r) (reverse! r))]
-          [(string-position #\/ s) =>
-           (lambda (n) (loop (substring s (+ n 1) (string-length s)) 
-                             (cons (string->symbol (substring s 0 n)) r)))]
-          [else (loop #f (cons (string->symbol s) r))])))
-      
-#;(define (libname->path libname basepath ext)
-  (let ([listname (if (symbol? libname) (symbol->listname libname) libname)])
-    (and (list1+? listname) (listname->path listname basepath ext))))
 
 ; hacks for locating library files
 
@@ -1741,24 +1703,10 @@
       (c-error "library path should end in directory separator" path))) 
 
 (define (find-library-path listname) ;=> name of existing .sld file or #f
-  ;(define listname (if (symbol? libname) (symbol->listname libname) libname))
   (let loop ([l *library-path-list*])
     (and (pair? l)
          (let ([p (listname->path listname (car l) ".sld")]) 
            (if (and p (file-exists? p)) p (loop (cdr l)))))))
-
-#;(define (resolve-input-file/lib-name name) ;=> path (or error is signalled)
-  (define filepath
-    (if (string? name)
-        (file-resolve-relative-to-current name)
-        (find-library-path name)))
-  (if (not filepath)
-      (if (string? name)
-          (c-error "cannot resolve file name to a file:" name)
-          (c-error "cannot resolve library name to a file:" name 'in *library-path-list*)))
-  (if (not (file-exists? filepath)) 
-      (c-error "cannot resolve file or library name to an existing file:" name '=> filepath))
-  filepath)
 
 (define (read-file-sexps filepath ci?)
   (call-with-input-file filepath
@@ -1769,31 +1717,6 @@
           (if (eof-object? s)
               (reverse! sexps)
               (loop (cons s sexps))))))))
-
-#;(define (call-with-input-file/lib name ci? proc) ;=> (proc filepath port), called while name is current-file
-  (let ([filepath (resolve-input-file/lib-name name)])
-    (with-current-file filepath
-      (lambda ()
-        (call-with-input-file filepath
-          (lambda (port) 
-            (when ci? (set-port-fold-case! port #t))
-            (proc filepath port)))))))
-
-#;(define (call-with-file/lib-sexps name ci? proc) ;=> (proc sexps), called while name is current-file
-  (call-with-input-file/lib name ci? ;=>
-    (lambda (filepath port)
-      (let loop ([sexps '()])
-        (let ([s (read-code-sexp port)])
-          (if (eof-object? s)
-              (proc (reverse! sexps))
-              (loop (cons s sexps))))))))
-
-#;(define (for-each-file/lib-sexp proc name ci?) ; proc called while name is current-file
-  (call-with-input-file/lib name ci? ;=>
-    (lambda (filepath port)
-      (let loop ()
-        (let ([s (read-code-sexp port)])
-          (unless (eof-object? s) (proc s) (loop)))))))
 
 (define (library-available? lib) ;=> #f | filepath (external) | (code . eal) (loaded)
   (cond [(string? lib) (file-resolve-relative-to-current lib)]
@@ -1893,7 +1816,7 @@
 
 
 ;---------------------------------------------------------------------------------------------
-; List-name registry and built-in libraries
+; List-name identifiers registry and built-in libraries
 ;---------------------------------------------------------------------------------------------
 
 (define *listname-registry* '()) ; alist of a form ((listname . <location>) ...)
@@ -1901,19 +1824,14 @@
 (define (listname-lookup listname alloc?) ;=> <location> | #f
   (cond [(assoc listname *listname-registry*) => cdr]
         [(not alloc?) #f]
-        [else (let ([loc (make-location '(undefined))])
+        [else (let ([loc (make-location (make-library '(begin) '()))]) ; empty lib by default
                 (set! *listname-registry* (cons (cons listname loc) *listname-registry*))
                 loc)]))
 
 ; specialized version for libraries
 (define (library-info listname alloc?) ;=> <library> | #f
   (let ([loc (listname-lookup listname alloc?)])
-    (and loc 
-      (let ([v (location-val loc)])
-        (if (library? v) v  
-          (let ([v (make-library '(begin) '())]) 
-            (location-set-val! loc v)
-            v))))))
+    (and loc (location-val loc))))
 
 (for-each
   (lambda (r)
@@ -2007,8 +1925,6 @@
   (lambda (p) ; we can rely on the fact that p is (listname . #&(quote ic&ex))
     (let ([listname (car p)] [val (location-val (cdr p))])
       ; NB: this is 1/3 of listname->library interface
-      ;(define (libid-transformer sexp env) (list syntax-quote-id val))
-      ;(define-in-root-environment! (listname->symbol listname) (make-location libid-transformer) #t)
       (define-in-root-environment! (listname->symbol listname) (make-location val) #t)))
   *listname-registry*)
 
@@ -2030,7 +1946,7 @@
 
 (define (repl-compile-and-run-core-expr core)
   (when *verbose* (display "TRANSFORM =>") (newline) (write core) (newline))
-  (unless (core? core) (x-error "unexpected transformed output" core))
+  (unless (val-core? core) (x-error "unexpected transformed output" core))
   (let ([code (compile-to-thunk-code core)] [start #f])
     (when *verbose* 
       (display "COMPILE-TO-STRING =>") (newline) (display code) (newline)
@@ -2081,15 +1997,15 @@
            (let* ([core (xform-import (car x) (cdr x) env #f)] ; core is (import <library>)
                   [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
              (define (define-alias p) 
-               (repl-eval-top-form 
+               (repl-eval-top-form ; FIXME: this is not optimal -- too much fuss
                  (list define-syntax-id (car p) (list syntax-quote-id (location-val (cdr p)))) env))
              (repl-compile-and-run-core-expr code)
              (for-each define-alias eal))]
-          [(procedure? hval) ; transformer: apply and loop
+          [(val-transformer? hval) ; apply transformer and loop
            (repl-eval-top-form (hval x env) env)]
-          [(integrable? hval) ; integrable application
+          [(val-integrable? hval) ; integrable application
            (repl-compile-and-run-core-expr (xform-integrable hval (cdr x) env))]
-          [(symbol? hval) ; other specials
+          [(val-builtin? hval) ; other builtins
            (repl-compile-and-run-core-expr (xform #f x env))]
           [else ; regular call
            (repl-compile-and-run-core-expr (xform-call hval (cdr x) env))]))
