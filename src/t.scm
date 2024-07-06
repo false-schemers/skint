@@ -590,7 +590,7 @@
           (if (and (list1+? use) (fx=? (length vars) (length (cdr use))))
               (let loop ([vars vars] [exps (cdr use)] [env macenv])
                 (if (null? vars)
-                    (list 'syntax (xform-body forms env appos?))
+                    (list syntax-id (xform-body forms env appos?))
                     (loop (cdr vars) (cdr exps)
                       (extend-xenv-local (car vars) 
                         (xform #t (car exps) useenv) env))))  
@@ -957,7 +957,7 @@
              (and (memq at '(ref const)) (old-den id))]
             [(assq id (vector-ref v 0)) => 
              cdr] ; full access to new locations
-            [(assq id ial) => ; read-only acess to imports, no shadowing?
+            [(assq id ial) => ; read-only access to imports, no shadowing?
              (lambda (b) (and (memq at '(ref const)) (cdr b)))] 
             [(symbol-libname? id) ; read-only acess to libs 
              (and (memq at '(ref const)) (env id at))]
@@ -990,35 +990,34 @@
             (let ([first (car body)] [rest (cdr body)])
               (if (pair? first)
                   (let* ([head (car first)] [tail (cdr first)] [hval (xform #t head cenv)])
-                    (case hval
-                      [(begin)
-                       (if (list? tail) 
-                           (scan (append tail rest) code*)
-                           (x-error "improper begin form" first))]
-                      [(define)
-                       (cond [(and (list2? tail) (null? (car tail))) ; idless
-                              (scan rest (cons (xform #f (cadr tail) cenv) code*))]
-                             [(and (list2? tail) (id? (car tail)))
-                              (unless (xenv-lookup cenv (car tail) 'define)
-                                (x-error "unexpected define for id" (car tail) first)) 
-                              (scan rest (cons (xform-set! tail cenv) code*))]
-                             [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
-                              (unless (xenv-lookup cenv (caar tail) 'define)
-                                (x-error "unexpected define for id" (caar tail) first)) 
-                              (let* ([id (caar tail)] [init (cons lambda-id (cons (cdar tail) (cdr tail)))])
-                                (scan rest (cons (xform-set! (list id init) cenv) code*)))]
-                             [else (x-error "improper define form" first)])]
-                      [(define-syntax)
-                       (cond [(and (list2? tail) (id? (car tail)))
-                              (let ([loc (xenv-lookup cenv (car tail) 'define-syntax)])
-                                (location-set-val! loc (xform #t (cadr tail) cenv))
-                                (scan rest code*))]
-                             [else (x-error "improper define-syntax form" first)])]
+                    (cond
+                      [(eq? hval 'begin)
+                       (unless (list? tail) (x-error "improper begin form" first))
+                       (scan (append tail rest) code*)]
+                      [(and (eq? hval 'define) (list2? tail) (null? (car tail))) ; special idless define
+                       (scan (append (cadr tail) rest) code*)]
+                      [(eq? hval 'define)
+                       (let* ([core (xform-define tail cenv)] 
+                              [loc (xenv-lookup cenv (cadr core) 'define)])
+                         (unless (location? loc) (x-error "unexpected define for id" (cadr core) first))
+                         (scan rest (cons (list 'set! (cadr (location-val loc)) (caddr core)) code*)))] 
+                      [(eq? hval 'define-syntax)
+                       (let* ([core (xform-define-syntax tail cenv)]
+                              [loc (xenv-lookup cenv (cadr core) 'define-syntax)])
+                         (unless (location? loc) (x-error "unexpected define-syntax for id" (cadr core) first))
+                         (location-set-val! loc (caddr core))
+                         (scan rest code*))]
+                      [(eq? hval 'define-library)
+                       (x-error "NYI: define-library inside library code" first)]
+                      [(eq? hval 'import)
+                       (x-error "NYI: import inside library code" first)]
                       ; TODO: check for built-in (export) and modify eal!
-                      [else
-                       (if (procedure? hval)
-                           (scan (cons (hval first cenv) rest) code*)
-                           (scan rest (cons (xform #f first cenv) code*)))]))
+                      [(procedure? hval) ; transformer: apply and loop
+                       (scan (cons (hval first cenv) rest) code*)]
+                      [(integrable? hval) ; integrable application
+                       (scan rest (cons (xform-integrable hval tail cenv) code*))]
+                      [else ; other specials and calls
+                       (scan rest (cons (xform #f first cenv) code*))]))
                   (scan rest (cons (xform #f first cenv) code*)))))) 
       (let* ([code* (scan forms '())] [forms-code (cons 'begin (reverse! code*))] 
              [combined-code (adjoin-code code (if lid (list 'once lid forms-code) forms-code))])
@@ -1041,7 +1040,7 @@
 (define (xform-define-library head tail env appos?) ; non-internal
   (if (and (list2+? tail) (list1+? (car tail)))
       (let* ([name (xform-sexp->datum (car tail))] [sym (if (symbol? name) name (listname->symbol name))]
-             [libform (cons head (cons sym (cdr tail)))] ; NB: head is used as seed id for renamings
+             [libform (cons head (cons sym (cdr tail)))] ; head is used as seed id for renamings
              [ic&ex (preprocess-library libform env)] [lid (id-rename-as head sym)])
         (list 'define-library lid (list 'quote ic&ex)))
       (x-error "improper define-library form" (cons head tail))))
@@ -1698,7 +1697,7 @@
          (char=? (string-ref str 5) #\/)
          (substring str 6 sl))))
 
-(define (symbol->listname sym) ;=> listname | #f
+#;(define (symbol->listname sym) ;=> listname | #f
   (let loop ([s (symbol-libname? sym)] [r '()])
     (cond [(not s) (and (pair? r) (reverse! r))]
           [(string-position #\/ s) =>
@@ -1706,7 +1705,7 @@
                              (cons (string->symbol (substring s 0 n)) r)))]
           [else (loop #f (cons (string->symbol s) r))])))
       
-(define (libname->path libname basepath ext)
+#;(define (libname->path libname basepath ext)
   (let ([listname (if (symbol? libname) (symbol->listname libname) libname)])
     (and (list1+? listname) (listname->path listname basepath ext))))
 
@@ -1719,11 +1718,11 @@
       (set! *library-path-list* (append *library-path-list* (list path)))
       (c-error "library path should end in directory separator" path))) 
 
-(define (find-library-path libname) ;=> name of existing .sld file or #f
-  (define listname (if (symbol? libname) (symbol->listname libname) libname))
+(define (find-library-path listname) ;=> name of existing .sld file or #f
+  ;(define listname (if (symbol? libname) (symbol->listname libname) libname))
   (let loop ([l *library-path-list*])
     (and (pair? l)
-         (let ([p (listname->path libname (car l) ".sld")]) 
+         (let ([p (listname->path listname (car l) ".sld")]) 
            (if (and p (file-exists? p)) p (loop (cdr l)))))))
 
 #;(define (resolve-input-file/lib-name name) ;=> path (or error is signalled)
@@ -1777,7 +1776,7 @@
 (define (library-available? lib) ;=> #f | filepath (external) | (code . eal) (loaded)
   (cond [(string? lib) (file-resolve-relative-to-current lib)]
         [(library-info lib #f)] ; builtin or preloaded
-        [else (and (or (symbol? lib) (list1+? lib)) (find-library-path lib))]))
+        [else (and (list1+? lib) (find-library-path lib))]))  ;(or (symbol? lib) (list1+? lib))
 
 ; name prefixes
 
