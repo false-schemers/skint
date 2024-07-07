@@ -17,6 +17,7 @@ extern obj cx__2Acurrent_2Derror_2A;
 
 /* forwards */
 static struct intgtab_entry *lookup_integrable(int sym);
+static int intgtab_count(void);
 static int isintegrable(obj x);
 static struct intgtab_entry *integrabledata(obj x);
 static obj mkintegrable(struct intgtab_entry *);
@@ -3420,7 +3421,16 @@ define_instruction(igp) {
 }
 
 define_instruction(iglk) {
-  struct intgtab_entry *pe; cky(ac);
+  struct intgtab_entry *pe; 
+  /* lookup by index: returns #f for out-of-scope, void for missing */
+  if (is_fixnum(ac)) {
+    int i = get_fixnum(ac), cnt = intgtab_count();
+    if (i < 0 || i >= cnt) ac = bool_obj(0);
+    else if (!isintegrable(ac)) ac = void_obj();
+    gonexti();
+  }
+  /* lookup by by symbol */
+  cky(ac);
   pe = lookup_integrable(get_symbol(ac));
   ac = pe ? mkintegrable(pe) : bool_obj(0);
   gonexti(); 
@@ -3955,6 +3965,11 @@ static obj mkintegrable(struct intgtab_entry *pe)
   int n = sizeof(intgtab)/sizeof(intgtab[0]);
   assert(pe >= &intgtab[0] && pe < &intgtab[n]); 
   return obj_from_fixnum(pe-intgtab);
+}
+
+static int intgtab_count(void)
+{
+  return sizeof(intgtab)/sizeof(intgtab[0]);
 }
 
 static struct intgtab_entry *lookup_integrable(int sym)

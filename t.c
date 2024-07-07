@@ -1016,6 +1016,20 @@ char *t_code[] = {
   ".6?{${.7,.9[01}b,.2,.1,.8cc,.4,.7V5.0]8}f]7",
 
   "C", 0,
+  "${'0,,#0.0,&1{%1.0U5,.0?{.1U0?{.1U7,.0Y0?{${.4,&1{%1:0]1},.3,@(y20:*ro"
+  "ot-name-registry*),@(y11:name-lookup)[03}}_1}'1,.2+,:0^[21}]2}.!0.0^_1"
+  "[01}",
+
+  "C", 0,
+  "${U1,,#0.0,&1{%1.0u~?{.0a,.1d,.1a,.2d,.0Y0,.0?{.0}{.1U0}_1?{${.2,&1{%1"
+  ":0]1},.4,@(y20:*root-name-registry*),@(y11:name-lookup)[03}.2,:0^[51}."
+  "0p?{'(y12:syntax-rules),.1aq}{f}?{,,#0#1&0{%2.1,@(y18:*root-environmen"
+  "t*),.2,@(y10:env-lookup)[23}.!0${.4da,@(y3:id?)[01}?{${.4ddd,.5dda,.6d"
+  "a,.5^,@(y13:syntax-rules*)[04}}{${.4dd,.5da,f,.5^,@(y13:syntax-rules*)"
+  "[04}}.!1${.3,&1{%1:0^]1},.6,@(y20:*root-name-registry*),@(y11:name-loo"
+  "kup)[03}.4,:0^[71}f]5}]1}.!0.0^_1[01}",
+
+  "C", 0,
   "${'(l343:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
   "3:...;y1:v;y1:u;y1:b;;l3:y1:/;y1:v;y1:b;;l3:y1:<;y1:v;y1:b;;l3:y2:<=;y"
   "1:v;y1:b;;l3:y1:=;y1:v;y1:b;;l4:y2:=>;y1:v;y1:u;y1:b;;l3:y1:>;y1:v;y1:"
@@ -1146,24 +1160,24 @@ char *t_code[] = {
   "5:write;y1:w;y1:v;;l2:y13:current-jiffy;y1:t;;l2:y14:current-second;y1"
   ":t;;l2:y18:jiffies-per-second;y1:t;;l2:y12:write-shared;y1:w;;l2:y12:w"
   "rite-simple;y1:w;;l1:y4:box?;;l1:y3:box;;l1:y5:unbox;;l1:y8:set-box!;;"
-  "),&0{%1,,,#0#1#2&0{%1.0,'(y1:w),.1v?{'(l2:y6:scheme;y5:write;)]2}'(y1:"
-  "t),.1v?{'(l2:y6:scheme;y4:time;)]2}'(y1:p),.1v?{'(l2:y6:scheme;y4:repl"
-  ";)]2}'(y1:r),.1v?{'(l2:y6:scheme;y4:read;)]2}'(y1:v),.1v?{'(l2:y6:sche"
-  "me;y4:r5rs;)]2}'(y1:u),.1v?{'(l2:y6:scheme;y9:r5rs-null;)]2}'(y1:d),.1"
-  "v?{'(l2:y6:scheme;y4:load;)]2}'(y1:z),.1v?{'(l2:y6:scheme;y4:lazy;)]2}"
-  "'(y1:s),.1v?{'(l2:y6:scheme;y15:process-context;)]2}'(y1:i),.1v?{'(l2:"
-  "y6:scheme;y7:inexact;)]2}'(y1:f),.1v?{'(l2:y6:scheme;y4:file;)]2}'(y1:"
-  "e),.1v?{'(l2:y6:scheme;y4:eval;)]2}'(y1:o),.1v?{'(l2:y6:scheme;y7:comp"
-  "lex;)]2}'(y1:h),.1v?{'(l2:y6:scheme;y4:char;)]2}'(y1:l),.1v?{'(l2:y6:s"
-  "cheme;y11:case-lambda;)]2}'(y1:x),.1v?{'(l2:y6:scheme;y3:cxr;)]2}'(y1:"
-  "b),.1v?{'(l2:y6:scheme;y4:base;)]2}]2}.!0&0{%1${.2,&1{%1n,'(l1:y5:begi"
-  "n;),V12,${t,.3b,${:0,@(y16:listname->symbol)[01},@(y27:define-in-root-"
-  "environment!)[03}.0]2},.3,@(y20:*root-name-registry*),@(y11:name-looku"
-  "p)[03}z]1}.!1&0{%3'1,.1V4,.0,.3A3,.0?{.4,.1sd]5}.1,.5,.5cc,'1,.4V5]5}."
-  "!2.3d,.4a,,#0.0,.6,.5,.7,&4{%2.1u?{${'(y3:ref),.3,@(y16:root-environme"
-  "nt)[02},.1,${'(l1:y4:repl;),:0^[01},:2^[23}${${'(y3:ref),.5,@(y16:root"
-  "-environment)[02},.3,${${.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0."
-  "0^_1[42},@(y10:%25for-each1)[02}",
+  "),&0{%1,,,,#0#1#2#3&0{%1.0,'(y1:w),.1v?{'(l2:y6:scheme;y5:write;)]2}'("
+  "y1:t),.1v?{'(l2:y6:scheme;y4:time;)]2}'(y1:p),.1v?{'(l2:y6:scheme;y4:r"
+  "epl;)]2}'(y1:r),.1v?{'(l2:y6:scheme;y4:read;)]2}'(y1:v),.1v?{'(l2:y6:s"
+  "cheme;y4:r5rs;)]2}'(y1:u),.1v?{'(l2:y6:scheme;y9:r5rs-null;)]2}'(y1:d)"
+  ",.1v?{'(l2:y6:scheme;y4:load;)]2}'(y1:z),.1v?{'(l2:y6:scheme;y4:lazy;)"
+  "]2}'(y1:s),.1v?{'(l2:y6:scheme;y15:process-context;)]2}'(y1:i),.1v?{'("
+  "l2:y6:scheme;y7:inexact;)]2}'(y1:f),.1v?{'(l2:y6:scheme;y4:file;)]2}'("
+  "y1:e),.1v?{'(l2:y6:scheme;y4:eval;)]2}'(y1:o),.1v?{'(l2:y6:scheme;y7:c"
+  "omplex;)]2}'(y1:h),.1v?{'(l2:y6:scheme;y4:char;)]2}'(y1:l),.1v?{'(l2:y"
+  "6:scheme;y11:case-lambda;)]2}'(y1:x),.1v?{'(l2:y6:scheme;y3:cxr;)]2}'("
+  "y1:b),.1v?{'(l2:y6:scheme;y4:base;)]2}]2}.!0&0{%1${.2,&1{%1n,'(l1:y5:b"
+  "egin;),V12,${t,.3b,${:0,@(y16:listname->symbol)[01},@(y27:define-in-ro"
+  "ot-environment!)[03}.0]2},.3,@(y20:*root-name-registry*),@(y11:name-lo"
+  "okup)[03}z]1}.!1&0{%3'1,.1V4,.0,.3A3,.0?{.4,.1sd]5}.1,.5,.5cc,'1,.4V5]"
+  "5}.!2&0{%1'(y3:ref),.1,@(y16:root-environment)[12}.!3.4d,.5a,,#0.0,.6,"
+  ".5,.7,.(i10),&5{%2.1u?{${.2,:0^[01},.1,${'(l1:y4:repl;),:1^[01},:3^[23"
+  "}${${.4,:0^[01},.3,${${.9a,:2^[01},:1^[01},:3^[03}.1d,.1,:4^[22}.!0.0^"
+  "_1[52},@(y10:%25for-each1)[02}",
 
   "C", 0,
   "f@!(y9:*verbose*)",

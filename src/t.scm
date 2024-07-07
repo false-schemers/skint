@@ -1814,12 +1814,14 @@
 (define (root-environment id at)
   (env-lookup id *root-environment* at))
 
+
 ;---------------------------------------------------------------------------------------------
-; Symbol-name identifiers registry and built-in syntax values
+; Expand-time root name registry initialized with built-in and predefined values
 ;---------------------------------------------------------------------------------------------
 
-; name registries are htables (vectors of prime+1 length) of alists ((sym . <location>) ...)
-(define *root-name-registry* (make-vector 102 '())) 
+; name registries are htables (vectors with one extra slot) of alists ((sym . <location>) ...)
+; last slot is used for list names (library names), the rest for regular symbolic names
+(define *root-name-registry* (make-vector 102 '())) ; vector of prime+1 length
 
 (define (name-lookup nr name mkdefval) ;=> loc | #f
   (let* ([n-1 (- (vector-length nr) 1)] [i (if (pair? name) n-1 (immediate-hash name n-1))] 
@@ -1831,7 +1833,37 @@
              loc)]
           [else #f])))
 
-; register standard libraries as well as all-encompassing (repl) library
+; register integrable procedures
+(let loop ([i 0])
+  (let ([li (lookup-integrable i)])
+    (when li ; in range: void or integrable
+      (when (integrable? i)
+        (let ([name (integrable-global i)])
+          ;(display "integrable[") (write i) (display "] = ") (write name) (newline)
+          (when (symbol? name) (name-lookup *root-name-registry* name (lambda (name) i)))))
+      (loop (+ i 1))))) 
+
+; register initial transformers
+(let loop ([l (initial-transformers)])
+  (unless (null? l)
+    (let* ([p (car l)] [l (cdr l)] [k (car p)] [v (cdr p)])
+      (cond [(or (symbol? v) (integrable? v))
+             (name-lookup *root-name-registry* k (lambda (name) v)) 
+             (loop l)]
+            [(and (pair? v) (eq? (car v) 'syntax-rules))
+              (body
+                (define (sr-env id at)
+                  ; FIXME: for now, we have to keep using old root env 
+                  (env-lookup id *root-environment* at))
+                (define sr-v
+                  (if (id? (cadr v))
+                      (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
+                      (syntax-rules* sr-env #f (cadr v) (cddr v))))
+                (name-lookup *root-name-registry* k (lambda (name) sr-v))
+                (loop l))]))))
+
+; register standard libraries as well as (repl) library for interactive environment
+; ... while doing that, bind missing standard names as refs to constant globals
 (for-each
   (lambda (r)
     (define (key->listname k)
@@ -1854,11 +1886,16 @@
       (let* ([eal (library-exports library)] [p (assq k eal)])
         (cond [p (set-cdr! p loc)] 
               [else (library-set-exports! library (cons (cons k loc) eal))])))
+    (define (get-loc name)
+      ; FIXME: switch root-environment to  *root-name-registry*, and use this:
+      ; (name-lookup *root-name-registry* name (lambda (name) (list 'const name)))
+      ; for now, for libraries to work, we have to share old root env locations:
+      (root-environment name 'ref))
     (let loop ([name (car r)] [keys (cdr r)])
       (cond [(null? keys) ; all go to (repl)
-             (put-loc! (get-library! '(repl)) name (root-environment name 'ref))]
+             (put-loc! (get-library! '(repl)) name (get-loc name))]
             [else
-             (put-loc! (get-library! (key->listname (car keys))) name (root-environment name 'ref))
+             (put-loc! (get-library! (key->listname (car keys))) name (get-loc name))
              (loop name (cdr keys))])))
   '((* v b) (+ v b) (- v b) (... v u b) (/ v b) (< v b) (<= v b) (= v b) (=> v u b) (> v b) (>= v b)
     (_ b) (abs v b) (and v u b) (append v b) (apply v b) (assoc v b) (assq v b) (assv v b) (begin v u b)
