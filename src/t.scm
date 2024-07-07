@@ -113,17 +113,15 @@
 
 ; unique symbol generator (poor man's version)
 (define gensym
-  (let ([gsc 0])
+  (let ([gsc 0]) ; never goes down! FIXME: extend fixnum range
     (lambda args ; (), (symbol), or (#f) for gsc reset
       (set! gsc (fx+ gsc 1))
-      (if (null? args)
+      (if (or (null? args) (not (symbol? (car args))))
           (string->symbol 
             (string-append "#" (fixnum->string gsc 10)))
-          (if (symbol? (car args))
-              (string->symbol 
-                (string-append (symbol->string (car args))
-                  (string-append "#" (fixnum->string gsc 10))))
-              (set! gsc 0))))))
+          (string->symbol 
+            (string-append (symbol->string (car args))
+               (string-append "#" (fixnum->string gsc 10))))))))
 
 (define posq
   (lambda (x l)
@@ -265,12 +263,14 @@
 ; <denotation>  ->  <location>
 ; <location>    ->  #&<value>
 ; <value>       ->  <special> | <core>
-; <special>     ->  <builtin> | <integrable> | <transformer> | <library>
+; <special>     ->  <builtin> | <integrable> | <transformer> | <library> | <void>
 ; <builtin>     ->  syntax-quote | quote | set! | set& | if | lambda | lambda* |
 ;                   letcc | withcc | body | begin | define | define-syntax |
-;                   syntax-lambda | syntax-rules | syntax-length | syntax-error
+;                   syntax-lambda | syntax-rules | syntax-length | syntax-error |
+;                   define-library | import
 ; <integrable>  ->  <fixnum serving as index in internal integrables table>
 ; <transformer> ->  <procedure of exp and env returning exp>
+; <library>     ->  <vector of init-code and export-alist>
 ; <library>     ->  <vector of init-code and export-alist>
 
 (define-syntax  location?            box?)
@@ -1681,7 +1681,7 @@
                   (cons (listname-segment->string (car l)) (cons sep r))))
         (file-resolve-relative-to-base-path (string-append* (reverse (cons ext r))) basepath))))
 
-(define (symbol-libname? sym) ; integrable candidate
+(define (symbol-libname? sym) ; FIXME: shouldn't exist! 
   (let* ([str (symbol->string sym)] [sl (string-length str)])
     (and (< 6 sl) 
          (char=? (string-ref str 0) #\l)
@@ -1814,25 +1814,24 @@
 (define (root-environment id at)
   (env-lookup id *root-environment* at))
 
-
 ;---------------------------------------------------------------------------------------------
-; List-name identifiers registry and built-in libraries
+; Symbol-name identifiers registry and built-in syntax values
 ;---------------------------------------------------------------------------------------------
 
-(define *listname-registry* '()) ; alist of a form ((listname . <location>) ...)
+; name registries are htables (vectors of prime+1 length) of alists ((sym . <location>) ...)
+(define *root-name-registry* (make-vector 102 '())) 
 
-(define (listname-lookup listname alloc?) ;=> <location> | #f
-  (cond [(assoc listname *listname-registry*) => cdr]
-        [(not alloc?) #f]
-        [else (let ([loc (make-location (make-library '(begin) '()))]) ; empty lib by default
-                (set! *listname-registry* (cons (cons listname loc) *listname-registry*))
-                loc)]))
+(define (name-lookup nr name mkdefval) ;=> loc | #f
+  (let* ([n-1 (- (vector-length nr) 1)] [i (if (pair? name) n-1 (immediate-hash name n-1))] 
+         [al (vector-ref nr i)] [p (if (pair? name) (assoc name al) (assq name al))])
+    (cond [p (cdr p)]
+          [mkdefval
+           (let ([loc (make-location (mkdefval name))]) 
+             (vector-set! nr i (cons (cons name loc) al))
+             loc)]
+          [else #f])))
 
-; specialized version for libraries
-(define (library-info listname alloc?) ;=> <library> | #f
-  (let ([loc (listname-lookup listname alloc?)])
-    (and loc (location-val loc))))
-
+; register standard libraries as well as all-encompassing (repl) library
 (for-each
   (lambda (r)
     (define (key->listname k)
@@ -1844,7 +1843,13 @@
         [(o) '(scheme complex)] [(h) '(scheme char)]  [(l) '(scheme case-lambda)]
         [(x) '(scheme cxr)]     [(b) '(scheme base)]))
     (define (get-library! listname) ;=> <library> 
-      (library-info listname #t))
+      (location-val 
+        (name-lookup *root-name-registry* listname 
+          (lambda (ln) 
+            (let ([l (make-library '(begin) '())])
+              ; for now, mirror libraries in old registry too... FIXME!
+              (define-in-root-environment! (listname->symbol listname) (make-location l) #t)
+              l)))))
     (define (put-loc! library k loc)
       (let* ([eal (library-exports library)] [p (assq k eal)])
         (cond [p (set-cdr! p loc)] 
@@ -1917,17 +1922,6 @@
     ; skint extras go into (repl) only - not to be confused with (scheme repl)
     (box?) (box) (unbox) (set-box!)
     ))
-
-; add std libraries to root env as expand time mappings of library's symbolic name
-; to an identifyer-syntax expanding into (quote (<init-code> . <eal>)) form
-; NB: later, this will need to be done via auto-allocating denotations!
-(for-each
-  (lambda (p) ; we can rely on the fact that p is (listname . #&(quote ic&ex))
-    (let ([listname (car p)] [val (location-val (cdr p))])
-      ; NB: this is 1/3 of listname->library interface
-      (define-in-root-environment! (listname->symbol listname) (make-location val) #t)))
-  *listname-registry*)
-
 
 
 ;---------------------------------------------------------------------------------------------

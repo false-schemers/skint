@@ -61,8 +61,8 @@ char *t_code[] = {
   "nd),@(y13:apply-to-list)[02}X5]1",
 
   "C", 0,
-  "'0,#0.0,&1{%!0'1,:0^I+:!0.0u?{'(i10),:0^X6,'(s1:#)S6X5]1}.0aY0?{'(i10)"
-  ",:0^X6,'(s1:#)S6,.1aX4S6X5]1}'0:!0]1}_1@!(y6:gensym)",
+  "'0,#0.0,&1{%!0'1,:0^I+:!0.0u,.0?{.0}{.1aY0~}_1?{'(i10),:0^X6,'(s1:#)S6"
+  "X5]1}'(i10),:0^X6,'(s1:#)S6,.1aX4S6X5]1}_1@!(y6:gensym)",
 
   "P", "posq",
   "%2'0,.2,,#0.0,.4,&2{%2.0u?{f]2}.0a,:0q?{.1]2}'1,.2I+,.1d,:1^[22}.!0.0^"
@@ -1009,15 +1009,11 @@ char *t_code[] = {
   "%2.1,@(y18:*root-environment*),.2,@(y10:env-lookup)[23",
 
   "C", 0,
-  "n@!(y19:*listname-registry*)",
+  "n,'(i102)V2@!(y20:*root-name-registry*)",
 
-  "P", "listname-lookup",
-  "%2@(y19:*listname-registry*),.1A5,.0?{.0d]3}.2~?{f]3}n,'(l1:y5:begin;)"
-  ",V12b,@(y19:*listname-registry*),.1,.4cc@!(y19:*listname-registry*).0]"
-  "4",
-
-  "P", "library-info",
-  "%2${.3,.3,@(y15:listname-lookup)[02},.0?{.0z]3}f]3",
+  "P", "name-lookup",
+  "%3'1,.1V3-,.2p?{.0}{.0,.3H2},.0,.3V4,.4p?{.0,.5A5}{.0,.5A3},.0?{.0d]7}"
+  ".6?{${.7,.9[01}b,.2,.1,.8cc,.4,.7V5.0]8}f]7",
 
   "C", 0,
   "${'(l343:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
@@ -1160,17 +1156,14 @@ char *t_code[] = {
   "e),.1v?{'(l2:y6:scheme;y4:eval;)]2}'(y1:o),.1v?{'(l2:y6:scheme;y7:comp"
   "lex;)]2}'(y1:h),.1v?{'(l2:y6:scheme;y4:char;)]2}'(y1:l),.1v?{'(l2:y6:s"
   "cheme;y11:case-lambda;)]2}'(y1:x),.1v?{'(l2:y6:scheme;y3:cxr;)]2}'(y1:"
-  "b),.1v?{'(l2:y6:scheme;y4:base;)]2}]2}.!0&0{%1t,.1,@(y12:library-info)"
-  "[12}.!1&0{%3'1,.1V4,.0,.3A3,.0?{.4,.1sd]5}.1,.5,.5cc,'1,.4V5]5}.!2.3d,"
-  ".4a,,#0.0,.6,.5,.7,&4{%2.1u?{${'(y3:ref),.3,@(y16:root-environment)[02"
-  "},.1,${'(l1:y4:repl;),:0^[01},:2^[23}${${'(y3:ref),.5,@(y16:root-envir"
-  "onment)[02},.3,${${.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0.0^_1[4"
-  "2},@(y10:%25for-each1)[02}",
-
-  "C", 0,
-  "${@(y19:*listname-registry*),&0{%1.0dz,.1a,t,.2b,${.4,@(y16:listname->"
-  "symbol)[01},@(y27:define-in-root-environment!)[33},@(y10:%25for-each1)"
-  "[02}",
+  "b),.1v?{'(l2:y6:scheme;y4:base;)]2}]2}.!0&0{%1${.2,&1{%1n,'(l1:y5:begi"
+  "n;),V12,${t,.3b,${:0,@(y16:listname->symbol)[01},@(y27:define-in-root-"
+  "environment!)[03}.0]2},.3,@(y20:*root-name-registry*),@(y11:name-looku"
+  "p)[03}z]1}.!1&0{%3'1,.1V4,.0,.3A3,.0?{.4,.1sd]5}.1,.5,.5cc,'1,.4V5]5}."
+  "!2.3d,.4a,,#0.0,.6,.5,.7,&4{%2.1u?{${'(y3:ref),.3,@(y16:root-environme"
+  "nt)[02},.1,${'(l1:y4:repl;),:0^[01},:2^[23}${${'(y3:ref),.5,@(y16:root"
+  "-environment)[02},.3,${${.9a,:1^[01},:0^[01},:2^[03}.1d,.1,:3^[22}.!0."
+  "0^_1[42},@(y10:%25for-each1)[02}",
 
   "C", 0,
   "f@!(y9:*verbose*)",

@@ -5840,8 +5840,8 @@ case 0: /* load module */
     r[0] = (hendblk(3)); }
     { /* cons */ 
     hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("syntax")));
-    *--hp = (mksymbol(internsym("syntax")));
+    *--hp = (mksymbol(internsym("syntax-quote")));
+    *--hp = (mksymbol(internsym("syntax-quote")));
     *--hp = obj_from_size(PAIR_BTAG); 
     r[1] = (hendblk(3)); }
     { /* cons */ 
@@ -7381,7 +7381,7 @@ case 60: /* clo ek r */
     r[1+6] = p[5]; }
     r += 1; /* shift reg. wnd */
     /* ek r sexp appos? env k tail */
-  if ((((r[1]) == (mksymbol(internsym("syntax")))) && (1))) {
+  if ((((r[1]) == (mksymbol(internsym("syntax-quote")))) && (1))) {
     r[0] = r[5];  
     pc = objptr_from_obj(r[0])[0];
     r[1] = obj_from_ktrap();
@@ -11403,7 +11403,7 @@ case 159: /* clo ek r */
     { /* cons */ 
     hreserve(hbsz(3), 4); /* 4 live regs */
     *--hp = r[3];  
-    *--hp = (mksymbol(internsym("syntax")));
+    *--hp = (mksymbol(internsym("syntax-quote")));
     *--hp = obj_from_size(PAIR_BTAG); 
     r[4] = (hendblk(3)); }
     r[0] = r[2];  

@@ -232,7 +232,7 @@
 ; <location>    ->  #&<value>
 ; <value>       ->  <special> | <core>
 ; <special>     ->  <builtin> | <transformer>
-; <builtin>     ->  syntax | quote | set! | set& | if | lambda | lambda* |
+; <builtin>     ->  syntax-quote | quote | set! | set& | if | lambda | lambda* |
 ;                   letcc | withcc | body | begin | define | define-syntax |
 ;                   syntax-lambda | syntax-rules | syntax-length | syntax-error  
 ; <transformer> ->  <procedure of exp and env returning exp>
@@ -289,7 +289,7 @@
         [else 
          (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
            (case hval
-             [(syntax)        (car tail)] ; internal use only
+             [(syntax-quote)  (car tail)] ; internal use only
              [(quote)         (xform-quote         tail env)]
              [(set!)          (xform-set!          tail env)]
              [(set&)          (xform-set&          tail env)]
@@ -511,7 +511,7 @@
           (if (and (list1+? use) (fx=? (length vars) (length (cdr use))))
               (let loop ([vars vars] [exps (cdr use)] [env macenv])
                 (if (null? vars)
-                    (list 'syntax (xform-body forms env))
+                    (list 'syntax-quote (xform-body forms env))
                     (loop (cdr vars) (cdr exps)
                       (add-location (car vars) 
                         (xform #t (car exps) useenv) env))))  
@@ -539,7 +539,7 @@
 
 (define *transformers*
   (list
-    (cons 'syntax 'syntax) 
+    (cons 'syntax-quote 'syntax-quote) 
     (cons 'quote 'quote)
     (cons 'set! 'set!)
     (cons 'set& 'set&)
