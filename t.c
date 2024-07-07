@@ -955,10 +955,13 @@ char *t_code[] = {
   "%1@(y19:*library-path-list*),,#0.0,.3,&2{%1.0p?{${'(s4:.sld),.3a,:0,@("
   "y14:listname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:1^[21}f]1}.!0.0^_1[11",
 
+  "P", "read-port-sexps",
+  "%1n,,#0.2,.1,&2{%1${:1,@(y14:read-code-sexp)[01},.0R8?{.1A9]2}.1,.1c,:"
+  "0^[21}.!0.0^_1[11",
+
   "P", "read-file-sexps",
-  "%2.1,&1{%1:0?{t,.1P79}n,,#0.2,.1,&2{%1${:1,@(y14:read-code-sexp)[01},."
-  "0R8?{.1A9]2}.1,.1c,:0^[21}.!0.0^_1[11},.1,@(y20:call-with-input-file)["
-  "22",
+  "%2.1,&1{%1:0?{t,.1P79}.0,@(y15:read-port-sexps)[11},.1,@(y20:call-with"
+  "-input-file)[22",
 
   "P", "library-available?",
   "%1.0S0?{.0,@(y32:file-resolve-relative-to-current)[11}${f,.3,@(y12:lib"
@@ -1013,7 +1016,7 @@ char *t_code[] = {
 
   "P", "name-lookup",
   "%3'1,.1V3-,.2p?{.0}{.0,.3H2},.0,.3V4,.4p?{.0,.5A5}{.0,.5A3},.0?{.0d]7}"
-  ".6?{${.7,.9[01}b,.2,.1,.8cc,.4,.7V5.0]8}f]7",
+  ".6?{${.7,.9[01},.0~?{f]8}.0Y2?{.0]8}.0b,.3,.1,.9cc,.5,.8V5.0]9}f]7",
 
   "C", 0,
   "${'0,,#0.0,&1{%1.0U5,.0?{.1U0?{.1U7,.0Y0?{${.4,&1{%1:0]1},.3,@(y20:*ro"
@@ -1028,6 +1031,18 @@ char *t_code[] = {
   "a,.5^,@(y13:syntax-rules*)[04}}{${.4dd,.5da,f,.5^,@(y13:syntax-rules*)"
   "[04}}.!1${.3,&1{%1:0^]1},.6,@(y20:*root-name-registry*),@(y11:name-loo"
   "kup)[03}.4,:0^[71}f]5}]1}.!0.0^_1[01}",
+
+  "C", 0,
+  "${&0{%1f,@(y24:make-include-transformer)[11},'(y7:include),@(y20:*root"
+  "-name-registry*),@(y11:name-lookup)[03}",
+
+  "C", 0,
+  "${&0{%1t,@(y24:make-include-transformer)[11},'(y10:include-ci),@(y20:*"
+  "root-name-registry*),@(y11:name-lookup)[03}",
+
+  "C", 0,
+  "${&0{%1@(y28:make-cond-expand-transformer)[10},'(y11:cond-expand),@(y2"
+  "0:*root-name-registry*),@(y11:name-lookup)[03}",
 
   "C", 0,
   "${'(l343:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
@@ -1223,19 +1238,45 @@ char *t_code[] = {
   "P", "repl-read",
   "%2.1?{PoW6Po,.2W4Po,'(s1: )W4}.0,@(y14:read-code-sexp)[21",
 
+  "P", "repl-exec-command",
+  "%3,,#0#1${${k0,.0,${.2,.(i12),&2{%0:1,&1{%!0.0,&1{%0:0,@(y6:values),@("
+  "y13:apply-to-list)[02},:0[11},:0,&1{%0:0P50,@(y15:read-port-sexps)[01}"
+  ",@(y16:call-with-values)[02},.3,&1{%1${k0,.0,${.6,&1{%0:0,Y9]1},:0[01}"
+  "_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[00}.!0.0^,.3c.!1${.3^"
+  ",'(l2:y3:say;y5:hello;),@(y11:sexp-match?)[02}?{.4,'(s13:Well, hello!%"
+  "0a)W4]5}${.3^,'(l2:y3:ref;y8:<symbol>;),@(y11:sexp-match?)[02}?{.4,${'"
+  "(y3:ref),.4^a,@(y16:repl-environment)[02}W5.4W6]5}${.3^,'(l2:y3:ref;l3"
+  ":y1:*;y1:*;y3:...;;),@(y11:sexp-match?)[02}?{.4,${'(y3:ref),.4^a,@(y16"
+  ":repl-environment)[02}W5.4W6]5}${.3^,'(l2:y4:peek;y1:*;),@(y11:sexp-ma"
+  "tch?)[02}?{.0^aS0?{.4,.1^aF0?{'(s12:file exists%0a)}{'(s20:file does n"
+  "ot exist%0a)}W4]5}.0^aY0?{.4,.1^aX4F0?{'(s12:file exists%0a)}{'(s20:fi"
+  "le does not exist%0a)}W4]5}.4,'(s37:invalid file name; use double quot"
+  "es%0a)W4]5}${.3^,'(l2:y7:verbose;y2:on;),@(y11:sexp-match?)[02}?{t@!(y"
+  "9:*verbose*)]5}${.3^,'(l2:y7:verbose;y3:off;),@(y11:sexp-match?)[02}?{"
+  "f@!(y9:*verbose*)]5}${.3^,'(l1:y4:help;),@(y11:sexp-match?)[02}?{.4,'("
+  "s20:Available commands:%0a)W4.4,'(s42: ,say hello     -- displays nice"
+  " greeting%0a)W4.4,'(s40: ,peek <fname>  -- check if file exists%0a)W4."
+  "4,'(s37: ,verbose on    -- turn verbosity on%0a)W4.4,'(s38: ,verbose o"
+  "ff   -- turn verbosity off%0a)W4.4,'(s54: ,ref <name>    -- show curre"
+  "nt denotation for <name>%0a)W4.4,'(s29: ,help          -- this help%0a"
+  ")W4]5}.4,'(s29:syntax error in repl command%0a)W4.4,'(s37:type ,help t"
+  "o see available commands%0a)W4]5",
+
   "P", "repl-from-port",
   "%3,#0${@(y18:current-file-stack)[00}.!0${k0,.0,${.2,.9,.(i11),.(i10),&"
   "4{%0:3,&1{%!0.0,&1{%0:0,@(y6:values),@(y13:apply-to-list)[02},:0[11},:"
-  "0,:1,:2,&3{%0${:1,:2,@(y9:repl-read)[02},,#0:0,:2,:1,.3,&4{%1.0R8~?{${"
-  ":3,.3,@(y18:repl-eval-top-form)[02}${:1,:2,@(y9:repl-read)[02},:0^[11}"
-  "]1}.!0.0^_1[01},@(y16:call-with-values)[02},.(i10),.(i10),.(i10),.(i10"
-  "),.7,&5{%1${k0,.0,${.6,:1,:2,:3,:4,&5{%0:4,${.2,@(y13:error-object?)[0"
-  "1}?{Pe,.0,${.4,@(y20:error-object-message)[01}W4.0W6${${.5,@(y22:error"
-  "-object-irritants)[01},.3,&1{%1:0,.1W5:0W6]1},@(y10:%25for-each1)[02}_"
-  "1${:3^,@(y23:set-current-file-stack!)[01}:0?{:0,:1,:2,@(y14:repl-from-"
-  "port)[13}]1}Pe,.0,'(s14:Unknown error:)W4.0W6.0,.2W5.0W6_1${:3^,@(y23:"
-  "set-current-file-stack!)[01}:0?{:0,:1,:2,@(y14:repl-from-port)[13}]1},"
-  ":0[01}_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[40",
+  "0,:1,:2,&3{%0${:1,:2,@(y9:repl-read)[02},,#0:0,:2,:1,.3,&4{%1.0R8~?{:1"
+  "?{${.2,'(l2:y7:unquote;y1:*;),@(y11:sexp-match?)[02}}{f}?{${Po,${:2,@("
+  "y9:read-line)[01},.4da,@(y17:repl-exec-command)[03}}{${:3,.3,@(y18:rep"
+  "l-eval-top-form)[02}}${:1,:2,@(y9:repl-read)[02},:0^[11}]1}.!0.0^_1[01"
+  "},@(y16:call-with-values)[02},.(i10),.(i10),.(i10),.(i10),.7,&5{%1${k0"
+  ",.0,${.6,:1,:2,:3,:4,&5{%0:4,${.2,@(y13:error-object?)[01}?{Pe,.0,${.4"
+  ",@(y20:error-object-message)[01}W4.0W6${${.5,@(y22:error-object-irrita"
+  "nts)[01},.3,&1{%1:0,.1W5:0W6]1},@(y10:%25for-each1)[02}_1${:3^,@(y23:s"
+  "et-current-file-stack!)[01}:0?{:0,:1,:2,@(y14:repl-from-port)[13}]1}Pe"
+  ",.0,'(s14:Unknown error:)W4.0W6.0,.2W5.0W6_1${:3^,@(y23:set-current-fi"
+  "le-stack!)[01}:0?{:0,:1,:2,@(y14:repl-from-port)[13}]1},:0[01}_1_3}[10"
+  "},@(y22:with-exception-handler)[02}_1_3}[40",
 
   "P", "repl-file",
   "%2,#0${.3,@(y15:open-input-file)[01}.!0${f,.5,.4^,@(y14:repl-from-port"

@@ -880,6 +880,7 @@
            (return (car ic&ex) (cdr ic&ex)))]
         [(and (list1+? s) (andmap libpart? s))
          ; NB: this is 1/3 of listname->library interface
+         ; FIXME: should lookup in env using listname!
          (let* ([listname (xform-sexp->datum s)] [sym (listname->symbol listname)]
                 [id (id-rename-as sid sym)] [val (xform-ref id env)]) ; or should id be just sym?
            (unless (val-library? val) (x-error "invalid library" listname val))
@@ -960,6 +961,7 @@
         
 ; make functional read-only environment from import al,
 ; allowing fall-through to env for lib://foo/bar ids
+; FIXME: should be replaced with make-controlled-environment
 (define (ial->controlled-environment ial make-nid env)
   (let ([v (make-vector 1 '())]) ; new ids go here
     (lambda (id at)
@@ -993,7 +995,7 @@
          [decls (if lid (cddr sexp) (cdr sexp))] ; NB: mac env is used below to resolve lib names!
          [icimesfs (preprocess-library-declarations (cons (car sexp) decls) env)])
     (let* ([code (car icimesfs)] [ial (cadr icimesfs)] [esps (caddr icimesfs)] [forms (cadddr icimesfs)] 
-           [cenv (ial->controlled-environment ial make-nid env)] [eal '()])
+           [cenv (ial->controlled-environment ial make-nid env)] [eal '()]) ; FIXME
       (define (scan body code*) ;=> extended with side-effect on cenv
         (if (null? body) 
             code*
@@ -1052,7 +1054,7 @@
       (let* ([name (xform-sexp->datum (car tail))] [sym (if (symbol? name) name (listname->symbol name))]
              [libform (cons head (cons sym (cdr tail)))] ; head is used as seed id for renamings
              [ic&ex (preprocess-library libform env)] [lid (id-rename-as head sym)])
-        ; NB: this is 1/3 of listname->library interface
+        ; NB: this is 1/3 of listname->library interface FIXME: lid should be listname!
         (list 'define-library lid (make-library (car ic&ex) (cdr ic&ex))))
       (x-error "improper define-library form" (cons head tail))))
 
@@ -1062,7 +1064,7 @@
 (define (xform-import head tail env appos?) ; non-internal
   (if (list? tail)
       (let ([ic&ex (preprocess-import-sets (cons head tail) env)])
-        ; NB: this is 1/3 of listname->library interface
+        ; NB: this is 1/3 of listname->library interface FIXME
         (list 'import (make-library (car ic&ex) (cdr ic&ex))))
       (x-error "improper import form" (cons head tail))))
 
@@ -1708,15 +1710,18 @@
          (let ([p (listname->path listname (car l) ".sld")]) 
            (if (and p (file-exists? p)) p (loop (cdr l)))))))
 
+(define (read-port-sexps port)
+  (let loop ([sexps '()])
+    (let ([s (read-code-sexp port)])
+      (if (eof-object? s)
+          (reverse! sexps)
+          (loop (cons s sexps))))))
+
 (define (read-file-sexps filepath ci?)
   (call-with-input-file filepath
     (lambda (port) 
       (when ci? (set-port-fold-case! port #t))
-      (let loop ([sexps '()])
-        (let ([s (read-code-sexp port)])
-          (if (eof-object? s)
-              (reverse! sexps)
-              (loop (cons s sexps))))))))
+      (read-port-sexps port))))
 
 (define (library-available? lib) ;=> #f | filepath (external) | (code . eal) (loaded)
   (cond [(string? lib) (file-resolve-relative-to-current lib)]
@@ -1730,7 +1735,7 @@
 
 
 ;---------------------------------------------------------------------------------------------
-; Environments
+; Environments FIXME
 ;---------------------------------------------------------------------------------------------
 
 ; new lookup procedure for explicit macro environments
@@ -1827,19 +1832,21 @@
   (let* ([n-1 (- (vector-length nr) 1)] [i (if (pair? name) n-1 (immediate-hash name n-1))] 
          [al (vector-ref nr i)] [p (if (pair? name) (assoc name al) (assq name al))])
     (cond [p (cdr p)]
-          [mkdefval
-           (let ([loc (make-location (mkdefval name))]) 
-             (vector-set! nr i (cons (cons name loc) al))
-             loc)]
+          [mkdefval ; got callback for missing bindings? use it:
+           (let ([val (mkdefval name)]) ; check if it didn't fail:
+             (cond [(not val) #f] ; mkdefval rejected the idea
+                   [(location? val) val] ; found good location elsewhere
+                   [else (let ([loc (make-location val)]) ; ok, put it in:
+                           (vector-set! nr i (cons (cons name loc) al))
+                           loc)]))]
           [else #f])))
 
 ; register integrable procedures
 (let loop ([i 0])
-  (let ([li (lookup-integrable i)])
+  (let ([li (lookup-integrable i)]) ;=> #f, #<void>, or integrable (li == i)
     (when li ; in range: void or integrable
       (when (integrable? i)
         (let ([name (integrable-global i)])
-          ;(display "integrable[") (write i) (display "] = ") (write name) (newline)
           (when (symbol? name) (name-lookup *root-name-registry* name (lambda (name) i)))))
       (loop (+ i 1))))) 
 
@@ -1862,6 +1869,11 @@
                 (name-lookup *root-name-registry* k (lambda (name) sr-v))
                 (loop l))]))))
 
+; register handcoded transformers
+(name-lookup *root-name-registry* 'include     (lambda (name) (make-include-transformer #f)))
+(name-lookup *root-name-registry* 'include-ci  (lambda (name) (make-include-transformer #t)))
+(name-lookup *root-name-registry* 'cond-expand (lambda (name) (make-cond-expand-transformer)))
+
 ; register standard libraries as well as (repl) library for interactive environment
 ; ... while doing that, bind missing standard names as refs to constant globals
 (for-each
@@ -1879,7 +1891,7 @@
         (name-lookup *root-name-registry* listname 
           (lambda (ln) 
             (let ([l (make-library '(begin) '())])
-              ; for now, mirror libraries in old registry too... FIXME!
+              ; for now, mirror libraries in old registry too... FIXME: just return l
               (define-in-root-environment! (listname->symbol listname) (make-location l) #t)
               l)))))
     (define (put-loc! library k loc)
@@ -2047,6 +2059,37 @@
   (when prompt (newline) (display prompt) (display " "))
   (read-code-sexp iport))
 
+(define (repl-exec-command cmd argstr op)
+  (define args 
+    (guard (err [else (void)])
+      (read-port-sexps (open-input-string argstr))))
+  (define cmd+args (cons cmd args))
+  (sexp-case cmd+args
+    [(say hello) (display "Well, hello!\n" op)]
+    [(ref <symbol>) (write (repl-environment (car args) 'ref) op) (newline op)]
+    [(ref (* * ...)) (write (repl-environment (car args) 'ref) op) (newline op)]
+    [(peek *)
+     (cond [(string? (car args)) 
+            (display (if (file-exists? (car args)) 
+              "file exists\n" "file does not exist\n") op)]
+           [(symbol? (car args)) 
+            (display (if (file-exists? (symbol->string (car args))) 
+              "file exists\n" "file does not exist\n") op)]
+           [else (display "invalid file name; use double quotes\n" op)])]
+    [(verbose on) (set! *verbose* #t)]
+    [(verbose off) (set! *verbose* #f)]
+    [(help)
+     (display "Available commands:\n" op)
+     (display " ,say hello     -- displays nice greeting\n" op)
+     (display " ,peek <fname>  -- check if file exists\n" op)
+     (display " ,verbose on    -- turn verbosity on\n" op)
+     (display " ,verbose off   -- turn verbosity off\n" op)
+     (display " ,ref <name>    -- show current denotation for <name>\n" op)
+     (display " ,help          -- this help\n" op)]
+    [else
+     (display "syntax error in repl command\n" op)
+     (display "type ,help to see available commands\n" op)]))
+
 (define (repl-from-port iport env prompt)
   (define cfs (current-file-stack))
   (guard (err 
@@ -2065,7 +2108,9 @@
            (when prompt (repl-from-port iport env prompt))])
     (let loop ([x (repl-read iport prompt)])
       (unless (eof-object? x)
-        (repl-eval-top-form x env)
+        (if (and prompt (sexp-match? '(unquote *) x))
+            (repl-exec-command (cadr x) (read-line iport) (current-output-port))
+            (repl-eval-top-form x env))
         (loop (repl-read iport prompt))))))
 
 (define (repl-file fname env)
