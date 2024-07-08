@@ -307,26 +307,31 @@
             (cond [(assq renamed-nid lits) => cdr]
                   [else renamed-nid]))))))
 
-; Expand-time environments map identifiers (symbolic or thunked) to denotations, i.e. locations
+; Expand-time environments map names (identifiers or listnames) to denotations, i.e. locations
 ; containing either a <special> or a <core> value. In normal case, <core> value is (ref <gid>),
 ; where <gid> is a key in run-time store, aka *globals*. Environments should allocate new locations
-; as needed, so every identifier gets mapped to one. Expand-time environments are represented as
+; as needed, so every name gets mapped to one. Expand-time environments are represented as
 ; two-argument procedures, where the second argument (at) is an access type symbol, one of the
 ; four possible values: ref, set!, define, define-syntax (defines are requests to allocate)
 
 (define (extend-xenv-local id val env)
   (let ([loc (make-location val)])
-    (lambda (i at) 
-      (if (eq? id i)
-          (case at [(ref set!) loc] [else #f]) 
-          (env i at)))))
+    (if (pair? id) 
+        (lambda (i at) ; listname binding 
+          (if (equal? id i) 
+              (case at [(ref set!) loc] [else #f]) 
+              (env i at)))
+        (lambda (i at) ; symname binding
+          (if (eq? id i)
+              (case at [(ref set!) loc] [else #f]) 
+              (env i at))))))
 
 (define (add-local-var id gid env)
   (extend-xenv-local id (list 'ref gid) env))
 
 (define (xenv-lookup env id at)
   (or (env id at)
-      (error* "transformer: invalid identifier access" (list id (id->sym id) at))))
+      (error* "transformer: invalid identifier access" (list id (xform-sexp->datum id) at))))
 
 (define (xenv-ref env id) (xenv-lookup env id 'ref))
 
@@ -536,9 +541,32 @@
                  [(define-syntax) ; internal
                   (if (and (list2? tail) (id? (car tail))) 
                       (let* ([id (car tail)] [init (cadr tail)]
-                             [env (extend-xenv-local id '(begin) env)]) ; placeholder val
+                             [env (extend-xenv-local id '(undefined) env)]) ; placeholder val
                         (loop env (cons id ids) (cons init inits) (cons #t nids) rest))
                       (x-error "improper define-syntax form" first))]
+                 [(define-library) ; internal
+                  (if (and (list2+? tail) (listname? (car tail)))
+                      ; note: library is fully expanded in incomplete env, to make it
+                      ; immediately available for import; it ignores lexical scope anyway 
+                      (let* ([core (xform-define-library head tail env #f)] 
+                             ; core is (define-library <listname> <library>)
+                             [listname (cadr core)] [library (caddr core)]
+                             [env (extend-xenv-local listname library env)])
+                        (loop env ids inits nids rest)) ; no trace for xform-labels
+                      (x-error "improper define-library form" first))]
+                 [(import) ; internal
+                  (if (list? tail)
+                      ; note: import is fully expanded in incomplete env, right now! 
+                      (let* ([core (xform-import head tail env #f)] ; core is (import <library>)
+                             [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
+                        (let scan ([eal eal] [env env])
+                          (if (null? eal) ; add init code as if it were idless define
+                              (let ([init (list syntax-quote-id code)])
+                                (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))
+                              (let ([id (id-rename-as head (caar eal))] [loc (cdar eal)])
+                                (scan (cdr eal) ; use handmade env sharing loc, but for ref only!
+                                  (lambda (i at) (if (and (eq? i id) (eq? at 'ref)) loc (env i at))))))))
+                      (x-error "improper import form" first))] 
                  [else
                   (if (val-transformer? hval)
                       (loop env ids inits nids (cons (hval first env) rest))
@@ -1034,7 +1062,7 @@
   (if (and (list2+? tail) (listname? (car tail)))
       (let* ([listname (xform-sexp->datum (car tail))]
              [prefix (and top? (listname->symbol listname))]
-             ; NB: head is used as seed id for renamingsl fixed prefix used on top only
+             ; NB: head is used as seed id for renamings; fixed prefix used on top only
              [libform (cons head (if prefix (cons prefix (cdr tail)) (cdr tail)))]
              [ic&ex (preprocess-library libform env)])
         ; NB: this is part 2/4 of listname <-> library interaction

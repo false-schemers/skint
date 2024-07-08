@@ -190,15 +190,16 @@ char *t_code[] = {
   "[21",
 
   "P", "extend-xenv-local",
-  "%3.1b,.3,.1,.3,&3{%2.0,:0q?{.1,'(l2:y3:ref;y4:set!;),.1A1?{:1]3}f]3}.1"
-  ",.1,:2[22}]4",
+  "%3.1b,.1p?{.3,.1,.3,&3{%2.0,:0e?{.1,'(l2:y3:ref;y4:set!;),.1A1?{:1]3}f"
+  "]3}.1,.1,:2[22}]4}.3,.1,.3,&3{%2.0,:0q?{.1,'(l2:y3:ref;y4:set!;),.1A1?"
+  "{:1]3}f]3}.1,.1,:2[22}]4",
 
   "P", "add-local-var",
   "%3.2,.2,'(y3:ref),l2,.2,@(y17:extend-xenv-local)[33",
 
   "P", "xenv-lookup",
-  "%3${.4,.4,.4[02},.0?{.0]4}.3,${.5,@(y7:id->sym)[01},.4,l3,'(s38:transf"
-  "ormer: invalid identifier access),@(y6:error*)[42",
+  "%3${.4,.4,.4[02},.0?{.0]4}.3,${.5,@(y17:xform-sexp->datum)[01},.4,l3,'"
+  "(s38:transformer: invalid identifier access),@(y6:error*)[42",
 
   "P", "xenv-ref",
   "%2'(y3:ref),.2,.2,@(y11:xenv-lookup)[23",
@@ -346,12 +347,22 @@ char *t_code[] = {
   ",@(y7:id->sym)[01},@(y6:gensym)[01},${.(i11),.3,.6,@(y13:add-local-var"
   ")[03},.9,.(i14),.3c,.(i14),.5c,.(i14),.7c,.4,:0^[(i15)5}.4,'(s20:impro"
   "per define form),@(y7:x-error)[(i11)2}'(y13:define-syntax),.1v?{${.4,@"
-  "(y6:list2?)[01}?{${.4a,@(y3:id?)[01}}{f}?{.2a,.3da,${.(i10),'(l1:y5:be"
-  "gin;),.5,@(y17:extend-xenv-local)[03},.8,.(i13),tc,.(i13),.4c,.(i13),."
-  "6c,.4,:0^[(i14)5}.4,'(s27:improper define-syntax form),@(y7:x-error)[("
-  "i11)2}.1K0?{.5,${.9,.8,.6[02}c,.(i10),.(i10),.(i10),.(i10),:0^[(i11)5}"
-  ":1,.7,.(i12),.(i12)A8,.(i12)A8,.(i12)A8,@(y12:xform-labels)[(i11)6}:1,"
-  ".1,.6,.6A8,.6A8,.6A8,@(y12:xform-labels)[56}.!0.0^_1[35",
+  "(y6:list2?)[01}?{${.4a,@(y3:id?)[01}}{f}?{.2a,.3da,${.(i10),'(l1:y9:un"
+  "defined;),.5,@(y17:extend-xenv-local)[03},.8,.(i13),tc,.(i13),.4c,.(i1"
+  "3),.6c,.4,:0^[(i14)5}.4,'(s27:improper define-syntax form),@(y7:x-erro"
+  "r)[(i11)2}'(y14:define-library),.1v?{${.4,@(y7:list2+?)[01}?{${.4a,@(y"
+  "9:listname?)[01}}{f}?{${f,.9,.6,.8,@(y20:xform-define-library)[04},.0d"
+  "a,.1dda,${.(i11),.3,.5,@(y17:extend-xenv-local)[03},.9,.(i14),.(i14),."
+  "(i14),.4,:0^[(i15)5}.4,'(s28:improper define-library form),@(y7:x-erro"
+  "r)[(i11)2}'(y6:import),.1v?{.2L0?{${f,.9,.6,.8,@(y12:xform-import)[04}"
+  ",.0da,'0,.1V4,'1,.2V4,.(i10),.1,,#0.(i10),.1,.(i14),.(i19),.(i19),.(i1"
+  "9),:0,.(i11),&8{%2.0u?{:0,@(y15:syntax-quote-id),l2,:5,:4,fc,:3,.3c,:2"
+  ",fc,.6,:1^[35}.0ad,${.3aa,:7,@(y12:id-rename-as)[02},.3,.2,.2,&3{%2:0,"
+  ".1q?{'(y3:ref),.2q}{f}?{:1]2}.1,.1,:2[22},.3d,:6^[42}.!0.0^_1[(i15)2}."
+  "4,'(s20:improper import form),@(y7:x-error)[(i11)2}.1K0?{.5,${.9,.8,.6"
+  "[02}c,.(i10),.(i10),.(i10),.(i10),:0^[(i11)5}:1,.7,.(i12),.(i12)A8,.(i"
+  "12)A8,.(i12)A8,@(y12:xform-labels)[(i11)6}:1,.1,.6,.6A8,.6A8,.6A8,@(y1"
+  "2:xform-labels)[56}.!0.0^_1[35",
 
   "P", "xform-labels",
   "%6,#0${.5,&0{%1t,.1q]1},@(y6:andmap)[02}.!0n,n,.5,.5,.5,,#0.0,.(i12),."
