@@ -9,40 +9,34 @@
 ; Utils
 ;---------------------------------------------------------------------------------------------
 
-(define set-member?
-  (lambda (x s)
-    (cond
-      [(null? s) #f]
-      [(eq? x (car s)) #t]
-      [else (set-member? x (cdr s))])))
+(define (set-member? x s)
+  (cond [(null? s) #f]
+        [(eq? x (car s)) #t]
+        [else (set-member? x (cdr s))]))
 
-(define set-cons
-  (lambda (x s) 
-    (if (set-member? x s) 
-        s 
-        (cons x s))))
+(define (set-cons x s) 
+  (if (set-member? x s) 
+      s 
+      (cons x s)))
 
-(define set-union
-  (lambda (s1 s2)
-    (if (null? s1) 
-        s2 
-        (set-union (cdr s1) (set-cons (car s1) s2)))))
+(define (set-union s1 s2)
+  (if (null? s1) 
+      s2 
+      (set-union (cdr s1) (set-cons (car s1) s2))))
 
-(define set-minus
-  (lambda (s1 s2)
-    (if (null? s1)
-        '()
-        (if (set-member? (car s1) s2)
-            (set-minus (cdr s1) s2)
-            (cons (car s1) (set-minus (cdr s1) s2))))))
+(define (set-minus s1 s2)
+  (if (null? s1)
+      '()
+      (if (set-member? (car s1) s2)
+          (set-minus (cdr s1) s2)
+          (cons (car s1) (set-minus (cdr s1) s2)))))
 
-(define set-intersect
-  (lambda (s1 s2)
-    (if (null? s1)
-        '()
-        (if (set-member? (car s1) s2)
-            (cons (car s1) (set-intersect (cdr s1) s2))
-            (set-intersect (cdr s1) s2)))))
+(define (set-intersect s1 s2)
+  (if (null? s1)
+      '()
+      (if (set-member? (car s1) s2)
+          (cons (car s1) (set-intersect (cdr s1) s2))
+          (set-intersect (cdr s1) s2))))
 
 (define-syntax record-case
   (syntax-rules (else)
@@ -66,7 +60,10 @@
   (or (eq? pat '*)
       (and (eq? pat '<id>) (or (symbol? x) (procedure? x)))
       (and (eq? pat '<symbol>) (symbol? x))
+      (and (eq? pat '<number>) (number? x))
       (and (eq? pat '<string>) (string? x))
+      (and (eq? pat '<vector>) (vector? x))
+      (and (eq? pat '<box>) (box? x))
       (eqv? x pat)
       (and (pair? pat)
            (cond [(and (eq? (car pat) '...)
@@ -108,8 +105,8 @@
          (begin result1 result2 ...)
          (sexp-case key clause clauses ...))]))
 
-(define symbol-append
-  (lambda syms (string->symbol (apply string-append (map symbol->string syms)))))
+(define (symbol-append . syms)
+ (string->symbol (apply string-append (map symbol->string syms))))
 
 ; unique symbol generator (poor man's version)
 (define gensym
@@ -123,29 +120,32 @@
             (string-append (symbol->string (car args))
                (string-append "#" (fixnum->string gsc 10))))))))
 
-(define posq
-  (lambda (x l)
-    (let loop ([l l] [n 0])
-      (cond [(null? l) #f]
-            [(eq? x (car l)) n]
-            [else (loop (cdr l) (fx+ n 1))]))))
+(define (posq x l)
+  (let loop ([l l] [n 0])
+    (cond [(null? l) #f]
+          [(eq? x (car l)) n]
+          [else (loop (cdr l) (fx+ n 1))])))
 
-(define rassq
-  (lambda (x al)
-    (and (pair? al)
-         (let ([a (car al)])
-           (if (eq? x (cdr a)) a (rassq x (cdr al)))))))
+(define (rassq x al)
+  (and (pair? al)
+        (let ([a (car al)])
+          (if (eq? x (cdr a)) a (rassq x (cdr al))))))
 
-(define list-diff
-  (lambda (l t)
-    (if (or (null? l) (eq? l t))
-        '()
-        (cons (car l) (list-diff (cdr l) t)))))
+(define (remove! x l pred?) ; applies (pred? (car l) x)
+  (let loop ([f #f] [l #f] [r l])
+    (cond [(not (pair? r)) (if l (begin (set-cdr! l r) f) r)]
+          [(pred? (car r) x) (loop f l (cdr r))]
+          [l (set-cdr! l r) (loop f r (cdr r))]
+          [else (loop r r (cdr r))])))
+
+(define (list-diff l t)
+  (if (or (null? l) (eq? l t))
+      '()
+      (cons (car l) (list-diff (cdr l) t))))
 
 (define (pair* x . more)
-  (let loop ([x x] [rest more])
-    (if (null? rest) x 
-        (cons x (loop (car rest) (cdr rest))))))
+  (let loop ([x x] [r more])
+    (if (null? r) x (cons x (loop (car r) (cdr r))))))
 
 (define (append* lst)
   (cond [(null? lst) '()]
@@ -565,7 +565,7 @@
                                 (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))
                               (let ([id (id-rename-as head (caar eal))] [loc (cdar eal)])
                                 (scan (cdr eal) ; use handmade env sharing loc, but for ref only!
-                                  (lambda (i at) (if (and (eq? i id) (eq? at 'ref)) loc (env i at))))))))
+                                  (lambda (i at) (if (eq? i id) (and (eq? at 'ref) loc) (env i at))))))))
                       (x-error "improper import form" first))] 
                  [else
                   (if (val-transformer? hval)
@@ -1050,8 +1050,8 @@
                 (cond [(not loc) (x-error "cannot export id" lid)]
                       [(location-special? loc) (loop (cdr esps) (cons (cons eid loc) eal))]
                       [else (let ([val (location-val loc)])
-                              (if (memq (car val) '(ref const))
-                                  (loop (cdr esps) (cons (cons eid (make-location (list 'const (cadr val)))) eal))
+                              (if (or (not (val-core? val)) (memq (car val) '(ref const)))
+                                  (loop (cdr esps) (cons (cons eid loc) eal))
                                   (x-error "cannot export code alias id" lid val)))]))))))))
 
 ; Note: define-library semantics does not depend on lexical context, and, as a syntax definition,
@@ -1171,107 +1171,61 @@
 (define (c-warning msg . args)
   (warning* (string-append "compiler: " msg) args))
 
-(define find-free*
-  (lambda (x* b)
-    (if (null? x*)
-        '()
-        (set-union 
-          (find-free (car x*) b) 
-          (find-free* (cdr x*) b)))))
+(define (find-free* x* b)
+  (if (null? x*)
+      '()
+      (set-union 
+        (find-free (car x*) b) 
+        (find-free* (cdr x*) b))))
 
-(define find-free
-  (lambda (x b)
-    (record-case x
-      [quote (obj) 
-       '()]
-      [gref (gid)
-       '()]
-      [gset! (gid exp)
-       (find-free exp b)]
-      [(ref const) (id)
-       (if (set-member? id b) '() (list id))]
-      [set! (id exp)
-       (set-union
-         (if (set-member? id b) '() (list id))
-         (find-free exp b))]
-      [set& (id)
-       (if (set-member? id b) '() (list id))]
-      [lambda (idsi exp)
-       (find-free exp (set-union (flatten-idslist idsi) b))]
-      [lambda* clauses
-       (find-free* (map cadr clauses) b)]
-      [letcc (kid exp)
-       (find-free exp (set-union (list kid) b))]
-      [withcc (kexp exp)
-       (set-union (find-free kexp b) (find-free exp b))]
-      [if (test then else)
-       (set-union
-         (find-free test b)
-         (set-union (find-free then b) (find-free else b)))]
-      [begin exps
-       (find-free* exps b)]
-      [integrable (ig . args)
-       (find-free* args b)]
-      [call (exp . args)
-       (set-union (find-free exp b) (find-free* args b))]
-      [asm (cstr)
-       '()]
-      [once (gid exp)
-       (find-free exp b)]
-      [(define define-syntax define-library import) tail
-       (c-error "misplaced definition form" x)]
-      [else (c-error "unexpected <core> form" x)])))
+(define (find-free x b)
+  (record-case x
+    [quote (obj)         '()]
+    [gref (gid)          '()]
+    [gset! (gid exp)     (find-free exp b)]
+    [(ref const) (id)    (if (set-member? id b) '() (list id))]
+    [set! (id exp)       (set-union (if (set-member? id b) '() (list id)) (find-free exp b))]
+    [set& (id)           (if (set-member? id b) '() (list id))]
+    [lambda (idsi exp)   (find-free exp (set-union (flatten-idslist idsi) b))]
+    [lambda* clauses     (find-free* (map cadr clauses) b)]
+    [letcc (kid exp)     (find-free exp (set-union (list kid) b))]
+    [withcc (kexp exp)   (set-union (find-free kexp b) (find-free exp b))]
+    [if (ce te ee)       (set-union (find-free ce b) (set-union (find-free te b) (find-free ee b)))]
+    [begin exps          (find-free* exps b)]
+    [integrable (i . as) (find-free* as b)]
+    [call (exp . args)   (set-union (find-free exp b) (find-free* args b))]
+    [asm (cstr)          '()]
+    [once (gid exp)      (find-free exp b)]
+    [(define define-syntax define-library import) tail (c-error "misplaced definition form" x)]
+    [else (c-error "unexpected <core> form" x)]))
 
-(define find-sets*
-  (lambda (x* v)
-    (if (null? x*)
-        '()
-        (set-union 
-          (find-sets (car x*) v) 
-          (find-sets* (cdr x*) v)))))
+(define (find-sets* x* v)
+  (if (null? x*)
+      '()
+      (set-union 
+        (find-sets (car x*) v) 
+        (find-sets* (cdr x*) v))))
 
-(define find-sets
-  (lambda (x v)
-    (record-case x
-      [quote (obj) 
-       '()]
-      [gref (gid)
-       '()]
-      [gset! (gid exp)
-       (find-sets exp v)]
-      [(ref const) (id)
-       '()]
-      [set! (id exp)
-       (set-union
-         (if (set-member? id v) (list id) '())
-         (find-sets exp v))]
-      [set& (id)
-       (if (set-member? id v) (list id) '())]
-      [lambda (idsi exp)
-       (find-sets exp (set-minus v (flatten-idslist idsi)))]
-      [lambda* clauses
-       (find-sets* (map cadr clauses) v)]
-      [letcc (kid exp)
-       (find-sets exp (set-minus v (list kid)))]
-      [withcc (kexp exp)
-       (set-union (find-sets kexp v) (find-sets exp v))]
-      [begin exps
-       (find-sets* exps v)]
-      [if (test then else)
-       (set-union
-         (find-sets test v)
-         (set-union (find-sets then v) (find-sets else v)))]
-      [integrable (ig . args)
-       (find-sets* args v)]
-      [call (exp . args)
-       (set-union (find-sets exp v) (find-sets* args v))]
-      [asm (cstr)
-       '()]
-      [once (gid exp)
-       (find-sets exp v)]
-      [(define define-syntax define-library import) tail
-       (c-error "misplaced definition form" x)]
-      [else (c-error "unexpected <core> form" x)])))
+(define (find-sets x v)
+  (record-case x
+    [quote (obj)         '()]
+    [gref (gid)          '()]
+    [gset! (gid exp)     (find-sets exp v)]
+    [(ref const) (id)    '()]
+    [set! (id exp)       (set-union (if (set-member? id v) (list id) '()) (find-sets exp v))]
+    [set& (id)           (if (set-member? id v) (list id) '())]
+    [lambda (idsi exp)   (find-sets exp (set-minus v (flatten-idslist idsi)))]
+    [lambda* clauses     (find-sets* (map cadr clauses) v)]
+    [letcc (kid exp)     (find-sets exp (set-minus v (list kid)))]
+    [withcc (kexp exp)   (set-union (find-sets kexp v) (find-sets exp v))]
+    [begin exps          (find-sets* exps v)]
+    [if (ce te ee)       (set-union (find-sets ce v) (set-union (find-sets te v) (find-sets ee v)))]
+    [integrable (i . as) (find-sets* as v)]
+    [call (exp . args)   (set-union (find-sets exp v) (find-sets* args v))]
+    [asm (cstr)          '()]
+    [once (gid exp)      (find-sets exp v)]
+    [(define define-syntax define-library import) tail (c-error "misplaced definition form" x)]
+    [else (c-error "unexpected <core> form" x)]))
 
 (define codegen
   ; x: <core> expression to compile
@@ -1348,19 +1302,19 @@
              (codegen (car xl) l f s g k port)
              (loop (cdr xl)))))
        (when (and k (null? exps)) (write-char #\] port) (write-serialized-arg k port))]
-      [if (test then else)
-       (codegen test l f s g #f port)
+      [if (cexp texp eexp)
+       (codegen cexp l f s g #f port)
        (write-char #\? port)
        (write-char #\{ port)
-       (codegen then l f s g k port)
+       (codegen texp l f s g k port)
        (write-char #\} port)
        (cond [k ; tail call: 'then' arm exits, so br around is not needed
-              (codegen else l f s g k port)]
-             [(equal? else '(begin)) ; non-tail with void 'else' arm
+              (codegen eexp l f s g k port)]
+             [(equal? eexp '(begin)) ; non-tail with void 'else' arm
               ] ; no code needed -- ac retains #f from failed test
              [else ; non-tail with 'else' expression; needs br 
               (write-char #\{ port)
-              (codegen else l f s g k port)
+              (codegen eexp l f s g k port)
               (write-char #\} port)])]              
       [lambda (idsi exp)
        (let* ([ids (flatten-idslist idsi)]
@@ -1765,6 +1719,17 @@
                            loc)]))]
           [else #f])))
 
+(define (name-install! nr name loc) ;=> same|modified|added
+  (let* ([n-1 (- (vector-length nr) 1)] [i (if (pair? name) n-1 (immediate-hash name n-1))]
+         [al (vector-ref nr i)] [p (if (pair? name) (assoc name al) (assq name al))])
+    (cond [(and p (eq? (cdr p) loc)) 'same] ; nothing changed
+          [p (set-cdr! p loc) 'modified]
+          [else (vector-set! nr i (cons (cons name loc) al)) 'added])))
+
+(define (name-remove! nr name)
+  (let* ([n-1 (- (vector-length nr) 1)] [i (if (pair? name) n-1 (immediate-hash name n-1))])
+    (vector-set! nr i (remove! name (vector-ref nr i) (lambda (p name) (equal? (car p) name))))))
+
 ; public registry for all non-hidden skint names
 (define *root-name-registry* (make-name-registry 300))
 
@@ -1894,7 +1859,7 @@
     (box?) (box) (unbox) (set-box!) (record?) (make-record) (record-length) (record-ref)
     (record-set!) (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg)
-    (fxabs) (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=? x y) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
+    (fxabs) (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
     (fxexpt) (fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsrl) (fixnum->flonum) (fixnum->string)
     (string->fixnum) (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
     (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
@@ -1954,8 +1919,8 @@
           [else #f])))
 
 ; mutable environment from two registries; new bindings go to user registry
-(define (make-repl-environment rr ur prefix) ; prefix for allocated globals
-  (define (global name) (fully-qualified-library-prefixed-name prefix name))
+(define (make-repl-environment rr ur gpref) ; prefix for allocated globals
+  (define (global name) (fully-qualified-library-prefixed-name gpref name))
   (lambda (name at)
     (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
            (case at [(ref set!) (old-den name)] [else #f])]
@@ -1982,6 +1947,17 @@
            (name-lookup ur name ; return if in user registry
              (lambda (n) ; ok, not in ur: alloc 
                (void)))]
+          [(and (eq? at 'import) (sexp-match? '((<symbol> . #&*) ...) name))
+           ; special request for repl environment only: mass import
+           (let loop ([eal name] [samc 0] [modc 0] [addc 0])
+             (if (null? eal)
+                 (list samc modc addc)
+                 (let ([id (caar eal)] [loc (cdar eal)] [eal (cdr eal)])
+                   (name-remove! ur id) ; user binding isn't changed, but no longer visible 
+                   (case (name-install! rr id loc) ; root binding possibly changed
+                     [(same)     (loop eal (+ samc 1) modc addc)]
+                     [(modified) (loop eal samc (+ modc 1) addc)]
+                     [(added)    (loop eal samc modc (+ addc 1))]))))] 
           [else #f])))
 
 (define root-environment
@@ -2048,11 +2024,22 @@
           [(eq? hval 'import) ; splice as definitions
            (let* ([core (xform-import (car x) (cdr x) env #t)] ; core is (import <library>)
                   [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
-             (define (define-alias p) 
-               (repl-eval-top-form ; FIXME: this is not optimal -- too much fuss
-                 (list define-syntax-id (car p) (list syntax-quote-id (location-val (cdr p)))) env))
-             (repl-compile-and-run-core-expr code)
-             (for-each define-alias eal))]
+             ; note: we should somehow introduce imported locations as-is for keywords like
+             ; 'else' to work correctly -- while protecting imported locations from change
+             ; via define or define-syntax; lookup with at=define-syntax returns us new
+             ; location from user name registry, offering different locations and no protection!
+             ; we need to extend env protocol, e.g. (env id <location>) that either fails,
+             ; or inserts <location> under id where it will be returned via (env id 'ref)
+             ; and nothing else. We use (env eal 'import) -- with guarantees that env can't 
+             ; answer any requests but 'ref to imported bindings
+             (let ([counts (env eal 'import)]) ; manually invoke env's extended behavior
+               (if (sexp-match? '(<number> <number> <number>) counts)
+                   (when *verbose* (display "IMPORT: ") 
+                     (write (car counts)) (display " bindings are the same, ")
+                     (write (cadr counts)) (display " modified, ")
+                     (write (caddr counts)) (display " added\n"))
+                   (x-error "failed to import to env, import is not supported:" env eal)))
+             (repl-compile-and-run-core-expr code))]
           [(val-transformer? hval) ; apply transformer and loop
            (repl-eval-top-form (hval x env) env)]
           [(val-integrable? hval) ; integrable application
@@ -2078,9 +2065,15 @@
     [(ref <symbol>) (write (repl-environment (car args) 'ref) op) (newline op)]
     [(ref (* * ...)) (write (repl-environment (car args) 'ref) op) (newline op)]
     [(rnr) (write *root-name-registry* op) (newline op)]
-    [(rnr *) (write (name-lookup *root-name-registry* (car args) #f) op) (newline op)]
+    [(rref *) (write (name-lookup *root-name-registry* (car args) #f) op) (newline op)]
+    [(rrem! *) (cond [(name-lookup *root-name-registry* (car args) #f)
+                      (name-remove! *root-name-registry* (car args)) (display "done!\n" op)]
+                     [else (display "name not found: " op) (write name op) (newline op)])]
     [(unr) (write *user-name-registry* op) (newline op)]
-    [(unr *) (write (name-lookup *user-name-registry* (car args) #f) op) (newline op)]
+    [(uref *) (write (name-lookup *user-name-registry* (car args) #f) op) (newline op)]
+    [(urem! *) (cond [(name-lookup *user-name-registry* (car args) #f)
+                      (name-remove! *user-name-registry* (car args)) (display "done!\n" op)]
+                     [else (display "name not found: " op) (write name op) (newline op)])]
     [(peek *)
      (cond [(string? (car args)) 
             (display (if (file-exists? (car args)) 
@@ -2099,9 +2092,11 @@
      (display " ,verbose off   -- turn verbosity off\n" op)
      (display " ,ref <name>    -- show current denotation for <name>\n" op)
      (display " ,rnr           -- show root name registry\n" op)
-     (display " ,rnr <name>    -- lookup name in root registry\n" op)
+     (display " ,rref <name>   -- lookup name in root registry\n" op)
+     (display " ,rrem! <name>  -- remove name from root registry\n" op)
      (display " ,unr           -- show user name registry\n" op)
-     (display " ,unr <name>    -- lookup name in user registry\n" op)
+     (display " ,uref <name>   -- lookup name in user registry\n" op)
+     (display " ,urem! <name>  -- remove name from user registry\n" op)
      (display " ,help          -- this help\n" op)]
     [else
      (display "syntax error in repl command\n" op)
