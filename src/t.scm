@@ -187,8 +187,8 @@
 ;  <core> -> (ref <id>)
 ;  <core> -> (set! <id> <core>)
 ;  <core> -> (set& <id>)
-;  <core> -> (gref <global>)
-;  <core> -> (gset! <global> <core>)
+;  <core> -> (gref <gid>) where <gid> is a symbolic index in a global store
+;  <core> -> (gset! <gid> <core>)
 ;  <core> -> (lambda <ids> <core>) where <ids> -> (<id> ...) | (<id> ... . <id>) | <id>
 ;  <core> -> (lambda* (<arity> <core>) ...) where <arity> -> (<cnt> <rest?>) 
 ;  <core> -> (letcc <id> <core>) 
@@ -198,14 +198,14 @@
 ;  <core> -> (call <core> <core> ...) 
 ;  <core> -> (integrable <ig> <core> ...) where <ig> is an index in the integrables table
 ;  <core> -> (asm <igs>) where <igs> is ig string leaving result in ac, e.g. "'2,'1+" 
-;  <core> -> (once <gid> <core>) where gid is always resolved as global
+;  <core> -> (once <gid> <core>) 
 
 ;  NB: (begin) is legit, returns unspecified value
 ;  on top level, these four extra core forms are legal:
 
 ;  <core> -> (define <id> <core>)
 ;  <core> -> (define-syntax <id> <transformer>)
-;  <core> -> (define-library <listname> <library>)
+;  <core> -> (define-library <listname> <library>) where <library> is a vector (see below)
 ;  <core> -> (import <library>)
 
 ;  These names are bound to specials never returned by xform:
@@ -271,12 +271,13 @@
 ; <integrable>  ->  <fixnum serving as index in internal integrables table>
 ; <transformer> ->  <procedure of exp and env returning exp>
 ; <library>     ->  <vector of init-code and export-alist>
-; <library>     ->  <vector of init-code and export-alist>
+; <void>        ->  <void value used to initialize uninitialized locations>
 
 (define-syntax  location?            box?)
 (define-syntax  make-location        box)
 (define-syntax  location-val         unbox)
 (define-syntax  location-set-val!    set-box!)
+(define-syntax  val-void?            void?)
 (define-syntax  val-core?            pair?)
 (define-syntax  val-transformer?     procedure?)
 (define-syntax  val-integrable?      integrable?)
@@ -287,15 +288,16 @@
 (define-syntax  library-exports      (syntax-rules () [(_ l) (vector-ref l 1)]))
 (define-syntax  library-set-exports! (syntax-rules () [(_ l v) (vector-set! l 1 v)]))
 
-(define (location-special? l)        (not (pair? (unbox l))))
+(define (location-special? l)        (not (val-core? (location-val l))))
 (define (new-id sym den getlits)     (define p (list sym den getlits)) (lambda () p))
+(define-syntax new-id?               procedure?)
 (define (old-sym id)                 (car (id)))
 (define (old-den id)                 (cadr (id)))
 (define (old-literals id)            ((or (caddr (id)) (lambda () '()))))
-(define (id? x)                      (or (symbol? x) (procedure? x)))
+(define (id? x)                      (or (symbol? x) (new-id? x)))
 (define (id->sym id)                 (if (symbol? id) id (old-sym id)))
 
-; take a possibly renamed target id, and find image for nid
+; take a possibly renamed target id, and find image for nid in the same context
 (define (id-rename-as id nid)
   (let loop ([id id])
     (if (symbol? id) nid
@@ -309,7 +311,8 @@
 ; containing either a <special> or a <core> value. In normal case, <core> value is (ref <gid>),
 ; where <gid> is a key in run-time store, aka *globals*. Environments should allocate new locations
 ; as needed, so every identifier gets mapped to one. Expand-time environments are represented as
-; two-argument procedures, where the second argument is an access type symbol.
+; two-argument procedures, where the second argument (at) is an access type symbol, one of the
+; four possible values: ref, set!, define, define-syntax (defines are requests to allocate)
 
 (define (extend-xenv-local id val env)
   (let ([loc (make-location val)])
@@ -340,28 +343,29 @@
 (define (check-syntax sexp pat msg)
   (unless (sexp-match? pat sexp) (x-error msg sexp)))
 
-(define lambda-id (new-id 'lambda (make-location 'lambda) #f))
-(define begin-id (new-id 'begin (make-location 'begin) #f))
-(define define-id (new-id 'define (make-location 'define) #f))
+; popular context-independent ids retaining their original meaning (not for id=?)
+(define lambda-id        (new-id 'lambda        (make-location 'lambda) #f))
+(define begin-id         (new-id 'begin         (make-location 'begin) #f))
+(define define-id        (new-id 'define        (make-location 'define) #f))
 (define define-syntax-id (new-id 'define-syntax (make-location 'define-syntax) #f))
-(define syntax-quote-id (new-id 'syntax-quote (make-location 'syntax-quote) #f))
+(define syntax-quote-id  (new-id 'syntax-quote  (make-location 'syntax-quote) #f))
 
-; xform receives Scheme s-expressions and returns either Core Scheme <core>
-; (always a pair) or special-form, which is either a builtin (a symbol) or
-; a transformer (a procedure). Appos? flag is true when the context can
-; allow xform to return a special; otherwise, only <core> is returned. 
+; xform receives Scheme s-expressions and returns either Core Scheme <core> form
+; (always a pair) or so-called 'special', which is either a builtin (a symbol), a
+; a transformer (a procedure), or an integrable (an integer). Appos? flag is true 
+; when the context allows xform to return a special; otherwise, only <core> can 
+; be returned. 
 
 (define (xform appos? sexp env)
   (cond [(id? sexp) 
          (let ([hval (xform-ref sexp env)])
-           (cond [appos? hval]
-                 [(val-integrable? hval) ; integrable id-syntax
-                  (list 'ref (integrable-global hval))]
-                 [(val-transformer? hval) ; id-syntax
-                  (xform appos? (hval sexp env) env)]
-                 [(not (val-core? hval)) ; other special used out of context 
-                  (x-error "improper use of syntax form" hval)]
-                 [else hval]))] ; core 
+           (cond [appos?                  hval] ; anything goes in app position
+                 [(val-integrable? hval)  (list 'const (integrable-global hval))]
+                 [(val-transformer? hval) (xform appos? (hval sexp env) env)] ; id-syntax
+                 [(val-library? hval)     (x-error "improper use of library" hval sexp)]
+                 [(val-void? hval)        (x-error "id has no value" hval sexp (id->sym sexp))]
+                 [(not (val-core? hval))  (x-error "improper use of syntax form" hval)]
+                 [else                    hval]))]
         [(not (pair? sexp))
          (xform-quote (list sexp) env)]
         [else 
@@ -384,11 +388,13 @@
              [(syntax-rules)   (xform-syntax-rules   tail env)]
              [(syntax-length)  (xform-syntax-length  tail env)]
              [(syntax-error)   (xform-syntax-error   tail env)]
-             [(define-library) (xform-define-library head tail env appos?)]
-             [(import)         (xform-import         head tail env appos?)]
+             [(define-library) (xform-define-library head tail env #f)]
+             [(import)         (xform-import         head tail env #f)]
              [else (cond [(val-integrable? hval)  (xform-integrable hval tail env)]
                          [(val-transformer? hval) (xform appos? (hval sexp env) env)]
                          [(val-library? hval)     (x-error "improper use of library" hval sexp)]
+                         [(val-void? hval)        (x-error "use of uninitialized val" hval sexp)]
+                         [(not (val-core? hval))  (x-error "improper use of syntax form" hval)]
                          [else                    (xform-call hval tail env)])]))]))
 
 (define (xform-quote tail env)
@@ -530,7 +536,7 @@
                  [(define-syntax) ; internal
                   (if (and (list2? tail) (id? (car tail))) 
                       (let* ([id (car tail)] [init (cadr tail)]
-                             [env (extend-xenv-local id '(undefined) env)])
+                             [env (extend-xenv-local id '(begin) env)]) ; placeholder val
                         (loop env (cons id ids) (cons init inits) (cons #t nids) rest))
                       (x-error "improper define-syntax form" first))]
                  [else
@@ -564,7 +570,7 @@
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
 (define (xform-begin tail env appos?) ; non-internal
-  (if (list? tail)
+  (if (list? tail) ; FIXME: make sure that (begin (begin) x (begin)) == x !! (for include)
       (if (list1? tail)
           (xform appos? (car tail) env) ; (begin x) == x
           (cons 'begin (map (lambda (sexp) (xform #f sexp env)) tail)))
@@ -684,11 +690,11 @@
                     [sexp-tail (begin (if (negative? seq-len) (fail)) (list-tail sexp seq-len))]
                     [seq (reverse (list-tail (reverse sexp) tail-len))]
                     [vars (list-ids (car pat) #t not-pat-literal?)])
-                     (define (match1 sexp)
-                       (map cdr (match (car pat) sexp '())))
-                     (append
-                       (apply map (cons list (cons vars (map match1 seq))))
-                       (match (cddr pat) sexp-tail bindings)))]
+               (define (match1 sexp)
+                 (map cdr (match (car pat) sexp '())))
+               (append
+                 (apply map (cons list (cons vars (map match1 seq))))
+                 (match (cddr pat) sexp-tail bindings)))]
             [(pair? sexp)
              (match (car pat) (car sexp)
                (match (cdr pat) (cdr sexp) bindings))]
@@ -879,10 +885,8 @@
          (let ([ic&ex (preprocess-library s env)])
            (return (car ic&ex) (cdr ic&ex)))]
         [(and (list1+? s) (andmap libpart? s))
-         ; NB: this is 1/3 of listname->library interface
-         ; FIXME: should lookup in env using listname!
-         (let* ([listname (xform-sexp->datum s)] [sym (listname->symbol listname)]
-                [id (id-rename-as sid sym)] [val (xform-ref id env)]) ; or should id be just sym?
+         ; NB: this is part 1/4 of listname <-> library interaction
+         (let* ([listname (xform-sexp->datum s)] [val (xform-ref listname env)])
            (unless (val-library? val) (x-error "invalid library" listname val))
            (return (library-code val) (library-exports val)))]
         [else
@@ -910,7 +914,8 @@
          [include-ci-id (new-id 'include-ci (make-location (make-include-transformer #t)) #f)])
     (define (toesps ee esps) ;=> ((<old-id> . <new-id>) ...)
       (cond [(null? ee) (reverse! esps)]
-            [(id? (car ee)) (let ([s (id->sym (car ee))]) (toesps (cdr ee) (adjoin-esps (list (cons s s)) esps)))]
+            [(id? (car ee)) (let ([s (id->sym (car ee))]) 
+             (toesps (cdr ee) (adjoin-esps (list (cons s s)) esps)))]
             [(and (sexp-match? '(<id> <id> <id>) (car ee)) (eq? (caar ee) ld-rename-id))
              (toesps (cdr ee) (adjoin-esps (list (cons (id->sym (cadar ee)) (id->sym (caddar ee)))) esps))]
             [else (x-error "invalid export spec element" (xform-sexp->datum (car ee)))]))
@@ -959,30 +964,6 @@
               [(eq? (car decl) ld-begin-id)
                (loop decls code eal esps (append forms (xform-sexp->datum (cdr decl))))]))))))
         
-; make functional read-only environment from import al,
-; allowing fall-through to env for lib://foo/bar ids
-; FIXME: should be replaced with make-controlled-environment
-(define (ial->controlled-environment ial make-nid env)
-  (let ([v (make-vector 1 '())]) ; new ids go here
-    (lambda (id at)
-      (cond [(procedure? id) 
-             (and (memq at '(ref const)) (old-den id))]
-            [(assq id (vector-ref v 0)) => 
-             cdr] ; full access to new locations
-            [(assq id ial) => ; read-only access to imports, no shadowing?
-             (lambda (b) (and (memq at '(ref const)) (cdr b)))] 
-            [(symbol-libname? id) ; read-only acess to libs 
-             (and (memq at '(ref const)) (env id at))]
-            [(memq at '(ref const set! define))
-             (let ([loc (make-location (list 'ref (make-nid id)))])
-               (vector-set! v 0 (cons (cons id loc) (vector-ref v 0)))
-               loc)]
-            [(memq at '(define-syntax))
-             (let ([loc (make-location '(undefined))])
-               (vector-set! v 0 (cons (cons id loc) (vector-ref v 0)))
-               loc)]
-            [else #f]))))
-
 (define (preprocess-library sexp env) ;=> (init-core . exports-eal)
   ; generator of globals: use prefix or temporary if no prefix is given 
   (define (make-nid id) 
@@ -995,8 +976,8 @@
          [decls (if lid (cddr sexp) (cdr sexp))] ; NB: mac env is used below to resolve lib names!
          [icimesfs (preprocess-library-declarations (cons (car sexp) decls) env)])
     (let* ([code (car icimesfs)] [ial (cadr icimesfs)] [esps (caddr icimesfs)] [forms (cadddr icimesfs)] 
-           [cenv (ial->controlled-environment ial make-nid env)] [eal '()]) ; FIXME
-      (define (scan body code*) ;=> extended with side-effect on cenv
+           [cenv (make-controlled-environment ial make-nid env)] [eal '()]) ; m-c-e is defined below
+      (define (scan body code*) ;=> code* extended, with side-effect on cenv
         (if (null? body) 
             code*
             (let ([first (car body)] [rest (cdr body)])
@@ -1037,7 +1018,7 @@
         (let loop ([esps esps] [eal eal])
           (if (null? esps)
               (cons combined-code (reverse! eal))
-              (let* ([lid (caar esps)] [eid (cdar esps)] [loc (cenv lid 'const)])
+              (let* ([lid (caar esps)] [eid (cdar esps)] [loc (cenv lid 'ref)])
                 (cond [(not loc) (x-error "cannot export id" lid)]
                       [(location-special? loc) (loop (cdr esps) (cons (cons eid loc) eal))]
                       [else (let ([val (location-val loc)])
@@ -1045,26 +1026,28 @@
                                   (loop (cdr esps) (cons (cons eid (make-location (list 'const (cadr val)))) eal))
                                   (x-error "cannot export code alias id" lid val)))]))))))))
 
-; note: define-library semantics does not depend on lexical context, and, as a syntax definition,
+; Note: define-library semantics does not depend on lexical context, and, as a syntax definition,
 ; it should become available in local env immediately, even at definition-scanning phase -- so we
 ; introduce new special <core> form define-library
 
-(define (xform-define-library head tail env appos?) ; non-internal
-  (if (and (list2+? tail) (list1+? (car tail)))
-      (let* ([name (xform-sexp->datum (car tail))] [sym (if (symbol? name) name (listname->symbol name))]
-             [libform (cons head (cons sym (cdr tail)))] ; head is used as seed id for renamings
-             [ic&ex (preprocess-library libform env)] [lid (id-rename-as head sym)])
-        ; NB: this is 1/3 of listname->library interface FIXME: lid should be listname!
-        (list 'define-library lid (make-library (car ic&ex) (cdr ic&ex))))
+(define (xform-define-library head tail env top?) ; non-internal
+  (if (and (list2+? tail) (listname? (car tail)))
+      (let* ([listname (xform-sexp->datum (car tail))]
+             [prefix (and top? (listname->symbol listname))]
+             ; NB: head is used as seed id for renamingsl fixed prefix used on top only
+             [libform (cons head (if prefix (cons prefix (cdr tail)) (cdr tail)))]
+             [ic&ex (preprocess-library libform env)])
+        ; NB: this is part 2/4 of listname <-> library interaction
+        (list 'define-library listname (make-library (car ic&ex) (cdr ic&ex))))
       (x-error "improper define-library form" (cons head tail))))
 
 ; for now, we have no clear idea of how to process import in all possible contexts, so we will also
 ; introduce new special <core> form import
 
-(define (xform-import head tail env appos?) ; non-internal
+(define (xform-import head tail env top?)
   (if (list? tail)
       (let ([ic&ex (preprocess-import-sets (cons head tail) env)])
-        ; NB: this is 1/3 of listname->library interface FIXME
+        ; NB: this is part 3/4 of listname <-> library interaction
         (list 'import (make-library (car ic&ex) (cdr ic&ex))))
       (x-error "improper import form" (cons head tail))))
 
@@ -1208,7 +1191,8 @@
       [once (gid exp)
        (find-free exp b)]
       [(define define-syntax define-library import) tail
-       (c-error "misplaced definition form" x)])))
+       (c-error "misplaced definition form" x)]
+      [else (c-error "unexpected <core> form" x)])))
 
 (define find-sets*
   (lambda (x* v)
@@ -1258,10 +1242,11 @@
       [once (gid exp)
        (find-sets exp v)]
       [(define define-syntax define-library import) tail
-       (c-error "misplaced definition form" x)])))
+       (c-error "misplaced definition form" x)]
+      [else (c-error "unexpected <core> form" x)])))
 
 (define codegen
-  ; x: Scheme Core expression to compile
+  ; x: <core> expression to compile
   ; l: local var list (with #f placeholders for nonvar slots)
   ; f: free var list
   ; s: set! var set
@@ -1556,7 +1541,8 @@
                      (begin (gset! ,gid (quote #t)) ,exp)) 
           l f s g k port)]
       [(define define-syntax define-library import) tail
-       (c-error "misplaced definition form" x)])))
+       (c-error "misplaced definition form" x)]
+      [else (c-error "unexpected <core> form" x)])))
 
 (define (compile-to-string x)
   (let ([p (open-output-string)])
@@ -1683,21 +1669,9 @@
                   (cons (listname-segment->string (car l)) (cons sep r))))
         (file-resolve-relative-to-base-path (string-append* (reverse (cons ext r))) basepath))))
 
-(define (symbol-libname? sym) ; FIXME: shouldn't exist! 
-  (let* ([str (symbol->string sym)] [sl (string-length str)])
-    (and (< 6 sl) 
-         (char=? (string-ref str 0) #\l)
-         (char=? (string-ref str 1) #\i)
-         (char=? (string-ref str 2) #\b)
-         (char=? (string-ref str 3) #\:)
-         (char=? (string-ref str 4) #\/)
-         (char=? (string-ref str 5) #\/)
-         (substring str 6 sl))))
-
-
 ; hacks for locating library files
 
-(define *library-path-list* '("./"))
+(define *library-path-list* '("./")) ; will do for now
 
 (define (add-library-path! path)
   (if (base-path-separator path)
@@ -1735,98 +1709,20 @@
 
 
 ;---------------------------------------------------------------------------------------------
-; Environments FIXME
-;---------------------------------------------------------------------------------------------
-
-; new lookup procedure for explicit macro environments
-
-(define (env-lookup id env at) ;=> location (| #f)
-  (if (procedure? id)
-      ; nonsymbolic ids can't be (re)defined
-      (case at [(ref set!) (old-den id)] [else #f])
-      (let loop ([env env])
-        (cond [(pair? env) ; imported: ref-only
-               (if (eq? (caar env) id)
-                   (case at [(ref) (cdar env)] [else #f])
-                   (loop (cdr env)))]
-              [(vector? env) ; extendable, keeps imported? flags
-               (let* ([n (vector-length env)] [i (immediate-hash id n)]
-                      [al (vector-ref env i)] [p (assq id al)])
-                 (if p ; p is (key loc imported?)
-                     (case at 
-                       [(ref) (cadr p)] 
-                       [else (if (caddr p) #f (cadr p))]) ; imported can be ref-d only 
-                     ; implicitly/on demand append integrables and "naked" globals
-                     (let ([loc (make-location (or (lookup-integrable id) (list 'ref id)))])
-                       (vector-set! env i (cons (list id loc #f) al)) ; not imported
-                       loc)))]
-              [(string? env) ; module prefix = module internals: full access
-               (and (memq at '(ref set! define define-syntax))
-                 (let ([gid (string->symbol (string-append env (symbol->string id)))])
-                   (env-lookup gid *root-environment* 'ref)))]
-              [(procedure? env)
-               (env id at)]
-              [else ; finite env 
-               #f]))))
-
-
-; make explicit root environment (a vector) and fill it
-
-(define *root-environment*
-  (make-vector 101 '())) ; use prime number
-
-(define (define-in-root-environment! name loc imported?)
-  (let* ([env *root-environment*] [n (vector-length env)]
-         [i (immediate-hash name n)] [al (vector-ref env i)] 
-         [p (assq name al)])
-    (if p 
-        (begin (set-car! (cdr p) loc) (set-car! (cddr p) imported?))
-        (vector-set! env i (cons (list name loc imported?) al)))))
-
-; put handmade ones first! 
-
-(define-in-root-environment! 'include 
-  (make-location (make-include-transformer #f)) #t)
-
-(define-in-root-environment! 'include-ci 
-  (make-location (make-include-transformer #t)) #t)
-
-(define-in-root-environment! 'cond-expand 
-  (make-location (make-cond-expand-transformer)) #t)
-
-; now put the builtins (lazily) and others
-
-(let ([put! (lambda (k loc) (define-in-root-environment! k loc #t))]) 
-  (let loop ([l (initial-transformers)])
-    (if (null? l) 'ok
-        (let ([p (car l)] [l (cdr l)])
-          (let ([k (car p)] [v (cdr p)])
-            (cond
-              [(or (symbol? v) (number? v)) 
-               (put! k (make-location v))
-               (loop l)]
-              [(and (pair? v) (eq? (car v) 'syntax-rules))
-               (body
-                 (define (sr-env id at) 
-                   (env-lookup id *root-environment* at))
-                 (define sr-v
-                   (if (id? (cadr v))
-                       (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
-                       (syntax-rules* sr-env #f (cadr v) (cddr v))))
-                 (put! k (make-location sr-v))
-                 (loop l))]))))))
-
-(define (root-environment id at)
-  (env-lookup id *root-environment* at))
-
-
-;---------------------------------------------------------------------------------------------
-; Expand-time root name registry initialized with built-in and predefined values
+; Expand-time name registries
 ;---------------------------------------------------------------------------------------------
 
 ; name registries are htables (vectors with one extra slot) of alists ((sym . <location>) ...)
 ; last slot is used for list names (library names), the rest for regular symbolic names
-(define *root-name-registry* (make-vector 102 '())) ; vector of prime+1 length
+
+(define (make-name-registry size) ; size is approx. count of buckets
+  (define primes ; some nice-looking primes in 1 - 1000 range
+   '(1 11 31 41 61 71 101 131 151 181 191 211 241 251 271 281 311 331 401 421 431 
+     461 491 521 541 571 601 631 641 661 691 701 751 761 811 821 881 911 941 971))
+  (define prime (cond [(member size primes <=) => car] [else 991]))
+  (make-vector (+ prime 1) '())) ; last bucket used for listnames
+
+(define (eal->name-registry eal) (vector eal '()))
 
 (define (name-lookup nr name mkdefval) ;=> loc | #f
   (let* ([n-1 (- (vector-length nr) 1)] [i (if (pair? name) n-1 (immediate-hash name n-1))] 
@@ -1841,6 +1737,9 @@
                            loc)]))]
           [else #f])))
 
+; public registry for all non-hidden skint names
+(define *root-name-registry* (make-name-registry 300))
+
 ; register integrable procedures
 (let loop ([i 0])
   (let ([li (lookup-integrable i)]) ;=> #f, #<void>, or integrable (li == i)
@@ -1850,18 +1749,19 @@
           (when (symbol? name) (name-lookup *root-name-registry* name (lambda (name) i)))))
       (loop (+ i 1))))) 
 
-; register initial transformers
+; register initial define-syntax transformers coming from s.scm and this file
 (let loop ([l (initial-transformers)])
   (unless (null? l)
     (let* ([p (car l)] [l (cdr l)] [k (car p)] [v (cdr p)])
       (cond [(or (symbol? v) (integrable? v))
-             (name-lookup *root-name-registry* k (lambda (name) v)) 
+             (name-lookup *root-name-registry* k (lambda (n) v)) 
              (loop l)]
             [(and (pair? v) (eq? (car v) 'syntax-rules))
               (body
                 (define (sr-env id at)
-                  ; FIXME: for now, we have to keep using old root env 
-                  (env-lookup id *root-environment* at))
+                  (if (new-id? id) (old-den id)
+                      (name-lookup *root-name-registry* id 
+                        (lambda (n) (list 'ref n)))))
                 (define sr-v
                   (if (id? (cadr v))
                       (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
@@ -1870,9 +1770,9 @@
                 (loop l))]))))
 
 ; register handcoded transformers
-(name-lookup *root-name-registry* 'include     (lambda (name) (make-include-transformer #f)))
-(name-lookup *root-name-registry* 'include-ci  (lambda (name) (make-include-transformer #t)))
-(name-lookup *root-name-registry* 'cond-expand (lambda (name) (make-cond-expand-transformer)))
+(name-lookup *root-name-registry* 'include     (lambda (n) (make-include-transformer #f)))
+(name-lookup *root-name-registry* 'include-ci  (lambda (n) (make-include-transformer #t)))
+(name-lookup *root-name-registry* 'cond-expand (lambda (n) (make-cond-expand-transformer)))
 
 ; register standard libraries as well as (repl) library for interactive environment
 ; ... while doing that, bind missing standard names as refs to constant globals
@@ -1889,20 +1789,13 @@
     (define (get-library! listname) ;=> <library> 
       (location-val 
         (name-lookup *root-name-registry* listname 
-          (lambda (ln) 
-            (let ([l (make-library '(begin) '())])
-              ; for now, mirror libraries in old registry too... FIXME: just return l
-              (define-in-root-environment! (listname->symbol listname) (make-location l) #t)
-              l)))))
+          (lambda (ln) (make-library '(begin) '()))))) 
     (define (put-loc! library k loc)
       (let* ([eal (library-exports library)] [p (assq k eal)])
         (cond [p (set-cdr! p loc)] 
               [else (library-set-exports! library (cons (cons k loc) eal))])))
     (define (get-loc name)
-      ; FIXME: switch root-environment to  *root-name-registry*, and use this:
-      ; (name-lookup *root-name-registry* name (lambda (name) (list 'const name)))
-      ; for now, for libraries to work, we have to share old root env locations:
-      (root-environment name 'ref))
+      (name-lookup *root-name-registry* name (lambda (name) (list 'const name))))
     (let loop ([name (car r)] [keys (cdr r)])
       (cond [(null? keys) ; all go to (repl)
              (put-loc! (get-library! '(repl)) name (get-loc name))]
@@ -1920,7 +1813,7 @@
     (close-port b) (complex? v b) (cond v u b) (cond-expand b) (cons v b) (current-error-port b)
     (current-input-port v b) (current-output-port v b) (define v u b) (define-record-type b)
     (define-syntax v u b) (define-values b) (denominator v b) (do v u b) (dynamic-wind v b) (else v u b)
-    (eof-object b) (eof-object? v b) (eq? v b) (equal? v b) (eqv? v b) (error b)
+    (eof-object b) (eof-object? v b) (eq? v b) (equal? v b) (eqv? v b) (error b) (library b)
     (error-object-irritants b) (error-object-message b) (error-object? b) (even? v b) (exact b)
     (exact-integer-sqrt b) (exact-integer? b) (exact? v b) (expt v b) (features b) (file-error? b)
     (floor v b) (floor-quotient b) (floor-remainder b) (floor/ b) (flush-output-port b) (for-each v b)
@@ -1969,23 +1862,111 @@
     (write w v) (current-jiffy t) (current-second t) (jiffies-per-second t) (write-shared w)
     (write-simple w)
     ; skint extras go into (repl) only - not to be confused with (scheme repl)
-    (box?) (box) (unbox) (set-box!)
+    (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
+    (box?) (box) (unbox) (set-box!) (record?) (make-record) (record-length) (record-ref)
+    (record-set!) (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fx+) (fx*) (fx-) (fx/) 
+    (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg)
+    (fxabs) (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=? x y) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
+    (fxexpt) (fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsrl) (fixnum->flonum) (fixnum->string)
+    (string->fixnum) (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
+    (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
+    (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
+    (fltan) (flasin) (flacos) (flatan (y)) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
+    (flmax) (flonum->fixnum) (flonum->string) (string->flonum) (list-cat) (meme) (asse) (reverse!)
+    (circular?) (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
+    (vector-cat) (bytevector->list) (list->bytevector) (subbytevector) (standard-input-port) 
+    (standard-output-port) (standard-error-port) (rename-file)
     ))
 
+; private registry for names introduced in repl 
+(define *user-name-registry* (make-name-registry 100)) 
+
 
 ;---------------------------------------------------------------------------------------------
-; Evaluation
+; Environments
 ;---------------------------------------------------------------------------------------------
 
+; make read-only environment from a registry
+(define (make-readonly-environment rr)
+  (lambda (name at)
+    (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
+           (case at [(ref set!) (old-den name)] [else #f])]
+          [(eq? at 'ref) ; for reference only: do not allow any allocation
+           (name-lookup rr name #f)] ; no allocation callback
+          [else #f])))
+
+; controlled environments for libraries and programs using import al, global name generator, and env
+; allowing fall-through to env for list names (so libraries can still be fetched by list name)
+(define (make-controlled-environment ial global use-env)
+  (define ir (eal->name-registry ial)) ; handmade import registry from ial
+  (define lr (make-name-registry 100)) ; local registry for new names
+  (lambda (name at)
+    (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
+           (case at [(ref set!) (old-den name)] [else #f])]
+          [(eq? at 'ref) ; for reference only: try not to alloc
+           (name-lookup lr name ; return if in local registry
+             (lambda (n) ; ok, not in lr: check ir
+               (or (name-lookup ir name #f) ; if in ir, return it as-is
+                   (if (symbol? name)
+                       (list 'ref (global name)) ; alloc in repl store
+                       (use-env name 'ref)))))]  ; listnames looked up in use-env
+          [(memq at '(set! define)) ; same action for both operations
+           ; works only for symbolic names; auto-allocates but does not shadow
+           (and (symbol? name) ; no set!/define to list names
+                (name-lookup lr name ; return if in local registry
+                  (lambda (n) ; ok, not in lr: check ir and fail if it's there 
+                    (and (not (name-lookup ir name #f)) ; not imported? alloc:
+                         (list 'ref (global name))))))]
+          [(eq? at 'define-syntax) ; for introducing new syntax definition
+           ; works for all names; auto-allocates but does not shadow
+           (name-lookup lr name ; return if in local registry
+             (lambda (n) ; not in lr: check ir and fail if it's there
+               (and (not (name-lookup ir name #f)) ; not imported? alloc:
+                    (void))))]
+          [else #f])))
+
+; mutable environment from two registries; new bindings go to user registry
+(define (make-repl-environment rr ur prefix) ; prefix for allocated globals
+  (define (global name) (fully-qualified-library-prefixed-name prefix name))
+  (lambda (name at)
+    (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
+           (case at [(ref set!) (old-den name)] [else #f])]
+          [(eq? at 'ref) ; for reference only: try not to alloc
+           (name-lookup ur name ; return if in user registry
+             (lambda (n) ; ok, not in ur: check rr
+               (or (name-lookup rr name #f) ; if in rr, return it as-is
+                   (and (symbol? name) (list 'ref (global name))))))] ; alloc in repl store
+          [(eq? at 'set!) ; for assigning new values to variables
+           ; works only for symbolic names; auto-allocates but does not shadow
+           (and (symbol? name) ; no set! to list names
+                (name-lookup ur name ; return if in user registry
+                  (lambda (n) ; ok, not in ur: check rr and fail if it's there 
+                    (and (not (name-lookup rr name #f)) ; not there? alloc:
+                         (list 'ref (global name))))))]
+          [(eq? at 'define) ; for introducing new definition
+           ; works only for symbolic names; auto-allocates and shadows
+           (and (symbol? name) ; no define for list names
+                (name-lookup ur name ; return if in user registry
+                  (lambda (n) ; ok, not in ur: alloc 
+                    (list 'ref (global name)))))]
+          [(eq? at 'define-syntax) ; for introducing new syntax definition
+           ; works for all names; auto-allocates and shadows
+           (name-lookup ur name ; return if in user registry
+             (lambda (n) ; ok, not in ur: alloc 
+               (void)))]
+          [else #f])))
+
+(define root-environment
+  (make-readonly-environment *root-name-registry*))
+
+(define repl-environment 
+  (make-repl-environment *root-name-registry* *user-name-registry* 'repl://))
 
 ;---------------------------------------------------------------------------------------------
 ; REPL
 ;---------------------------------------------------------------------------------------------
 
 (define *verbose* #f)
-
-(define (repl-environment id at) ; FIXME: need to happen in a "repl." namespace
-  (env-lookup id *root-environment* at))
 
 (define (repl-compile-and-run-core-expr core)
   (when *verbose* (display "TRANSFORM =>") (newline) (write core) (newline))
@@ -2029,7 +2010,7 @@
                    (cadr core) env))
              (when *verbose* (display "SYNTAX INSTALLED: ") (write (cadr core)) (newline)))]
           [(eq? hval 'define-library) ; use new protocol for top-level envs
-           (let* ([core (xform-define-library (car x) (cdr x) env #f)]
+           (let* ([core (xform-define-library (car x) (cdr x) env #t)]
                   [loc (xenv-lookup env (cadr core) 'define-syntax)])
              (if loc ; location or #f
                  (let ([l (caddr core)]) (location-set-val! loc l))
@@ -2037,7 +2018,7 @@
                    (cadr core) env))
              (when *verbose* (display "LIBRARY INSTALLED: ") (write (cadr core)) (newline)))]
           [(eq? hval 'import) ; splice as definitions
-           (let* ([core (xform-import (car x) (cdr x) env #f)] ; core is (import <library>)
+           (let* ([core (xform-import (car x) (cdr x) env #t)] ; core is (import <library>)
                   [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
              (define (define-alias p) 
                (repl-eval-top-form ; FIXME: this is not optimal -- too much fuss
@@ -2068,6 +2049,10 @@
     [(say hello) (display "Well, hello!\n" op)]
     [(ref <symbol>) (write (repl-environment (car args) 'ref) op) (newline op)]
     [(ref (* * ...)) (write (repl-environment (car args) 'ref) op) (newline op)]
+    [(rnr) (write *root-name-registry* op) (newline op)]
+    [(rnr *) (write (name-lookup *root-name-registry* (car args) #f) op) (newline op)]
+    [(unr) (write *user-name-registry* op) (newline op)]
+    [(unr *) (write (name-lookup *user-name-registry* (car args) #f) op) (newline op)]
     [(peek *)
      (cond [(string? (car args)) 
             (display (if (file-exists? (car args)) 
@@ -2085,6 +2070,10 @@
      (display " ,verbose on    -- turn verbosity on\n" op)
      (display " ,verbose off   -- turn verbosity off\n" op)
      (display " ,ref <name>    -- show current denotation for <name>\n" op)
+     (display " ,rnr           -- show root name registry\n" op)
+     (display " ,rnr <name>    -- lookup name in root registry\n" op)
+     (display " ,unr           -- show user name registry\n" op)
+     (display " ,unr <name>    -- lookup name in user registry\n" op)
      (display " ,help          -- this help\n" op)]
     [else
      (display "syntax error in repl command\n" op)
@@ -2126,11 +2115,12 @@
   (repl-eval-top-form '(main #f) repl-environment)  
   (close-input-port iport))
 
-(define (run-repl)
+(define (repl)
   (set-current-file-stack! '())
   (repl-from-port 
     (current-input-port) 
     repl-environment
     "skint]"))
 
+(define run-repl repl)
 
