@@ -1,13 +1,13 @@
 
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 ; Transformer and Compiler
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 (load "s.scm")
 
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 ; Utils
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 (define (set-member? x s)
   (cond [(null? s) #f]
@@ -178,9 +178,9 @@
   (print-error-message (string-append "Warning: " msg) args (current-error-port)))
 
 
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 ; Syntax of the Scheme Core language
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 ;  <core> -> (quote <object>)
 ;  <core> -> (const <id>) ; immutable variant of ref 
@@ -247,9 +247,9 @@
         (fx+ 1 (idslist-req-count (cdr ilist)))
         0)))
 
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 ; Macro transformer (from Scheme to Scheme Core) derived from Al Petrofsky's EIOD 1.17
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 ; An environment is a procedure that accepts any identifier and access type and returns a 
 ; denotation. Access type is one of these symbols: ref, set!, define, define-syntax.
@@ -1092,9 +1092,9 @@
       (x-error "improper import form" (cons head tail))))
 
 
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 ; String representation of S-expressions and code arguments
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 (define (write-serialized-char x port)
   (cond [(or (char=? x #\%) (char=? x #\") (char=? x #\\) (char<? x #\space) (char>? x #\~))
@@ -1173,9 +1173,9 @@
             (write-char #\) port))))
 
 
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 ; Compiler producing serialized code
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 (define (c-error msg . args)
   (error* (string-append "compiler: " msg) args))
@@ -1549,9 +1549,9 @@
     (get-output-string p)))
 
 
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 ; Path and file name resolution
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 (define (path-directory filename)
   (let loop ([l (reverse (string->list filename))])
@@ -1589,7 +1589,7 @@
 
 (define (push-current-file! filename)
  (when (member filename *current-file-stack* string=?)
-   (x-error "circularity in include file chain" filename))
+   (x-error "circularity in nested file chain" filename))
  (set! *current-file-stack* (cons filename *current-file-stack*)))
 
 (define (pop-current-file!)
@@ -1609,9 +1609,9 @@
       filename))
 
 
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 ; Library names and library file lookup
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 (define (lnpart? x) (or (id? x) (exact-integer? x)))
 (define (listname? x) (and (list1+? x) (andmap lnpart? x))) 
@@ -1691,20 +1691,47 @@
       (when ci? (set-port-fold-case! port #t))
       (read-port-sexps port))))
 
-(define (library-available? lib env) ;=> #f | filepath (external) | (code . eal) (loaded)
-  (cond [(string? lib) (file-resolve-relative-to-current lib)]
-        [(library-info lib #f)] ; builtin or preloaded FIXME: need to take env into account!
-        [else (and (listname? lib) (find-library-path lib))]))
+(define (library-available? lib env) ;=> #f | filepath (external) | <library> (loaded)
+  (cond [(not (listname? lib)) #f]
+        [(find-library-in-env lib env)] ; defined below
+        [else (find-library-path lib)]))
 
 ; name prefixes
 
 (define (fully-qualified-library-prefixed-name lib id)
   (symbol-append (if (symbol? lib) lib (listname->symbol lib)) '? id))
 
+; used as autoload action supplying default value for list names
+(define (fetch-library listname sld-env) ;=> <library> | #f
+  ; note: any part of the actual fetch/process may fail. In that case,
+  ; fetch-library escapes and environment will still lack binding for
+  ; listname -- so the library can be fixed and reloaded afterwards 
+  (define (fetch filepath)
+    (unless *quiet*
+      (let ([p (current-error-port)])
+        (display "; fetching " p) (write listname p) (display " library from " p) 
+        (display filepath p) (newline p)))
+    (with-current-file filepath
+      (lambda () 
+        (let ([sexps (read-file-sexps filepath #f)])
+          (if (sexp-match? '((define-library * * ...)) sexps)
+              ; invoke xform-define-library in 'top' context (for lib:// globals)
+              (let ([core (xform-define-library (caar sexps) (cdar sexps) sld-env #t)])
+                (if (and (sexp-match? '(define-library * *) core)
+                         (equal? (cadr core) listname) (val-library? (caddr core)))
+                    (caddr core) ;=> <library>
+                    (x-error "library autoloader: internal transformer error" 
+                      listname filepath sexps core)))
+              (x-error "library autoloader: unexpected forms in .sld file" 
+                listname filepath sexps))))))
+  (define filepath (find-library-path listname))
+  ; return #f if .sld file is not found; otherwise expect it to be in shape
+  (and filepath (fetch filepath))) 
 
-;---------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
 ; Expand-time name registries
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 ; name registries are htables (vectors with one extra slot) of alists ((sym . <location>) ...)
 ; last slot is used for list names (library names), the rest for regular symbolic names
@@ -1887,12 +1914,12 @@
     ))
 
 ; private registry for names introduced in repl 
-(define *user-name-registry* (make-name-registry 100)) 
+(define *user-name-registry* (make-name-registry 200)) 
 
 
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 ; Environments
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 ; make read-only environment from a registry
 (define (make-readonly-environment rr)
@@ -1903,8 +1930,8 @@
            (name-lookup rr name #f)] ; no allocation callback
           [else #f])))
 
-; controlled environments for libraries and programs using import al, global name generator, and env
-; allowing fall-through to env for list names (so libraries can still be fetched by list name)
+; makes controlled environments for libraries and programs using import al, global name generator, 
+; and env allowing fall-through for list names (so libraries can still be fetched by list name)
 (define (make-controlled-environment ial global use-env)
   (define ir (eal->name-registry ial)) ; handmade import registry from ial
   (define lr (make-name-registry 100)) ; local registry for new names
@@ -1938,11 +1965,26 @@
                (cond [(name-lookup lr (car p) #f) => (lambda (loc) 
                       (x-error "imported name shadows local name" (car p) (cdr p) loc))]))
              (for-each check ial)
-             (eal-name-registry-import! ir ial))]
+             (eal-name-registry-import! ir ial)
+             #t)] ; don't bother returning counts, they are useful in repl only
           [else #f])))
 
-; mutable environment from two registries; new bindings go to user registry
-(define (make-repl-environment rr ur gpref) ; prefix for allocated globals
+; makes environments for .sld files, automatically extending root registry with list names
+(define (make-sld-environment rr)
+  ; note: lookup in sld environment can cause recursive calls to fetch-library
+  ; if upstream dependencies are not yet loaded; loops are detected inside f-l
+  (define (sld-env id at)
+    (cond [(not (eq? at 'ref)) #f]
+          [(procedure? id) (old-den id)]
+          [(eq? id 'define-library) (make-location 'define-library)]
+          [(not (listname? id)) #f]
+          [else (name-lookup rr id
+                  (lambda (n) ; no library? see if we can fetch it recursively
+                    (fetch-library name sld-env)))])) ;=> <library> or #f
+  sld-env)
+
+; makes mutable environments from two registries; new bindings go to user registry
+(define (make-repl-environment rr ur gpref) ; gpref is prefix for allocated globals
   (define (global name) (fully-qualified-library-prefixed-name gpref name))
   (lambda (name at)
     (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
@@ -1950,7 +1992,11 @@
           [(eq? at 'ref) ; for reference only: try not to alloc
            (name-lookup ur name ; return if in user registry
              (lambda (n) ; ok, not in ur: check rr
-               (or (name-lookup rr name #f) ; if in rr, return it as-is
+               (or (name-lookup rr name ; if in rr, return it as-is
+                     (lambda (n) ; not in rr: see if it is a library to autoload
+                        (and (listname? name) ; special default value: autoload from .sld
+                             (let ([sld-env (make-sld-environment rr)]) ; make env for .sld files
+                               (fetch-library name sld-env))))) ;=> <library> or #f
                    (and (symbol? name) (list 'ref (global name))))))] ; alloc in repl store
           [(eq? at 'set!) ; for assigning new values to variables
            ; works only for symbolic names; auto-allocates but does not shadow
@@ -1974,7 +2020,7 @@
            ; special request for repl environment only: mass import
            (let loop ([eal name] [samc 0] [modc 0] [addc 0])
              (if (null? eal)
-                 (list samc modc addc)
+                 (list samc modc addc) ; return counts for verbosity
                  (let ([id (caar eal)] [loc (cdar eal)] [eal (cdr eal)])
                    (name-remove! ur id) ; user binding isn't changed, but no longer visible 
                    (case (name-install! rr id loc) ; root binding possibly changed
@@ -1983,17 +2029,23 @@
                      [(added)    (loop eal samc modc (+ addc 1))]))))] 
           [else #f])))
 
+(define (find-library-in-env listname env) ;=> library | #f
+  (let ([loc (env listname 'ref)])
+    (and loc (let ([val (location-val loc)]) (and (val-library? val) val)))))
+
 (define root-environment
   (make-readonly-environment *root-name-registry*))
 
 (define repl-environment 
   (make-repl-environment *root-name-registry* *user-name-registry* 'repl://))
 
-;---------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
 ; REPL
-;---------------------------------------------------------------------------------------------
+;--------------------------------------------------------------------------------------------------
 
 (define *verbose* #f)
+(define *quiet* #f)
 
 (define (repl-compile-and-run-core-expr core)
   (when *verbose* (display "TRANSFORM =>") (newline) (write core) (newline))
@@ -2100,13 +2152,22 @@
             (display (if (file-exists? (symbol->string (car args))) 
               "file exists\n" "file does not exist\n") op)]
            [else (display "invalid file name; use double quotes\n" op)])]
+    [(v) (set! *verbose* #t)]
     [(verbose on) (set! *verbose* #t)]
     [(verbose off) (set! *verbose* #f)]
+    [(q) (set! *quiet* #t)]
+    [(quiet on) (set! *quiet* #t)]
+    [(quiet off) (set! *quiet* #f)]
     [(help)
      (display "Available commands:\n" op)
      (display " ,say hello     -- displays nice greeting\n" op)
      (display " ,peek <fname>  -- check if file exists\n" op)
+     (display " ,q             -- disable informational messages\n" op)
+     (display " ,quiet on      -- disable informational messages\n" op)
+     (display " ,quiet off     -- enable informational messages\n" op)
+     (display " ,v             -- turn verbosity on\n" op)
      (display " ,verbose on    -- turn verbosity on\n" op)
+     (display " ,verbose off   -- turn verbosity off\n" op)
      (display " ,verbose off   -- turn verbosity off\n" op)
      (display " ,ref <name>    -- show current denotation for <name>\n" op)
      (display " ,rnr           -- show root name registry\n" op)
@@ -2163,5 +2224,4 @@
     repl-environment
     "skint]"))
 
-(define run-repl repl)
 

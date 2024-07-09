@@ -911,8 +911,8 @@ char *t_code[] = {
 
   "P", "push-current-file!",
   "%1${@(y8:string=?),@(y20:*current-file-stack*),.4,@(y7:%25member)[03}?"
-  "{${.2,'(s33:circularity in include file chain),@(y7:x-error)[02}}@(y20"
-  ":*current-file-stack*),.1c@!(y20:*current-file-stack*)]1",
+  "{${.2,'(s32:circularity in nested file chain),@(y7:x-error)[02}}@(y20:"
+  "*current-file-stack*),.1c@!(y20:*current-file-stack*)]1",
 
   "P", "pop-current-file!",
   "%0@(y20:*current-file-stack*)u~?{@(y20:*current-file-stack*)d@!(y20:*c"
@@ -980,13 +980,24 @@ char *t_code[] = {
   "-input-file)[22",
 
   "P", "library-available?",
-  "%2.0S0?{.0,@(y32:file-resolve-relative-to-current)[21}${f,.3,@(y12:lib"
-  "rary-info)[02},.0?{.0]3}${.3,@(y9:listname?)[01}?{.1,@(y17:find-librar"
-  "y-path)[31}f]3",
+  "%2${.2,@(y9:listname?)[01}~?{f]2}${.3,.3,@(y19:find-library-in-env)[02"
+  "},.0?{.0]3}.1,@(y17:find-library-path)[31",
 
   "P", "fully-qualified-library-prefixed-name",
   "%2.1,'(y1:?),.2Y0?{.2}{${.4,@(y16:listname->symbol)[01}},@(y13:symbol-"
   "append)[23",
+
+  "P", "fetch-library",
+  "%2,,#0#1.3,.3,&2{%1@(y7:*quiet*)~?{Pe,.0,'(s11:; fetching )W4.0,:0W5.0"
+  ",'(s14: library from )W4.0,.2W4.0W6_1}.0,:1,:0,&3{%0${f,:2,@(y15:read-"
+  "file-sexps)[02},${.2,'(l1:l4:y14:define-library;y1:*;y1:*;y3:...;;),@("
+  "y11:sexp-match?)[02}?{${t,:1,.4ad,.5aa,@(y20:xform-define-library)[04}"
+  ",${.2,'(l3:y14:define-library;y1:*;y1:*;),@(y11:sexp-match?)[02}?{:0,."
+  "1dae?{.0ddaV0}{f}}{f}?{.0dda]2}.0,.2,:2,:0,'(s46:library autoloader: i"
+  "nternal transformer error),@(y7:x-error)[25}.0,:2,:0,'(s49:library aut"
+  "oloader: unexpected forms in .sld file),@(y7:x-error)[14},.1,@(y17:wit"
+  "h-current-file)[12}.!0${.4,@(y17:find-library-path)[01}.!1.1^?{.1^,.1^"
+  "[41}f]4",
 
   "P", "make-name-registry",
   "%1,,#0#1'(l40:i1;i11;i31;i41;i61;i71;i101;i131;i151;i181;i191;i211;i24"
@@ -1220,7 +1231,7 @@ char *t_code[] = {
   "03}.1d,.1,:4^[22}.!0.0^_1[52},@(y10:%25for-each1)[02}",
 
   "C", 0,
-  "${'(i100),@(y18:make-name-registry)[01}@!(y20:*user-name-registry*)",
+  "${'(i200),@(y18:make-name-registry)[01}@!(y20:*user-name-registry*)",
 
   "P", "make-readonly-environment",
   "%1.0,&1{%2.0K0?{.1,'(l2:y3:ref;y4:set!;),.1A1?{.1,@(y7:old-den)[31}f]3"
@@ -1238,24 +1249,34 @@ char *t_code[] = {
   ":3^,@(y11:name-lookup)[23}'(y6:import),.2q?{${.2,'(l2:py8:<symbol>;zy1"
   ":*;;;y3:...;),@(y11:sexp-match?)[02}}{f}?{.0,,#0:3,&1{%1${f,.3a,:0^,@("
   "y11:name-lookup)[03},.0?{.0,.0,.3d,.4a,'(s32:imported name shadows loc"
-  "al name),@(y7:x-error)[34}f]2}.!0${.3,.3^,@(y10:%25for-each1)[02}.1,:2"
-  "^,@(y25:eal-name-registry-import!)[42}f]2}]5",
+  "al name),@(y7:x-error)[34}f]2}.!0${.3,.3^,@(y10:%25for-each1)[02}${.3,"
+  ":2^,@(y25:eal-name-registry-import!)[02}t]4}f]2}]5",
+
+  "P", "make-sld-environment",
+  "%1,#0.0,.2,&2{%2'(y3:ref),.2q~?{f]2}.0K0?{.0,@(y7:old-den)[21}'(y14:de"
+  "fine-library),.1q?{'(y14:define-library)b]2}${.2,@(y9:listname?)[01}~?"
+  "{f]2}:1,&1{%1:0^,@(y4:name),@(y13:fetch-library)[12},.1,:0,@(y11:name-"
+  "lookup)[23}.!0.0^]2",
 
   "P", "make-repl-environment",
   "%3,#0.3,&1{%1.0,:0,@(y37:fully-qualified-library-prefixed-name)[12}.!0"
   ".2,.2,.2,&3{%2.0K0?{.1,'(l2:y3:ref;y4:set!;),.1A1?{.1,@(y7:old-den)[31"
-  "}f]3}'(y3:ref),.2q?{:1,.1,:0,&3{%1${f,:1,:2,@(y11:name-lookup)[03},.0?"
-  "{.0]2}:1Y0?{${:1,:0^[01},'(y3:ref),l2]2}f]2},.1,:2,@(y11:name-lookup)["
-  "23}'(y4:set!),.2q?{.0Y0?{.0,:0,:1,&3{%1${f,:2,:0,@(y11:name-lookup)[03"
-  "}~?{${:2,:1^[01},'(y3:ref),l2]1}f]1},.1,:2,@(y11:name-lookup)[23}f]2}'"
-  "(y6:define),.2q?{.0Y0?{:0,.1,&2{%1${:0,:1^[01},'(y3:ref),l2]1},.1,:2,@"
-  "(y11:name-lookup)[23}f]2}'(y13:define-syntax),.2q?{&0{%1Y9]1},.1,:2,@("
-  "y11:name-lookup)[23}'(y6:import),.2q?{${.2,'(l2:py8:<symbol>;zy1:*;;;y"
-  "3:...;),@(y11:sexp-match?)[02}}{f}?{'0,'0,'0,.3,,#0:2,:1,.2,&3{%4.0u?{"
-  ".3,.3,.3,l3]4}.0d,.1ad,.2aa,${.2,:2,@(y12:name-remove!)[02}${.3,.3,:1,"
-  "@(y13:name-install!)[03},'(y4:same),.1v?{.7,.7,'1,.8+,.6,:0^[84}'(y8:m"
-  "odified),.1v?{.7,'1,.8+,.7,.6,:0^[84}'(y5:added),.1v?{'1,.8+,.7,.7,.6,"
-  ":0^[84}]8}.!0.0^_1[24}f]2}]4",
+  "}f]3}'(y3:ref),.2q?{.0,:1,:0,&3{%1${:2,:1,&2{%1${:1,@(y9:listname?)[01"
+  "}?{${:0,@(y20:make-sld-environment)[01},.0,:1,@(y13:fetch-library)[22}"
+  "f]1},:2,:1,@(y11:name-lookup)[03},.0?{.0]2}:2Y0?{${:2,:0^[01},'(y3:ref"
+  "),l2]2}f]2},.1,:2,@(y11:name-lookup)[23}'(y4:set!),.2q?{.0Y0?{.0,:0,:1"
+  ",&3{%1${f,:2,:0,@(y11:name-lookup)[03}~?{${:2,:1^[01},'(y3:ref),l2]1}f"
+  "]1},.1,:2,@(y11:name-lookup)[23}f]2}'(y6:define),.2q?{.0Y0?{:0,.1,&2{%"
+  "1${:0,:1^[01},'(y3:ref),l2]1},.1,:2,@(y11:name-lookup)[23}f]2}'(y13:de"
+  "fine-syntax),.2q?{&0{%1Y9]1},.1,:2,@(y11:name-lookup)[23}'(y6:import),"
+  ".2q?{${.2,'(l2:py8:<symbol>;zy1:*;;;y3:...;),@(y11:sexp-match?)[02}}{f"
+  "}?{'0,'0,'0,.3,,#0:2,:1,.2,&3{%4.0u?{.3,.3,.3,l3]4}.0d,.1ad,.2aa,${.2,"
+  ":2,@(y12:name-remove!)[02}${.3,.3,:1,@(y13:name-install!)[03},'(y4:sam"
+  "e),.1v?{.7,.7,'1,.8+,.6,:0^[84}'(y8:modified),.1v?{.7,'1,.8+,.7,.6,:0^"
+  "[84}'(y5:added),.1v?{'1,.8+,.7,.7,.6,:0^[84}]8}.!0.0^_1[24}f]2}]4",
+
+  "P", "find-library-in-env",
+  "%2${'(y3:ref),.3,.5[02},.0?{.0z,.0V0?{.0]4}f]4}f]3",
 
   "C", 0,
   "${@(y20:*root-name-registry*),@(y25:make-readonly-environment)[01}@!(y"
@@ -1267,6 +1288,9 @@ char *t_code[] = {
 
   "C", 0,
   "f@!(y9:*verbose*)",
+
+  "C", 0,
+  "f@!(y7:*quiet*)",
 
   "P", "repl-compile-and-run-core-expr",
   "%1@(y9:*verbose*)?{Po,'(s12:TRANSFORM =>)W4PoW6Po,.1W5PoW6}.0p~?{${.2,"
@@ -1334,21 +1358,29 @@ char *t_code[] = {
   "{.4,.1^aF0?{'(s12:file exists%0a)}{'(s20:file does not exist%0a)}W4]5}"
   ".0^aY0?{.4,.1^aX4F0?{'(s12:file exists%0a)}{'(s20:file does not exist%"
   "0a)}W4]5}.4,'(s37:invalid file name; use double quotes%0a)W4]5}${.3^,'"
-  "(l2:y7:verbose;y2:on;),@(y11:sexp-match?)[02}?{t@!(y9:*verbose*)]5}${."
-  "3^,'(l2:y7:verbose;y3:off;),@(y11:sexp-match?)[02}?{f@!(y9:*verbose*)]"
-  "5}${.3^,'(l1:y4:help;),@(y11:sexp-match?)[02}?{.4,'(s20:Available comm"
-  "ands:%0a)W4.4,'(s42: ,say hello     -- displays nice greeting%0a)W4.4,"
-  "'(s40: ,peek <fname>  -- check if file exists%0a)W4.4,'(s37: ,verbose "
-  "on    -- turn verbosity on%0a)W4.4,'(s38: ,verbose off   -- turn verbo"
-  "sity off%0a)W4.4,'(s54: ,ref <name>    -- show current denotation for "
-  "<name>%0a)W4.4,'(s43: ,rnr           -- show root name registry%0a)W4."
-  "4,'(s48: ,rref <name>   -- lookup name in root registry%0a)W4.4,'(s50:"
-  " ,rrem! <name>  -- remove name from root registry%0a)W4.4,'(s43: ,unr "
-  "          -- show user name registry%0a)W4.4,'(s48: ,uref <name>   -- "
-  "lookup name in user registry%0a)W4.4,'(s50: ,urem! <name>  -- remove n"
-  "ame from user registry%0a)W4.4,'(s29: ,help          -- this help%0a)W"
-  "4]5}.4,'(s29:syntax error in repl command%0a)W4.4,'(s37:type ,help to "
-  "see available commands%0a)W4]5",
+  "(l1:y1:v;),@(y11:sexp-match?)[02}?{t@!(y9:*verbose*)]5}${.3^,'(l2:y7:v"
+  "erbose;y2:on;),@(y11:sexp-match?)[02}?{t@!(y9:*verbose*)]5}${.3^,'(l2:"
+  "y7:verbose;y3:off;),@(y11:sexp-match?)[02}?{f@!(y9:*verbose*)]5}${.3^,"
+  "'(l1:y1:q;),@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)]5}${.3^,'(l2:y5:qu"
+  "iet;y2:on;),@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)]5}${.3^,'(l2:y5:qu"
+  "iet;y3:off;),@(y11:sexp-match?)[02}?{f@!(y7:*quiet*)]5}${.3^,'(l1:y4:h"
+  "elp;),@(y11:sexp-match?)[02}?{.4,'(s20:Available commands:%0a)W4.4,'(s"
+  "42: ,say hello     -- displays nice greeting%0a)W4.4,'(s40: ,peek <fna"
+  "me>  -- check if file exists%0a)W4.4,'(s50: ,q             -- disable "
+  "informational messages%0a)W4.4,'(s50: ,quiet on      -- disable inform"
+  "ational messages%0a)W4.4,'(s49: ,quiet off     -- enable informational"
+  " messages%0a)W4.4,'(s37: ,v             -- turn verbosity on%0a)W4.4,'"
+  "(s37: ,verbose on    -- turn verbosity on%0a)W4.4,'(s38: ,verbose off "
+  "  -- turn verbosity off%0a)W4.4,'(s38: ,verbose off   -- turn verbosit"
+  "y off%0a)W4.4,'(s54: ,ref <name>    -- show current denotation for <na"
+  "me>%0a)W4.4,'(s43: ,rnr           -- show root name registry%0a)W4.4,'"
+  "(s48: ,rref <name>   -- lookup name in root registry%0a)W4.4,'(s50: ,r"
+  "rem! <name>  -- remove name from root registry%0a)W4.4,'(s43: ,unr    "
+  "       -- show user name registry%0a)W4.4,'(s48: ,uref <name>   -- loo"
+  "kup name in user registry%0a)W4.4,'(s50: ,urem! <name>  -- remove name"
+  " from user registry%0a)W4.4,'(s29: ,help          -- this help%0a)W4]5"
+  "}.4,'(s29:syntax error in repl command%0a)W4.4,'(s37:type ,help to see"
+  " available commands%0a)W4]5",
 
   "P", "repl-from-port",
   "%3,#0${@(y18:current-file-stack)[00}.!0${k0,.0,${.2,.9,.(i11),.(i10),&"
@@ -1380,9 +1412,6 @@ char *t_code[] = {
   "P", "repl",
   "%0${n,@(y23:set-current-file-stack!)[01}'(s6:skint]),@(y16:repl-enviro"
   "nment),Pi,@(y14:repl-from-port)[03",
-
-  "C", 0,
-  "@(y4:repl)@!(y8:run-repl)",
 
   0, 0, 0
 };
