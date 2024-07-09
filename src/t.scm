@@ -808,12 +808,12 @@
             (loop (cdr files) (cons wrapped-sexps exp-lists)))))))
 
 ; return the right ce branch using (lit=? id sym) for literal match
-(define (preprocess-cond-expand lit=? sexp) ;=> (sexp ...)
+(define (preprocess-cond-expand lit=? sexp env) ;=> (sexp ...)
   (define (pp freq con alt)
     (cond [(lit=? freq 'else) (con)]
           [(id? freq) (if (feature-available? (id->sym freq)) (con) (alt))]
           [(and (list2? freq) (lit=? (car freq) 'library))
-           (if (library-available? (xform-sexp->datum (cadr freq))) (con) (alt))]
+           (if (library-available? (xform-sexp->datum (cadr freq)) env) (con) (alt))]
           [(and (list1+? freq) (lit=? (car freq) 'and))
            (cond [(null? (cdr freq)) (con)] [(null? (cddr freq)) (pp (cadr freq) con alt)]
                  [else (pp (cadr freq) (lambda () (pp (cons (car freq) (cddr freq)) con alt)) alt)])]
@@ -831,7 +831,7 @@
   (lambda (sexp env)
     (define (lit=? id sym) ; match literal using free-id=? -like match
       (and (id? id) (eq? (xenv-ref env id) (xenv-ref root-environment sym))))
-    (cons begin-id (preprocess-cond-expand lit=? sexp))))
+    (cons begin-id (preprocess-cond-expand lit=? sexp env))))
 
 ; library transformers
 
@@ -965,7 +965,7 @@
                (loop (append (cdr decl) decls) code eal esps forms)]
               [(eq? (car decl) ld-cond-expand-id) ; flatten and splice
                (let ([lit=? (lambda (id sym) (and (id? id) (eq? id (id-rename-as sid sym))))])
-                 (loop (append (preprocess-cond-expand lit=? (cdr decl)) decls) code eal esps forms))]
+                 (loop (append (preprocess-cond-expand lit=? (cdr decl)) decls env) code eal esps forms))]
               [(eq? (car decl) ld-push-cf-id) ; internal
                (check-syntax decl '(<id> <string>) "invalid library declarations syntax")
                (push-current-file! (cadr decl))
@@ -1025,13 +1025,25 @@
                       [(eq? hval 'define-syntax)
                        (let* ([core (xform-define-syntax tail cenv)]
                               [loc (xenv-lookup cenv (cadr core) 'define-syntax)])
-                         (unless (location? loc) (x-error "unexpected define-syntax for id" (cadr core) first))
+                         (unless (location? loc) 
+                           (x-error "unexpected define-syntax for id" (cadr core) first))
                          (location-set-val! loc (caddr core))
                          (scan rest code*))]
                       [(eq? hval 'define-library)
-                       (x-error "NYI: define-library inside library code" first)]
-                      [(eq? hval 'import)
-                       (x-error "NYI: import inside library code" first)]
+                       (let* ([core (xform-define-library head tail env #f)]
+                              ; core is (define-library <listname> <library>)
+                              [loc (xenv-lookup env (cadr core) 'define-syntax)])
+                         (unless (location? loc) 
+                           (x-error "unexpected define-library for id" (cadr core) first))
+                         (location-set-val! loc (caddr core))
+                         (scan rest code*))]
+                      [(eq? hval 'import) ; support, in case there is an internal import
+                       (let* ([core (xform-import head tail cenv #f)] 
+                              ; core is (import <library>)
+                              [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
+                         (unless (cenv eal 'import) ; adjoins eal to cenv's imports
+                           (x-error "broken import inside library code" first))
+                         (scan rest (cons code code*)))] ; adds library init code 
                       ; TODO: check for built-in (export) and modify eal!
                       [(val-transformer? hval) ; apply transformer and loop
                        (scan (cons (hval first cenv) rest) code*)]
@@ -1679,10 +1691,10 @@
       (when ci? (set-port-fold-case! port #t))
       (read-port-sexps port))))
 
-(define (library-available? lib) ;=> #f | filepath (external) | (code . eal) (loaded)
+(define (library-available? lib env) ;=> #f | filepath (external) | (code . eal) (loaded)
   (cond [(string? lib) (file-resolve-relative-to-current lib)]
-        [(library-info lib #f)] ; builtin or preloaded
-        [else (and (list1+? lib) (find-library-path lib))]))  ;(or (symbol? lib) (list1+? lib))
+        [(library-info lib #f)] ; builtin or preloaded FIXME: need to take env into account!
+        [else (and (listname? lib) (find-library-path lib))]))
 
 ; name prefixes
 
@@ -1705,6 +1717,9 @@
   (make-vector (+ prime 1) '())) ; last bucket used for listnames
 
 (define (eal->name-registry eal) (vector eal '()))
+
+(define (eal-name-registry-import! ir ial)
+  (vector-set! ir 0 (adjoin-eals (vector-ref ir 0) ial))) ; may end in x-error on conflict
 
 (define (name-lookup nr name mkdefval) ;=> loc | #f
   (let* ([n-1 (- (vector-length nr) 1)] [i (if (pair? name) n-1 (immediate-hash name n-1))] 
@@ -1916,6 +1931,14 @@
              (lambda (n) ; not in lr: check ir and fail if it's there
                (and (not (name-lookup ir name #f)) ; not imported? alloc:
                     (void))))]
+          [(and (eq? at 'import) (sexp-match? '((<symbol> . #&*) ...) name))
+           ; someone trues to add new imports: allow if there are no conflicts
+           (let ([ial name])
+             (define (check p)
+               (cond [(name-lookup lr (car p) #f) => (lambda (loc) 
+                      (x-error "imported name shadows local name" (car p) (cdr p) loc))]))
+             (for-each check ial)
+             (eal-name-registry-import! ir ial))]
           [else #f])))
 
 ; mutable environment from two registries; new bindings go to user registry
@@ -2007,38 +2030,33 @@
                    (cadr core) env)))]
           [(eq? hval 'define-syntax) ; use new protocol for top-level envs
            (let* ([core (xform-define-syntax (cdr x) env)]
+                  ; core is (define-syntax <name> <library>)
                   [loc (xenv-lookup env (cadr core) 'define-syntax)])
-             (if loc ; location or #f
-                 (location-set-val! loc (caddr core))
-                 (x-error "identifier cannot be (re)defined as syntax in env:"
-                   (cadr core) env))
+             (unless (location? loc) 
+               (x-error "unexpected define-syntax for id" (cadr core) x))
+             (location-set-val! loc (caddr core))
              (when *verbose* (display "SYNTAX INSTALLED: ") (write (cadr core)) (newline)))]
           [(eq? hval 'define-library) ; use new protocol for top-level envs
            (let* ([core (xform-define-library (car x) (cdr x) env #t)]
+                  ; core is (define-library <listname> <library>)
                   [loc (xenv-lookup env (cadr core) 'define-syntax)])
-             (if loc ; location or #f
-                 (let ([l (caddr core)]) (location-set-val! loc l))
-                 (x-error "identifier cannot be (re)defined as syntax in env:"
-                   (cadr core) env))
+             (unless (location? loc) 
+               (x-error "unexpected define-library for id" (cadr core) x))
+             (location-set-val! loc (caddr core))
              (when *verbose* (display "LIBRARY INSTALLED: ") (write (cadr core)) (newline)))]
           [(eq? hval 'import) ; splice as definitions
-           (let* ([core (xform-import (car x) (cdr x) env #t)] ; core is (import <library>)
+           (let* ([core (xform-import (car x) (cdr x) env #t)] 
+                  ; core is (import <library>)
                   [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
-             ; note: we should somehow introduce imported locations as-is for keywords like
-             ; 'else' to work correctly -- while protecting imported locations from change
-             ; via define or define-syntax; lookup with at=define-syntax returns us new
-             ; location from user name registry, offering different locations and no protection!
-             ; we need to extend env protocol, e.g. (env id <location>) that either fails,
-             ; or inserts <location> under id where it will be returned via (env id 'ref)
-             ; and nothing else. We use (env eal 'import) -- with guarantees that env can't 
-             ; answer any requests but 'ref to imported bindings
-             (let ([counts (env eal 'import)]) ; manually invoke env's extended behavior
-               (if (sexp-match? '(<number> <number> <number>) counts)
-                   (when *verbose* (display "IMPORT: ") 
-                     (write (car counts)) (display " bindings are the same, ")
-                     (write (cadr counts)) (display " modified, ")
-                     (write (caddr counts)) (display " added\n"))
-                   (x-error "failed to import to env, import is not supported:" env eal)))
+             ; note: try to use env's import protocol
+             (let ([res (env eal 'import)]) 
+               (unless res ; this env does not support import 
+                 (x-error "failed to import to env, import is not supported:" env eal))
+               (when (and *verbose* (sexp-match? '(<number> <number> <number>) res))
+                 (display "IMPORT: ") 
+                 (write (car res)) (display " bindings are the same, ")
+                 (write (cadr res)) (display " modified, ")
+                 (write (caddr res)) (display " added\n")))
              (repl-compile-and-run-core-expr code))]
           [(val-transformer? hval) ; apply transformer and loop
            (repl-eval-top-form (hval x env) env)]
