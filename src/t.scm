@@ -131,10 +131,10 @@
         (let ([a (car al)])
           (if (eq? x (cdr a)) a (rassq x (cdr al))))))
 
-(define (remove! x l pred?) ; applies (pred? (car l) x)
+(define (remove! x l pred?) ; applies (pred? x (car l))
   (let loop ([f #f] [l #f] [r l])
     (cond [(not (pair? r)) (if l (begin (set-cdr! l r) f) r)]
-          [(pred? (car r) x) (loop f l (cdr r))]
+          [(pred? x (car r)) (loop f l (cdr r))]
           [l (set-cdr! l r) (loop f r (cdr r))]
           [else (loop r r (cdr r))])))
 
@@ -1756,9 +1756,12 @@
            (let ([val (mkdefval name)]) ; check if it didn't fail:
              (cond [(not val) #f] ; mkdefval rejected the idea
                    [(location? val) val] ; found good location elsewhere
-                   [else (let ([loc (make-location val)]) ; ok, put it in:
-                           (vector-set! nr i (cons (cons name loc) al))
-                           loc)]))]
+                   [else (let ([al (vector-ref nr i)] [p (if (pair? name) (assoc name al) (assq name al))])
+                           ; note: have to refetch both cause mkdefval call could've change them!
+                           (if p (x-error "recursive library dependence on" name)
+                               (let ([loc (make-location val)]) ; ok, put it in:
+                                 (vector-set! nr i (cons (cons name loc) al))
+                                 loc)))]))]
           [else #f])))
 
 (define (name-install! nr name loc) ;=> same|modified|added
@@ -1770,7 +1773,7 @@
 
 (define (name-remove! nr name)
   (let* ([n-1 (- (vector-length nr) 1)] [i (if (pair? name) n-1 (immediate-hash name n-1))])
-    (vector-set! nr i (remove! name (vector-ref nr i) (lambda (p name) (equal? (car p) name))))))
+    (vector-set! nr i (remove! name (vector-ref nr i) (lambda (name p) (equal? (car p) name))))))
 
 ; public registry for all non-hidden skint names
 (define *root-name-registry* (make-name-registry 300))
@@ -2109,8 +2112,9 @@
              (let ([res (env eal 'import)]) 
                (unless res ; this env does not support import 
                  (x-error "failed to import to env, import is not supported:" env eal))
-               (when (and *verbose* (sexp-match? '(<number> <number> <number>) res))
-                 (display "IMPORT: ") 
+               (when (and (or (not *quiet*) *verbose*) 
+                          (sexp-match? '(<number> <number> <number>) res))
+                 (if *verbose* (display "IMPORT: ") (display "; import: "))
                  (write (car res)) (display " bindings are the same, ")
                  (write (cadr res)) (display " modified, ")
                  (write (caddr res)) (display " added\n")))

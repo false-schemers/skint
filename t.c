@@ -75,7 +75,7 @@ char *t_code[] = {
   "%2.1p?{.1a,.0d,.2q?{.0]3}.2d,.2,@(y5:rassq)[32}f]2",
 
   "P", "remove!",
-  "%3.1,f,f,,#0.0,.7,.6,&3{%3.2p~?{.1?{.2,.2sd.0]3}.2]3}${:0,.5a,:1[02}?{"
+  "%3.1,f,f,,#0.0,.7,.6,&3{%3.2p~?{.1?{.2,.2sd.0]3}.2]3}${.4a,:0,:1[02}?{"
   ".2d,.2,.2,:2^[33}.1?{.2,.2sd.2d,.3,.2,:2^[33}.2d,.3,.4,:2^[33}.!0.0^_1"
   "[33",
 
@@ -1014,7 +1014,9 @@ char *t_code[] = {
 
   "P", "name-lookup",
   "%3'1,.1V3-,.2p?{.0}{.0,.3H2},.0,.3V4,.4p?{.0,.5A5}{.0,.5A3},.0?{.0d]7}"
-  ".6?{${.7,.9[01},.0~?{f]8}.0Y2?{.0]8}.0b,.3,.1,.9cc,.5,.8V5.0]9}f]7",
+  ".6?{${.7,.9[01},.0~?{f]8}.0Y2?{.0]8}.6p?{.2,.7A5}{.2,.7A3},.4,.7V4,.1?"
+  "{.8,'(s31:recursive library dependence on),@(y7:x-error)[(i10)2}.2b,.1"
+  ",.1,.(i11)cc,.7,.(i10)V5.0](i11)}f]7",
 
   "P", "name-install!",
   "%3'1,.1V3-,.2p?{.0}{.0,.3H2},.0,.3V4,.4p?{.0,.5A5}{.0,.5A3},.0?{.6,.1d"
@@ -1022,7 +1024,7 @@ char *t_code[] = {
   ":added)]7",
 
   "P", "name-remove!",
-  "%2'1,.1V3-,.2p?{.0}{.0,.3H2},${&0{%2.1,.1ae]2},.3,.6V4,.7,@(y7:remove!"
+  "%2'1,.1V3-,.2p?{.0}{.0,.3H2},${&0{%2.0,.2ae]2},.3,.6V4,.7,@(y7:remove!"
   ")[03},.1,.4V5]4",
 
   "C", 0,
@@ -1323,15 +1325,16 @@ char *t_code[] = {
   "5PoW6]5}]5}'(y6:import),.1q?{${t,.5,.5d,.6a,@(y12:xform-import)[04},.0"
   "da,'0,.1V4,'1,.2V4,${'(y6:import),.3,.(i10)[02},.0~?{${.3,.(i10),'(s49"
   ":failed to import to env, import is not supported:),@(y7:x-error)[03}}"
-  "@(y9:*verbose*)?{${.2,'(l3:y8:<number>;y8:<number>;y8:<number>;),@(y11"
-  ":sexp-match?)[02}}{f}?{Po,'(s8:IMPORT: )W4Po,.1aW5Po,'(s24: bindings a"
-  "re the same, )W4Po,.1daW5Po,'(s11: modified, )W4Po,.1ddaW5Po,'(s7: add"
-  "ed%0a)W4}_1.1,@(y30:repl-compile-and-run-core-expr)[71}.0K0?{.2,${.5,."
-  "5,.5[02},@(y18:repl-eval-top-form)[32}.0U0?{${.4,.4d,.4,@(y16:xform-in"
-  "tegrable)[03},@(y30:repl-compile-and-run-core-expr)[31}.0Y0?{${.4,.4,f"
-  ",@(y5:xform)[03},@(y30:repl-compile-and-run-core-expr)[31}${.4,.4d,.4,"
-  "@(y10:xform-call)[03},@(y30:repl-compile-and-run-core-expr)[31}${.3,.3"
-  ",f,@(y5:xform)[03},@(y30:repl-compile-and-run-core-expr)[21",
+  "@(y7:*quiet*)~,.0?{.0}{@(y9:*verbose*)}_1?{${.2,'(l3:y8:<number>;y8:<n"
+  "umber>;y8:<number>;),@(y11:sexp-match?)[02}}{f}?{@(y9:*verbose*)?{Po,'"
+  "(s8:IMPORT: )W4}{Po,'(s10:; import: )W4}Po,.1aW5Po,'(s24: bindings are"
+  " the same, )W4Po,.1daW5Po,'(s11: modified, )W4Po,.1ddaW5Po,'(s7: added"
+  "%0a)W4}_1.1,@(y30:repl-compile-and-run-core-expr)[71}.0K0?{.2,${.5,.5,"
+  ".5[02},@(y18:repl-eval-top-form)[32}.0U0?{${.4,.4d,.4,@(y16:xform-inte"
+  "grable)[03},@(y30:repl-compile-and-run-core-expr)[31}.0Y0?{${.4,.4,f,@"
+  "(y5:xform)[03},@(y30:repl-compile-and-run-core-expr)[31}${.4,.4d,.4,@("
+  "y10:xform-call)[03},@(y30:repl-compile-and-run-core-expr)[31}${.3,.3,f"
+  ",@(y5:xform)[03},@(y30:repl-compile-and-run-core-expr)[21",
 
   "P", "repl-read",
   "%2.1?{PoW6Po,.2W4Po,'(s1: )W4}.0,@(y14:read-code-sexp)[21",
