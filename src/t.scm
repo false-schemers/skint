@@ -1820,7 +1820,8 @@
         [(d) '(scheme load)]    [(z) '(scheme lazy)]  [(s) '(scheme process-context)]
         [(i) '(scheme inexact)] [(f) '(scheme file)]  [(e) '(scheme eval)]
         [(o) '(scheme complex)] [(h) '(scheme char)]  [(l) '(scheme case-lambda)]
-        [(x) '(scheme cxr)]     [(b) '(scheme base)]))
+        [(a) '(scheme cxr)]     [(b) '(scheme base)]  [(x) '(scheme box)]
+        [else (if (exact-integer? k) (list 'srfi k) (list k))]))
     (define (get-library! listname) ;=> <library> 
       (location-val 
         (name-lookup *root-name-registry* listname 
@@ -1882,10 +1883,10 @@
     (char-upcase v h) (char-upper-case? v h) (char-whitespace? v h) (digit-value h) (string-ci<=? v h)
     (string-ci<? v h) (string-ci=? v h) (string-ci>=? v h) (string-ci>? v h) (string-downcase h)
     (string-foldcase h) (string-upcase h) (angle v o) (imag-part v o) (magnitude v o) (make-polar v o)
-    (make-rectangular v o) (real-part v o) (caaar v x) (caadr v x) (cadar v x) (caddr v x) (cdaar v x)
-    (cdadr v x) (cddar v x) (cdddr v x) (caaaar v x) (caaadr v x) (caadar v x) (caaddr v x) (cadaar v x)
-    (cadadr v x) (caddar v x) (cadddr v x) (cdaaar v x) (cdaadr v x) (cdadar v x) (cdaddr v x)
-    (cddaar v x) (cddadr v x) (cdddar v x) (cddddr v x) (environment e) (eval v e)
+    (make-rectangular v o) (real-part v o) (caaar v a) (caadr v a) (cadar v a) (caddr v a) (cdaar v a)
+    (cdadr v a) (cddar v a) (cdddr v a) (caaaar v a) (caaadr v a) (caadar v a) (caaddr v a) (cadaar v a)
+    (cadadr v a) (caddar v a) (cadddr v a) (cdaaar v a) (cdaadr v a) (cdadar v a) (cdaddr v a)
+    (cddaar v a) (cddadr v a) (cdddar v a) (cddddr v a) (environment e) (eval v e)
     (call-with-input-file v f) (call-with-output-file v f) (delete-file f) (file-exists? f)
     (open-binary-input-file f) (open-binary-output-file f) (open-input-file v f) (open-output-file v f)
     (with-input-from-file v f) (with-output-to-file v f) (acos v z i) (asin v z i) (atan v z i)
@@ -1896,10 +1897,13 @@
     (interaction-environment p v) (null-environment v) (read r v) (scheme-report-environment v)
     (write w v) (current-jiffy t) (current-second t) (jiffies-per-second t) (write-shared w)
     (write-simple w)
+    ; selected extracts from r7rs-large and srfis
+    (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format 28 48) 
+    (fprintf) (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
     ; skint extras go into (repl) only - not to be confused with (scheme repl)
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
-    (box?) (box) (unbox) (set-box!) (record?) (make-record) (record-length) (record-ref)
-    (record-set!) (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fx+) (fx*) (fx-) (fx/) 
+    (record?) (make-record) (record-length) (record-ref) (record-set!) 
+    (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg)
     (fxabs) (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
     (fxexpt) (fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsrl) (fixnum->flonum) (fixnum->string)
@@ -1907,10 +1911,11 @@
     (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
     (fltan) (flasin) (flacos) (flatan (y)) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
-    (flmax) (flonum->fixnum) (flonum->string) (string->flonum) (list-cat) (meme) (asse) (reverse!)
-    (circular?) (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
-    (vector-cat) (bytevector->list) (list->bytevector) (subbytevector) (standard-input-port) 
-    (standard-output-port) (standard-error-port) (rename-file)
+    (flmax) (flonum->fixnum) (flonum->string) (string->flonum) 
+    (list-cat) (meme) (asse) (reverse!) (circular?) 
+    (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
+    (vector-cat) (bytevector->list) (list->bytevector) (subbytevector) 
+    (standard-input-port) (standard-output-port) (standard-error-port) (rename-file)
     ))
 
 ; private registry for names introduced in repl 
@@ -1980,7 +1985,7 @@
           [(not (listname? id)) #f]
           [else (name-lookup rr id
                   (lambda (n) ; no library? see if we can fetch it recursively
-                    (fetch-library name sld-env)))])) ;=> <library> or #f
+                    (fetch-library id sld-env)))])) ;=> <library> or #f
   sld-env)
 
 ; makes mutable environments from two registries; new bindings go to user registry
@@ -1994,8 +1999,8 @@
              (lambda (n) ; ok, not in ur: check rr
                (or (name-lookup rr name ; if in rr, return it as-is
                      (lambda (n) ; not in rr: see if it is a library to autoload
-                        (and (listname? name) ; special default value: autoload from .sld
-                             (let ([sld-env (make-sld-environment rr)]) ; make env for .sld files
+                        (and (listname? name) ; default value: autoload from .sld
+                             (let ([sld-env (make-sld-environment rr)]) 
                                (fetch-library name sld-env))))) ;=> <library> or #f
                    (and (symbol? name) (list 'ref (global name))))))] ; alloc in repl store
           [(eq? at 'set!) ; for assigning new values to variables

@@ -1947,3 +1947,69 @@
 ;exit
 ;emergency-exit
 ;get-environment-variables
+
+
+;---------------------------------------------------------------------------------------------
+; Extras
+;---------------------------------------------------------------------------------------------
+
+; SRFI-48 compatible intermediate formatting (advanced functionality accessible via params)
+
+(define format-pretty-print 
+  (make-parameter write))
+(define format-fixed-print ; TODO: add (number->string/fixed arg ww dd) instruction
+  (make-parameter (lambda (arg wd dd p) (display arg p))))
+(define format-fresh-line ; TODO: add (fresh-line [p]) instruction for source ports
+  (make-parameter newline))
+(define format-help-string 
+  (make-parameter "supported directives: ~~ ~% ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~f ~? ~k ~*"))
+
+(define (fprintf p fs . args)
+  (define (hd args)
+    (if (pair? args) (car args) (error "format: no argument for ~ directive")))
+  (define (fhd fl)
+    (if (pair? fl) (car fl) (error "format: incomplete ~ directive")))
+  (define (write-num rx arg p)
+    (if (number? arg) (display (number->string arg rx) p) (write arg p)))
+  (define (memd fl &w &d)
+    (let loop ([fl fl] [c (fhd fl)] [&n &w])
+      (cond [(char-numeric? c) 
+             (when (< (unbox &n) 0) (set-box! &n 0))
+             (set-box! &n (+ (* (unbox &n) 10) (digit-value c)))
+             (loop (cdr fl) (fhd (cdr fl)) &n)]
+            [(char=? c #\,)
+             (loop (cdr fl) (fhd (cdr fl)) &d)]
+            [else fl])))
+  (let lp ([fl (string->list fs)] [args args])
+    (cond [(null? fl) args] ; formally unspecified, but useful value
+          [(char=? (car fl) #\~)
+           (when (null? (cdr fl)) (error "format: incomplete escape sequence"))
+           (let* ([w -1] [d -1] [fl (memd (cdr fl) (set& w) (set& d))])
+             (case (char-downcase (car fl))
+               [(#\*) (lp (cdr fl) (cddr args))] ;+ CL
+               [(#\~) (write-char #\~ p) (lp (cdr fl) args)]
+               [(#\%) (newline p) (lp (cdr fl) args)]
+               [(#\t) (write-char #\tab p) (lp (cdr fl) args)]
+               [(#\_) (write-char #\space p) (lp (cdr fl) args)]
+               [(#\&) ((format-fresh-line) p) (lp (cdr fl) args)]
+               [(#\s) (write (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\a) (display (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\w) (write-shared (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\c) (write-char (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\b) (write-num 2 (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\o) (write-num 8 (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\d) (write-num 10 (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\x) (write-num 16 (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\h) (display (format-help-string) p) (lp (cdr fl) args)]
+               [(#\y) ((format-pretty-print) (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\f) ((format-fixed-print) (hd args) w d p) (lp (cdr fl) (cdr args))]
+               [(#\? #\k) (lp (string->list (hd args)) (hd (hd args))) (lp (cdr fl) (cddr args))]
+               [else  (error "format: unrecognized ~ directive" (car fl))]))]
+          [else (write-char (car fl) p) (lp (cdr fl) args)])))
+
+(define (format arg . args)
+  (cond [(or (eq? arg #f) (string? arg))
+         (let ([args (if arg (cons arg args) args)] [p (open-output-string)]) 
+           (apply fprintf p args) (get-output-string p))]
+        [(eq? arg #t) (apply fprintf (current-output-port) args)]
+        [else (apply fprintf arg args)]))
