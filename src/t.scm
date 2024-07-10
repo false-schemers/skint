@@ -2055,7 +2055,7 @@
 (define *verbose* #f)
 (define *quiet* #f)
 
-(define (repl-compile-and-run-core-expr core)
+#;(define (repl-compile-and-run-core-expr core)
   (when *verbose* (display "TRANSFORM =>") (newline) (write core) (newline))
   (unless (val-core? core) (x-error "unexpected transformed output" core))
   (let ([code (compile-to-thunk-code core)] [start #f])
@@ -2068,6 +2068,35 @@
         (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
         (display " ms.") (newline))
       (unless (eq? res (void)) (write res) (newline)))))      
+
+(define (repl-compile-and-run-core-expr core)
+  (define start #f)
+  (define (compile-and-run core)
+    (define code (compile-to-thunk-code core))
+    (define cl (closure (deserialize-code code)))
+    (define vals (call-with-values cl list))
+    (for-each (lambda (v) (unless (void? v) (write v) (newline))) vals))
+  (when *verbose* (display "TRANSFORM =>") (newline) (write core) (newline))
+  (unless (val-core? core) (x-error "unexpected transformed output" core))
+  (set! start (current-jiffy))
+  (let loop ([cores (list core)])
+    (unless (null? cores)
+      (let ([first (car cores)] [rest (cdr cores)])
+        (record-case first
+          [begin exps 
+           (loop (append exps rest))]
+          [once (gid exp)
+           (compile-and-run first)
+           ; this 'once' is done and there is no need to keep it around
+           (set-car! first 'begin) (set-cdr! first '()) ; mucho kluge!
+           (loop rest)]
+          [else 
+           (compile-and-run first) 
+           (loop rest)]))))
+  (when *verbose* 
+    (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
+    (display " ms.") (newline)))      
+
 
 (define (repl-eval-top-form x env)
   (if (pair? x)

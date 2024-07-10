@@ -1299,12 +1299,16 @@ char *t_code[] = {
   "f@!(y7:*quiet*)",
 
   "P", "repl-compile-and-run-core-expr",
-  "%1@(y9:*verbose*)?{Po,'(s12:TRANSFORM =>)W4PoW6Po,.1W5PoW6}.0p~?{${.2,"
-  "'(s29:unexpected transformed output),@(y7:x-error)[02}}f,${.3,@(y21:co"
-  "mpile-to-thunk-code)[01},#1@(y9:*verbose*)?{Po,'(s20:COMPILE-TO-STRING"
-  " =>)W4PoW6Po,.1W4PoW6Po,'(s17:DECODE+EXECUTE =>)W4PoW6Z3.!1}.0U4,U91,$"
-  "{.2[00},@(y9:*verbose*)?{Po,'(s14:Elapsed time: )W4Po,Z4,.5^,Z3-/,'(i1"
-  "000)*W5Po,'(s4: ms.)W4PoW6}Y9,.1q~?{Po,.1W5PoW6]5}]5",
+  "%1,,#0#1f.!0&0{%1,,,#0#1#2${.5,@(y21:compile-to-thunk-code)[01}.!0.0^U"
+  "4,U91.!1${@(y4:list),.4^,@(y16:call-with-values)[02}.!2.2^,&0{%1.0Y8~?"
+  "{Po,.1W5PoW6]1}]1},@(y10:%25for-each1)[42}.!1@(y9:*verbose*)?{Po,'(s12"
+  ":TRANSFORM =>)W4PoW6Po,.3W5PoW6}.2p~?{${.4,'(s29:unexpected transforme"
+  "d output),@(y7:x-error)[02}}Z3.!0${.4,l1,,#0.0,.6,&2{%1.0u~?{.0d,.1a,'"
+  "(y5:begin),.1aq?{.0d,.2,:1,&2{%!0:1,.1L6,:0^[11},@(y13:apply-to-list)["
+  "32}'(y4:once),.1aq?{.0d,:1,.3,.3,:0,&4{%2${:1,:0^[01}'(y5:begin),:1san"
+  ",:1sd:2,:3^[21},@(y13:apply-to-list)[32}${.2,:0^[01}.1,:1^[31}]1}.!0.0"
+  "^_1[01}@(y9:*verbose*)?{Po,'(s14:Elapsed time: )W4Po,Z4,.2^,Z3-/,'(i10"
+  "00)*W5Po,'(s4: ms.)W4PoW6]3}]3",
 
   "P", "repl-eval-top-form",
   "%2.0p?{${.3,.3a,t,@(y5:xform)[03},'(y5:begin),.1q?{.1d,,#0.4,.1,&2{%1."
