@@ -1812,7 +1812,7 @@
 (name-lookup *root-name-registry* 'include-ci  (lambda (n) (make-include-transformer #t)))
 (name-lookup *root-name-registry* 'cond-expand (lambda (n) (make-cond-expand-transformer)))
 
-; register standard libraries as well as (repl) library for interactive environment
+; register standard libraries as well as (skint) library for interactive environment
 ; ... while doing that, bind missing standard names as refs to constant globals
 (for-each
   (lambda (r)
@@ -1836,8 +1836,8 @@
     (define (get-loc name)
       (name-lookup *root-name-registry* name (lambda (name) (list 'const name))))
     (let loop ([name (car r)] [keys (cdr r)])
-      (cond [(null? keys) ; all go to (repl)
-             (put-loc! (get-library! '(repl)) name (get-loc name))]
+      (cond [(null? keys) ; all go to (skint)
+             (put-loc! (get-library! '(skint)) name (get-loc name))]
             [else
              (put-loc! (get-library! (key->listname (car keys))) name (get-loc name))
              (loop name (cdr keys))])))
@@ -1903,7 +1903,7 @@
     ; selected extracts from r7rs-large and srfis
     (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format 28 48) 
     (fprintf) (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
-    ; skint extras go into (repl) only - not to be confused with (scheme repl)
+    ; skint extras go into (skint) only
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
     (record?) (make-record) (record-length) (record-ref) (record-set!) 
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fx+) (fx*) (fx-) (fx/) 
