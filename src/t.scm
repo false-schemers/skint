@@ -965,7 +965,7 @@
                (loop (append (cdr decl) decls) code eal esps forms)]
               [(eq? (car decl) ld-cond-expand-id) ; flatten and splice
                (let ([lit=? (lambda (id sym) (and (id? id) (eq? id (id-rename-as sid sym))))])
-                 (loop (append (preprocess-cond-expand lit=? (cdr decl)) decls env) code eal esps forms))]
+                 (loop (append (preprocess-cond-expand lit=? decl env) decls) code eal esps forms))]
               [(eq? (car decl) ld-push-cf-id) ; internal
                (check-syntax decl '(<id> <string>) "invalid library declarations syntax")
                (push-current-file! (cadr decl))
@@ -1532,7 +1532,7 @@
       [once (gid exp)
        (codegen `(if (integrable ,(lookup-integrable 'eq?) (gref ,gid) (quote #t)) 
                      (begin)
-                     (begin (gset! ,gid (quote #t)) ,exp)) 
+                     (begin (gset! ,gid (quote #t)) ,exp))
           l f s g k port)]
       [(define define-syntax define-library import) tail
        (c-error "misplaced definition form" x)]
@@ -2055,22 +2055,7 @@
 (define *verbose* #f)
 (define *quiet* #f)
 
-#;(define (repl-compile-and-run-core-expr core)
-  (when *verbose* (display "TRANSFORM =>") (newline) (write core) (newline))
-  (unless (val-core? core) (x-error "unexpected transformed output" core))
-  (let ([code (compile-to-thunk-code core)] [start #f])
-    (when *verbose* 
-      (display "COMPILE-TO-STRING =>") (newline) (display code) (newline)
-      (display "DECODE+EXECUTE =>") (newline)
-      (set! start (current-jiffy)))
-    (let* ([cl (closure (deserialize-code code))] [res (cl)])
-      (when *verbose* 
-        (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
-        (display " ms.") (newline))
-      (unless (eq? res (void)) (write res) (newline)))))      
-
 (define (repl-compile-and-run-core-expr core)
-  (define start #f)
   (define (compile-and-run core)
     (define code (compile-to-thunk-code core))
     (define cl (closure (deserialize-code code)))
@@ -2078,7 +2063,6 @@
     (for-each (lambda (v) (unless (void? v) (write v) (newline))) vals))
   (when *verbose* (display "TRANSFORM =>") (newline) (write core) (newline))
   (unless (val-core? core) (x-error "unexpected transformed output" core))
-  (set! start (current-jiffy))
   (let loop ([cores (list core)])
     (unless (null? cores)
       (let ([first (car cores)] [rest (cdr cores)])
@@ -2092,10 +2076,7 @@
            (loop rest)]
           [else 
            (compile-and-run first) 
-           (loop rest)]))))
-  (when *verbose* 
-    (display "Elapsed time: ") (write (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second))))
-    (display " ms.") (newline)))      
+           (loop rest)])))))      
 
 
 (define (repl-eval-top-form x env)
@@ -2196,6 +2177,10 @@
     [(q) (set! *quiet* #t)]
     [(quiet on) (set! *quiet* #t)]
     [(quiet off) (set! *quiet* #f)]
+    [(time *) (let ([start (current-jiffy)])
+                (repl-eval-top-form (car args) repl-environment)
+                (format #t "Elapsed time: ~s ms.~%"
+                  (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second)))))]
     [(help)
      (display "Available commands:\n" op)
      (display " ,say hello     -- displays nice greeting\n" op)
@@ -2214,6 +2199,7 @@
      (display " ,unr           -- show user name registry\n" op)
      (display " ,uref <name>   -- lookup name in user registry\n" op)
      (display " ,urem! <name>  -- remove name from user registry\n" op)
+     (display " ,time <expr>   -- time short expression <expr>\n" op)
      (display " ,help          -- this help\n" op)]
     [else
      (display "syntax error in repl command\n" op)
