@@ -3415,6 +3415,11 @@ define_instruction(itrs) {
   gonexti(); 
 }
 
+define_instruction(glos){
+  ac = cx__2Aglobals_2A;
+  gonexti(); 
+}
+
 define_instruction(igp) {
   ac = bool_obj(isintegrable(ac));
   gonexti(); 
@@ -4305,18 +4310,21 @@ static obj *rds_arg(obj *r, obj *sp, obj *hp)
 /* protects registers from r to sp, in: ra=sym, out: ra=loc/eof */
 static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
 {
-  if (issymbol(ra)) {
-    obj p = isassv(ra, cx__2Aglobals_2A);
+  unsigned long long base;
+  if (issymbol(ra) && isvector(cx__2Aglobals_2A) && (base = vectorlen(cx__2Aglobals_2A)) > 0) {
+    unsigned long long v = (unsigned long long)ra; int i = (int)(v % base);
+    obj p = isassv(ra, vectorref(cx__2Aglobals_2A, i));
     if (ispair(p)) ra = cdr(p);
     else { /* prepend (sym . #&sym) to *globals* */
-      obj box;
+      obj box, *pl;
       hreserve(boxbsz()*1+pairbsz()*2, sp-r);
       *--hp = ra;
       box = hend_box();
       *--hp = box; *--hp = ra;
       ra = hend_pair();
-      *--hp = cx__2Aglobals_2A; *--hp = ra;
-      cx__2Aglobals_2A = hend_pair();
+      pl = &vectorref(cx__2Aglobals_2A, i);
+      *--hp = *pl; *--hp = ra;
+      *pl = hend_pair();
       ra = box;
     }
   } else {
@@ -4324,7 +4332,6 @@ static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
   }
   return hp;
 }
-
 
 /* see below */
 static obj *rds_seq(obj *r, obj *sp, obj *hp);

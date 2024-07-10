@@ -719,7 +719,7 @@
 
 (%localdef "#include \"i.h\"")
 
-(define *globals* '())
+(define *globals* (make-vector 991 '())) ; nice prime number
 
 (define *dynamic-state* (list #f)) ; for dynamic-wind
 
