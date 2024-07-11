@@ -153,7 +153,18 @@
         [else (append (car lst) (append* (cdr lst)))]))
 
 (define (string-append* l) 
-  (apply string-append l)) 
+  (apply string-append l))
+
+(define (string-trim-whitespace s)
+  (let floop ([from 0] [len (string-length s)])
+    (if (and (< from len) (char-whitespace? (string-ref s from)))
+        (floop (+ from 1) len)
+        (let tloop ([to len])
+          (if (and (> to from) (char-whitespace? (string-ref s (- to 1))))
+              (tloop (- to 1))
+              (if (and (= from 0) (= to len)) 
+                  s
+                  (substring s from to)))))))   
 
 (define (andmap p l)
   (if (pair? l) (and (p (car l)) (andmap p (cdr l))) #t))
@@ -2145,9 +2156,10 @@
   (read-code-sexp iport))
 
 (define (repl-exec-command cmd argstr op)
-  (define args 
-    (guard (err [else (void)])
-      (read-port-sexps (open-input-string argstr))))
+  (define args
+    (if (memq cmd '(peek sh)) ; do not expect s-exps!
+        (list (string-trim-whitespace argstr))
+        (guard (err [else (void)]) (read-port-sexps (open-input-string argstr)))))
   (define cmd+args (cons cmd args))
   (sexp-case cmd+args
     [(say hello) (display "Well, hello!\n" op)]
@@ -2163,6 +2175,9 @@
     [(urem! *) (cond [(name-lookup *user-name-registry* (car args) #f)
                       (name-remove! *user-name-registry* (car args)) (display "done!\n" op)]
                      [else (display "name not found: " op) (write name op) (newline op)])]
+    [(gs) (write (global-store) op) (newline op)]
+    [(gs <symbol>) (let* ([k (car args)] [v (global-store)] [i (immediate-hash k (vector-length v))]) 
+                      (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
     [(peek *)
      (cond [(string? (car args)) 
             (display (if (file-exists? (car args)) 
@@ -2181,6 +2196,7 @@
                 (repl-eval-top-form (car args) repl-environment)
                 (format #t "Elapsed time: ~s ms.~%"
                   (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second)))))]
+    [(sh <string>) (%system (car args))]
     [(help)
      (display "Available commands:\n" op)
      (display " ,say hello     -- displays nice greeting\n" op)
@@ -2191,15 +2207,17 @@
      (display " ,v             -- turn verbosity on\n" op)
      (display " ,verbose on    -- turn verbosity on\n" op)
      (display " ,verbose off   -- turn verbosity off\n" op)
-     (display " ,verbose off   -- turn verbosity off\n" op)
-     (display " ,ref <name>    -- show current denotation for <name>\n" op)
+     (display " ,ref <name>    -- show denotation for <name> (may alloc)\n" op)
      (display " ,rnr           -- show root name registry\n" op)
      (display " ,rref <name>   -- lookup name in root registry\n" op)
      (display " ,rrem! <name>  -- remove name from root registry\n" op)
      (display " ,unr           -- show user name registry\n" op)
      (display " ,uref <name>   -- lookup name in user registry\n" op)
      (display " ,urem! <name>  -- remove name from user registry\n" op)
+     (display " ,gs            -- show global store (big!)\n" op)
+     (display " ,gs <name>     -- lookup global location for <name>\n" op)
      (display " ,time <expr>   -- time short expression <expr>\n" op)
+     (display " ,sh <cmdline>  -- send <cmdline> to local shell\n" op)
      (display " ,help          -- this help\n" op)]
     [else
      (display "syntax error in repl command\n" op)

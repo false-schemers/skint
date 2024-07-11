@@ -3899,6 +3899,13 @@ define_instruction(cursec) {
   gonexti(); 
 }
 
+define_instruction(system) {
+  int res; cks(ac);
+  res = system(stringchars(ac));
+  ac = fixnum_obj(res);
+  gonexti(); 
+}
+
 
 #define VM_GEN_DEFGLOBAL
 #include "i.h"

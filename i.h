@@ -521,6 +521,7 @@ declare_instruction(getenv,     "Z1",           0,  "get-environment-variable", 
 declare_instruction(clock,      "Z3",           0,  "current-jiffy",            '0', AUTOGL)
 declare_instruction(clops,      "Z4",           0,  "jiffies-per-second",       '0', AUTOGL)
 declare_instruction(cursec,     "Z5",           0,  "current-second",           '0', AUTOGL)
+declare_instruction(system,     "Z6",           0,  "%system",                  '1', AUTOGL)
 declare_instruction(panic,      "Z7",           0,  "%panic",                   '2', AUTOGL)
 declare_instruction(abort,      "Z8\0t",        0,  "%abort",                   'u', AUTOGL)
 declare_instruction(exit,       "Z9\0t",        0,  "%exit",                    'u', AUTOGL)
