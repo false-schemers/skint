@@ -1516,6 +1516,12 @@
 
 (define *reset* #f)
 
+(define-inline (tty-port? o)
+  (%prim? "{ /* tty-port? */
+    extern int is_tty_port(obj o);
+    int x = is_tty_port(obj_from_$arg);
+    $return bool(x); }" o))
+
 (define (error* msg args)
   (if (procedure? *reset*)
       (let ([p (current-error-port)])
@@ -1580,7 +1586,7 @@
 
 (define (repl-read iport)
   (when (eq? iport (current-input-port))
-    (display "\nskint> "))
+    (display "\nservice> "))
   (read iport))
 
 (define (repl-from-port iport)
@@ -1602,11 +1608,39 @@
   (repl-eval-top-form '(main #f))  
   (close-input-port iport))
 
-(define (run-repl)
+(define (service-repl)
   (repl-from-port (current-input-port)))
+
+(define (tcode-repl) 
+  (execute (decode "${@(y4:repl)[00}")))
+
+(define (debug-repl)
+  (define outer-k #f)
+  (define (loop)
+    (display "\ndebug> ")
+    (let ([cmd (read)])
+      (if (eof-object? cmd)
+          #f ; quit scheme with code 0
+          (case cmd
+             [(?)
+              (display "
+Type r to get back to repl
+     a to abort scheme
+     s to run service repl
+") (loop)]
+             [(r)  (or (eq? (tcode-repl) #t) (loop))]
+             [(a)  (%prim! "void(exit(1))")]
+             [(s)  (service-repl) (loop)]
+             [else (display "Invalid command.  Type ? for options.\n") (loop)]))))
+  (when (tty-port? (current-input-port))
+    (call/cc
+      (lambda (k)
+        (set! outer-k k)
+        (loop)))))
 
 (define (main argv)
   (let ([args (cdr (command-line))])
+    ;(display "SKINT Scheme Interpreter v0.0.1\n")
     (cond
       [(syntax-match? '("-c" *) args)
        (process-file (cadr args))]
@@ -1618,7 +1652,9 @@
        (run-tests)]
       [(syntax-match? '("-v") args)
        (set! *verbose* #t)
-       (run-repl)]
-      [else
-       (run-repl)])))
+       (service-repl)]
+      [(syntax-match? '("-i") args)
+       (service-repl)]
+      [else ; run tcode repl automatically
+       (or (eq? (tcode-repl) #t) (debug-repl))])))
 

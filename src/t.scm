@@ -1929,7 +1929,8 @@
     (list-cat) (meme) (asse) (reverse!) (circular?) 
     (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
     (vector-cat) (bytevector->list) (list->bytevector) (subbytevector) 
-    (standard-input-port) (standard-output-port) (standard-error-port) (rename-file)
+    (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
+    (rename-file)
     ))
 
 ; private registry for names introduced in repl 
@@ -2260,10 +2261,8 @@
   (close-input-port iport))
 
 (define (repl)
+  (define ip (current-input-port))
+  (define prompt (and (tty-port? ip) "skint]")) 
   (set-current-file-stack! '())
-  (repl-from-port 
-    (current-input-port) 
-    repl-environment
-    "skint]"))
-
-
+  (repl-from-port ip repl-environment prompt)
+  #t) ; exited normally via end-of-input

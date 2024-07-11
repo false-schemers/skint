@@ -1347,6 +1347,7 @@
 ; (output-port? x)
 ; (input-port-open? p)
 ; (output-port-open? p)
+; (tty-port? p)
 ; (%current-input-port) +
 ; (%current-output-port) +
 ; (%current-error-port) +
@@ -1928,6 +1929,7 @@
 ; (current-second)
 ; (current-jiffy)
 ; (jiffies-per-second)
+; (%system s) +
 
 (define (command-line)
   (let loop ([r '()] [i 0])

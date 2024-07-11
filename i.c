@@ -511,7 +511,7 @@ jump:
 
 define_instrhelper(cxi_fail) { 
   fprintf(stderr, "run-time failure: %s\n", (char*)ac);
-  ac = void_obj();
+  ac = void_obj(); /* so it is not printed by repl */
   unwindi(0); 
 }
 
@@ -522,7 +522,7 @@ define_instrhelper(cxi_failactype) {
   oportputcircular(ac, p, 0);
   fputc('\n', stderr);
   spop();
-  ac = void_obj();
+  ac = void_obj(); /* so it is not printed by repl */
   unwindi(0); 
 }
 
@@ -3107,6 +3107,12 @@ define_instruction(ipp) {
 
 define_instruction(opp) {
   ac = bool_obj(is_oport(ac));
+  gonexti();
+}
+
+define_instruction(ttyp) {
+  extern int is_tty_port(obj o); /* s.c */
+  ac = bool_obj(is_tty_port(ac));
   gonexti();
 }
 

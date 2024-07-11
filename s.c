@@ -1,4 +1,22 @@
-/* s.c -- generated via skint -c s.scm */
+/* s.c -- partially generated via skint -c s.scm */
+#include "s.h"
+#include "n.h"
+
+extern int is_tty_port(obj o)
+{
+  cxtype_iport_t *vt = iportvt(o); void *pp;
+  if ((cxtype_t *)vt != IPORT_FILE_NTAG) return 0;
+  pp = iportdata(o);
+  if (!pp) return 0;
+  return isatty(fileno((FILE*)pp));
+}
+
+#ifdef WIN32
+int dirsep = '\\';
+#else
+int dirsep = '/';
+#endif
+
 
 char *s_code[] = {
 
