@@ -4,11 +4,11 @@
 
 extern int is_tty_port(obj o)
 {
-  cxtype_iport_t *vt = iportvt(o); void *pp;
-  if ((cxtype_t *)vt != IPORT_FILE_NTAG) return 0;
-  pp = iportdata(o);
-  if (!pp) return 0;
-  return isatty(fileno((FILE*)pp));
+  FILE *fp = NULL;
+  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = (FILE*)iportdata(o);
+  else if ((cxtype_t*)oportvt(o) == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
+  if (!fp) return 0;
+  return isatty(fileno(fp));
 }
 
 #ifdef WIN32

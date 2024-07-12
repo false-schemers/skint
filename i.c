@@ -3183,25 +3183,29 @@ define_instruction(opop) {
 }
 
 define_instruction(oif) {
-  FILE *fp = fopen(stringchars(ac), "r");
+  FILE *fp; cks(ac);
+  fp = fopen(stringchars(ac), "r");
   ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp);
   gonexti();
 }
 
 define_instruction(oof) {
-  FILE *fp = fopen(stringchars(ac), "w");
+  FILE *fp; cks(ac);
+  fp = fopen(stringchars(ac), "w");
   ac = (fp == NULL) ? bool_obj(0) : oport_file_obj(fp);
   gonexti();
 }
 
 define_instruction(obif) {
-  FILE *fp = fopen(stringchars(ac), "rb");
+  FILE *fp; cks(ac);
+  fp = fopen(stringchars(ac), "rb");
   ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp);
   gonexti();
 }
 
 define_instruction(obof) {
-  FILE *fp = fopen(stringchars(ac), "wb");
+  FILE *fp; cks(ac);
+  fp = fopen(stringchars(ac), "wb");
   ac = (fp == NULL) ? bool_obj(0) : oport_file_obj(fp);
   gonexti();
 }

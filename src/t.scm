@@ -1932,7 +1932,7 @@
     (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (rename-file)
     ; temporarily here for debugging purposes
-    (xform) (repl-compile-and-run-core-expr) (compile-to-thunk-code) (deserialize-code)
+    (xform) (compile-and-run-core-expr) (compile-to-thunk-code) (deserialize-code)
     (closure) (repl-environment)
     ))
 
@@ -1944,13 +1944,14 @@
 ; Environments
 ;--------------------------------------------------------------------------------------------------
 
-; make read-only environment from a registry
-(define (make-readonly-environment rr)
+; make read-only environment from a registry (lookup listnames in use-env, unless #f)
+(define (make-readonly-environment rr use-env)
   (lambda (name at)
     (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
            (case at [(ref set!) (old-den name)] [else #f])]
           [(eq? at 'ref) ; for reference only: do not allow any allocation
-           (name-lookup rr name #f)] ; no allocation callback
+           (or (name-lookup rr name #f) ; no allocation callback
+               (and use-env (not (symbol? name)) (use-env name 'ref)))] 
           [else #f])))
 
 ; makes controlled environments for libraries and programs using import al, global name generator, 
@@ -2057,7 +2058,7 @@
     (and loc (let ([val (location-val loc)]) (and (val-library? val) val)))))
 
 (define root-environment
-  (make-readonly-environment *root-name-registry*))
+  (make-readonly-environment *root-name-registry* #f))
 
 (define repl-environment 
   (make-repl-environment *root-name-registry* *user-name-registry* 'repl://))
@@ -2070,66 +2071,85 @@
          [ial (and l (library-exports l))] [global (lambda (n) (symbol-append prefix n))])
     (and (list? ial) (make-controlled-environment ial global empty-environment))))
 
-; public interface (r7rs)
+(define r5rs-environment 
+  (make-historic-report-environment '(scheme r5rs) 'r5rs://))
+
+(define r5rs-null-environment 
+  (make-historic-report-environment '(scheme r5rs-null) 'r5rs://))
+
+
+; public interface to environments as per r7rs
 
 (define (interaction-environment) repl-environment)
 
 (define (scheme-report-environment v)
-  (let ([e (and (eqv? v 5) (make-historic-report-environment '(scheme r5rs) 'r5rs://))])
+  (let ([e (and (eqv? v 5) r5rs-environment)])
     (or e (error "cannot create r5rs environment"))))
 
 (define (null-environment v)
-  (let ([e (and (eqv? v 5) (make-historic-report-environment '(scheme r5rs-null) 'r5rs://))])
+  (let ([e (and (eqv? v 5) r5rs-null-environment)])
     (or e (error "cannot create r5rs null environment"))))
+
+; this freaking thing breaks expand-time -- run-time barrier!
+(define (environment . isets)
+  (define iform (cons 'import isets)) ; incredibly stupid, but whatcha gonna do
+  (define ienv root-environment) ; it's a procedure, so there you go...
+  (define ic&eal (preprocess-import-sets iform ienv)) ;=> (init-core . exports-eal)
+  (define ir (eal->name-registry (cdr ic&eal))) ; handmade import registry from ial
+  ; initialization code got to be run, so we may as well do it right now
+  (compile-and-run-core-expr (car ic&eal)) ; defined below, value(s) ignored
+  ; now just wrap the regisry in read-only env and be done with it
+  (make-readonly-environment ir #f))
 
 
 ;--------------------------------------------------------------------------------------------------
-; REPL
+; Eval
 ;--------------------------------------------------------------------------------------------------
 
 (define *verbose* #f)
 (define *quiet* #f)
 
-(define (repl-compile-and-run-core-expr core)
+(define (compile-and-run-core-expr core) ; => returns value(s) of core run
   (define (compile-and-run core)
     (define code (compile-to-thunk-code core))
     (define cl (closure (deserialize-code code)))
-    (define vals (call-with-values cl list))
-    (for-each (lambda (v) (unless (void? v) (write v) (newline))) vals))
+    (cl)) ; tail call possibly returning multiple values
   (when *verbose* (display "TRANSFORM =>") (newline) (write core) (newline))
   (unless (val-core? core) (x-error "unexpected transformed output" core))
   (let loop ([cores (list core)])
-    (unless (null? cores)
-      (let ([first (car cores)] [rest (cdr cores)])
-        (record-case first
-          [begin exps 
-           (loop (append exps rest))]
-          [once (gid exp)
-           (compile-and-run first)
-           ; this 'once' is done and there is no need to keep it around
-           (set-car! first 'begin) (set-cdr! first '()) ; mucho kluge!
-           (loop rest)]
-          [else 
-           (compile-and-run first) 
-           (loop rest)])))))      
+    (if (null? cores) 
+        (void)
+        (let ([first (car cores)] [rest (cdr cores)])
+          (record-case first
+            [begin exps 
+             (loop (append exps rest))]
+            [once (gid exp)
+             (compile-and-run first) ; ignore value(s) of init code
+             ; this 'once' is done and there is no need to keep it around
+             (set-car! first 'begin) (set-cdr! first '()) ; mucho kluge!
+             (loop rest)]
+            [else
+             (if (null? rest)
+                 (compile-and-run first) ; tail call
+                 (begin (compile-and-run first) (loop rest)))])))))      
 
-
-(define (repl-eval-top-form x env)
+(define (evaluate-top-form x env)
   (if (pair? x)
       (let ([hval (xform #t (car x) env)]) ; returns <core>
         (cond
           [(eq? hval 'begin) ; splice
            (let loop ([x* (cdr x)])
-             (when (pair? x*) 
-               (repl-eval-top-form (car x*) env)
-               (loop (cdr x*))))]
+             (cond [(null? x*) (void)] ; nothing valuable leaks
+                   [(not (pair? x*)) (x-error "invalid begin form:" x)]
+                   [(null? (cdr x*)) (evaluate-top-form (car x*) env)] ; tail call
+                   [else (evaluate-top-form (car x*) env) (loop (cdr x*))]))]
           [(and (eq? hval 'define) (null? (cadr x))) ; special idless define
-           (repl-eval-top-form (caddr x) env)]
+           (evaluate-top-form (caddr x) env) (void)] ; nothing valuable leaks
           [(eq? hval 'define) ; use new protocol for top-level envs
            (let* ([core (xform-define (cdr x) env)]
                   [loc (xenv-lookup env (cadr core) 'define)])
              (if (and loc (sexp-match? '(ref *) (location-val loc)))
-                 (repl-compile-and-run-core-expr 
+                 (compile-and-run-core-expr ; tail
                    (list 'set! (cadr (location-val loc)) (caddr core)))
                  (x-error "identifier cannot be (re)defined as variable in env:" 
                    (cadr core) env)))]
@@ -2163,21 +2183,58 @@
                  (write (car res)) (display " bindings are the same, ")
                  (write (cadr res)) (display " modified, ")
                  (write (caddr res)) (display " added\n")))
-             (repl-compile-and-run-core-expr code))]
+             (compile-and-run-core-expr code))]
           [(val-transformer? hval) ; apply transformer and loop
-           (repl-eval-top-form (hval x env) env)]
+           (evaluate-top-form (hval x env) env)] ; tail
           [(val-integrable? hval) ; integrable application
-           (repl-compile-and-run-core-expr (xform-integrable hval (cdr x) env))]
+           (compile-and-run-core-expr (xform-integrable hval (cdr x) env))]
           [(val-builtin? hval) ; other builtins
-           (repl-compile-and-run-core-expr (xform #f x env))]
+           (compile-and-run-core-expr (xform #f x env))]
           [else ; regular call
-           (repl-compile-and-run-core-expr (xform-call hval (cdr x) env))]))
+           (compile-and-run-core-expr (xform-call hval (cdr x) env))]))
       ; var refs and literals
-      (repl-compile-and-run-core-expr (xform #f x env))))
+      (compile-and-run-core-expr (xform #f x env))))
 
-(define (repl-read iport prompt)
-  (when prompt (newline) (display prompt) (display " "))
-  (read-code-sexp iport))
+
+; public interface to eval as per r7rs
+
+; another disgusting expand-tome -- run-time barrier breaker
+(define (eval expr . ?env)
+  (define env (if (pair? ?env) (car ?env) (interaction-environment)))
+  (evaluate-top-form expr env))
+
+; and its dirty cousin
+(define (load filename . ?env)
+  (define env (if (pair? ?env) (car ?env) (interaction-environment)))
+  (define ci? #f) ; do not bother setting this unless told by the specification
+  (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
+         [fileok? (and (string? filepath) (file-exists? filepath))])
+    (with-current-file filepath
+      (lambda ()
+        (call-with-input-file filepath
+          (lambda (port) 
+             (when ci? (set-port-fold-case! port #t))
+             (let loop ([x (read-code-sexp port)])
+               (unless (eof-object? x)
+                 (eval x env)
+                 (loop (read-code-sexp port)))))))))
+  ; we aren't asked by the spec to call last expr tail-recursively, so this
+  (void)) 
+
+
+;--------------------------------------------------------------------------------------------------
+; REPL
+;--------------------------------------------------------------------------------------------------
+
+(define (repl-evaluate-top-form x env op)
+  (define-values vals (evaluate-top-form x env))
+  (define (print val) (write val op) (newline op))
+  (unless (and (list1? vals) (void? (car vals)))
+    (for-each print vals)))
+
+(define (repl-read ip prompt op)
+  (when prompt (newline op) (display prompt op) (display " " op))
+  (read-code-sexp ip))
 
 (define (repl-exec-command cmd argstr op)
   (define args
@@ -2217,8 +2274,8 @@
     [(quiet on) (set! *quiet* #t)]
     [(quiet off) (set! *quiet* #f)]
     [(time *) (let ([start (current-jiffy)])
-                (repl-eval-top-form (car args) repl-environment)
-                (format #t "Elapsed time: ~s ms.~%"
+                (repl-evaluate-top-form (car args) repl-environment op)
+                (format #t "; elapsed time: ~s ms.~%"
                   (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second)))))]
     [(sh <string>) (%system (car args))]
     [(help)
@@ -2247,7 +2304,7 @@
      (display "syntax error in repl command\n" op)
      (display "type ,help to see available commands\n" op)]))
 
-(define (repl-from-port iport env prompt)
+(define (repl-from-port ip env prompt op)
   (define cfs (current-file-stack))
   (guard (err 
           [(error-object? err)
@@ -2256,36 +2313,46 @@
             (for-each (lambda (arg) (write arg p) (newline p)) 
               (error-object-irritants err)))
            (set-current-file-stack! cfs)
-           (when prompt (repl-from-port iport env prompt))]
+           (when prompt (repl-from-port ip env prompt op))]
           [else 
            (let ([p (current-error-port)])
              (display "Unknown error:" p) (newline p)
              (write err p) (newline p))
            (set-current-file-stack! cfs)
-           (when prompt (repl-from-port iport env prompt))])
-    (let loop ([x (repl-read iport prompt)])
+           (when prompt (repl-from-port ip env prompt op))])
+    (let loop ([x (repl-read ip prompt op)])
       (unless (eof-object? x)
         (if (and prompt (sexp-match? '(unquote *) x))
-            (repl-exec-command (cadr x) (read-line iport) (current-output-port))
-            (repl-eval-top-form x env))
-        (loop (repl-read iport prompt))))))
+            (repl-exec-command (cadr x) (read-line ip) op)
+            (repl-evaluate-top-form x env op))
+        (loop (repl-read ip prompt op))))))
 
-(define (repl-file fname env)
-  (define iport (open-input-file fname))
-  (repl-from-port iport env #f)
-  (close-input-port iport))
-
-(define (benchmark-file fname)
-  (define iport (open-input-file fname))
-  (unless (sexp-match? '(load "libl.sf") (read-code-sexp iport))
+(define (benchmark-file fname) ; for debug purposes only
+  (define ip (open-input-file fname))
+  (define op (current-output-port))
+  (unless (sexp-match? '(load "libl.sf") (read-code-sexp ip))
     (error "unexpected benchmark file format" fname))
-  (repl-from-port iport repl-environment #f)
-  (repl-eval-top-form '(main #f) repl-environment)  
-  (close-input-port iport))
+  (repl-from-port ip repl-environment #f op)
+  (repl-evaluate-top-form '(main #f) repl-environment op)  
+  (close-input-port ip))
+
+(define *repl-first-time* #t)
+
+(define (repl-main)
+  ; todo: here we can process command line by ourselves!
+  (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
+    ; quick check for non-interactive use failed, greet
+    (display "SKINT Scheme Interpreter v0.0.9\n")
+    (display "Copyright (c) 2024 False Schemers\n\n"))
+  #t) ; exited normally
 
 (define (repl)
   (define ip (current-input-port))
+  (define op (current-output-port))
   (define prompt (and (tty-port? ip) "skint]")) 
   (set-current-file-stack! '())
-  (repl-from-port ip repl-environment prompt)
+  (when *repl-first-time*
+    (set! *repl-first-time* #f)
+    (repl-main))
+  (repl-from-port ip repl-environment prompt op)
   #t) ; exited normally via end-of-input
