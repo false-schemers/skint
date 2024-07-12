@@ -96,10 +96,10 @@ extern char **cxg_argv;
 /* extra definitions */
 /* basic object representation */
 #ifdef NAN_BOXING
-#define isim0(o)    (((o) & 0xffff000000000003ULL) == 3)
-#define isimm(o, t) (((o) & 0xffff0000000000ffULL) == (((t) << 2) | 1))
+#define isim0(o)    (((o) & 0xffffffff00000003ULL) == 3) /* 30 bits of payload */
+#define isimm(o, t) (((o) & 0xffffffff000000ffULL) == (((t) << 2) | 1)) /* 24 */
 #ifdef NDEBUG
-  #define getim0s(o) (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
+  #define getim0s(o) (long)(((((int32_t)(o) >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
   #define getimmu(o, t) (long)(((o) >> 8) & 0xffffff)
 #else
   extern long getim0s(obj o);
@@ -108,7 +108,7 @@ extern char **cxg_argv;
 #ifndef NDEBUG
 long getim0s(obj o) {
   assert(isim0(o));
-  return (long)(((((uint32_t)o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
+  return (int32_t)(((((uint32_t)o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
 }
 long getimmu(obj o, int t) {
   assert(isimm((o), t));
@@ -121,7 +121,7 @@ long getimmu(obj o, int t) {
 #define isim0(o)    (((o) & 3) == 3)
 #define isimm(o, t) (((o) & 0xff) == (((t) << 2) | 1))
 #ifdef NDEBUG
-  #define getim0s(o) (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
+  #define getim0s(o) (long)(((((int)(o) >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
   #define getimmu(o, t) (long)(((o) >> 8) & 0xffffff)
 #else
   extern long getim0s(obj o);
@@ -130,7 +130,7 @@ long getimmu(obj o, int t) {
 #ifndef NDEBUG
 long getim0s(obj o) {
   assert(isim0(o));
-  return (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
+  return (int)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
 }
 long getimmu(obj o, int t) {
   assert(isimm(o, t));

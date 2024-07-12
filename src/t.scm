@@ -1931,6 +1931,9 @@
     (vector-cat) (bytevector->list) (list->bytevector) (subbytevector) 
     (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (rename-file)
+    ; temporarily here for debugging purposes
+    (xform) (repl-compile-and-run-core-expr) (compile-to-thunk-code) (deserialize-code)
+    (closure) (repl-environment)
     ))
 
 ; private registry for names introduced in repl 
@@ -2058,6 +2061,26 @@
 
 (define repl-environment 
   (make-repl-environment *root-name-registry* *user-name-registry* 'repl://))
+
+(define (empty-environment id at) #f)
+
+(define (make-historic-report-environment listname prefix)
+  (let* ([loc (name-lookup *root-name-registry* listname #f)]
+         [l (and loc (location-val loc))] [l (and (val-library? l) l)]
+         [ial (and l (library-exports l))] [global (lambda (n) (symbol-append prefix n))])
+    (and (list? ial) (make-controlled-environment ial global empty-environment))))
+
+; public interface (r7rs)
+
+(define (interaction-environment) repl-environment)
+
+(define (scheme-report-environment v)
+  (let ([e (and (eqv? v 5) (make-historic-report-environment '(scheme r5rs) 'r5rs://))])
+    (or e (error "cannot create r5rs environment"))))
+
+(define (null-environment v)
+  (let ([e (and (eqv? v 5) (make-historic-report-environment '(scheme r5rs-null) 'r5rs://))])
+    (or e (error "cannot create r5rs null environment"))))
 
 
 ;--------------------------------------------------------------------------------------------------
