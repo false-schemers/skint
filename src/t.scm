@@ -680,8 +680,14 @@
   (define (not-pat-literal? id) (not (pat-literal? id)))
   (define (ellipsis-pair? x)
     (and (pair? x) (ellipsis? (car x))))
+  ; FIXME: we need undrscore? test for _ pattern to make sure it isn't bound
+  ; FIXME: template of the form (... <templ>) must disable ellipsis? in <templ>
+  ; FIXME: here we have a major problem: to determine if some id is an ellipsis
+  ; we look it up in mac-env for free-id=? purposes that can ony work
+  ; if we allocate denotations in use-env AND in mac-env(= root env?), 
+  ; which by design has to keep only very important ids, not random junk!
   (define (ellipsis-denotation? den)
-    (eq? (location-val den) '...)) ; fixme: need eq? with correct #&...
+    (eq? (location-val den) '...)) ; FIXME: need eq? with correct location!
   (define (ellipsis? x)
     (if ellipsis
         (eq? x ellipsis)
@@ -703,7 +709,7 @@
 
   ; Returns #f or an alist mapping each pattern var to a part of
   ; the input.  Ellipsis vars are mapped to lists of parts (or
-  ; lists of lists ...).
+  ; lists of lists ...)
   (define (match-pattern pat use use-env)
     (call-with-current-continuation
       (lambda (return)
@@ -714,6 +720,9 @@
           (cond
             [(id? pat)
               (if (pat-literal? pat)
+                  ; FIXME: another use of mav-env for free-id=? purposes that can ony work
+                  ; if we allocate denotations in use-env AND in mac-env(= root env?), 
+                  ; which by design has to keep only very important ids, not random junk!
                   (continue-if 
                     (and (id? sexp) (eq? (xenv-ref use-env sexp) (xenv-ref mac-env pat))))
                   (cons (cons pat sexp) bindings))]
@@ -1676,7 +1685,7 @@
 
 ; hacks for locating library files
 
-(define *library-path-list* '("./")) ; will do for now
+(define *library-path-list* '("./")) ; will do for now; FIXME: get access to real separator!
 
 (define (add-library-path! path)
   (if (base-path-separator path)
@@ -2099,6 +2108,7 @@
   ; initialization code got to be run, so we may as well do it right now
   (compile-and-run-core-expr (car ic&eal)) ; defined below, value(s) ignored
   ; now just wrap the regisry in read-only env and be done with it
+  ; note: lookup of listnames is disabled -- this env is not for imports/d-ls
   (make-readonly-environment ir #f))
 
 
@@ -2198,7 +2208,7 @@
 
 ; public interface to eval as per r7rs
 
-; another disgusting expand-tome -- run-time barrier breaker
+; another disgusting breaker of expand-time -- run-time barrier
 (define (eval expr . ?env)
   (define env (if (pair? ?env) (car ?env) (interaction-environment)))
   (evaluate-top-form expr env))
