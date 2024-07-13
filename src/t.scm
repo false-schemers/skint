@@ -2244,76 +2244,69 @@
     (for-each print vals)))
 
 (define (repl-read ip prompt op)
-  (when prompt (newline op) (display prompt op) (display " " op))
+  (when prompt  (format op "~%~a ~!" prompt))
   (read-code-sexp ip))
 
 (define (repl-exec-command cmd argstr op)
   (define args
-    (if (memq cmd '(peek sh)) ; do not expect s-exps!
+    (if (memq cmd '(load sh)) ; do not expect s-exps!
         (list (string-trim-whitespace argstr))
         (guard (err [else (void)]) (read-port-sexps (open-input-string argstr)))))
-  (define cmd+args (cons cmd args))
-  (sexp-case cmd+args
-    [(say hello) (display "Well, hello!\n" op)]
-    [(ref <symbol>) (write (repl-environment (car args) 'ref) op) (newline op)]
-    [(ref (* * ...)) (write (repl-environment (car args) 'ref) op) (newline op)]
-    [(rnr) (write *root-name-registry* op) (newline op)]
-    [(rref *) (write (name-lookup *root-name-registry* (car args) #f) op) (newline op)]
-    [(rrem! *) (cond [(name-lookup *root-name-registry* (car args) #f)
-                      (name-remove! *root-name-registry* (car args)) (display "done!\n" op)]
-                     [else (display "name not found: " op) (write name op) (newline op)])]
-    [(unr) (write *user-name-registry* op) (newline op)]
-    [(uref *) (write (name-lookup *user-name-registry* (car args) #f) op) (newline op)]
-    [(urem! *) (cond [(name-lookup *user-name-registry* (car args) #f)
-                      (name-remove! *user-name-registry* (car args)) (display "done!\n" op)]
-                     [else (display "name not found: " op) (write name op) (newline op)])]
-    [(gs) (write (global-store) op) (newline op)]
-    [(gs <symbol>) (let* ([k (car args)] [v (global-store)] [i (immediate-hash k (vector-length v))]) 
-                      (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
-    [(peek *)
-     (cond [(string? (car args)) 
-            (display (if (file-exists? (car args)) 
-              "file exists\n" "file does not exist\n") op)]
-           [(symbol? (car args)) 
-            (display (if (file-exists? (symbol->string (car args))) 
-              "file exists\n" "file does not exist\n") op)]
-           [else (display "invalid file name; use double quotes\n" op)])]
-    [(v) (set! *verbose* #t)]
-    [(verbose on) (set! *verbose* #t)]
-    [(verbose off) (set! *verbose* #f)]
-    [(q) (set! *quiet* #t)]
-    [(quiet on) (set! *quiet* #t)]
-    [(quiet off) (set! *quiet* #f)]
-    [(time *) (let ([start (current-jiffy)])
-                (repl-evaluate-top-form (car args) repl-environment op)
-                (format #t "; elapsed time: ~s ms.~%"
-                  (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second)))))]
-    [(sh <string>) (%system (car args))]
-    [(help)
-     (display "Available commands:\n" op)
-     (display " ,say hello     -- displays nice greeting\n" op)
-     (display " ,peek <fname>  -- check if file exists\n" op)
-     (display " ,q             -- disable informational messages\n" op)
-     (display " ,quiet on      -- disable informational messages\n" op)
-     (display " ,quiet off     -- enable informational messages\n" op)
-     (display " ,v             -- turn verbosity on\n" op)
-     (display " ,verbose on    -- turn verbosity on\n" op)
-     (display " ,verbose off   -- turn verbosity off\n" op)
-     (display " ,ref <name>    -- show denotation for <name> (may alloc)\n" op)
-     (display " ,rnr           -- show root name registry\n" op)
-     (display " ,rref <name>   -- lookup name in root registry\n" op)
-     (display " ,rrem! <name>  -- remove name from root registry\n" op)
-     (display " ,unr           -- show user name registry\n" op)
-     (display " ,uref <name>   -- lookup name in user registry\n" op)
-     (display " ,urem! <name>  -- remove name from user registry\n" op)
-     (display " ,gs            -- show global store (big!)\n" op)
-     (display " ,gs <name>     -- lookup global location for <name>\n" op)
-     (display " ,time <expr>   -- time short expression <expr>\n" op)
-     (display " ,sh <cmdline>  -- send <cmdline> to local shell\n" op)
-     (display " ,help          -- this help\n" op)]
-    [else
-     (display "syntax error in repl command\n" op)
-     (display "type ,help to see available commands\n" op)]))
+  (let retry ([cmd+args (cons cmd args)])
+    (sexp-case cmd+args
+      [(ref <symbol>) (write (repl-environment (car args) 'ref) op) (newline op)]
+      [(ref (* * ...)) (write (repl-environment (car args) 'ref) op) (newline op)]
+      [(rnr) (write *root-name-registry* op) (newline op)]
+      [(rref *) (write (name-lookup *root-name-registry* (car args) #f) op) (newline op)]
+      [(rrem! *) (cond [(name-lookup *root-name-registry* (car args) #f)
+                        (name-remove! *root-name-registry* (car args)) (display "done!\n" op)]
+                      [else (display "name not found: " op) (write name op) (newline op)])]
+      [(unr) (write *user-name-registry* op) (newline op)]
+      [(uref *) (write (name-lookup *user-name-registry* (car args) #f) op) (newline op)]
+      [(urem! *) (cond [(name-lookup *user-name-registry* (car args) #f)
+                        (name-remove! *user-name-registry* (car args)) (display "done!\n" op)]
+                      [else (display "name not found: " op) (write name op) (newline op)])]
+      [(gs) (write (global-store) op) (newline op)]
+      [(gs <symbol>) 
+       (let* ([k (car args)] [v (global-store)] [i (immediate-hash k (vector-length v))]) 
+         (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
+      [(load <string>) (load (car args))]
+      [(verbose on) (set! *verbose* #t)]
+      [(verbose off) (set! *verbose* #f)]
+      [(v) (set! *verbose* #t)]
+      [(quiet on) (set! *quiet* #t)]
+      [(quiet off) (set! *quiet* #f)]
+      [(q) (set! *quiet* #t)]
+      [(time *) (let ([start (current-jiffy)])
+                  (repl-evaluate-top-form (car args) repl-environment op)
+                  (format #t "; elapsed time: ~s ms.~%"
+                    (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second)))))]
+      [(sh <string>) (%system (car args))]
+      [(help)
+       (display "\nAvailable commands:\n" op)
+       (display " ,load <fname>  -- loads <fname> (no quotes needed)\n" op)
+       (display " ,q             -- disable informational messages\n" op)
+       (display " ,quiet on      -- disable informational messages\n" op)
+       (display " ,quiet off     -- enable informational messages\n" op)
+       (display " ,v             -- turn verbosity on\n" op)
+       (display " ,verbose on    -- turn verbosity on\n" op)
+       (display " ,verbose off   -- turn verbosity off\n" op)
+       (display " ,ref <name>    -- show denotation for <name> (may alloc)\n" op)
+       (display " ,rnr           -- show root name registry\n" op)
+       (display " ,rref <name>   -- lookup name in root registry\n" op)
+       (display " ,rrem! <name>  -- remove name from root registry\n" op)
+       (display " ,unr           -- show user name registry\n" op)
+       (display " ,uref <name>   -- lookup name in user registry\n" op)
+       (display " ,urem! <name>  -- remove name from user registry\n" op)
+       (display " ,gs            -- show global store (big!)\n" op)
+       (display " ,gs <name>     -- lookup global location for <name>\n" op)
+       (display " ,time <expr>   -- time short expression <expr>\n" op)
+       (display " ,sh <cmdline>  -- send <cmdline> to local shell\n" op)
+       (display " ,help          -- this help\n" op)]
+      [(h) (retry '(help))]
+      [else
+       (display "syntax error in repl command\n" op)
+       (display "type ,help to see available commands\n" op)])))
 
 (define (repl-from-port ip env prompt op)
   (define cfs (current-file-stack))
@@ -2354,7 +2347,7 @@
   (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
     ; quick check for non-interactive use failed, greet
     (display "SKINT Scheme Interpreter v0.0.9\n")
-    (display "Copyright (c) 2024 False Schemers\n\n"))
+    (display "Copyright (c) 2024 False Schemers\n"))
   #t) ; exited normally
 
 (define (repl)

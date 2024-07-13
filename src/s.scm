@@ -1964,7 +1964,7 @@
 (define format-fresh-line ; TODO: add (fresh-line [p]) instruction for source ports
   (make-parameter newline))
 (define format-help-string 
-  (make-parameter "supported directives: ~~ ~% ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~f ~? ~k ~*"))
+  (make-parameter "supported directives: ~~ ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~f ~? ~k ~* ~!"))
 
 (define (fprintf p fs . args)
   (define (hd args)
@@ -1988,12 +1988,13 @@
            (when (null? (cdr fl)) (error "format: incomplete escape sequence"))
            (let* ([w -1] [d -1] [fl (memd (cdr fl) (set& w) (set& d))])
              (case (char-downcase (car fl))
-               [(#\*) (lp (cdr fl) (cddr args))] ;+ CL
+               [(#\*) (lp (cdr fl) (cddr args))] ;+ CL, skips 1 arg
                [(#\~) (write-char #\~ p) (lp (cdr fl) args)]
                [(#\%) (newline p) (lp (cdr fl) args)]
                [(#\t) (write-char #\tab p) (lp (cdr fl) args)]
                [(#\_) (write-char #\space p) (lp (cdr fl) args)]
                [(#\&) ((format-fresh-line) p) (lp (cdr fl) args)]
+               [(#\!) (flush-output-port p) (lp (cdr fl) args)] ;+ common
                [(#\s) (write (hd args) p) (lp (cdr fl) (cdr args))]
                [(#\a) (display (hd args) p) (lp (cdr fl) (cdr args))]
                [(#\w) (write-shared (hd args) p) (lp (cdr fl) (cdr args))]
