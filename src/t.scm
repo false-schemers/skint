@@ -1816,6 +1816,7 @@
              (loop l)]
             [(and (pair? v) (eq? (car v) 'syntax-rules))
               (body
+                ; FIXME: this is the mac-env for built-in syntax-rules macros!
                 (define (sr-env id at)
                   (if (new-id? id) (old-den id)
                       (name-lookup *root-name-registry* id 
