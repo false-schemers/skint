@@ -429,6 +429,8 @@
              [(syntax-error)   (xform-syntax-error   tail env)]
              [(define-library) (xform-define-library head tail env #f)]
              [(import)         (xform-import         head tail env #f)]
+             [(export program) (x-error "FIXME: not yet implemented" hval sexp)]
+             [(... _)          (x-error "improper use of auxiliary syntax" hval sexp)]
              [else (cond [(val-integrable? hval)  (xform-integrable hval tail env)]
                          [(val-transformer? hval) (xform appos? (hval sexp env) env)]
                          [(val-library? hval)     (x-error "improper use of library" hval sexp)]
@@ -442,9 +444,7 @@
       (x-error "improper quote form" (cons 'quote tail))))
 
 (define (xform-ref id env)
-  (let ([den (xenv-ref env id)])
-    (cond [(eq? (location-val den) '...) (x-error "improper use of ...")]
-          [else (location-val den)])))
+  (location-val (xenv-ref env id))) 
 
 (define (xform-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
@@ -708,7 +708,6 @@
   (define (ellipsis-pair? x)
     (and (pair? x) (ellipsis? (car x))))
   ; FIXME: we need undrscore? test for _ pattern to make sure it isn't bound
-  ; FIXME: template of the form (... <templ>) must disable ellipsis? in <templ>
   ; root-environment may be not yet defined, so instead of this test:
   ; (free-id=? x mac-env '... root-environment) we will do it manually;
   ; nb: 'real' ... is a builtin, at this time already registered in rnr
@@ -716,9 +715,13 @@
     (name-lookup *root-name-registry* '... (lambda (n) '...)))
   ; now we need just peek x in maro env to compare with the above
   (define (ellipsis? x)
-    (if ellipsis
-        (eq? x ellipsis)
+    (if ellipsis (eq? x ellipsis)
         (and (id? x) (eq? (mac-env x 'peek) ellipsis-den))))
+  ; ditto for underscore
+  (define underscore-den ; we may need to be first to alloc _ binding!
+    (name-lookup *root-name-registry* '_ (lambda (n) '_)))
+  (define (underscore? x)
+    (and (id? x) (eq? (mac-env x 'peek) underscore-den)))
 
   ; List-ids returns a list of the non-ellipsis ids in a
   ; pattern or template for which (pred? id) is true.  If
@@ -734,9 +737,8 @@
                  (collect (car x) inc (collect (cdr x) inc l)))]
             [else l])))
 
-  ; Returns #f or an alist mapping each pattern var to a part of
-  ; the input.  Ellipsis vars are mapped to lists of parts (or
-  ; lists of lists ...)
+  ; Returns #f or an alist mapping each pattern var to a part of the input. Ellipsis vars
+  ; are mapped to lists of parts (or lists of lists ...). There is no mapping for underscore
   (define (match-pattern pat use use-env)
     (call-with-current-continuation
       (lambda (return)
@@ -745,6 +747,7 @@
           (define (continue-if condition)
             (if condition bindings (fail)))
           (cond
+            [(underscore? pat) bindings]
             [(id? pat)
              (if (pat-literal? pat)
                  (continue-if (and (id? sexp) (free-id=? sexp use-env pat mac-env)))
@@ -754,8 +757,8 @@
              (match (vector->list pat) (vector->list sexp) bindings)]
             [(not (pair? pat))
              (continue-if (equal? pat sexp))]
-            [(ellipsis-pair? (cdr pat))
-             (let* ([tail-len (length (cddr pat))]
+            [(ellipsis-pair? (cdr pat)) ; we do not report (a ... b ...) as error
+             (let* ([tail-len (length (cddr pat))] ; assume no extra ...s there
                     [sexp-len (if (list? sexp) (length sexp) (fail))]
                     [seq-len (fx- sexp-len tail-len)]
                     [sexp-tail (begin (if (negative? seq-len) (fail)) (list-tail sexp seq-len))]
