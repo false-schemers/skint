@@ -1586,7 +1586,7 @@
 
 (define (repl-read iport)
   (when (eq? iport (current-input-port))
-    (display "\nservice> "))
+    (display "\nservice> ") (flush-output-port))
   (read iport))
 
 (define (repl-from-port iport)
@@ -1617,7 +1617,7 @@
 (define (debug-repl)
   (define outer-k #f)
   (define (loop)
-    (display "\ndebug> ")
+    (display "\ndebug> ") (flush-output-port)
     (let ([cmd (read)])
       (if (eof-object? cmd)
           #f ; quit scheme with code 0
@@ -1640,7 +1640,6 @@ Type r to get back to repl
 
 (define (main argv)
   (let ([args (cdr (command-line))])
-    ;(display "SKINT Scheme Interpreter v0.0.1\n")
     (cond
       [(syntax-match? '("-c" *) args)
        (process-file (cadr args))]

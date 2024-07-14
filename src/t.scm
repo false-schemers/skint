@@ -300,10 +300,10 @@
 (define-syntax  library-set-exports! (syntax-rules () [(_ l v) (vector-set! l 1 v)]))
 
 (define (location-special? l)        (not (val-core? (location-val l))))
-(define (new-id sym den getlits)     (define p (list sym den getlits)) (lambda () p))
+(define (new-id sym peek getlits)    (define p (list sym peek getlits)) (lambda () p))
 (define-syntax new-id?               procedure?)
 (define (old-sym id)                 (car (id)))
-(define (old-den id)                 (cadr (id)))
+(define (old-peek id)                (cadr (id)))
 (define (old-literals id)            ((or (caddr (id)) (lambda () '()))))
 (define (id? x)                      (or (symbol? x) (new-id? x)))
 (define (id->sym id)                 (if (symbol? id) id (old-sym id)))
@@ -318,23 +318,38 @@
             (cond [(assq renamed-nid lits) => cdr]
                   [else renamed-nid]))))))
 
+; make a fresh (renamed) id for a template literal, delaying allocation of its binding to
+; the moment it is used free -- in hope that such moment will never happen
+(define (new-literal-id id env getlits)
+  (define peek (env id 'peek))
+  (unless peek (x-error "env peek failed!" id env (id->sym id) (and (new-id? id) (new-id-lookup id 'peek))))
+  (new-id (id->sym id) peek getlits))
+
+; look up denotation of renamed identifier, trying to delay allocation up to the moment
+; when actual location is needed -- peeks don't have to go all the way (see )
+(define (new-id-lookup id at)
+  (let* ([spg (id)] [peek (cadr spg)])
+    (if (or (eq? at 'peek) (location? peek))
+        peek ; delay binding allocation until absolutely necessary
+        (name-lookup peek (car spg) (lambda (n) (list 'ref n))))))
+
 ; Expand-time environments map names (identifiers or listnames) to denotations, i.e. locations
 ; containing either a <special> or a <core> value. In normal case, <core> value is (ref <gid>),
 ; where <gid> is a key in run-time store, aka *globals*. Environments should allocate new locations
 ; as needed, so every name gets mapped to one. Expand-time environments are represented as
 ; two-argument procedures, where the second argument (at) is an access type symbol, one of the
-; four possible values: ref, set!, define, define-syntax (defines are requests to allocate)
+; these values: peek, ref, set!, define, define-syntax, import (last 3 are requests to allocate)
 
 (define (extend-xenv-local id val env)
   (let ([loc (make-location val)])
     (if (pair? id) 
         (lambda (i at) ; listname binding 
           (if (equal? id i) 
-              (case at [(ref set!) loc] [else #f]) 
+              (case at [(ref set! peek) loc] [else #f]) 
               (env i at)))
         (lambda (i at) ; symname binding
           (if (eq? id i)
-              (case at [(ref set!) loc] [else #f]) 
+              (case at [(ref set! peek) loc] [else #f]) 
               (env i at))))))
 
 (define (add-local-var id gid env)
@@ -365,6 +380,14 @@
 (define define-id        (new-id 'define        (make-location 'define) #f))
 (define define-syntax-id (new-id 'define-syntax (make-location 'define-syntax) #f))
 (define syntax-quote-id  (new-id 'syntax-quote  (make-location 'syntax-quote) #f))
+
+; standard way of comparing identifiers used as keywords and such; details below
+(define (free-id=? id1 env1 id2 env2)
+  (let ([p1 (env1 id1 'peek)] [p2 (env2 id2 'peek)])
+    (and p1 p2 ; both envs should be supported by name registries
+      (if (and (name-registry? p1) (name-registry? p2))
+          (and (eq? p1 p2) (eq? id1 id2)) ; would end w/same loc if alloced
+          (eq? p1 p2))))) ; nrs and locs are distinct, so this means "same loc" 
 
 ; xform receives Scheme s-expressions and returns either Core Scheme <core> form
 ; (always a pair) or so-called 'special', which is either a builtin (a symbol), a
@@ -575,8 +598,9 @@
                               (let ([init (list syntax-quote-id code)])
                                 (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))
                               (let ([id (id-rename-as head (caar eal))] [loc (cdar eal)])
-                                (scan (cdr eal) ; use handmade env sharing loc, but for ref only!
-                                  (lambda (i at) (if (eq? i id) (and (eq? at 'ref) loc) (env i at))))))))
+                                (scan (cdr eal) 
+                                  (lambda (i at) ; make env sharing loc, but for peek/ref only!
+                                    (if (eq? i id) (and (memq at '(ref peek)) loc) (env i at))))))))
                       (x-error "improper import form" first))] 
                  [else
                   (if (val-transformer? hval)
@@ -672,37 +696,47 @@
         (apply x-error args)
         (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
 
+
 ; make transformer procedure from the rules
 
 (define (syntax-rules* mac-env ellipsis pat-literals rules)
 
   (define (pat-literal? id) (memq id pat-literals))
+
   (define (not-pat-literal? id) (not (pat-literal? id)))
-  (define (ellipsis-pair? x)
-    (and (pair? x) (ellipsis? (car x))))
+
+  (define (ellipsis-pair? x use-env)
+    (and (pair? x) (ellipsis? (car x) use-env)))
   ; FIXME: we need undrscore? test for _ pattern to make sure it isn't bound
   ; FIXME: template of the form (... <templ>) must disable ellipsis? in <templ>
   ; FIXME: here we have a major problem: to determine if some id is an ellipsis
   ; we look it up in mac-env for free-id=? purposes that can ony work
   ; if we allocate denotations in use-env AND in mac-env(= root env?), 
   ; which by design has to keep only very important ids, not random junk!
-  (define (ellipsis-denotation? den)
-    (eq? (location-val den) '...)) ; FIXME: need eq? with correct location!
-  (define (ellipsis? x)
+  ;(define (ellipsis-denotation? den)
+  ;  (eq? (location-val den) '...)) ; FIXME: need eq? with correct location!
+  ;  (ellipsis-denotation? (xenv-ref mac-env x))
+  ; root-environment may be not yet defined, so instead of this test:
+  ; (free-id=? x mac-env '... root-environment) we will do it manually;
+  ; nb: 'real' ... is a builtin, at this time already registered in rnr
+  (define ellipsis-den ; we may need to be first to alloc ... binding!
+    (name-lookup *root-name-registry* '... (lambda (n) '...)))
+  ; now we need just peek x in maro env to compare with the above
+  (define (ellipsis? x use-env)
     (if ellipsis
         (eq? x ellipsis)
-        (and (id? x) (ellipsis-denotation? (xenv-ref mac-env x)))))
+        (and (id? x) (eq? (mac-env x 'peek) ellipsis-den))))
 
   ; List-ids returns a list of the non-ellipsis ids in a
   ; pattern or template for which (pred? id) is true.  If
   ; include-scalars is false, we only include ids that are
   ; within the scope of at least one ellipsis.
-  (define (list-ids x include-scalars pred?)
+  (define (list-ids x include-scalars pred? use-env)
     (let collect ([x x] [inc include-scalars] [l '()])
       (cond [(id? x) (if (and inc (pred? x)) (cons x l) l)]
             [(vector? x) (collect (vector->list x) inc l)]
             [(pair? x)
-             (if (ellipsis-pair? (cdr x))
+             (if (ellipsis-pair? (cdr x) use-env)
                  (collect (car x) #t (collect (cddr x) inc l))
                  (collect (car x) inc (collect (cdr x) inc l)))]
             [else l])))
@@ -719,25 +753,24 @@
             (if condition bindings (fail)))
           (cond
             [(id? pat)
-              (if (pat-literal? pat)
-                  ; FIXME: another use of mav-env for free-id=? purposes that can ony work
-                  ; if we allocate denotations in use-env AND in mac-env(= root env?), 
-                  ; which by design has to keep only very important ids, not random junk!
-                  (continue-if 
-                    (and (id? sexp) (eq? (xenv-ref use-env sexp) (xenv-ref mac-env pat))))
-                  (cons (cons pat sexp) bindings))]
+             (if (pat-literal? pat)
+                 ; FIXME: another use of mav-env for free-id=? purposes that can ony work
+                 ; if we allocate denotations in use-env AND in mac-env(= root env?), 
+                 ; which by design has to keep only very important ids, not random junk!
+                 (continue-if (and (id? sexp) (free-id=? sexp use-env pat mac-env)))
+                 (cons (cons pat sexp) bindings))]
             [(vector? pat)
              (or (vector? sexp) (fail))
              (match (vector->list pat) (vector->list sexp) bindings)]
             [(not (pair? pat))
              (continue-if (equal? pat sexp))]
-            [(ellipsis-pair? (cdr pat))
+            [(ellipsis-pair? (cdr pat) use-env)
              (let* ([tail-len (length (cddr pat))]
                     [sexp-len (if (list? sexp) (length sexp) (fail))]
                     [seq-len (fx- sexp-len tail-len)]
                     [sexp-tail (begin (if (negative? seq-len) (fail)) (list-tail sexp seq-len))]
                     [seq (reverse (list-tail (reverse sexp) tail-len))]
-                    [vars (list-ids (car pat) #t not-pat-literal?)])
+                    [vars (list-ids (car pat) #t not-pat-literal? use-env)])
                (define (match1 sexp)
                  (map cdr (match (car pat) sexp '())))
                (append
@@ -748,25 +781,25 @@
                (match (cdr pat) (cdr sexp) bindings))]
             [else (fail)])))))
 
-  (define (expand-template pat tmpl top-bindings)
+  (define (expand-template pat tmpl top-bindings use-env)
     ; New-literals is an alist mapping each literal id in the
     ; template to a fresh id for inserting into the output.  It
     ; might have duplicate entries mapping an id to two different
     ; fresh ids, but that's okay because when we go to retrieve a
-    ; fresh id, assq will always retrieve the first one.
+    ; fresh id, assq will always retrieve the same (first) one.
     (define new-literals
       (body
         (define nl
-          (map (lambda (id) (cons id (new-id (id->sym id) (xenv-ref mac-env id) (lambda () nl))))
-               (list-ids tmpl #t (lambda (id) (not (assq id top-bindings))))))
+          (map (lambda (id) ; FIXME: ref creates bindings in root env -- and spoils it!
+                 (cons id (new-literal-id id mac-env (lambda () nl))))
+               (list-ids tmpl #t (lambda (id) (not (assq id top-bindings))) use-env)))
         nl))
 
     (define ellipsis-vars
-      (list-ids pat #f not-pat-literal?))
+      (list-ids pat #f not-pat-literal? use-env))
 
     (define (list-ellipsis-vars subtmpl)
-      (list-ids subtmpl #t 
-        (lambda (id) (memq id ellipsis-vars))))
+      (list-ids subtmpl #t (lambda (id) (memq id ellipsis-vars)) use-env))
 
     (let expand ([tmpl tmpl] [bindings top-bindings])
       (let expand-part ([tmpl tmpl])
@@ -777,7 +810,7 @@
                     (assq tmpl new-literals)))]
           [(vector? tmpl)
            (list->vector (expand-part (vector->list tmpl)))]
-          [(and (pair? tmpl) (ellipsis-pair? (cdr tmpl)))
+          [(and (pair? tmpl) (ellipsis-pair? (cdr tmpl) use-env))
            (let ([vars-to-iterate (list-ellipsis-vars (car tmpl))])
              (define (lookup var)
                (cdr (assq var bindings)))
@@ -801,8 +834,9 @@
       (if (null? rules) (x-error "invalid syntax" use))
       (let* ([rule (car rules)] [pat (car rule)] [tmpl (cadr rule)])
         (cond [(match-pattern pat use use-env) =>
-               (lambda (bindings) (expand-template pat tmpl bindings))]
+               (lambda (bindings) (expand-template pat tmpl bindings use-env))]
               [else (loop (cdr rules))])))))
+
 
 ; hand-made transformers (use functionality defined below)
 
@@ -849,7 +883,7 @@
 
 (define (make-cond-expand-transformer)
   (lambda (sexp env)
-    (define (lit=? id sym) ; match literal using free-id=? -like match
+    (define (lit=? id sym) ; FIXME: match literal using free-id=? -like match
       (and (id? id) (eq? (xenv-ref env id) (xenv-ref root-environment sym))))
     (cons begin-id (preprocess-cond-expand lit=? sexp env))))
 
@@ -1756,6 +1790,8 @@
 ; name registries are htables (vectors with one extra slot) of alists ((sym . <location>) ...)
 ; last slot is used for list names (library names), the rest for regular symbolic names
 
+(define (name-registry? x) (vector? x)) ; should be distinguishable from locs, which are boxes
+
 (define (make-name-registry size) ; size is approx. count of buckets
   (define primes ; some nice-looking primes in 1 - 1000 range
    '(1 11 31 41 61 71 101 131 151 181 191 211 241 251 271 281 311 331 401 421 431 
@@ -1812,15 +1848,19 @@
   (unless (null? l)
     (let* ([p (car l)] [l (cdr l)] [k (car p)] [v (cdr p)])
       (cond [(or (symbol? v) (integrable? v))
+             ; integrables and builtins like begin and ... (sic!)
              (name-lookup *root-name-registry* k (lambda (n) v)) 
              (loop l)]
             [(and (pair? v) (eq? (car v) 'syntax-rules))
               (body
                 ; FIXME: this is the mac-env for built-in syntax-rules macros!
                 (define (sr-env id at)
-                  (if (new-id? id) (old-den id)
-                      (name-lookup *root-name-registry* id 
-                        (lambda (n) (list 'ref n)))))
+                  (cond [(new-id? id) (new-id-lookup id at)]
+                        [(eq? at 'peek) ; for free-id=?
+                         (or (name-lookup *root-name-registry* id #f)
+                             *root-name-registry*)] 
+                        [else (name-lookup *root-name-registry* id 
+                                 (lambda (n) (list 'ref n)))]))
                 (define sr-v
                   (if (id? (cadr v))
                       (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
@@ -1934,7 +1974,7 @@
     (string->fixnum) (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
     (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
-    (fltan) (flasin) (flacos) (flatan (y)) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
+    (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
     (flmax) (flonum->fixnum) (flonum->string) (string->flonum) 
     (list-cat) (meme) (asse) (reverse!) (circular?) 
     (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
@@ -1954,14 +1994,13 @@
 ; Environments
 ;--------------------------------------------------------------------------------------------------
 
-; make read-only environment from a registry (lookup listnames in use-env, unless #f)
-(define (make-readonly-environment rr use-env)
+; make read-only environment from a registry
+(define (make-readonly-environment rr)
   (lambda (name at)
     (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
-           (case at [(ref set!) (old-den name)] [else #f])]
-          [(eq? at 'ref) ; for reference only: do not allow any allocation
-           (or (name-lookup rr name #f) ; no allocation callback
-               (and use-env (not (symbol? name)) (use-env name 'ref)))] 
+           (case at [(ref set! peek) (new-id-lookup name at)] [else #f])]
+          [(eq? at 'peek) (or (name-lookup rr name #f) rr)] ; for free-id=? 
+          [(eq? at 'ref) (name-lookup rr name #f)]  ; no allocation callback
           [else #f])))
 
 ; makes controlled environments for libraries and programs using import al, global name generator, 
@@ -1971,7 +2010,7 @@
   (define lr (make-name-registry 100)) ; local registry for new names
   (lambda (name at)
     (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
-           (case at [(ref set!) (old-den name)] [else #f])]
+           (case at [(ref set! peek) (new-id-lookup name at)] [else #f])]
           [(eq? at 'ref) ; for reference only: try not to alloc
            (name-lookup lr name ; return if in local registry
              (lambda (n) ; ok, not in lr: check ir
@@ -1979,6 +2018,9 @@
                    (if (symbol? name)
                        (list 'ref (global name)) ; alloc in repl store
                        (use-env name 'ref)))))]  ; listnames looked up in use-env
+          [(eq? at 'peek) ; for free-id=? : see where id resides or would reside if alloced
+           (or (name-lookup lr name #f) (name-lookup ir name #f)
+               (if (symbol? name) lr (use-env name 'peek)))] 
           [(memq at '(set! define)) ; same action for both operations
            ; works only for symbolic names; auto-allocates but does not shadow
            (and (symbol? name) ; no set!/define to list names
@@ -2008,8 +2050,9 @@
   ; note: lookup in sld environment can cause recursive calls to fetch-library
   ; if upstream dependencies are not yet loaded; loops are detected inside f-l
   (define (sld-env id at)
-    (cond [(not (eq? at 'ref)) #f]
-          [(procedure? id) (old-den id)]
+    (cond [(not (memq at '(ref peek))) #f]
+          [(new-id? id) (new-id-lookup id at)]
+          [(eq? at 'peek) (or (name-lookup rr name #f) rr)] ; for free-id=? purposes
           [(eq? id 'define-library) (make-location 'define-library)]
           [(not (listname? id)) #f]
           [else (name-lookup rr id
@@ -2022,7 +2065,7 @@
   (define (global name) (fully-qualified-library-prefixed-name gpref name))
   (lambda (name at)
     (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
-           (case at [(ref set!) (old-den name)] [else #f])]
+           (case at [(ref set! peek) (new-id-lookup name at)] [else #f])]
           [(eq? at 'ref) ; for reference only: try not to alloc
            (name-lookup ur name ; return if in user registry
              (lambda (n) ; ok, not in ur: check rr
@@ -2032,6 +2075,9 @@
                              (let ([sld-env (make-sld-environment rr)]) 
                                (fetch-library name sld-env))))) ;=> <library> or #f
                    (and (symbol? name) (list 'ref (global name))))))] ; alloc in repl store
+          [(eq? at 'peek) ; for free-id=? : see where id resides or would reside if alloced
+           (or (name-lookup ur name #f) (name-lookup rr name #f)
+               (if (symbol? name) ur rr))] ; symbol ids: would be alloced in ur if not found 
           [(eq? at 'set!) ; for assigning new values to variables
            ; works only for symbolic names; auto-allocates but does not shadow
            (and (symbol? name) ; no set! to list names
@@ -2068,13 +2114,15 @@
     (and loc (let ([val (location-val loc)]) (and (val-library? val) val)))))
 
 (define root-environment
-  (make-readonly-environment *root-name-registry* #f))
+  (make-readonly-environment *root-name-registry*))
 
 (define repl-environment 
   (make-repl-environment *root-name-registry* *user-name-registry* 'repl://))
 
-(define (empty-environment id at) #f)
-
+(define (empty-environment id at)
+  (cond [(new-id? id) (new-id-lookup id at)]
+        [else #f]))
+ 
 (define (make-historic-report-environment listname prefix)
   (let* ([loc (name-lookup *root-name-registry* listname #f)]
          [l (and loc (location-val loc))] [l (and (val-library? l) l)]
@@ -2110,7 +2158,7 @@
   (compile-and-run-core-expr (car ic&eal)) ; defined below, value(s) ignored
   ; now just wrap the regisry in read-only env and be done with it
   ; note: lookup of listnames is disabled -- this env is not for imports/d-ls
-  (make-readonly-environment ir #f))
+  (make-readonly-environment ir))
 
 
 ;--------------------------------------------------------------------------------------------------
