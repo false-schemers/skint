@@ -705,24 +705,17 @@
 
   (define (not-pat-literal? id) (not (pat-literal? id)))
 
-  (define (ellipsis-pair? x use-env)
-    (and (pair? x) (ellipsis? (car x) use-env)))
+  (define (ellipsis-pair? x)
+    (and (pair? x) (ellipsis? (car x))))
   ; FIXME: we need undrscore? test for _ pattern to make sure it isn't bound
   ; FIXME: template of the form (... <templ>) must disable ellipsis? in <templ>
-  ; FIXME: here we have a major problem: to determine if some id is an ellipsis
-  ; we look it up in mac-env for free-id=? purposes that can ony work
-  ; if we allocate denotations in use-env AND in mac-env(= root env?), 
-  ; which by design has to keep only very important ids, not random junk!
-  ;(define (ellipsis-denotation? den)
-  ;  (eq? (location-val den) '...)) ; FIXME: need eq? with correct location!
-  ;  (ellipsis-denotation? (xenv-ref mac-env x))
   ; root-environment may be not yet defined, so instead of this test:
   ; (free-id=? x mac-env '... root-environment) we will do it manually;
   ; nb: 'real' ... is a builtin, at this time already registered in rnr
   (define ellipsis-den ; we may need to be first to alloc ... binding!
     (name-lookup *root-name-registry* '... (lambda (n) '...)))
   ; now we need just peek x in maro env to compare with the above
-  (define (ellipsis? x use-env)
+  (define (ellipsis? x)
     (if ellipsis
         (eq? x ellipsis)
         (and (id? x) (eq? (mac-env x 'peek) ellipsis-den))))
@@ -731,12 +724,12 @@
   ; pattern or template for which (pred? id) is true.  If
   ; include-scalars is false, we only include ids that are
   ; within the scope of at least one ellipsis.
-  (define (list-ids x include-scalars pred? use-env)
+  (define (list-ids x include-scalars pred?)
     (let collect ([x x] [inc include-scalars] [l '()])
       (cond [(id? x) (if (and inc (pred? x)) (cons x l) l)]
             [(vector? x) (collect (vector->list x) inc l)]
             [(pair? x)
-             (if (ellipsis-pair? (cdr x) use-env)
+             (if (ellipsis-pair? (cdr x))
                  (collect (car x) #t (collect (cddr x) inc l))
                  (collect (car x) inc (collect (cdr x) inc l)))]
             [else l])))
@@ -754,9 +747,6 @@
           (cond
             [(id? pat)
              (if (pat-literal? pat)
-                 ; FIXME: another use of mav-env for free-id=? purposes that can ony work
-                 ; if we allocate denotations in use-env AND in mac-env(= root env?), 
-                 ; which by design has to keep only very important ids, not random junk!
                  (continue-if (and (id? sexp) (free-id=? sexp use-env pat mac-env)))
                  (cons (cons pat sexp) bindings))]
             [(vector? pat)
@@ -764,13 +754,13 @@
              (match (vector->list pat) (vector->list sexp) bindings)]
             [(not (pair? pat))
              (continue-if (equal? pat sexp))]
-            [(ellipsis-pair? (cdr pat) use-env)
+            [(ellipsis-pair? (cdr pat))
              (let* ([tail-len (length (cddr pat))]
                     [sexp-len (if (list? sexp) (length sexp) (fail))]
                     [seq-len (fx- sexp-len tail-len)]
                     [sexp-tail (begin (if (negative? seq-len) (fail)) (list-tail sexp seq-len))]
                     [seq (reverse (list-tail (reverse sexp) tail-len))]
-                    [vars (list-ids (car pat) #t not-pat-literal? use-env)])
+                    [vars (list-ids (car pat) #t not-pat-literal?)])
                (define (match1 sexp)
                  (map cdr (match (car pat) sexp '())))
                (append
@@ -790,16 +780,15 @@
     (define new-literals
       (body
         (define nl
-          (map (lambda (id) ; FIXME: ref creates bindings in root env -- and spoils it!
-                 (cons id (new-literal-id id mac-env (lambda () nl))))
-               (list-ids tmpl #t (lambda (id) (not (assq id top-bindings))) use-env)))
+          (map (lambda (id) (cons id (new-literal-id id mac-env (lambda () nl))))
+               (list-ids tmpl #t (lambda (id) (not (assq id top-bindings))))))
         nl))
 
     (define ellipsis-vars
-      (list-ids pat #f not-pat-literal? use-env))
+      (list-ids pat #f not-pat-literal?))
 
     (define (list-ellipsis-vars subtmpl)
-      (list-ids subtmpl #t (lambda (id) (memq id ellipsis-vars)) use-env))
+      (list-ids subtmpl #t (lambda (id) (memq id ellipsis-vars))))
 
     (let expand ([tmpl tmpl] [bindings top-bindings])
       (let expand-part ([tmpl tmpl])
@@ -810,7 +799,7 @@
                     (assq tmpl new-literals)))]
           [(vector? tmpl)
            (list->vector (expand-part (vector->list tmpl)))]
-          [(and (pair? tmpl) (ellipsis-pair? (cdr tmpl) use-env))
+          [(and (pair? tmpl) (ellipsis-pair? (cdr tmpl)))
            (let ([vars-to-iterate (list-ellipsis-vars (car tmpl))])
              (define (lookup var)
                (cdr (assq var bindings)))
@@ -1853,7 +1842,7 @@
              (loop l)]
             [(and (pair? v) (eq? (car v) 'syntax-rules))
               (body
-                ; FIXME: this is the mac-env for built-in syntax-rules macros!
+                ; this is the mac-env for built-in syntax-rules macros!
                 (define (sr-env id at)
                   (cond [(new-id? id) (new-id-lookup id at)]
                         [(eq? at 'peek) ; for free-id=?
