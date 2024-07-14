@@ -771,7 +771,7 @@
                (match (cdr pat) (cdr sexp) bindings))]
             [else (fail)])))))
 
-  (define (expand-template pat tmpl top-bindings use-env)
+  (define (expand-template pat tmpl top-bindings)
     ; New-literals is an alist mapping each literal id in the
     ; template to a fresh id for inserting into the output.  It
     ; might have duplicate entries mapping an id to two different
@@ -790,32 +790,34 @@
     (define (list-ellipsis-vars subtmpl)
       (list-ids subtmpl #t (lambda (id) (memq id ellipsis-vars))))
 
-    (let expand ([tmpl tmpl] [bindings top-bindings])
-      (let expand-part ([tmpl tmpl])
+    (let expand ([tmpl tmpl] [bindings top-bindings] [esc? #f])
+      (let expand-part ([tmpl tmpl] [esc? esc?])
         (cond
           [(id? tmpl)
            (cdr (or (assq tmpl bindings)
                     (assq tmpl top-bindings)
                     (assq tmpl new-literals)))]
           [(vector? tmpl)
-           (list->vector (expand-part (vector->list tmpl)))]
-          [(and (pair? tmpl) (ellipsis-pair? (cdr tmpl)))
+           (list->vector (expand-part (vector->list tmpl) esc?))]
+          [(and (not esc?) (pair? tmpl) (ellipsis? (car tmpl))) ; r7rs
+           (if (pair? (cdr tmpl)) (expand-part (cadr tmpl) #t)
+               (x-error "invalid escaped template syntax" tmpl))]
+          [(and (not esc?) (pair? tmpl) (ellipsis-pair? (cdr tmpl)))
            (let ([vars-to-iterate (list-ellipsis-vars (car tmpl))])
              (define (lookup var)
                (cdr (assq var bindings)))
-             (define (expand-using-vals . vals)
-               (expand (car tmpl)
-                 (map cons vars-to-iterate vals)))
+             (define (expand-using-vals esc? . vals)
+               (expand (car tmpl) (map cons vars-to-iterate vals) esc?))
              (if (null? vars-to-iterate)
                  ; ellipsis following non-repeatable part is an error, but we don't care
-                 (cons (expand-part (car tmpl)) (expand-part (cddr tmpl))) ; repeat once
+                 (cons (expand-part (car tmpl) esc?) 
+                       (expand-part (cddr tmpl) esc?)) ; 'repeat' once
                  ; correct use of ellipsis
-                 (let ([val-lists (map lookup vars-to-iterate)])
-                   (append
-                     (apply map (cons expand-using-vals val-lists))
-                     (expand-part (cddr tmpl))))))]
+                 (let ([val-lists (map lookup vars-to-iterate)]
+                       [euv (lambda v* (apply expand-using-vals esc? v*))])
+                   (append (apply map (cons euv val-lists)) (expand-part (cddr tmpl) esc?)))))]
           [(pair? tmpl)
-           (cons (expand-part (car tmpl)) (expand-part (cdr tmpl)))]
+           (cons (expand-part (car tmpl) esc?) (expand-part (cdr tmpl) esc?))]
           [else tmpl]))))
 
   (lambda (use use-env)
@@ -823,7 +825,7 @@
       (if (null? rules) (x-error "invalid syntax" use))
       (let* ([rule (car rules)] [pat (car rule)] [tmpl (cadr rule)])
         (cond [(match-pattern pat use use-env) =>
-               (lambda (bindings) (expand-template pat tmpl bindings use-env))]
+               (lambda (bindings) (expand-template pat tmpl bindings))]
               [else (loop (cdr rules))])))))
 
 
