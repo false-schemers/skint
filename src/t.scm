@@ -143,6 +143,12 @@
       '()
       (cons (car l) (list-diff (cdr l) t))))
 
+(define (list-head list index)
+  (let loop ([list list] [index index])
+    (if (zero? index)
+        '()
+        (cons (car list) (loop (cdr list) (- index 1))))))
+
 (define (pair* x . more)
   (let loop ([x x] [r more])
     (if (null? r) x (cons x (loop (car r) (cdr r))))))
@@ -707,25 +713,25 @@
 
   (define (ellipsis-pair? x)
     (and (pair? x) (ellipsis? (car x))))
-  ; FIXME: we need undrscore? test for _ pattern to make sure it isn't bound
+
   ; root-environment may be not yet defined, so instead of this test:
   ; (free-id=? x mac-env '... root-environment) we will do it manually;
-  ; nb: 'real' ... is a builtin, at this time already registered in rnr
+  ; nb: 'real' ... is a builtin, at this time possibly registered in rnr
   (define ellipsis-den ; we may need to be first to alloc ... binding!
     (name-lookup *root-name-registry* '... (lambda (n) '...)))
   ; now we need just peek x in maro env to compare with the above
   (define (ellipsis? x)
-    (if ellipsis (eq? x ellipsis)
+    (if ellipsis (eq? x ellipsis) ; custom one is given
         (and (id? x) (eq? (mac-env x 'peek) ellipsis-den))))
+
   ; ditto for underscore
   (define underscore-den ; we may need to be first to alloc _ binding!
     (name-lookup *root-name-registry* '_ (lambda (n) '_)))
   (define (underscore? x)
     (and (id? x) (eq? (mac-env x 'peek) underscore-den)))
 
-  ; List-ids returns a list of the non-ellipsis ids in a
-  ; pattern or template for which (pred? id) is true.  If
-  ; include-scalars is false, we only include ids that are
+  ; List-ids returns a list of the non-ellipsis ids in a pattern or template for which 
+  ; (pred? id) is true.  If include-scalars is false, we only include ids that are
   ; within the scope of at least one ellipsis.
   (define (list-ids x include-scalars pred?)
     (let collect ([x x] [inc include-scalars] [l '()])
@@ -736,6 +742,14 @@
                  (collect (car x) #t (collect (cddr x) inc l))
                  (collect (car x) inc (collect (cdr x) inc l)))]
             [else l])))
+
+  ; calculate the length of the post-... part of the pattern / input sexp
+  (define (proper-head-length lst check-ellipsis?)
+    (let loop ([p lst] [len 0])
+      (cond [(not (pair? p)) len]
+            [(and check-ellipsis? (ellipsis? (car p)))
+             (x-error "misplaced ellipsis in syntax-case pattern" lst)]
+            [else (loop (cdr p) (fx+ len 1))])))
 
   ; Returns #f or an alist mapping each pattern var to a part of the input. Ellipsis vars
   ; are mapped to lists of parts (or lists of lists ...). There is no mapping for underscore
@@ -757,12 +771,12 @@
              (match (vector->list pat) (vector->list sexp) bindings)]
             [(not (pair? pat))
              (continue-if (equal? pat sexp))]
-            [(ellipsis-pair? (cdr pat)) ; we do not report (a ... b ...) as error
-             (let* ([tail-len (length (cddr pat))] ; assume no extra ...s there
-                    [sexp-len (if (list? sexp) (length sexp) (fail))]
+            [(ellipsis-pair? (cdr pat))
+             (let* ([tail-len (proper-head-length (cddr pat) #t)] 
+                    [sexp-len (proper-head-length sexp #f)]
                     [seq-len (fx- sexp-len tail-len)]
-                    [sexp-tail (begin (if (negative? seq-len) (fail)) (list-tail sexp seq-len))]
-                    [seq (reverse (list-tail (reverse sexp) tail-len))]
+                    [sexp-tail (if (negative? seq-len) (fail) (list-tail sexp seq-len))]
+                    [seq (list-head sexp seq-len)]
                     [vars (list-ids (car pat) #t not-pat-literal?)])
                (define (match1 sexp)
                  (map cdr (match (car pat) sexp '())))
