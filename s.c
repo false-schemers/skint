@@ -1,4 +1,4 @@
-/* s.c -- generated via skint -c s.scm */
+/* s.c -- code is generated via skint -c s.scm */
 #include "s.h"
 #include "n.h"
 
@@ -210,7 +210,9 @@ char *s_code[] = {
   ":body;;;",
 
   "P", "new-record-type",
-  "%2.1,.1c]2",
+  "%2'(l1:s6:rtd://;),.2,.2c,,#0.0,&1{%2.0u?{${.3A8,@(y14:%25string-appen"
+  "d),@(y13:apply-to-list)[02}X5]2}.0du?{.1,.1aX4c,.1d,:0^[22}.1,.1aX4c,'"
+  "(s1::)c,.1d,:0^[22}.!0.0^_1[22",
 
   "S", "%id-eq??",
   "l3:y12:syntax-rules;n;l2:l5:y1:_;y2:id;y1:b;y2:kt;y2:kf;;l3:l3:y13:syn"
@@ -643,7 +645,7 @@ char *s_code[] = {
 
   "P", "assertion-violation",
   "%!0Pe,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-message"
-  ")[03}'1Z9]2",
+  ")[03}@(y5:reset)[20",
 
   "C", 0,
   "${'(l3:y4:kind;y7:message;y9:irritants;),'(y14:<error-object>),@(y15:n"

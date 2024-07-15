@@ -269,9 +269,15 @@
 ; (record-ref r i)
 ; (record-set! r i v)
 
-(define (new-record-type name fields) ; stub
-  (cons name fields))
-
+(define (new-record-type name fields)
+  ; should be something like (cons name fields), but that would complicate procedure? 
+  ; check that now relies on block tag being a non-immediate object, so we'll better put 
+  ; some pseudo-unique immediate object here -- and we don't have to be fast doing that
+  (let loop ([fl (cons name fields)] [sl '("rtd://")])
+     (cond [(null? fl) (string->symbol (apply string-append (reverse sl)))]
+           [(null? (cdr fl)) (loop (cdr fl) (cons (symbol->string (car fl)) sl))]
+           [else (loop (cdr fl) (cons ":" (cons (symbol->string (car fl)) sl)))]))) 
+  
 ; see http://okmij.org/ftp/Scheme/macro-symbol-p.txt
 (define-syntax %id-eq?? 
   (syntax-rules ()
@@ -1225,7 +1231,7 @@
   (let ([ep (current-error-port)])
     (newline ep)
     (print-error-message "Assertion violation" args ep)
-    (%exit 1)))
+    (reset)))
 
 (define-record-type <error-object>
   (error-object kind message irritants)

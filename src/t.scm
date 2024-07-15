@@ -891,8 +891,8 @@
 
 (define (make-cond-expand-transformer)
   (lambda (sexp env)
-    (define (lit=? id sym) ; FIXME: match literal using free-id=? -like match
-      (and (id? id) (eq? (xenv-ref env id) (xenv-ref root-environment sym))))
+    (define (lit=? id sym) ; match literal as free identifier
+      (and (id? id) (free-id=? id env sym root-environment sym)))
     (cons begin-id (preprocess-cond-expand lit=? sexp env))))
 
 ; library transformers
@@ -1984,7 +1984,7 @@
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
     (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
     (flmax) (flonum->fixnum) (flonum->string) (string->flonum) 
-    (list-cat) (meme) (asse) (reverse!) (circular?) 
+    (list-cat) (list-head) (meme) (asse) (reverse!) (circular?) 
     (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
     (vector-cat) (bytevector->list) (list->bytevector) (subbytevector) 
     (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
@@ -2414,5 +2414,7 @@
   (when *repl-first-time*
     (set! *repl-first-time* #f)
     (repl-main))
-  (repl-from-port ip repl-environment prompt op)
+  ; capture cc to handle unhandled exceptions
+  (letcc k (set-reset-handler! k)
+    (repl-from-port ip repl-environment prompt op))
   #t) ; exited normally via end-of-input

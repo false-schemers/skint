@@ -195,7 +195,8 @@ int istyped(obj o) {
   if (!isobjptr(o)) return 0;
   else { obj h = objptr_from_obj(o)[-1];
     return notaptr(h) && size_from_obj(h) >= 1 
-      && isobjptr(hblkref(o, 0)); }
+      /* FIXME: manual issymbol() check */
+      && isimm(hblkref(o, 0), 4/*SYMBOL_ITAG*/); }
 }
 #ifdef NDEBUG
   #define cktyped(o, t) (o)
