@@ -1807,10 +1807,21 @@
   (define prime (cond [(member size primes <=) => car] [else 991]))
   (make-vector (+ prime 1) '())) ; last bucket used for listnames
 
-(define (eal->name-registry eal) (vector eal '()))
-
+(define (eal->name-registry eal n) 
+  (if (= n 1) 
+      (vector eal '())
+      (let ([nr (make-name-registry n)])
+        (for-each (lambda (p) (name-install! nr (car p) (cdr p))) eal)
+        nr)))
+ 
 (define (eal-name-registry-import! ir ial)
-  (vector-set! ir 0 (adjoin-eals (vector-ref ir 0) ial))) ; may end in x-error on conflict
+  (if (= (vector-length ir) 2)
+      (vector-set! ir 0 (adjoin-eals (vector-ref ir 0) ial)) ; may end in x-error on conflict
+      (let loop ([ial ial])
+        (unless (null? ial)
+          (case (name-install! ir (caar ial) (cdar ial))
+            [(modified) (x-error "import conflict on importing binding" (caar ial) (cdar ial))])
+          (loop (cdr ial))))))
 
 (define (name-lookup nr name mkdefval) ;=> loc | #f
   (let* ([n-1 (- (vector-length nr) 1)] [i (if (pair? name) n-1 (immediate-hash name n-1))] 
@@ -2014,7 +2025,7 @@
 ; makes controlled environments for libraries and programs using import al, global name generator, 
 ; and env allowing fall-through for list names (so libraries can still be fetched by list name)
 (define (make-controlled-environment ial global use-env)
-  (define ir (eal->name-registry ial)) ; handmade import registry from ial
+  (define ir (eal->name-registry ial 100)) ; handmade import registry from ial
   (define lr (make-name-registry 100)) ; local registry for new names
   (lambda (name at)
     (cond [(new-id? name) ; nonsymbolic ids can't be (re)bound here
@@ -2161,7 +2172,7 @@
   (define iform (cons 'import isets)) ; incredibly stupid, but whatcha gonna do
   (define ienv root-environment) ; it's a procedure, so there you go...
   (define ic&eal (preprocess-import-sets iform ienv)) ;=> (init-core . exports-eal)
-  (define ir (eal->name-registry (cdr ic&eal))) ; handmade import registry from ial
+  (define ir (eal->name-registry (cdr ic&eal) 1)) ; handmade import registry from ial
   ; initialization code got to be run, so we may as well do it right now
   (compile-and-run-core-expr (car ic&eal)) ; defined below, value(s) ignored
   ; now just wrap the regisry in read-only env and be done with it

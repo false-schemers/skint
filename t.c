@@ -1042,10 +1042,14 @@ char *t_code[] = {
   "V2]3",
 
   "P", "eal->name-registry",
-  "%1n,.1,V12]1",
+  "%2'1,.2=?{n,.1,V12]2}${.3,@(y18:make-name-registry)[01},${.3,.3,&1{%1."
+  "0d,.1a,:0,@(y13:name-install!)[13},@(y10:%25for-each1)[02}.0]3",
 
   "P", "eal-name-registry-import!",
-  "%2${.3,'0,.4V4,@(y11:adjoin-eals)[02},'0,.2V5]2",
+  "%2'2,.1V3=?{${.3,'0,.4V4,@(y11:adjoin-eals)[02},'0,.2V5]2}.1,,#0.2,.1,"
+  "&2{%1.0u~?{${.2ad,.3aa,:1,@(y13:name-install!)[03},'(y8:modified),.1v?"
+  "{${.3ad,.4aa,'(s36:import conflict on importing binding),@(y7:x-error)"
+  "[03}}_1.0d,:0^[11}]1}.!0.0^_1[21",
 
   "P", "name-lookup",
   "%3'1,.1V3-,.2p?{.0}{.0,.3H2},.0,.3V4,.4p?{.0,.5A5}{.0,.5A3},.0?{.0d]7}"
@@ -1283,21 +1287,21 @@ char *t_code[] = {
   "?{.0]3}:0]3}'(y3:ref),.2q?{f,.1,:0,@(y11:name-lookup)[23}f]2}]1",
 
   "P", "make-controlled-environment",
-  "%3,,#0#1${.4,@(y18:eal->name-registry)[01}.!0${'(i100),@(y18:make-name"
-  "-registry)[01}.!1.1,.1,.5,.7,&4{%2.0K0?{.1,'(l3:y3:ref;y4:set!;y4:peek"
-  ";),.1A1?{.2,.2,@(y13:new-id-lookup)[32}f]3}'(y3:ref),.2q?{:2,.1,:1,:0,"
-  "&4{%1${f,:2,:3^,@(y11:name-lookup)[03},.0?{.0]2}:2Y0?{${:2,:1[01},'(y3"
-  ":ref),l2]2}'(y3:ref),:2,:0[22},.1,:3^,@(y11:name-lookup)[23}'(y4:peek)"
-  ",.2q?{${f,.3,:3^,@(y11:name-lookup)[03},.0?{.0]3}${f,.4,:2^,@(y11:name"
-  "-lookup)[03},.0?{.0]4}.2Y0?{:3^]4}'(y4:peek),.3,:0[42}'(l2:y4:set!;y6:"
-  "define;),.2A0?{.0Y0?{.0,:1,:2,&3{%1${f,:2,:0^,@(y11:name-lookup)[03}~?"
-  "{${:2,:1[01},'(y3:ref),l2]1}f]1},.1,:3^,@(y11:name-lookup)[23}f]2}'(y1"
-  "3:define-syntax),.2q?{.0,:2,&2{%1${f,:1,:0^,@(y11:name-lookup)[03}~?{Y"
-  "9]1}f]1},.1,:3^,@(y11:name-lookup)[23}'(y6:import),.2q?{${.2,'(l2:py8:"
-  "<symbol>;zy1:*;;;y3:...;),@(y11:sexp-match?)[02}}{f}?{.0,,#0:3,&1{%1${"
-  "f,.3a,:0^,@(y11:name-lookup)[03},.0?{.0,.0,.3d,.4a,'(s32:imported name"
-  " shadows local name),@(y7:x-error)[34}f]2}.!0${.3,.3^,@(y10:%25for-eac"
-  "h1)[02}${.3,:2^,@(y25:eal-name-registry-import!)[02}t]4}f]2}]5",
+  "%3,,#0#1${'(i100),.5,@(y18:eal->name-registry)[02}.!0${'(i100),@(y18:m"
+  "ake-name-registry)[01}.!1.1,.1,.5,.7,&4{%2.0K0?{.1,'(l3:y3:ref;y4:set!"
+  ";y4:peek;),.1A1?{.2,.2,@(y13:new-id-lookup)[32}f]3}'(y3:ref),.2q?{:2,."
+  "1,:1,:0,&4{%1${f,:2,:3^,@(y11:name-lookup)[03},.0?{.0]2}:2Y0?{${:2,:1["
+  "01},'(y3:ref),l2]2}'(y3:ref),:2,:0[22},.1,:3^,@(y11:name-lookup)[23}'("
+  "y4:peek),.2q?{${f,.3,:3^,@(y11:name-lookup)[03},.0?{.0]3}${f,.4,:2^,@("
+  "y11:name-lookup)[03},.0?{.0]4}.2Y0?{:3^]4}'(y4:peek),.3,:0[42}'(l2:y4:"
+  "set!;y6:define;),.2A0?{.0Y0?{.0,:1,:2,&3{%1${f,:2,:0^,@(y11:name-looku"
+  "p)[03}~?{${:2,:1[01},'(y3:ref),l2]1}f]1},.1,:3^,@(y11:name-lookup)[23}"
+  "f]2}'(y13:define-syntax),.2q?{.0,:2,&2{%1${f,:1,:0^,@(y11:name-lookup)"
+  "[03}~?{Y9]1}f]1},.1,:3^,@(y11:name-lookup)[23}'(y6:import),.2q?{${.2,'"
+  "(l2:py8:<symbol>;zy1:*;;;y3:...;),@(y11:sexp-match?)[02}}{f}?{.0,,#0:3"
+  ",&1{%1${f,.3a,:0^,@(y11:name-lookup)[03},.0?{.0,.0,.3d,.4a,'(s32:impor"
+  "ted name shadows local name),@(y7:x-error)[34}f]2}.!0${.3,.3^,@(y10:%2"
+  "5for-each1)[02}${.3,:2^,@(y25:eal-name-registry-import!)[02}t]4}f]2}]5",
 
   "P", "make-sld-environment",
   "%1,#0.0,.2,&2{%2'(l2:y3:ref;y4:peek;),.2A0~?{f]2}.0K0?{.1,.1,@(y13:new"
@@ -1366,9 +1370,9 @@ char *t_code[] = {
 
   "P", "environment",
   "%!0,,,,#0#1#2#3.4,'(y6:import)c.!0@(y16:root-environment).!1${.3^,.3^,"
-  "@(y22:preprocess-import-sets)[02}.!2${.4^d,@(y18:eal->name-registry)[0"
-  "1}.!3${.4^a,@(y25:compile-and-run-core-expr)[01}.3^,@(y25:make-readonl"
-  "y-environment)[51",
+  "@(y22:preprocess-import-sets)[02}.!2${'1,.5^d,@(y18:eal->name-registry"
+  ")[02}.!3${.4^a,@(y25:compile-and-run-core-expr)[01}.3^,@(y25:make-read"
+  "only-environment)[51",
 
   "C", 0,
   "f@!(y9:*verbose*)",
