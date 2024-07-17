@@ -1853,6 +1853,21 @@
 ; public registry for all non-hidden skint names
 (define *root-name-registry* (make-name-registry 300))
 
+; nonpublic registry for all hidden skint names (used by built-in macros)
+(define *hidden-name-registry* (make-name-registry 1))
+
+(define (builtin-sr-environment id at)
+  (cond [(new-id? id) (new-id-lookup id at)]
+        [(eq? at 'peek) ; for free-id=?
+         (or (name-lookup *hidden-name-registry* id #f)
+             (name-lookup *root-name-registry* id #f)
+             *root-name-registry*)] 
+        [else 
+         (name-lookup *hidden-name-registry* id 
+           (lambda (n) ; create new bindings in rnr:
+             (name-lookup *root-name-registry* id 
+               (lambda (n) (list 'ref n)))))]))
+
 ; register integrable procedures
 (let loop ([i 0])
   (let ([li (lookup-integrable i)]) ;=> #f, #<void>, or integrable (li == i)
@@ -1871,21 +1886,13 @@
              (name-lookup *root-name-registry* k (lambda (n) v)) 
              (loop l)]
             [(and (pair? v) (eq? (car v) 'syntax-rules))
-              (body
-                ; this is the mac-env for built-in syntax-rules macros!
-                (define (sr-env id at)
-                  (cond [(new-id? id) (new-id-lookup id at)]
-                        [(eq? at 'peek) ; for free-id=?
-                         (or (name-lookup *root-name-registry* id #f)
-                             *root-name-registry*)] 
-                        [else (name-lookup *root-name-registry* id 
-                                 (lambda (n) (list 'ref n)))]))
-                (define sr-v
-                  (if (id? (cadr v))
-                      (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
-                      (syntax-rules* sr-env #f (cadr v) (cddr v))))
-                (name-lookup *root-name-registry* k (lambda (name) sr-v))
-                (loop l))]))))
+             (let ([sr-env builtin-sr-environment])
+               (define sr-v
+                 (if (id? (cadr v))
+                     (syntax-rules* sr-env (cadr v) (caddr v) (cdddr v))
+                     (syntax-rules* sr-env #f (cadr v) (cddr v))))
+               (name-lookup *root-name-registry* k (lambda (name) sr-v))
+               (loop l))]))))
 
 ; register handcoded transformers
 (name-lookup *root-name-registry* 'include     (lambda (n) (make-include-transformer #f)))
@@ -1980,13 +1987,15 @@
     (interaction-environment p v) (null-environment v) (read r v) (scheme-report-environment v)
     (write w v) (current-jiffy t) (current-second t) (jiffies-per-second t) (write-shared w)
     (write-simple w)
+    ; these are special forms in skint!
+    (define-library) (import) (export) (program) 
     ; selected extracts from r7rs-large and srfis
     (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format 28 48) 
     (fprintf) (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
     ; skint extras go into (skint) only
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
     (record?) (make-record) (record-length) (record-ref) (record-set!) 
-    (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fx+) (fx*) (fx-) (fx/) 
+    (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg)
     (fxabs) (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
     (fxexpt) (fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsrl) (fixnum->flonum) (fixnum->string)
@@ -1994,16 +2003,29 @@
     (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
     (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
-    (flmax) (flonum->fixnum) (flonum->string) (string->flonum) 
-    (list-cat) (list-head) (meme) (asse) (reverse!) (circular?) 
-    (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
-    (vector-cat) (bytevector->list) (list->bytevector) (subbytevector) 
+    (flmax) (flremainder) (flmodulo) (flquotient) (flmodquo) (flonum->fixnum) (flonum->string) 
+    (string->flonum) (list-cat) (last-pair) (list-head) (meme) (asse) (reverse!) (circular?) (cons*)
+    (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
+    (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) (subbytevector) 
     (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
-    (rename-file)
+    (port-fold-case?) (set-port-fold-case!) (rename-file) (void) (void?) (global-store)
     ; temporarily here for debugging purposes
-    (xform) (compile-and-run-core-expr) (compile-to-thunk-code) (deserialize-code)
-    (closure) (repl-environment)
+    ;(xform) (compile-and-run-core-expr) (compile-to-thunk-code) (deserialize-code)
+    ;(closure) (repl-environment)
     ))
+
+; clean up root environment by moving all symbolic bindings not in (skint) library
+; to hidden name registry (so built-in macros can still work properly)
+(let* ([rr *root-name-registry*] [l (name-lookup rr '(skint) #f)] 
+       [eal (library-exports (location-val l))]
+       [n-1 (- (vector-length rr) 1)]) ; sans listnames
+  (do ([i 0 (+ i 1)]) [(= i n-1)]
+    (let loop ([prev #f] [lst (vector-ref rr i)])
+      (cond [(null? lst)]
+            [(assq (caar lst) eal) (loop lst (cdr lst))]
+            [else (if prev (set-cdr! prev (cdr lst)) (vector-set! rr i (cdr lst)))
+                  (name-install! *hidden-name-registry* (caar lst) (cdar lst))
+                  (loop prev (cdr lst))]))))
 
 ; private registry for names introduced in repl 
 (define *user-name-registry* (make-name-registry 200)) 
