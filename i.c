@@ -605,7 +605,6 @@ define_instruction(exit) {
   unwindi(0);
 }
 
-
 define_instruction(lit) { 
   ac = *ip++; 
   gonexti();
@@ -3914,6 +3913,18 @@ define_instruction(system) {
   res = system(stringchars(ac));
   ac = fixnum_obj(res);
   gonexti(); 
+}
+
+define_instruction(gccnt) {
+  extern int cxg_gccount;
+  ac = fixnum_obj(cxg_gccount); 
+  gonexti();
+}
+
+define_instruction(heapsz) {
+  extern size_t cxg_hsize;
+  ac = fixnum_obj((int)cxg_hsize); 
+  gonexti();
 }
 
 

@@ -2371,6 +2371,7 @@
                   (format #t "; elapsed time: ~s ms.~%"
                     (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second)))))]
       [(sh <string>) (%system (car args))]
+      [(si) (format #t "~d collections, heap size ~d words~%" (%gc-count) (%heap-size))]
       [(help)
        (display "\nAvailable commands:\n" op)
        (display " ,load <fname>  -- loads <fname> (no quotes needed)\n" op)
@@ -2391,6 +2392,7 @@
        (display " ,gs <name>     -- lookup global location for <name>\n" op)
        (display " ,time <expr>   -- time short expression <expr>\n" op)
        (display " ,sh <cmdline>  -- send <cmdline> to local shell\n" op)
+       (display " ,si            -- display system info\n" op)
        (display " ,help          -- this help\n" op)]
       [(h) (retry '(help))]
       [else

@@ -25104,9 +25104,9 @@ int cxg_rc = 0;
 char **cxg_argv = NULL;
 
 static obj *cxg_heap2 = NULL;
-static size_t cxg_hsize = 0; 
+size_t cxg_hsize = 0; 
 static cxoint_t cxg_hmask2 = 0;
-static int cxg_gccount = 0, cxg_bumpcount = 0;
+int cxg_gccount = 0, cxg_bumpcount = 0;
 
 static obj *toheap2(obj* p, obj *hp, obj *h1, cxoint_t m1, obj *h2, cxoint_t m2)
 {
