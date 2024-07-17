@@ -3890,6 +3890,16 @@ define_instruction(getenv) {
   gonexti(); 
 }
 
+define_instruction(envvref) {
+  extern const char *environ_ref(int idx);
+  int i; char *s; ckk(ac);
+  i = get_fixnum(ac); /* todo: range-check */
+  s = (char *)environ_ref(i);
+  if (s) ac = string_obj(newstring(s));
+  else ac = bool_obj(0); 
+  gonexti(); 
+}
+
 define_instruction(clock) {
   double d = (double)clock();
   ac = flonum_obj(d);

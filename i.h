@@ -519,6 +519,7 @@ declare_instruction(frem,       "F1",           0,  "delete-file",              
 declare_instruction(fren,       "F2",           0,  "rename-file",              '2', AUTOGL)
 declare_instruction(argvref,    "Z0",           0,  "%argv-ref",                '1', AUTOGL)
 declare_instruction(getenv,     "Z1",           0,  "get-environment-variable", '1', AUTOGL)
+declare_instruction(envvref,    "Z2",           0,  "%envv-ref",                '1', AUTOGL)
 declare_instruction(clock,      "Z3",           0,  "current-jiffy",            '0', AUTOGL)
 declare_instruction(clops,      "Z4",           0,  "jiffies-per-second",       '0', AUTOGL)
 declare_instruction(cursec,     "Z5",           0,  "current-second",           '0', AUTOGL)

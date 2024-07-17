@@ -17,6 +17,23 @@ int dirsep = '\\';
 int dirsep = '/';
 #endif
 
+#if defined(WIN32)
+#define sxc_environ _environ
+#elif defined(__linux) || defined(__APPLE__)
+#define sxc_environ environ
+#else /* add more systems? */
+char **sxc_environ = { NULL };
+#endif
+
+extern const char *environ_ref(int idx)
+{
+  const char **pe = sxc_environ;
+  /* be careful with indexing! */
+  if (idx < 0) return NULL;
+  while (idx-- > 0) if (*pe++ == NULL) return NULL;
+  return *pe;
+}
+
 char *s_code[] = {
 
   "S", "let-syntax",
