@@ -1298,6 +1298,10 @@ char *t_code[] = {
   "tall!)[03}.2d,.2,:0^[32}.!0.0^_1[02}'1,.1+,:3^[11}.!0.0^_1[01}_1_1_1_1",
 
   "C", 0,
+  "${'0,@(y22:*hidden-name-registry*)V4,'(l1:y5:begin;),V12b,'(l2:y5:skin"
+  "t;y6:hidden;),@(y20:*root-name-registry*),@(y13:name-install!)[03}",
+
+  "C", 0,
   "${'(i200),@(y18:make-name-registry)[01}@!(y20:*user-name-registry*)",
 
   "P", "make-readonly-environment",

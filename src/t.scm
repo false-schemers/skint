@@ -1854,7 +1854,7 @@
 (define *root-name-registry* (make-name-registry 300))
 
 ; nonpublic registry for all hidden skint names (used by built-in macros)
-(define *hidden-name-registry* (make-name-registry 1))
+(define *hidden-name-registry* (make-name-registry 1)) ; 1 to share bindings w/(skint hidden)
 
 (define (builtin-sr-environment id at)
   (cond [(new-id? id) (new-id-lookup id at)]
@@ -2026,6 +2026,10 @@
             [else (if prev (set-cdr! prev (cdr lst)) (vector-set! rr i (cdr lst)))
                   (name-install! *hidden-name-registry* (caar lst) (cdar lst))
                   (loop prev (cdr lst))]))))
+
+; make hidden bindings available via (skint hidden) library
+(name-install! *root-name-registry* '(skint hidden)
+  (make-location (make-library '(begin) (vector-ref *hidden-name-registry* 0))))
 
 ; private registry for names introduced in repl 
 (define *user-name-registry* (make-name-registry 200)) 
