@@ -217,6 +217,9 @@ static void _sck(obj *s) {
 #define get_char(o) char_from_obj(o)
 #define void_obj() obj_from_void(0)
 #define is_void(o) (o == obj_from_void(0))
+#define is_shebang(o) isshebang(o)
+#define get_shebang(o) getshebang(o)
+#define shebang_obj(i) mkshebang(i)
 #define unit_obj() obj_from_unit()
 #define is_unit(o) (o == obj_from_unit())
 #define null_obj() mknull()
@@ -241,6 +244,7 @@ static void _sck(obj *s) {
 #endif
 #define is_symbol(o) issymbol(o)
 #define get_symbol(o) getsymbol(o)
+#define symbol_obj(i) mksymbol(i)
 #define is_pair(o) ispair(o)
 #define pair_car(o) car(o)
 #define pair_cdr(o) cdr(o)
@@ -568,6 +572,8 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"box, cell, or promise"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckg(x) do { obj _x = (x); if (unlikely(!isintegrable(_x))) \
   { ac = _x; spush((obj)"integrable entry"); musttail return cxi_failactype(IARGS); } } while (0)
+#define cksb(x) do { obj _x = (x); if (unlikely(!is_shebang(_x))) \
+  { ac = _x; spush((obj)"directive"); musttail return cxi_failactype(IARGS); } } while (0)
 
 
 define_instruction(halt) { 
@@ -3083,6 +3089,24 @@ define_instruction(boxp) {
   ac = bool_obj(is_box(ac));
   gonexti();
 }
+
+define_instruction(shebangp) {
+  ac = bool_obj(is_shebang(ac));
+  gonexti();
+}
+
+define_instruction(ytosb) {
+  cky(ac);  
+  ac = shebang_obj(get_symbol(ac));
+  gonexti();
+}
+
+define_instruction(sbtoy) {
+  cksb(ac);  
+  ac = symbol_obj(get_shebang(ac));
+  gonexti();
+}
+
 
 define_instruction(funp) {
   ac = bool_obj(is_proc(ac));

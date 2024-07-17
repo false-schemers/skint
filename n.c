@@ -872,6 +872,11 @@ default: /* inter-host call */
 #define EOF_ITAG 7
 #define mkeof() mkimm(0, EOF_ITAG)
 #define iseof(o) ((o) == mkimm(0, EOF_ITAG))
+/* shebangs (#! directives or script start lines) */
+#define SHEBANG_ITAG 8
+#define isshebang(o) (isimm(o, SHEBANG_ITAG))
+#define mkshebang(i) mkimm(i, SHEBANG_ITAG)
+#define getshebang(o) getimmu(o, SHEBANG_ITAG)
 /* input ports */
 typedef struct { /* extends cxtype_t */
   const char *tname;
@@ -1303,8 +1308,11 @@ static void wrdatum(obj o, wenv_t *e) {
     wrs(buf, e);
   } else if (iseof(o)) {
     wrs("#<eof>", e);
-  } else if (o == obj_from_void(0)) {
+  } else if (isvoid(o)) {
     wrs("#<void>", e);
+  } else if (isshebang(o)) {
+    char *s = symbolname(getshebang(o));
+    wrs("#<!", e); wrs(s, e); wrc('>', e);
   } else if (o == obj_from_unit()) {
     wrs("#<values>", e);
   } else if (isiport(o)) {
@@ -1401,8 +1409,6 @@ static void wrdatum(obj o, wenv_t *e) {
       wrc(' ', e); wrdatum(recordref(o, i), e); 
     }
     wrc('>', e);
-  } else if (isvoid(o)) {
-    wrs("#<void>", e);
   } else {
     wrs("#<unknown>", e);
   }

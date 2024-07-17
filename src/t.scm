@@ -1729,9 +1729,14 @@
 
 (define *library-path-list* '("./")) ; will do for now; FIXME: get access to real separator!
 
-(define (add-library-path! path)
+(define (append-library-path! path)
   (if (base-path-separator path)
       (set! *library-path-list* (append *library-path-list* (list path)))
+      (c-error "library path should end in directory separator" path))) 
+
+(define (prepend-library-path! path)
+  (if (base-path-separator path)
+      (set! *library-path-list* (append (list path) *library-path-list*))
       (c-error "library path should end in directory separator" path))) 
 
 (define (find-library-path listname) ;=> name of existing .sld file or #f
@@ -2313,6 +2318,7 @@
   (define ci? #f) ; do not bother setting this unless told by the specification
   (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
          [fileok? (and (string? filepath) (file-exists? filepath))])
+    (unless fileok? (error "cannot load file" filename filepath)) 
     (with-current-file filepath
       (lambda ()
         (call-with-input-file filepath

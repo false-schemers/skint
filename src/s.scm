@@ -1656,6 +1656,17 @@
             [(char=? c #\#)
              (let ([c (peek-char p)])
                (cond [(eof-object? c) (r-error p "end of file after #")]
+                     [(char=? c #\!)
+                      (read-char p)
+                      (let ([name (sub-read-carefully p)])
+                        (case name
+                          [(fold-case no-fold-case) 
+                           (set! fold-case? (eq? name 'fold-case)) 
+                           (set-port-fold-case! p fold-case?)
+                           (sub-read p)]
+                          [else (if (symbol? name) 
+                                    (symbol->shebang name)
+                                    (r-error p "unexpected name after #!" name))]))]
                      [(or (char-ci=? c #\t) (char-ci=? c #\f))
                       (let ([name (sub-read-carefully p)])
                         (case name [(t true) #t] [(f false) #f]
@@ -2045,3 +2056,18 @@
            (apply fprintf p args) (get-output-string p))]
         [(eq? arg #t) (apply fprintf (current-output-port) args)]
         [else (apply fprintf arg args)]))
+
+(define (write-to-string obj)
+  (let ([p (open-output-string)])
+    (write obj p)
+    (let ([s (get-output-string p)])
+      (close-output-port p)
+      s)))
+
+(define (read-from-string str)
+  (let* ([p (open-input-string str)]
+         [obj (guard (err [else (eof-object)]) (read p))])
+    (close-input-port p)
+    obj))
+
+

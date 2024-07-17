@@ -994,9 +994,14 @@ char *t_code[] = {
   "C", 0,
   "'(l1:s2:./;)@!(y19:*library-path-list*)",
 
-  "P", "add-library-path!",
+  "P", "append-library-path!",
   "%1${.2,@(y19:base-path-separator)[01}?{.0,l1,@(y19:*library-path-list*"
   ")L6@!(y19:*library-path-list*)]1}.0,'(s46:library path should end in d"
+  "irectory separator),@(y7:c-error)[12",
+
+  "P", "prepend-library-path!",
+  "%1${.2,@(y19:base-path-separator)[01}?{@(y19:*library-path-list*),.1,l"
+  "1L6@!(y19:*library-path-list*)]1}.0,'(s46:library path should end in d"
   "irectory separator),@(y7:c-error)[12",
 
   "P", "find-library-path",
@@ -1449,11 +1454,12 @@ char *t_code[] = {
 
   "P", "load",
   "%!1,,#0#1.2p?{.2a}{${@(y23:interaction-environment)[00}}.!0f.!1.3S0?{$"
-  "{.5,@(y32:file-resolve-relative-to-current)[01}}{f},.0S0?{.0F0}{f},${."
-  "5,.5,.5,&3{%0:1,:2,&2{%1:0^?{t,.1P79}${.2,@(y14:read-code-sexp)[01},,#"
-  "0:1,.3,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp"
-  ")[01},:0^[11}]1}.!0.0^_1[11},:0,@(y20:call-with-input-file)[02},.4,@(y"
-  "17:with-current-file)[02}_1_1Y9]4",
+  "{.5,@(y32:file-resolve-relative-to-current)[01}}{f},.0S0?{.0F0}{f},.0~"
+  "?{${.3,.8,'(s16:cannot load file),@(y5:error)[03}}${.5,.5,.5,&3{%0:1,:"
+  "2,&2{%1:0^?{t,.1P79}${.2,@(y14:read-code-sexp)[01},,#0:1,.3,.2,&3{%1.0"
+  "R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}."
+  "!0.0^_1[11},:0,@(y20:call-with-input-file)[02},.4,@(y17:with-current-f"
+  "ile)[02}_1_1Y9]4",
 
   "P", "repl-evaluate-top-form",
   "%3,,#0#1.!0${.2,&1{%!0.0:!0]1},.6,.6,&2{%0:1,:0,@(y17:evaluate-top-for"

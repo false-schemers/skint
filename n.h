@@ -386,6 +386,11 @@ extern obj appcases[];
 #define EOF_ITAG 7
 #define mkeof() mkimm(0, EOF_ITAG)
 #define iseof(o) ((o) == mkimm(0, EOF_ITAG))
+/* shebangs (#! directives or script start lines) */
+#define SHEBANG_ITAG 8
+#define isshebang(o) (isimm(o, SHEBANG_ITAG))
+#define mkshebang(i) mkimm(i, SHEBANG_ITAG)
+#define getshebang(o) getimmu(o, SHEBANG_ITAG)
 /* input ports */
 typedef struct { /* extends cxtype_t */
   const char *tname;

@@ -2813,7 +2813,6 @@ default: /* inter-host call */
   (syntax-rules () [(_ x) (delay-force (make-promise x))]))
 
 
-
 ; eof
 
 ; eof is tagged immediate with payload 0 and immediate tag 7 
@@ -2834,6 +2833,17 @@ default: /* inter-host call */
 
 (define-inline (eof-object? x)
   (%prim "bool(iseof(obj_from_$arg))" x))
+
+
+; shebangs
+
+; shebangs are symbol-like immediates with immediate tag 8
+
+(%definition "/* shebangs (#! directives or script start lines) */")
+(%definition "#define SHEBANG_ITAG 8")
+(%definition "#define isshebang(o) (isimm(o, SHEBANG_ITAG))")
+(%definition "#define mkshebang(i) mkimm(i, SHEBANG_ITAG)")
+(%definition "#define getshebang(o) getimmu(o, SHEBANG_ITAG)")
 
 
 ; i/o ports
@@ -3756,8 +3766,11 @@ static void wrdatum(obj o, wenv_t *e) {
     wrs(buf, e);
   } else if (iseof(o)) {
     wrs(\"#<eof>\", e);
-  } else if (o == obj_from_void(0)) {
+  } else if (isvoid(o)) {
     wrs(\"#<void>\", e);
+  } else if (isshebang(o)) {
+    char *s = symbolname(getshebang(o));
+    wrs(\"#<!\", e); wrs(s, e); wrc('>', e);
   } else if (o == obj_from_unit()) {
     wrs(\"#<values>\", e);
   } else if (isiport(o)) {
@@ -3854,8 +3867,6 @@ static void wrdatum(obj o, wenv_t *e) {
       wrc(' ', e); wrdatum(recordref(o, i), e); 
     }
     wrc('>', e);
-  } else if (isvoid(o)) {
-    wrs(\"#<void>\", e);
   } else {
     wrs(\"#<unknown>\", e);
   }
