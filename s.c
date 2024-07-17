@@ -17,21 +17,30 @@ int dirsep = '\\';
 int dirsep = '/';
 #endif
 
-#if defined(WIN32)
-#define sxc_environ _environ
-#elif defined(__linux) || defined(__APPLE__)
-#define sxc_environ environ
-#else /* add more systems? */
-char **sxc_environ = { NULL };
-#endif
-
-extern const char *environ_ref(int idx)
+extern char *argv_ref(int idx)
 {
-  const char **pe = sxc_environ;
+  char **pv = cxg_argv;
   /* be careful with indexing! */
   if (idx < 0) return NULL;
-  while (idx-- > 0) if (*pe++ == NULL) return NULL;
-  return *pe;
+  while (idx-- > 0) if (*pv++ == NULL) return NULL;
+  return *pv;
+}
+
+#if defined(WIN32)
+#define cxg_envv _environ
+#elif defined(__linux) || defined(__APPLE__)
+#define cxg_envv environ
+#else /* add more systems? */
+char **cxg_envv = { NULL };
+#endif
+
+extern char *envv_ref(int idx)
+{
+  char **pv = cxg_envv;
+  /* be careful with indexing! */
+  if (idx < 0) return NULL;
+  while (idx-- > 0) if (*pv++ == NULL) return NULL;
+  return *pv;
 }
 
 char *s_code[] = {
@@ -1039,6 +1048,11 @@ char *s_code[] = {
 
   "P", "feature-available?",
   "%1.0Y0?{${@(y8:features)[00},.1A0]1}f]1",
+
+  "C", 0,
+  "f,#0.0,&1{%0:0^,.0?{.0]1}'0,n,,#0.0,:0,&2{%2.1Z2,.0?{.0,'(c=)S8,.0?{.0"
+  ",'0,.3S7}{.1},.1?{.2S3,'1,.3I+,.4S7}{'(s0:)},'1,.6I+,.5,.2,.4cc,:1^[62"
+  "}.1A9:!0:0^]3}.!0.0^_1[12}_1@!(y25:get-environment-variables)",
 
   "P", "emergency-exit",
   "%!0.0u?{tZ9]1}.0aZ9]1",

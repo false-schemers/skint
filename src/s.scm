@@ -1955,9 +1955,18 @@
 
 (define (feature-available? f) (and (symbol? f) (memq f (features))))
 
-;TBD:
-;
-;get-environment-variables
+(define get-environment-variables
+  (let ([evl #f])
+    (lambda ()
+      (or evl
+        (let loop ([r '()] [i 0])
+          (let ([kvs (%envv-ref i)])
+            (if kvs
+                (let* ([p (string-position #\= kvs)] ; should be there?
+                       [key (if p (substring kvs 0 p) kvs)]
+                       [val (if p (substring kvs (fx+ p 1) (string-length kvs)) "")])
+                  (loop (cons (cons key val) r) (fx+ i 1)))
+                (begin (set! evl (reverse! r)) evl))))))))
 
 (define (emergency-exit . ?obj)
   (if (null? ?obj) (%exit) (%exit (car ?obj))))

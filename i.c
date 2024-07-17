@@ -3874,9 +3874,10 @@ define_instruction(fren) {
 }
 
 define_instruction(argvref) {
+  extern char *argv_ref(int idx);
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); /* todo: range-check */
-  s = cxg_argv[i];
+  s = argv_ref(i);
   if (s) ac = string_obj(newstring(s));
   else ac = bool_obj(0); 
   gonexti(); 
@@ -3891,10 +3892,10 @@ define_instruction(getenv) {
 }
 
 define_instruction(envvref) {
-  extern const char *environ_ref(int idx);
+  extern char *envv_ref(int idx);
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); /* todo: range-check */
-  s = (char *)environ_ref(i);
+  s = envv_ref(i);
   if (s) ac = string_obj(newstring(s));
   else ac = bool_obj(0); 
   gonexti(); 
