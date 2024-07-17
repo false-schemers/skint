@@ -1,4 +1,4 @@
-/* s.c -- code is generated via skint -c s.scm */
+/* s.c -- generated via skint -c s.scm */
 #include "s.h"
 #include "n.h"
 
@@ -1010,14 +1010,31 @@ char *s_code[] = {
   "(y19:write-subbytevector)[34}%x,&0{%2.1,.1W3]2}%x,&0{%1Po,.1W3]1}%x,&4"
   "{|10|21|32|43%%}@!(y16:write-bytevector)",
 
-  "P", "command-line",
+  "P", "%command-line",
   "%0'0,n,,#0.0,&1{%2.1Z0,.0?{'1,.3I+,.2,.2c,:0^[32}.1A9]3}.!0.0^_1[02",
+
+  "C", 0,
+  "${${@(y13:%25command-line)[00},@(y14:make-parameter)[01}@!(y12:command"
+  "-line)",
 
   "P", "features",
   "%0'(l4:y4:r7rs;y12:exact-closed;y5:skint;y11:skint-1.0.0;)]0",
 
   "P", "feature-available?",
   "%1.0Y0?{${@(y8:features)[00},.1A0]1}f]1",
+
+  "P", "emergency-exit",
+  "%!0.0u?{tZ9]1}.0aZ9]1",
+
+  "C", 0,
+  "@(y14:emergency-exit)@!(y4:exit)",
+
+  "P", "%make-exit",
+  "%1.0,&1{%!0.0u?{t,:0[11}.0a,:0[11}]1",
+
+  "C", 0,
+  "${k0,.0,${.2,@(y10:%25make-exit)[01}@!(y4:exit)'(y8:continue)_1_3},'(y"
+  "8:continue),.1q~?{${.2,@(y14:emergency-exit)[01}}_1",
 
   "C", 0,
   "${@(y5:write),@(y14:make-parameter)[01}@!(y19:format-pretty-print)",

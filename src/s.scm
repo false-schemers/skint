@@ -1334,13 +1334,13 @@
 ; Environments and evaluation
 ;---------------------------------------------------------------------------------------------
 
-;TBD:
+; defined in t.scm:
 ;
-;environment
-;scheme-report-environment
-;null-environment
-;interaction-environment
-;eval
+; (scheme-report-environment 5)
+; (null-environment 5)
+; (interaction-environment)
+; (environment iset ...)
+; (eval exp (env (interaction-environment))) 
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1937,28 +1937,42 @@
 ; (jiffies-per-second)
 ; (%system s) +
 
-(define (command-line)
+; defined in t.scm:
+;
+; (load s (env (interaction-environment))) 
+
+
+(define (%command-line)
   (let loop ([r '()] [i 0])
     (let ([arg (%argv-ref i)])
       (if arg 
           (loop (cons arg r) (fx+ i 1))
           (reverse! r)))))
 
+(define command-line (make-parameter (%command-line))) ; can be changed later in (main)
+
 (define (features) '(r7rs exact-closed skint skint-1.0.0))
 
-(define (feature-available? f)
-  (and (symbol? f) (memq f (features))))
+(define (feature-available? f) (and (symbol? f) (memq f (features))))
 
 ;TBD:
 ;
-;load
-;exit
-;emergency-exit
 ;get-environment-variables
 
+(define (emergency-exit . ?obj)
+  (if (null? ?obj) (%exit) (%exit (car ?obj))))
+
+(define exit emergency-exit)
+
+(define (%make-exit k)
+  (lambda ?obj (if (null? ?obj) (k #t) (k (car ?obj)))))
+
+(let ([status (call/cc (lambda (k) (set! exit (%make-exit k)) 'continue))])
+  (unless (eq? status 'continue) (emergency-exit status)))
+  
 
 ;---------------------------------------------------------------------------------------------
-; Extras
+; Selected extras
 ;---------------------------------------------------------------------------------------------
 
 ; SRFI-48 compatible intermediate formatting (advanced functionality accessible via params)
