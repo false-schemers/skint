@@ -2296,7 +2296,7 @@
 ; srfi-22 - like script processor (args is list of strings)
 (define (run-script filename args)
   (define env (interaction-environment))
-  (define ci? #f) ; do not bother setting this
+  (define ci? #f) ; normal load-like behavior is the default
   (define callmain #f)
   (define main-args (cons filename args))
   (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
@@ -2306,18 +2306,24 @@
       (lambda ()
         (call-with-input-file filepath
           (lambda (port) 
-             (when ci? (set-port-fold-case! port #t))
              (let ([x0 (read-code-sexp port)])
-               (when (shebang? x0) ; TODO: set! env depending on x? 
-                 (set! callmain #t)
-                 (set! x0 (read-code-sexp port)))
+               (when (shebang? x0)
+                 (let ([shs (symbol->string (shebang->symbol x0))])
+                   (cond [(string-position "r7rs" shs)] ; ok, repl env will do
+                         [(string-position "r5rs" shs)
+                          (set! env (scheme-report-environment 5))
+                          (set! ci? #t)]
+                         [else (error "only scheme-r[57]rs scripts are supported" shs)]) 
+                   (when ci? (set-port-fold-case! port #t))
+                   (set! callmain #t)
+                   (set! x0 (read-code-sexp port))))
                (let loop ([x x0])
                  (unless (eof-object? x)
                    (eval x env)
                    (loop (read-code-sexp port))))
                (when callmain
                  ; if it is a real script, exit with main's return value
-                 (eval `(exit (main (quote ,main-args))) env)))))))
+                 (exit (eval `(main (quote ,main-args)) env))))))))
     (void)))
 
 

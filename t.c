@@ -1440,13 +1440,15 @@ char *t_code[] = {
   "P", "run-script",
   "%2,,,,#0#1#2#3${@(y23:interaction-environment)[00}.!0f.!1f.!2.5,.5c.!3"
   ".4S0?{${.6,@(y32:file-resolve-relative-to-current)[01}}{f},.0S0?{.0F0}"
-  "{f},.0~?{${.3,.9,'(s17:cannot run script),@(y5:error)[03}}${.5,.8,.6,."
-  "9,.7,&5{%0:1,:2,:3,:4,&4{%1:0^?{t,.1P79}${.2,@(y14:read-code-sexp)[01}"
-  ",#0.0^Y5?{t:!3${.3,@(y14:read-code-sexp)[01}.!0}${.2^,,#0:2,.6,.2,&3{%"
-  "1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]"
-  "1}.!0.0^_1[01}:3^?{:2^,n,n,n,:1^c,'(y5:quote)cc,'(y4:main)cc,'(y4:exit"
-  ")c,@(y4:eval)[22}]2},:0,@(y20:call-with-input-file)[02},.4,@(y17:with-"
-  "current-file)[02}Y9]8",
+  "{f},.0~?{${.3,.9,'(s17:cannot run script),@(y5:error)[03}}${.6,.8,.6,."
+  "8,.7,&5{%0:1,:2,:3,:4,&4{%1${.2,@(y14:read-code-sexp)[01},#0.0^Y5?{.0^"
+  "Y7X4,.0,'(s4:r7rs)S8,.0?{.0}{.1,'(s4:r5rs)S8?{${'5,@(y25:scheme-report"
+  "-environment)[01}:!2t:!3}{${.3,'(s41:only scheme-r[57]rs scripts are s"
+  "upported),@(y5:error)[02}}}_1:3^?{t,.3P79}t:!0${.4,@(y14:read-code-sex"
+  "p)[01}.!1_1}${.2^,,#0:2,.6,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,"
+  "@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[01}:0^?{${:2^,n,n,:1^c,'("
+  "y5:quote)cc,'(y4:main)c,@(y4:eval)[02},@(y4:exit)[21}]2},:0,@(y20:call"
+  "-with-input-file)[02},.4,@(y17:with-current-file)[02}Y9]8",
 
   "P", "repl-evaluate-top-form",
   "%3,,#0#1.!0${.2,&1{%!0.0:!0]1},.6,.6,&2{%0:1,:0,@(y17:evaluate-top-for"

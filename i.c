@@ -1346,8 +1346,13 @@ define_instruction(ssub) {
 
 define_instruction(spos) {
   obj x = ac, y = spop(); char *s, *p;
-  ckc(x); cks(y);
-  s = stringchars(y), p = strchr(s, get_char(x));
+  cks(y); s = stringchars(y);
+  if (is_string(x)) {
+    p = strstr(s, stringchars(x));
+  } else {
+    ckc(x); 
+    p = strchr(s, get_char(x));
+  }
   ac = p ? fixnum_obj(p-s) : bool_obj(0);
   gonexti();
 }
