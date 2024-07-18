@@ -120,34 +120,12 @@
             (string-append (symbol->string (car args))
                (string-append "#" (fixnum->string gsc 10))))))))
 
-(define (posq x l)
-  (let loop ([l l] [n 0])
-    (cond [(null? l) #f]
-          [(eq? x (car l)) n]
-          [else (loop (cdr l) (fx+ n 1))])))
-
-(define (rassq x al)
-  (and (pair? al)
-        (let ([a (car al)])
-          (if (eq? x (cdr a)) a (rassq x (cdr al))))))
-
 (define (remove! x l pred?) ; applies (pred? x (car l))
   (let loop ([f #f] [l #f] [r l])
     (cond [(not (pair? r)) (if l (begin (set-cdr! l r) f) r)]
           [(pred? x (car r)) (loop f l (cdr r))]
           [l (set-cdr! l r) (loop f r (cdr r))]
           [else (loop r r (cdr r))])))
-
-(define (list-diff l t)
-  (if (or (null? l) (eq? l t))
-      '()
-      (cons (car l) (list-diff (cdr l) t))))
-
-(define (list-head list index)
-  (let loop ([list list] [index index])
-    (if (zero? index)
-        '()
-        (cons (car list) (loop (cdr list) (- index 1))))))
 
 (define (pair* x . more)
   (let loop ([x x] [r more])
@@ -160,23 +138,6 @@
 
 (define (string-append* l) 
   (apply string-append l))
-
-(define (string-trim-whitespace s)
-  (let floop ([from 0] [len (string-length s)])
-    (if (and (< from len) (char-whitespace? (string-ref s from)))
-        (floop (+ from 1) len)
-        (let tloop ([to len])
-          (if (and (> to from) (char-whitespace? (string-ref s (- to 1))))
-              (tloop (- to 1))
-              (if (and (= from 0) (= to len)) 
-                  s
-                  (substring s from to)))))))   
-
-(define (andmap p l)
-  (if (pair? l) (and (p (car l)) (andmap p (cdr l))) #t))
-
-(define (ormap p l)
-  (if (pair? l) (or (p (car l)) (ormap p (cdr l))) #f))
 
 (define (list1? x) (and (pair? x) (null? (cdr x))))
 (define (list1+? x) (and (pair? x) (list? (cdr x))))
@@ -2014,6 +1975,7 @@
     (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) (subbytevector) 
     (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (void) (void?) (global-store)
+    (run-script)
     ; temporarily here for debugging purposes
     ;(xform) (compile-and-run-core-expr) (compile-to-thunk-code) (deserialize-code)
     ;(closure) (repl-environment)
@@ -2330,6 +2292,33 @@
                  (loop (read-code-sexp port)))))))))
   ; we aren't asked by the spec to call last expr tail-recursively, so this
   (void)) 
+
+; srfi-22 - like script processor (args is list of strings)
+(define (run-script filename args)
+  (define env (interaction-environment))
+  (define ci? #f) ; do not bother setting this
+  (define callmain #f)
+  (define main-args (cons filename args))
+  (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
+         [fileok? (and (string? filepath) (file-exists? filepath))])
+    (unless fileok? (error "cannot run script" filename filepath))
+    (with-current-file filepath
+      (lambda ()
+        (call-with-input-file filepath
+          (lambda (port) 
+             (when ci? (set-port-fold-case! port #t))
+             (let ([x0 (read-code-sexp port)])
+               (when (shebang? x0) ; TODO: set! env depending on x? 
+                 (set! callmain #t)
+                 (set! x0 (read-code-sexp port)))
+               (let loop ([x x0])
+                 (unless (eof-object? x)
+                   (eval x env)
+                   (loop (read-code-sexp port))))
+               (when callmain
+                 ; if it is a real script, exit with main's return value
+                 (eval `(exit (main (quote ,main-args))) env)))))))
+    (void)))
 
 
 ;--------------------------------------------------------------------------------------------------

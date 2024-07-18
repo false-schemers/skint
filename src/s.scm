@@ -692,6 +692,40 @@
 
 (define-syntax cons* list*)
 
+(define (list-diff l t) ; +
+  (if (or (null? l) (eq? l t))
+      '()
+      (cons (car l) (list-diff (cdr l) t))))
+
+(define (list-head list index) ; +
+  (let loop ([list list] [index index])
+    (if (zero? index)
+        '()
+        (cons (car list) (loop (cdr list) (- index 1))))))
+
+(define (andmap p l) ; +
+  (if (pair? l) (and (p (car l)) (andmap p (cdr l))) #t))
+
+(define (ormap p l) ; +
+  (if (pair? l) (or (p (car l)) (ormap p (cdr l))) #f))
+
+(define (memp p l) ; +
+  (and (pair? l) (if (p (car l)) l (memp p (cdr l))))) 
+
+(define (assp p l) ; +
+  (and (pair? l) (if (p (caar l)) (car l) (assp p (cdr l))))) 
+
+(define (posq x l) ; +
+  (let loop ([l l] [n 0])
+    (cond [(null? l) #f]
+          [(eq? x (car l)) n]
+          [else (loop (cdr l) (fx+ n 1))])))
+
+(define (rassq x al) ; +
+  (and (pair? al)
+        (let ([a (car al)])
+          (if (eq? x (cdr a)) a (rassq x (cdr al))))))
+
 
 ;---------------------------------------------------------------------------------------------
 ; Symbols
@@ -854,6 +888,17 @@
     [(_ x y) (string-cat x y)]
     [(_ . r) (%string-append . r)]
     [_ %string-append]))
+
+(define (string-trim-whitespace s) ; +
+  (let floop ([from 0] [len (string-length s)])
+    (if (and (< from len) (char-whitespace? (string-ref s from)))
+        (floop (+ from 1) len)
+        (let tloop ([to len])
+          (if (and (> to from) (char-whitespace? (string-ref s (- to 1))))
+              (tloop (- to 1))
+              (if (and (= from 0) (= to len)) 
+                  s
+                  (substring s from to)))))))   
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1609,6 +1654,11 @@
              (r-error p "unexpected token:" (cdr form))]
             [else form])))
 
+  (define (sub-read-shebang p)
+    (if (eqv? (peek-char p) #\space)
+        (string->symbol (string-trim-whitespace (read-line p)))
+        (sub-read-carefully p)))
+
   (define (sub-read p)
     (let ([c (read-char p)])
       (cond [(eof-object? c) c]
@@ -1658,7 +1708,7 @@
                (cond [(eof-object? c) (r-error p "end of file after #")]
                      [(char=? c #\!)
                       (read-char p)
-                      (let ([name (sub-read-carefully p)])
+                      (let ([name (sub-read-shebang p)])
                         (case name
                           [(fold-case no-fold-case) 
                            (set! fold-case? (eq? name 'fold-case)) 
