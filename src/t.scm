@@ -1889,11 +1889,10 @@
     (define (get-loc name)
       (name-lookup *root-name-registry* name (lambda (name) (list 'const name))))
     (let loop ([name (car r)] [keys (cdr r)])
-      (cond [(null? keys) ; all go to (skint)
-             (put-loc! (get-library! '(skint)) name (get-loc name))]
-            [else
-             (put-loc! (get-library! (key->listname (car keys))) name (get-loc name))
-             (loop name (cdr keys))])))
+      (cond [(null? keys) (put-loc! (get-library! '(skint)) name (get-loc name))]
+            [(not (pair? keys)) (put-loc! (get-library! `(skint ,keys)) name (get-loc name))] 
+            [else (put-loc! (get-library! (key->listname (car keys))) name (get-loc name))
+                  (loop name (cdr keys))])))
   '((* v b) (+ v b) (- v b) (... v u b) (/ v b) (< v b) (<= v b) (= v b) (=> v u b) (> v b) (>= v b)
     (_ b) (abs v b) (and v u b) (append v b) (apply v b) (assoc v b) (assq v b) (assv v b) (begin v u b)
     (binary-port? b) (boolean=? b) (boolean? v b) (bytevector b) (bytevector-append b)
@@ -1974,11 +1973,11 @@
     (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
     (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) (subbytevector) 
     (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
-    (port-fold-case?) (set-port-fold-case!) (rename-file) (void) (void?) (global-store)
-    (run-script)
-    ; temporarily here for debugging purposes
-    ;(xform) (compile-and-run-core-expr) (compile-to-thunk-code) (deserialize-code)
-    ;(closure) (repl-environment)
+    (port-fold-case?) (set-port-fold-case!) (rename-file) (void) (void?) (global-store . hidden)
+    (run-script . hidden) (get-next-command-line-option . hidden) (print-command-line-options . hidden)
+    (xform . hidden) (compile-and-run-core-expr . hidden) (compile-to-thunk-code . hidden) 
+    (deserialize-code . hidden) (closure . hidden) (repl-environment . hidden)
+    (*skint-options* . hidden)
     ))
 
 ; clean up root environment by moving all symbolic bindings not in (skint) library
@@ -1995,8 +1994,12 @@
                   (loop prev (cdr lst))]))))
 
 ; make hidden bindings available via (skint hidden) library
-(name-install! *root-name-registry* '(skint hidden)
-  (make-location (make-library '(begin) (vector-ref *hidden-name-registry* 0))))
+(let* ([mklib (lambda (ln) (make-library '(begin) '()))]
+       [loc (name-lookup *root-name-registry* '(skint hidden) mklib)]
+       [lib (location-val loc)] [eal (vector-ref *hidden-name-registry* 0)]
+       [combeal (adjoin-eals eal (library-exports lib))])
+  ;(vector-set! *hidden-name-registry* 0 combeal)
+  (library-set-exports! lib combeal))
 
 ; private registry for names introduced in repl 
 (define *user-name-registry* (make-name-registry 200)) 
@@ -2438,14 +2441,6 @@
 
 (define *repl-first-time* #t)
 
-(define (repl-main)
-  ; todo: here we can process command line by ourselves!
-  (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
-    ; quick check for non-interactive use failed, greet
-    (display "SKINT Scheme Interpreter v0.0.9\n")
-    (display "Copyright (c) 2024 False Schemers\n"))
-  #t) ; exited normally
-
 (define (repl)
   (define ip (current-input-port))
   (define op (current-output-port))
@@ -2453,8 +2448,33 @@
   (set-current-file-stack! '())
   (when *repl-first-time*
     (set! *repl-first-time* #f)
-    (repl-main))
+    (skint-main))
   ; capture cc to handle unhandled exceptions
   (letcc k (set-reset-handler! k)
     (repl-from-port ip repl-environment prompt op))
   #t) ; exited normally via end-of-input
+
+
+;--------------------------------------------------------------------------------------------------
+; Main
+;--------------------------------------------------------------------------------------------------
+
+(define *skint-options*
+ '([verbose        "-v" "--verbose" #f             "Increase output verbosity"]
+   [quiet          "-q" "--quiet" #f               "Suppress nonessential messages"]
+   [append-libdir  "-A" "--append-libdir" "<DIR>"  "Append a library search directory"] 
+   [prepend-libdir "-I" "--prepend-libdir" "<DIR>" "Prepend a library search directory"] 
+   [eval           "-e" "--eval" "<SEXP>"          "Evaluate and print an expression"] 
+   [script         "-s" "--script" "<FILE>"        "Run file as a Scheme script"]
+   [program        "-p" "--program" "<FILE>"       "Run file as a Scheme program"]
+   [version        "-V" "--version" #f             "Display version info"]
+   [help           "-h" "--help" #f                "Display this help"]
+))
+
+(define (skint-main)
+  ; todo: here we can process command line by ourselves!
+  (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
+    ; quick check for non-interactive use failed, greet
+    (display "SKINT Scheme Interpreter v0.0.9\n")
+    (display "Copyright (c) 2024 False Schemers\n"))
+  #t) ; exited normally

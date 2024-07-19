@@ -2120,4 +2120,81 @@
     (close-input-port p)
     obj))
 
+; simple AT&T-like command-line options parser
+; calls (return keysym optarg restargs) where opt is #f on end-of-options
+; optmap is a list of the following opt info records:
+; ([keysym "-f" "--foo" needsarg? "foo help"] ...)
+
+(define (get-next-command-line-option args optmap return)
+  (define opterr error)
+  (define (opt-lookup opt optmap) ;=> #f | (needsarg? keysym)
+    (define iref (if (= (string-length opt) 2) cadr caddr))
+    (let ([r (memp (lambda (i) (string=? (iref i) opt)) optmap)])
+      (and r (cons (cadddr (car r)) (caar r)))))
+  (define (ssref s i) ; safe-string-ref
+    (and i (< -1 i (string-length s)) (string-ref s i)))
+  (cond [(null? args) (return #f #f args)]
+        [(string=? (car args) "--") (return #f #f (cdr args))]
+        [(string=? (car args) "-") (return #f #f args)]
+        [(not (eqv? (ssref (car args) 0) #\-)) (return #f #f args)]
+        [(and (eqv? (ssref (car args) 0) #\-) (eqv? (ssref (car args) 1) #\-))
+         (let* ([s (car args)] [p (string-position #\= s)])
+           (define opt (if p (string-copy s 0 p) s)) ; "--longopt"
+           (define ank (opt-lookup opt optmap)) ; #f or (needarg? . keysym)
+           (cond [(and ank (car ank) p) ; needs arg, and it is in s
+                  (return (cdr ank) (string-copy s (+ 1 p)) (cdr args))]
+                 [(and ank (car ank) (pair? (cdr args)))
+                  (return (cdr ank) (cadr args) (cddr args))]
+                 [(and ank (car ank))
+                  (opterr "missing option argument" opt)]
+                 [(and ank (not (car ank)) (not p))
+                  (return (cdr ank) #f (cdr args))]
+                 [(and ank (not (car ank)) p)
+                  (opterr "unexpected option argument" s)]
+                 [else (opterr "unknown option" opt)]))]
+        [else ; char option (with arg or joined with next one)
+         (let* ([s (car args)] [l (string-length s)])
+           (define opt (string-copy s 0 2)) ; "-o"
+           (define ank (opt-lookup opt optmap)) ; #f or (needarg? . keysym)
+           (cond [(and ank (car ank) (> l 2)) ; needs arg, and it is in s
+                  (return (cdr ank) (string-copy s 2) (cdr args))]
+                 [(and ank (car ank) (= l 2) (pair? (cdr args)))
+                  (return (cdr ank) (cadr args) (cddr args))]
+                 [(and ank (car ank))
+                  (opterr "missing option argument" opt)]
+                 [(and ank (not (car ank)) (> l 2))
+                  (return (cdr ank) #f ; form option string without opt
+                     (cons (string-append "-" (string-copy s 2)) (cdr args)))]
+                 [(and ank (not (car ank)))
+                  (return (cdr ank) #f (cdr args))]
+                 [else (opterr "unknown option" opt)]))]))
+
+; printer for optmap options used for --help; returns offset of help lines
+(define (print-command-line-options optmap . ?port)
+  (define port (if (pair? ?port) (car port) (standard-error-port)))
+  (define (optlen i)
+    (let ([co (cadr i)] [lo (caddr i)] [oa (cadddr i)])
+      (define colen (if co (string-length co) 0))
+      (define lolen (if lo (string-length lo) 0))
+      (define oalen (if oa (string-length oa) 0))
+      (when (= (+ colen lolen) 0) (error "invalid options record" i))
+      (+ (if (and (> colen 0) (> lolen 0)) (+ colen lolen 2) (+ colen lolen))
+         (if (= oalen 0) 0 (+ oalen 1)))))
+  (define optlens (map optlen optmap))
+  (define max-optlen (apply max (cons 0 optlens)))
+  (let loop ([optmap optmap] [optlens optlens])
+    (unless (null? optmap)
+      (let ([i (car optmap)] [optlen (car optlens)])
+        (display "  " port)
+        (let ([co (cadr i)] [lo (caddr i)] [oa (cadddr i)] [hl (car (cddddr i))])
+          (cond [(and co lo) 
+                 (display co port) (display ", " port) (display lo port)
+                 (when oa (display "=" port) (display oa port))]
+                [co (display co port) (when oa (display " " port) (display oa port))]
+                [lo (display lo port) (when oa (display "=" port) (display oa port))])
+          (display (make-string (- max-optlen optlen) #\space) port)
+          (display "    " port) (display hl port) (newline port)
+          (loop (cdr optmap) (cdr optlens))))))
+  (+ 2 max-optlen 4))
+
 

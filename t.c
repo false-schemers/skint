@@ -1088,7 +1088,7 @@ char *t_code[] = {
   "0:*root-name-registry*),@(y11:name-lookup)[03}",
 
   "C", 0,
-  "${'(l483:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
+  "${'(l492:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
   "3:...;y1:v;y1:u;y1:b;;l3:y1:/;y1:v;y1:b;;l3:y1:<;y1:v;y1:b;;l3:y2:<=;y"
   "1:v;y1:b;;l3:y1:=;y1:v;y1:b;;l4:y2:=>;y1:v;y1:u;y1:b;;l3:y1:>;y1:v;y1:"
   "b;;l3:y2:>=;y1:v;y1:b;;l2:y1:_;y1:b;;l3:y3:abs;y1:v;y1:b;;l4:y3:and;y1"
@@ -1251,25 +1251,30 @@ char *t_code[] = {
   ";l1:y13:subbytevector;;l1:y19:standard-input-port;;l1:y20:standard-out"
   "put-port;;l1:y19:standard-error-port;;l1:y9:tty-port?;;l1:y15:port-fol"
   "d-case?;;l1:y19:set-port-fold-case!;;l1:y11:rename-file;;l1:y4:void;;l"
-  "1:y5:void?;;l1:y12:global-store;;l1:y10:run-script;;),&0{%1,,,,#0#1#2#"
-  "3&0{%1.0,'(y1:w),.1v?{'(l2:y6:scheme;y5:write;)]2}'(y1:t),.1v?{'(l2:y6"
-  ":scheme;y4:time;)]2}'(y1:p),.1v?{'(l2:y6:scheme;y4:repl;)]2}'(y1:r),.1"
-  "v?{'(l2:y6:scheme;y4:read;)]2}'(y1:v),.1v?{'(l2:y6:scheme;y4:r5rs;)]2}"
-  "'(y1:u),.1v?{'(l2:y6:scheme;y9:r5rs-null;)]2}'(y1:d),.1v?{'(l2:y6:sche"
-  "me;y4:load;)]2}'(y1:z),.1v?{'(l2:y6:scheme;y4:lazy;)]2}'(y1:s),.1v?{'("
-  "l2:y6:scheme;y15:process-context;)]2}'(y1:i),.1v?{'(l2:y6:scheme;y7:in"
-  "exact;)]2}'(y1:f),.1v?{'(l2:y6:scheme;y4:file;)]2}'(y1:e),.1v?{'(l2:y6"
-  ":scheme;y4:eval;)]2}'(y1:o),.1v?{'(l2:y6:scheme;y7:complex;)]2}'(y1:h)"
-  ",.1v?{'(l2:y6:scheme;y4:char;)]2}'(y1:l),.1v?{'(l2:y6:scheme;y11:case-"
-  "lambda;)]2}'(y1:a),.1v?{'(l2:y6:scheme;y3:cxr;)]2}'(y1:b),.1v?{'(l2:y6"
-  ":scheme;y4:base;)]2}'(y1:x),.1v?{'(l2:y6:scheme;y3:box;)]2}.1I0?{.1,'("
-  "y4:srfi),l2]2}.1,l1]2}.!0&0{%1${&0{%1n,'(l1:y5:begin;),V12]1},.3,@(y20"
-  ":*root-name-registry*),@(y11:name-lookup)[03}z]1}.!1&0{%3'1,.1V4,.0,.3"
-  "A3,.0?{.4,.1sd]5}.1,.5,.5cc,'1,.4V5]5}.!2&0{%1&0{%1.0,'(y5:const),l2]1"
-  "},.1,@(y20:*root-name-registry*),@(y11:name-lookup)[13}.!3.4d,.5a,,#0."
-  "0,.6,.5,.7,.(i10),&5{%2.1u?{${.2,:0^[01},.1,${'(l1:y5:skint;),:1^[01},"
-  ":3^[23}${${.4,:0^[01},.3,${${.9a,:2^[01},:1^[01},:3^[03}.1d,.1,:4^[22}"
-  ".!0.0^_1[52},@(y10:%25for-each1)[02}",
+  "1:y5:void?;;py12:global-store;y6:hidden;;py10:run-script;y6:hidden;;py"
+  "28:get-next-command-line-option;y6:hidden;;py26:print-command-line-opt"
+  "ions;y6:hidden;;py5:xform;y6:hidden;;py25:compile-and-run-core-expr;y6"
+  ":hidden;;py21:compile-to-thunk-code;y6:hidden;;py16:deserialize-code;y"
+  "6:hidden;;py7:closure;y6:hidden;;py16:repl-environment;y6:hidden;;py15"
+  ":*skint-options*;y6:hidden;;),&0{%1,,,,#0#1#2#3&0{%1.0,'(y1:w),.1v?{'("
+  "l2:y6:scheme;y5:write;)]2}'(y1:t),.1v?{'(l2:y6:scheme;y4:time;)]2}'(y1"
+  ":p),.1v?{'(l2:y6:scheme;y4:repl;)]2}'(y1:r),.1v?{'(l2:y6:scheme;y4:rea"
+  "d;)]2}'(y1:v),.1v?{'(l2:y6:scheme;y4:r5rs;)]2}'(y1:u),.1v?{'(l2:y6:sch"
+  "eme;y9:r5rs-null;)]2}'(y1:d),.1v?{'(l2:y6:scheme;y4:load;)]2}'(y1:z),."
+  "1v?{'(l2:y6:scheme;y4:lazy;)]2}'(y1:s),.1v?{'(l2:y6:scheme;y15:process"
+  "-context;)]2}'(y1:i),.1v?{'(l2:y6:scheme;y7:inexact;)]2}'(y1:f),.1v?{'"
+  "(l2:y6:scheme;y4:file;)]2}'(y1:e),.1v?{'(l2:y6:scheme;y4:eval;)]2}'(y1"
+  ":o),.1v?{'(l2:y6:scheme;y7:complex;)]2}'(y1:h),.1v?{'(l2:y6:scheme;y4:"
+  "char;)]2}'(y1:l),.1v?{'(l2:y6:scheme;y11:case-lambda;)]2}'(y1:a),.1v?{"
+  "'(l2:y6:scheme;y3:cxr;)]2}'(y1:b),.1v?{'(l2:y6:scheme;y4:base;)]2}'(y1"
+  ":x),.1v?{'(l2:y6:scheme;y3:box;)]2}.1I0?{.1,'(y4:srfi),l2]2}.1,l1]2}.!"
+  "0&0{%1${&0{%1n,'(l1:y5:begin;),V12]1},.3,@(y20:*root-name-registry*),@"
+  "(y11:name-lookup)[03}z]1}.!1&0{%3'1,.1V4,.0,.3A3,.0?{.4,.1sd]5}.1,.5,."
+  "5cc,'1,.4V5]5}.!2&0{%1&0{%1.0,'(y5:const),l2]1},.1,@(y20:*root-name-re"
+  "gistry*),@(y11:name-lookup)[13}.!3.4d,.5a,,#0.0,.6,.5,.7,.(i10),&5{%2."
+  "1u?{${.2,:0^[01},.1,${'(l1:y5:skint;),:1^[01},:3^[23}.1p~?{${.2,:0^[01"
+  "},.1,${n,.6c,'(y5:skint)c,:1^[01},:3^[23}${${.4,:0^[01},.3,${${.9a,:2^"
+  "[01},:1^[01},:3^[03}.1d,.1,:4^[22}.!0.0^_1[52},@(y10:%25for-each1)[02}",
 
   "C", 0,
   "@(y20:*root-name-registry*),${f,'(l1:y5:skint;),.4,@(y11:name-lookup)["
@@ -1279,8 +1284,9 @@ char *t_code[] = {
   "tall!)[03}.2d,.2,:0^[32}.!0.0^_1[02}'1,.1+,:3^[11}.!0.0^_1[01}_1_1_1_1",
 
   "C", 0,
-  "${'0,@(y22:*hidden-name-registry*)V4,'(l1:y5:begin;),V12b,'(l2:y5:skin"
-  "t;y6:hidden;),@(y20:*root-name-registry*),@(y13:name-install!)[03}",
+  "&0{%1n,'(l1:y5:begin;),V12]1},${.2,'(l2:y5:skint;y6:hidden;),@(y20:*ro"
+  "ot-name-registry*),@(y11:name-lookup)[03},.0z,'0,@(y22:*hidden-name-re"
+  "gistry*)V4,${'1,.4V4,.3,@(y11:adjoin-eals)[02},.0,'1,.4V5_1_1_1_1_1",
 
   "C", 0,
   "${'(i200),@(y18:make-name-registry)[01}@!(y20:*user-name-registry*)",
@@ -1545,15 +1551,27 @@ char *t_code[] = {
   "C", 0,
   "t@!(y17:*repl-first-time*)",
 
-  "P", "repl-main",
-  "%0PiP09?{PoP09}{f}?{Po,'(s32:SKINT Scheme Interpreter v0.0.9%0a)W4Po,'"
-  "(s34:Copyright (c) 2024 False Schemers%0a)W4}t]0",
-
   "P", "repl",
   "%0,,,#0#1#2Pi.!0Po.!1.0^P09?{'(s6:skint])}{f}.!2${n,@(y23:set-current-"
   "file-stack!)[01}@(y17:*repl-first-time*)?{f@!(y17:*repl-first-time*)${"
-  "@(y9:repl-main)[00}}${k0,${.2,@(y18:set-reset-handler!)[01}${.6^,.8^,@"
-  "(y16:repl-environment),.8^,@(y14:repl-from-port)[04}_3}t]3",
+  "@(y10:skint-main)[00}}${k0,${.2,@(y18:set-reset-handler!)[01}${.6^,.8^"
+  ",@(y16:repl-environment),.8^,@(y14:repl-from-port)[04}_3}t]3",
+
+  "C", 0,
+  "'(l9:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity;"
+  ";l5:y5:quiet;s2:-q;s7:--quiet;f;s30:Suppress nonessential messages;;l5"
+  ":y13:append-libdir;s2:-A;s15:--append-libdir;s5:<DIR>;s33:Append a lib"
+  "rary search directory;;l5:y14:prepend-libdir;s2:-I;s16:--prepend-libdi"
+  "r;s5:<DIR>;s34:Prepend a library search directory;;l5:y4:eval;s2:-e;s6"
+  ":--eval;s6:<SEXP>;s32:Evaluate and print an expression;;l5:y6:script;s"
+  "2:-s;s8:--script;s6:<FILE>;s27:Run file as a Scheme script;;l5:y7:prog"
+  "ram;s2:-p;s9:--program;s6:<FILE>;s28:Run file as a Scheme program;;l5:"
+  "y7:version;s2:-V;s9:--version;f;s20:Display version info;;l5:y4:help;s"
+  "2:-h;s6:--help;f;s17:Display this help;;)@!(y15:*skint-options*)",
+
+  "P", "skint-main",
+  "%0PiP09?{PoP09}{f}?{Po,'(s32:SKINT Scheme Interpreter v0.0.9%0a)W4Po,'"
+  "(s34:Copyright (c) 2024 False Schemers%0a)W4}t]0",
 
   0, 0, 0
 };
