@@ -1634,7 +1634,7 @@ Type r to get back to repl
              [(r)  (or (eq? (tcode-repl) #t) (loop))]
              [(a)  (%prim! "void(exit(1))")]
              [(s)  (service-repl) (loop)]
-             [else (display "Invalid command.  Type ? for options.\n") (loop)]))))
+             [else (display "Invalid command.  Type ? for options, r to return to REPL.\n") (loop)]))))
   (when (tty-port? (current-input-port))
     (call/cc
       (lambda (k)
@@ -1646,15 +1646,10 @@ Type r to get back to repl
     (cond
       [(syntax-match? '("-c" *) args)
        (process-file (cadr args))]
-      [(syntax-match? '("-l" *) args)
-       (repl-file (cadr args))]
       [(syntax-match? '("-b" *) args)
        (benchmark-file (cadr args))]
       [(syntax-match? '("-t") args)
        (run-tests)]
-      [(syntax-match? '("-v") args)
-       (set! *verbose* #t)
-       (service-repl)]
       [(syntax-match? '("-i") args)
        (service-repl)]
       [else ; run tcode repl automatically

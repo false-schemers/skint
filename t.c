@@ -574,30 +574,30 @@ char *t_code[] = {
   "(i28),.(i16),.(i29),.(i21),.(i21),.(i28),.(i20),.(i29),.(i21),.(i30),."
   "(i16),&(i17){%5.0u?{.4,.4,.4,.4,l4]5}.0d,.1a,:(i16),.1aq?{.6,${.8,${n,"
   ".7d,:(i15)^[02},@(y11:adjoin-esps)[02},.6,.6,.5,:0^[75}${.2,@(y6:list2"
-  "?)[01}?{:(i14),.1aq?{:(i14),.1daq}{f}}{f}?{@(y18:import-transformer)b,"
-  "'(y6:import)c,l1,.7,.7,${.9,.5,@(y11:adjoin-eals)[02},.7,.6,:0^[85}:(i"
-  "14),.1aq?{${:(i10),.3,@(y22:preprocess-import-sets)[02},.0d,.1a,.9,.9,"
-  "${.(i11),.6,@(y11:adjoin-eals)[02},${.5,.(i12),@(y11:adjoin-code)[02},"
-  ".8,:0^[(i10)5}:(i13),.1aq?{.6,.6,.6,.6,.5,.5dL6,:0^[75}:(i12),.1aq?{:("
-  "i11),&1{%2${.2,@(y3:id?)[01}?{${.3,:0,@(y12:id-rename-as)[02},.1q]2}f]"
-  "2},.7,.7,.7,.7,.6,${:(i10),.9,.9,@(y22:preprocess-cond-expand)[03}L6,:"
-  "0^[85}:7,.1aq?{${'(s35:invalid library declarations syntax),'(l2:y4:<i"
-  "d>;y8:<string>;),.4,@(y12:check-syntax)[03}${.2da,@(y18:push-current-f"
-  "ile!)[01}.6,.6,.6,.6,.5,:0^[75}:6,.1aq?{${'(s35:invalid library declar"
-  "ations syntax),'(l1:y4:<id>;),.4,@(y12:check-syntax)[03}${@(y17:pop-cu"
-  "rrent-file!)[00}.6,.6,.6,.6,.5,:0^[75}:9,.1aq?{${'(s43:invalid include"
-  "-library-declarations syntax),'(l3:y4:<id>;y8:<string>;y3:...;),.4,@(y"
-  "12:check-syntax)[03}.1,.1dA8,,#0:8,:7,:6,.3,:0,.(i11),.(i13),.(i15),.("
-  "i17),&9{%2.0u?{:0,:1,:2,:3,.5,:4^[25}${.2a,@(y32:file-resolve-relative"
-  "-to-current)[01},.0S0?{.0F0}{f},.0?{t}{${:8,.5a,'(s27:cannot include d"
-  "eclarations),@(y7:x-error)[03}},${f,.5,@(y15:read-file-sexps)[02},.5,n"
-  ",:6cc,.1L6,n,.5c,:7cc,.5d,:5^[62}.!0.0^_1[72}:5,.1aq?{${'(s42:invalid "
-  "include library declaration syntax),'(l3:y4:<id>;y8:<string>;y3:...;),"
-  ".4,@(y12:check-syntax)[03}n,.1d,:4cc,.7L6,.6,.6,.6,.5,:0^[75}:3,.1aq?{"
-  "${'(s45:invalid include-ci library declaration syntax),'(l3:y4:<id>;y8"
-  ":<string>;y3:...;),.4,@(y12:check-syntax)[03}n,.1d,:2cc,.7L6,.6,.6,.6,"
-  ".5,:0^[75}:1,.1aq?{${.2d,@(y17:xform-sexp->datum)[01},.7L6,.6,.6,.6,.5"
-  ",:0^[75}f]7}.!0.0^_1[(i17)5",
+  "?)[01}?{:(i14),.1aq?{:(i14),.1daq}{f}}{f}?{'(y6:import)b,'(y6:import)c"
+  ",l1,.7,.7,${.9,.5,@(y11:adjoin-eals)[02},.7,.6,:0^[85}:(i14),.1aq?{${:"
+  "(i10),.3,@(y22:preprocess-import-sets)[02},.0d,.1a,.9,.9,${.(i11),.6,@"
+  "(y11:adjoin-eals)[02},${.5,.(i12),@(y11:adjoin-code)[02},.8,:0^[(i10)5"
+  "}:(i13),.1aq?{.6,.6,.6,.6,.5,.5dL6,:0^[75}:(i12),.1aq?{:(i11),&1{%2${."
+  "2,@(y3:id?)[01}?{${.3,:0,@(y12:id-rename-as)[02},.1q]2}f]2},.7,.7,.7,."
+  "7,.6,${:(i10),.9,.9,@(y22:preprocess-cond-expand)[03}L6,:0^[85}:7,.1aq"
+  "?{${'(s35:invalid library declarations syntax),'(l2:y4:<id>;y8:<string"
+  ">;),.4,@(y12:check-syntax)[03}${.2da,@(y18:push-current-file!)[01}.6,."
+  "6,.6,.6,.5,:0^[75}:6,.1aq?{${'(s35:invalid library declarations syntax"
+  "),'(l1:y4:<id>;),.4,@(y12:check-syntax)[03}${@(y17:pop-current-file!)["
+  "00}.6,.6,.6,.6,.5,:0^[75}:9,.1aq?{${'(s43:invalid include-library-decl"
+  "arations syntax),'(l3:y4:<id>;y8:<string>;y3:...;),.4,@(y12:check-synt"
+  "ax)[03}.1,.1dA8,,#0:8,:7,:6,.3,:0,.(i11),.(i13),.(i15),.(i17),&9{%2.0u"
+  "?{:0,:1,:2,:3,.5,:4^[25}${.2a,@(y32:file-resolve-relative-to-current)["
+  "01},.0S0?{.0F0}{f},.0?{t}{${:8,.5a,'(s27:cannot include declarations),"
+  "@(y7:x-error)[03}},${f,.5,@(y15:read-file-sexps)[02},.5,n,:6cc,.1L6,n,"
+  ".5c,:7cc,.5d,:5^[62}.!0.0^_1[72}:5,.1aq?{${'(s42:invalid include libra"
+  "ry declaration syntax),'(l3:y4:<id>;y8:<string>;y3:...;),.4,@(y12:chec"
+  "k-syntax)[03}n,.1d,:4cc,.7L6,.6,.6,.6,.5,:0^[75}:3,.1aq?{${'(s45:inval"
+  "id include-ci library declaration syntax),'(l3:y4:<id>;y8:<string>;y3:"
+  "...;),.4,@(y12:check-syntax)[03}n,.1d,:2cc,.7L6,.6,.6,.6,.5,:0^[75}:1,"
+  ".1aq?{${.2d,@(y17:xform-sexp->datum)[01},.7L6,.6,.6,.6,.5,:0^[75}f]7}."
+  "!0.0^_1[(i17)5",
 
   "P", "preprocess-library",
   "%2,#0.1,&1{%1${:0,@(y7:list2+?)[01}?{${:0da,@(y3:id?)[01}}{f}?{${.2,@("
@@ -890,9 +890,17 @@ char *t_code[] = {
   "%1P51,${.2,'0,${n,.8,@(y9:find-free)[02},n,n,n,.9,@(y7:codegen)[07}.0P"
   "90]2",
 
+  "P", "path-strip-directory",
+  "%1n,.1X2A8,,#0.0,&1{%2.0u?{.1X3]2}'(l3:c%5c;c/;c:;),.1aA1?{.1X3]2}.1,."
+  "1ac,.1d,:0^[22}.!0.0^_1[12",
+
   "P", "path-directory",
   "%1.0X2A8,,#0.0,&1{%1.0u?{'(s0:)]1}'(l3:c%5c;c/;c:;),.1aA1?{.0A8X3]1}.0"
   "d,:0^[11}.!0.0^_1[11",
+
+  "P", "path-strip-extension",
+  "%1.0X2A8,,#0.0,.3,&2{%1.0u?{:0]1}'(c.),.1av?{.0dA8X3]1}'(l3:c%5c;c/;c:"
+  ";),.1aA1?{:0]1}.0d,:1^[11}.!0.0^_1[11",
 
   "P", "base-path-separator",
   "%1.0X2A8,.0u?{f]2}'(l2:c%5c;c/;),.1aA1?{.0a]2}f]2",
@@ -1457,6 +1465,18 @@ char *t_code[] = {
   ")[21}]2},:0,@(y20:call-with-input-file)[02},.4,@(y17:with-current-file"
   ")[02}Y9]8",
 
+  "P", "run-program",
+  "%2,,,,,,#0#1#2#3#4#5${${.(i10),@(y20:path-strip-directory)[01},@(y20:p"
+  "ath-strip-extension)[01}X5.!0.0,&1{%1.0,'(y1:?),:0^,'(y7:prog://),@(y1"
+  "3:symbol-append)[14}.!1'(y6:import)b,'(y6:import)c,l1.!2${@(y16:root-e"
+  "nvironment),.4^,.6^,@(y27:make-controlled-environment)[03}.!3f.!4.7,.7"
+  "c.!5.6S0?{${.8,@(y32:file-resolve-relative-to-current)[01}}{f},.0S0?{."
+  "0F0}{f},.0~?{${.3,.(i11),'(s18:cannot run program),@(y5:error)[03}}${."
+  "9,.8,.5,&3{%0:1,:2,&2{%1${:0^,@(y12:command-line)[01}${.2,@(y14:read-c"
+  "ode-sexp)[01},,#0:1,.3,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y1"
+  "4:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[11},:0,@(y20:call-with-input-"
+  "file)[02},.4,@(y17:with-current-file)[02}t,@(y4:exit)[(i10)1",
+
   "P", "repl-evaluate-top-form",
   "%3,,#0#1.!0${.2,&1{%!0.0:!0]1},.6,.6,&2{%0:1,:0,@(y17:evaluate-top-for"
   "m)[02},@(y16:call-with-values)[02}.4,&1{%1:0,.1W5:0W6]1}.!1${.2^,@(y6:"
@@ -1542,12 +1562,13 @@ char *t_code[] = {
   "(y14:repl-from-port)[14}]1},:0[01}_1_3}[10},@(y22:with-exception-handl"
   "er)[02}_1_3}[50",
 
-  "P", "benchmark-file",
-  "%1,,#0#1${.4,@(y15:open-input-file)[01}.!0Po.!1${${.4^,@(y14:read-code"
+  "P", "run-benchmark",
+  "%2,,#0#1${.4,@(y15:open-input-file)[01}.!0Po.!1${${.4^,@(y14:read-code"
   "-sexp)[01},'(l2:y4:load;s7:libl.sf;),@(y11:sexp-match?)[02}~?{${.4,'(s"
-  "32:unexpected benchmark file format),@(y5:error)[02}}${.3^,f,@(y16:rep"
-  "l-environment),.5^,@(y14:repl-from-port)[04}${.3^,@(y16:repl-environme"
-  "nt),'(l2:y4:main;f;),@(y22:repl-evaluate-top-form)[03}.0^P60]3",
+  "32:unexpected benchmark file format),@(y5:error)[02}}Z3,${.4^,f,@(y16:"
+  "repl-environment),.6^,@(y14:repl-from-port)[04}${.4^,@(y16:repl-enviro"
+  "nment),'(l1:y4:main;),@(y22:repl-evaluate-top-form)[03}${Z4,.3,Z3-/,'("
+  "i1000)*,'(s24:; elapsed time: ~s ms.~%25),t,@(y6:format)[03}_1.0^P60]4",
 
   "C", 0,
   "t@!(y17:*repl-first-time*)",
@@ -1559,16 +1580,17 @@ char *t_code[] = {
   ",@(y16:repl-environment),.8^,@(y14:repl-from-port)[04}_3}t]3",
 
   "C", 0,
-  "'(l9:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity;"
-  ";l5:y5:quiet;s2:-q;s7:--quiet;f;s30:Suppress nonessential messages;;l5"
-  ":y13:append-libdir;s2:-A;s15:--append-libdir;s3:DIR;s33:Append a libra"
-  "ry search directory;;l5:y14:prepend-libdir;s2:-I;s16:--prepend-libdir;"
-  "s3:DIR;s34:Prepend a library search directory;;l5:y4:eval;s2:-e;s6:--e"
-  "val;s4:SEXP;s32:Evaluate and print an expression;;l5:y6:script;s2:-s;s"
-  "8:--script;s4:FILE;s27:Run file as a Scheme script;;l5:y7:program;s2:-"
-  "p;s9:--program;s4:FILE;s28:Run file as a Scheme program;;l5:y7:version"
-  ";s2:-V;s9:--version;f;s20:Display version info;;l5:y4:help;s2:-h;s6:--"
-  "help;f;s17:Display this help;;)@!(y15:*skint-options*)",
+  "'(l10:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity"
+  ";;l5:y5:quiet;s2:-q;s7:--quiet;f;s30:Suppress nonessential messages;;l"
+  "5:y13:append-libdir;s2:-A;s15:--append-libdir;s3:DIR;s33:Append a libr"
+  "ary search directory;;l5:y14:prepend-libdir;s2:-I;s16:--prepend-libdir"
+  ";s3:DIR;s34:Prepend a library search directory;;l5:y4:eval;s2:-e;s6:--"
+  "eval;s4:SEXP;s32:Evaluate and print an expression;;l5:y6:script;s2:-s;"
+  "s8:--script;s4:FILE;s27:Run file as a Scheme script;;l5:y7:program;s2:"
+  "-p;s9:--program;s4:FILE;s28:Run file as a Scheme program;;l5:y9:benchm"
+  "ark;f;s11:--benchmark;s4:FILE;s33:Run .sf benchmark file (internal);;l"
+  "5:y7:version;s2:-V;s9:--version;f;s20:Display version info;;l5:y4:help"
+  ";s2:-h;s6:--help;f;s17:Display this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
   "'(s5:0.1.9)@!(y15:*skint-version*)",
@@ -1582,24 +1604,29 @@ char *t_code[] = {
   "at)[03}${'(s42:usage: skint [OPTION]... [FILE] [ARG]...~%25),t,@(y6:fo"
   "rmat)[02}${'(s2:~%25),t,@(y6:format)[02}${'(s10:Options:~%25),t,@(y6:f"
   "ormat)[02}${Po,@(y15:*skint-options*),@(y26:print-command-line-options"
-  ")[02}${'(s2:~%25),t,@(y6:format)[02}${'(s40:If no FILE is given, skint"
-  " enters REPL~%25),t,@(y6:format)[02}'(s2:~%25),t,@(y6:format)[02}.!2${"
-  "@(y12:command-line)[00}.!3${t,.6^d,,#0.7,.1,.8,.8,&4{%2:0,:1,:2,:3,.5,"
-  "&5{%3.1?{.1,.1,l2}{.0,l1},${.2,'(l1:y7:verbose;),@(y11:sexp-match?)[02"
-  "}?{t@!(y9:*verbose*)t,.4,:2^[42}${.2,'(l1:y5:quiet;),@(y11:sexp-match?"
-  ")[02}?{t@!(y7:*quiet*)t,.4,:2^[42}${.2,'(l2:y13:append-libdir;y1:*;),@"
-  "(y11:sexp-match?)[02}?{${.4,@(y20:append-library-path!)[01}t,.4,:2^[42"
-  "}${.2,'(l2:y14:prepend-libdir;y1:*;),@(y11:sexp-match?)[02}?{${.4,@(y2"
-  "1:prepend-library-path!)[01}t,.4,:2^[42}${.2,'(l2:y4:eval;y1:*;),@(y11"
-  ":sexp-match?)[02}?{${t,.5,:4^[02}f,.4,:2^[42}${.2,'(l2:y6:script;y1:*;"
-  "),@(y11:sexp-match?)[02}?{.3,.3,@(y10:run-script)[42}${.2,'(l1:y7:vers"
-  "ion;),@(y11:sexp-match?)[02}?{${:3^[00}f,n,:2^[42}${.2,'(l1:y4:help;),"
-  "@(y11:sexp-match?)[02}?{${:1^[00}f,n,:2^[42}${.2,'(l1:f;),@(y11:sexp-m"
-  "atch?)[02}?{.3p?{.3d,.4a,@(y10:run-script)[42}:0~?{t,@(y4:exit)[41}f]4"
-  "}]4},@(y15:*skint-options*),.2,@(y28:get-next-command-line-option)[23}"
-  ".!0.0^_1[02}PiP09?{PoP09}{f}?{${@(y15:*skint-version*),'(s30:SKINT Sch"
-  "eme Interpreter v~a~%25),t,@(y6:format)[03}${'(s35:Copyright (c) 2024 "
-  "False Schemers~%25),t,@(y6:format)[02}}t]4",
+  ")[02}${'(s2:~%25),t,@(y6:format)[02}${'(s80:'--' ends options processi"
+  "ng. Standalone FILE argument is treated as a script.~%25),t,@(y6:forma"
+  "t)[02}${'(s82:If no FILE is given, skint enters Read-Eval-Print loop ("
+  "stdin>eval-print>stdout)~%25),t,@(y6:format)[02}'(s2:~%25),t,@(y6:form"
+  "at)[02}.!2${@(y12:command-line)[00}.!3${t,.6^d,,#0.7,.1,.8,.8,&4{%2:0,"
+  ":1,:2,:3,.5,&5{%3.1?{.1,.1,l2}{.0,l1},${.2,'(l1:y7:verbose;),@(y11:sex"
+  "p-match?)[02}?{t@!(y9:*verbose*)t,.4,:2^[42}${.2,'(l1:y5:quiet;),@(y11"
+  ":sexp-match?)[02}?{t@!(y7:*quiet*)t,.4,:2^[42}${.2,'(l2:y13:append-lib"
+  "dir;y1:*;),@(y11:sexp-match?)[02}?{${.4,@(y20:append-library-path!)[01"
+  "}t,.4,:2^[42}${.2,'(l2:y14:prepend-libdir;y1:*;),@(y11:sexp-match?)[02"
+  "}?{${.4,@(y21:prepend-library-path!)[01}t,.4,:2^[42}${.2,'(l2:y4:eval;"
+  "y1:*;),@(y11:sexp-match?)[02}?{${t,.5,:4^[02}f,.4,:2^[42}${.2,'(l2:y6:"
+  "script;y1:*;),@(y11:sexp-match?)[02}?{.3,.3,@(y10:run-script)[42}${.2,"
+  "'(l2:y7:program;y1:*;),@(y11:sexp-match?)[02}?{.3,.3,@(y11:run-program"
+  ")[42}${.2,'(l2:y9:benchmark;y1:*;),@(y11:sexp-match?)[02}?{.3,.3,@(y10"
+  ":run-script)[42}${.2,'(l1:y7:version;),@(y11:sexp-match?)[02}?{${:3^[0"
+  "0}f,n,:2^[42}${.2,'(l1:y4:help;),@(y11:sexp-match?)[02}?{${:1^[00}f,n,"
+  ":2^[42}${.2,'(l1:f;),@(y11:sexp-match?)[02}?{.3p?{.3d,.4a,@(y10:run-sc"
+  "ript)[42}:0~?{t,@(y4:exit)[41}f]4}]4},@(y15:*skint-options*),.2,@(y28:"
+  "get-next-command-line-option)[23}.!0.0^_1[02}PiP09?{PoP09}{f}?{${@(y15"
+  ":*skint-version*),'(s30:SKINT Scheme Interpreter v~a~%25),t,@(y6:forma"
+  "t)[03}${'(s35:Copyright (c) 2024 False Schemers~%25),t,@(y6:format)[02"
+  "}}t]4",
 
   0, 0, 0
 };

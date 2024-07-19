@@ -978,7 +978,7 @@
               [(eq? (car decl) ld-export-id)
                (loop decls code eal (adjoin-esps (toesps (cdr decl) '()) esps) forms)]
               [(and (list2? decl) (eq? (car decl) ld-import-id) (eq? (cadr decl) ld-import-id))
-               (let ([new-eal (list (cons 'import (make-location import-transformer)))])
+               (let ([new-eal (list (cons 'import (make-location 'import)))])
                  (loop decls code (adjoin-eals new-eal eal) esps forms))]
               [(eq? (car decl) ld-import-id)
                (let ([ic&ex (preprocess-import-sets decl env)])
@@ -1576,10 +1576,23 @@
 ; Path and file name resolution
 ;--------------------------------------------------------------------------------------------------
 
+(define (path-strip-directory filename)
+  (let loop ([l (reverse (string->list filename))] [r '()])
+    (cond [(null? l) (list->string r)]
+          [(memv (car l) '(#\\ #\/ #\:)) (list->string r)]
+          [else (loop (cdr l) (cons (car l) r))])))
+
 (define (path-directory filename)
   (let loop ([l (reverse (string->list filename))])
     (cond [(null? l) ""]
           [(memv (car l) '(#\\ #\/ #\:)) (list->string (reverse l))]
+          [else (loop (cdr l))])))
+
+(define (path-strip-extension filename) ; improved
+  (let loop ([l (reverse (string->list filename))])
+    (cond [(null? l) filename]
+          [(eqv? (car l) #\.) (list->string (reverse (cdr l)))]
+          [(memv (car l) '(#\\ #\/ #\:)) filename]
           [else (loop (cdr l))])))
 
 (define (base-path-separator basepath)
@@ -2330,6 +2343,28 @@
                  (exit (eval `(main (quote ,main-args)) env))))))))
     (void)))
 
+; r7rs scheme program processor (args is list of strings)
+(define (run-program filename args)
+  (define modname (string->symbol (path-strip-extension (path-strip-directory filename))))
+  (define global (lambda (n) (symbol-append 'prog:// modname '? n)))
+  (define ial (list (cons 'import (make-location 'import))))
+  (define env (make-controlled-environment ial global root-environment))
+  (define ci? #f) ; normal load-like behavior is the default
+  (define main-args (cons filename args))
+  (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
+         [fileok? (and (string? filepath) (file-exists? filepath))])
+    (unless fileok? (error "cannot run program" filename filepath))
+    (with-current-file filepath
+      (lambda ()
+        (call-with-input-file filepath
+          (lambda (port) 
+            (command-line main-args)
+            (let loop ([x (read-code-sexp port)])
+              (unless (eof-object? x)
+                (eval x env)
+                (loop (read-code-sexp port))))))))
+    (exit #t)))
+
 
 ;--------------------------------------------------------------------------------------------------
 ; REPL
@@ -2431,13 +2466,16 @@
             (repl-evaluate-top-form x env op))
         (loop (repl-read ip prompt op))))))
 
-(define (benchmark-file fname) ; for debug purposes only
+(define (run-benchmark fname args) ; for debug purposes only
   (define ip (open-input-file fname))
   (define op (current-output-port))
   (unless (sexp-match? '(load "libl.sf") (read-code-sexp ip))
     (error "unexpected benchmark file format" fname))
-  (repl-from-port ip repl-environment #f op)
-  (repl-evaluate-top-form '(main #f) repl-environment op)  
+  (let ([start (current-jiffy)])
+    (repl-from-port ip repl-environment #f op)
+    (repl-evaluate-top-form '(main) repl-environment op)  
+    (format #t "; elapsed time: ~s ms.~%"
+      (* 1000 (/ (- (current-jiffy) start) (jiffies-per-second)))))
   (close-input-port ip))
 
 (define *repl-first-time* #t)
@@ -2468,6 +2506,7 @@
    [eval           "-e" "--eval" "SEXP"          "Evaluate and print an expression"] 
    [script         "-s" "--script" "FILE"        "Run file as a Scheme script"]
    [program        "-p" "--program" "FILE"       "Run file as a Scheme program"]
+   [benchmark       #f  "--benchmark" "FILE"     "Run .sf benchmark file (internal)"]
    [version        "-V" "--version" #f           "Display version info"]
    [help           "-h" "--help" #f              "Display this help"]
 ))
@@ -2489,7 +2528,8 @@
     (format #t "Options:~%")
     (print-command-line-options *skint-options* (current-output-port))
     (format #t "~%")
-    (format #t "If no FILE is given, skint enters REPL~%")
+    (format #t "'--' ends options processing. Standalone FILE argument is treated as a script.~%")
+    (format #t "If no FILE is given, skint enters Read-Eval-Print loop (stdin>eval-print>stdout)~%")
     (format #t "~%"))
   (define cl (command-line))
   (let loop ([args (cdr cl)] [repl? #t])
@@ -2502,6 +2542,8 @@
           [(prepend-libdir *) (prepend-library-path! optarg) (loop restargs #t)]
           [(eval *) (eval! optarg #t) (loop restargs #f)]
           [(script *) (run-script optarg restargs)] ; will exit if a script
+          [(program *) (run-program optarg restargs)] ; will exit if a script
+          [(benchmark *) (run-script optarg restargs)] ; will exit if a script
           [(version) (print-version!) (loop '() #f)]
           [(help) (print-help!) (loop '() #f)]
           [(#f) (cond [(pair? restargs) (run-script (car restargs) (cdr restargs))]

@@ -2129,7 +2129,7 @@
   (define opterr error)
   (define (opt-lookup opt optmap) ;=> #f | (needsarg? keysym)
     (define iref (if (= (string-length opt) 2) cadr caddr))
-    (let ([r (memp (lambda (i) (string=? (iref i) opt)) optmap)])
+    (let ([r (memp (lambda (i) (equal? (iref i) opt)) optmap)])
       (and r (cons (cadddr (car r)) (caar r)))))
   (define (ssref s i) ; safe-string-ref
     (and i (< -1 i (string-length s)) (string-ref s i)))
