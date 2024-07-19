@@ -2300,7 +2300,7 @@
 (define (run-script filename args)
   (define env (interaction-environment))
   (define ci? #f) ; normal load-like behavior is the default
-  (define callmain #f)
+  (define callmain #f) ; got changed via first #! line
   (define main-args (cons filename args))
   (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
          [fileok? (and (string? filepath) (file-exists? filepath))])
@@ -2312,7 +2312,8 @@
              (let ([x0 (read-code-sexp port)])
                (when (shebang? x0)
                  (let ([shs (symbol->string (shebang->symbol x0))])
-                   (cond [(string-position "r7rs" shs)] ; ok, repl env will do
+                   (cond [(string-position "r7rs" shs)
+                          (command-line main-args)]
                          [(string-position "r5rs" shs)
                           (set! env (scheme-report-environment 5))
                           (set! ci? #t)]
@@ -2460,21 +2461,54 @@
 ;--------------------------------------------------------------------------------------------------
 
 (define *skint-options*
- '([verbose        "-v" "--verbose" #f             "Increase output verbosity"]
-   [quiet          "-q" "--quiet" #f               "Suppress nonessential messages"]
-   [append-libdir  "-A" "--append-libdir" "<DIR>"  "Append a library search directory"] 
-   [prepend-libdir "-I" "--prepend-libdir" "<DIR>" "Prepend a library search directory"] 
-   [eval           "-e" "--eval" "<SEXP>"          "Evaluate and print an expression"] 
-   [script         "-s" "--script" "<FILE>"        "Run file as a Scheme script"]
-   [program        "-p" "--program" "<FILE>"       "Run file as a Scheme program"]
-   [version        "-V" "--version" #f             "Display version info"]
-   [help           "-h" "--help" #f                "Display this help"]
+ '([verbose        "-v" "--verbose" #f           "Increase output verbosity"]
+   [quiet          "-q" "--quiet" #f             "Suppress nonessential messages"]
+   [append-libdir  "-A" "--append-libdir" "DIR"  "Append a library search directory"] 
+   [prepend-libdir "-I" "--prepend-libdir" "DIR" "Prepend a library search directory"] 
+   [eval           "-e" "--eval" "SEXP"          "Evaluate and print an expression"] 
+   [script         "-s" "--script" "FILE"        "Run file as a Scheme script"]
+   [program        "-p" "--program" "FILE"       "Run file as a Scheme program"]
+   [version        "-V" "--version" #f           "Display version info"]
+   [help           "-h" "--help" #f              "Display this help"]
 ))
 
+(define *skint-version* "0.1.9")
+
 (define (skint-main)
-  ; todo: here we can process command line by ourselves!
+  ; see if command line asks for special processing
+  (define (eval! str print?)
+    (let ([obj (read-from-string str)])
+      (for-each (lambda (val) (when print? (write val) (newline)))
+        (call-with-values (lambda () (eval obj)) list))))
+  (define (print-version!)
+    (format #t "(version ~s)~%(scheme.id skint)~%" *skint-version*))
+  (define (print-help!)
+    (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
+    (format #t "usage: skint [OPTION]... [FILE] [ARG]...~%")
+    (format #t "~%")
+    (format #t "Options:~%")
+    (print-command-line-options *skint-options* (current-output-port))
+    (format #t "~%")
+    (format #t "If no FILE is given, skint enters REPL~%")
+    (format #t "~%"))
+  (define cl (command-line))
+  (let loop ([args (cdr cl)] [repl? #t])
+    (get-next-command-line-option args *skint-options* ;=>
+      (lambda (keysym optarg restargs)
+        (sexp-case (if optarg (list keysym optarg) (list keysym))
+          [(verbose) (set! *verbose* #t) (loop restargs #t)]
+          [(quiet) (set! *quiet* #t) (loop restargs #t)]
+          [(append-libdir *) (append-library-path! optarg) (loop restargs #t)]
+          [(prepend-libdir *) (prepend-library-path! optarg) (loop restargs #t)]
+          [(eval *) (eval! optarg #t) (loop restargs #f)]
+          [(script *) (run-script optarg restargs)] ; will exit if a script
+          [(version) (print-version!) (loop '() #f)]
+          [(help) (print-help!) (loop '() #f)]
+          [(#f) (cond [(pair? restargs) (run-script (car restargs) (cdr restargs))]
+                      [(not repl?) (exit #t)])])))) ; all done -- no need to continue
+  ; falling through to interactive mode
   (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
     ; quick check for non-interactive use failed, greet
-    (display "SKINT Scheme Interpreter v0.0.9\n")
-    (display "Copyright (c) 2024 False Schemers\n"))
+    (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
+    (format #t "Copyright (c) 2024 False Schemers~%"))
   #t) ; exited normally

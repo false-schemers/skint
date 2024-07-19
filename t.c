@@ -1448,13 +1448,14 @@ char *t_code[] = {
   ".4S0?{${.6,@(y32:file-resolve-relative-to-current)[01}}{f},.0S0?{.0F0}"
   "{f},.0~?{${.3,.9,'(s17:cannot run script),@(y5:error)[03}}${.6,.8,.6,."
   "8,.7,&5{%0:1,:2,:3,:4,&4{%1${.2,@(y14:read-code-sexp)[01},#0.0^Y5?{.0^"
-  "Y7X4,.0,'(s4:r7rs)S8,.0?{.0}{.1,'(s4:r5rs)S8?{${'5,@(y25:scheme-report"
-  "-environment)[01}:!2t:!3}{${.3,'(s41:only scheme-r[57]rs scripts are s"
-  "upported),@(y5:error)[02}}}_1:3^?{t,.3P79}t:!0${.4,@(y14:read-code-sex"
-  "p)[01}.!1_1}${.2^,,#0:2,.6,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,"
-  "@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[01}:0^?{${:2^,n,n,:1^c,'("
-  "y5:quote)cc,'(y4:main)c,@(y4:eval)[02},@(y4:exit)[21}]2},:0,@(y20:call"
-  "-with-input-file)[02},.4,@(y17:with-current-file)[02}Y9]8",
+  "Y7X4,.0,'(s4:r7rs)S8?{${:1^,@(y12:command-line)[01}}{.0,'(s4:r5rs)S8?{"
+  "${'5,@(y25:scheme-report-environment)[01}:!2t:!3}{${.2,'(s41:only sche"
+  "me-r[57]rs scripts are supported),@(y5:error)[02}}}:3^?{t,.3P79}t:!0${"
+  ".4,@(y14:read-code-sexp)[01}.!1_1}${.2^,,#0:2,.6,.2,&3{%1.0R8~?{${:2^,"
+  ".3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[01}"
+  ":0^?{${:2^,n,n,:1^c,'(y5:quote)cc,'(y4:main)c,@(y4:eval)[02},@(y4:exit"
+  ")[21}]2},:0,@(y20:call-with-input-file)[02},.4,@(y17:with-current-file"
+  ")[02}Y9]8",
 
   "P", "repl-evaluate-top-form",
   "%3,,#0#1.!0${.2,&1{%!0.0:!0]1},.6,.6,&2{%0:1,:0,@(y17:evaluate-top-for"
@@ -1560,18 +1561,45 @@ char *t_code[] = {
   "C", 0,
   "'(l9:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity;"
   ";l5:y5:quiet;s2:-q;s7:--quiet;f;s30:Suppress nonessential messages;;l5"
-  ":y13:append-libdir;s2:-A;s15:--append-libdir;s5:<DIR>;s33:Append a lib"
-  "rary search directory;;l5:y14:prepend-libdir;s2:-I;s16:--prepend-libdi"
-  "r;s5:<DIR>;s34:Prepend a library search directory;;l5:y4:eval;s2:-e;s6"
-  ":--eval;s6:<SEXP>;s32:Evaluate and print an expression;;l5:y6:script;s"
-  "2:-s;s8:--script;s6:<FILE>;s27:Run file as a Scheme script;;l5:y7:prog"
-  "ram;s2:-p;s9:--program;s6:<FILE>;s28:Run file as a Scheme program;;l5:"
-  "y7:version;s2:-V;s9:--version;f;s20:Display version info;;l5:y4:help;s"
-  "2:-h;s6:--help;f;s17:Display this help;;)@!(y15:*skint-options*)",
+  ":y13:append-libdir;s2:-A;s15:--append-libdir;s3:DIR;s33:Append a libra"
+  "ry search directory;;l5:y14:prepend-libdir;s2:-I;s16:--prepend-libdir;"
+  "s3:DIR;s34:Prepend a library search directory;;l5:y4:eval;s2:-e;s6:--e"
+  "val;s4:SEXP;s32:Evaluate and print an expression;;l5:y6:script;s2:-s;s"
+  "8:--script;s4:FILE;s27:Run file as a Scheme script;;l5:y7:program;s2:-"
+  "p;s9:--program;s4:FILE;s28:Run file as a Scheme program;;l5:y7:version"
+  ";s2:-V;s9:--version;f;s20:Display version info;;l5:y4:help;s2:-h;s6:--"
+  "help;f;s17:Display this help;;)@!(y15:*skint-options*)",
+
+  "C", 0,
+  "'(s5:0.1.9)@!(y15:*skint-version*)",
 
   "P", "skint-main",
-  "%0PiP09?{PoP09}{f}?{Po,'(s32:SKINT Scheme Interpreter v0.0.9%0a)W4Po,'"
-  "(s34:Copyright (c) 2024 False Schemers%0a)W4}t]0",
+  "%0,,,,#0#1#2#3&0{%2${.2,@(y16:read-from-string)[01},${@(y4:list),.3,&1"
+  "{%0:0,@(y4:eval)[01},@(y16:call-with-values)[02},.3,&1{%1:0?{Po,.1W5Po"
+  "W6]1}]1},@(y10:%25for-each1)[32}.!0&0{%0@(y15:*skint-version*),'(s33:("
+  "version ~s)~%25(scheme.id skint)~%25),t,@(y6:format)[03}.!1&0{%0${@(y1"
+  "5:*skint-version*),'(s30:SKINT Scheme Interpreter v~a~%25),t,@(y6:form"
+  "at)[03}${'(s42:usage: skint [OPTION]... [FILE] [ARG]...~%25),t,@(y6:fo"
+  "rmat)[02}${'(s2:~%25),t,@(y6:format)[02}${'(s10:Options:~%25),t,@(y6:f"
+  "ormat)[02}${Po,@(y15:*skint-options*),@(y26:print-command-line-options"
+  ")[02}${'(s2:~%25),t,@(y6:format)[02}${'(s40:If no FILE is given, skint"
+  " enters REPL~%25),t,@(y6:format)[02}'(s2:~%25),t,@(y6:format)[02}.!2${"
+  "@(y12:command-line)[00}.!3${t,.6^d,,#0.7,.1,.8,.8,&4{%2:0,:1,:2,:3,.5,"
+  "&5{%3.1?{.1,.1,l2}{.0,l1},${.2,'(l1:y7:verbose;),@(y11:sexp-match?)[02"
+  "}?{t@!(y9:*verbose*)t,.4,:2^[42}${.2,'(l1:y5:quiet;),@(y11:sexp-match?"
+  ")[02}?{t@!(y7:*quiet*)t,.4,:2^[42}${.2,'(l2:y13:append-libdir;y1:*;),@"
+  "(y11:sexp-match?)[02}?{${.4,@(y20:append-library-path!)[01}t,.4,:2^[42"
+  "}${.2,'(l2:y14:prepend-libdir;y1:*;),@(y11:sexp-match?)[02}?{${.4,@(y2"
+  "1:prepend-library-path!)[01}t,.4,:2^[42}${.2,'(l2:y4:eval;y1:*;),@(y11"
+  ":sexp-match?)[02}?{${t,.5,:4^[02}f,.4,:2^[42}${.2,'(l2:y6:script;y1:*;"
+  "),@(y11:sexp-match?)[02}?{.3,.3,@(y10:run-script)[42}${.2,'(l1:y7:vers"
+  "ion;),@(y11:sexp-match?)[02}?{${:3^[00}f,n,:2^[42}${.2,'(l1:y4:help;),"
+  "@(y11:sexp-match?)[02}?{${:1^[00}f,n,:2^[42}${.2,'(l1:f;),@(y11:sexp-m"
+  "atch?)[02}?{.3p?{.3d,.4a,@(y10:run-script)[42}:0~?{t,@(y4:exit)[41}f]4"
+  "}]4},@(y15:*skint-options*),.2,@(y28:get-next-command-line-option)[23}"
+  ".!0.0^_1[02}PiP09?{PoP09}{f}?{${@(y15:*skint-version*),'(s30:SKINT Sch"
+  "eme Interpreter v~a~%25),t,@(y6:format)[03}${'(s35:Copyright (c) 2024 "
+  "False Schemers~%25),t,@(y6:format)[02}}t]4",
 
   0, 0, 0
 };

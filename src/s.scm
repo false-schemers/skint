@@ -2171,7 +2171,7 @@
 
 ; printer for optmap options used for --help; returns offset of help lines
 (define (print-command-line-options optmap . ?port)
-  (define port (if (pair? ?port) (car port) (standard-error-port)))
+  (define port (if (pair? ?port) (car ?port) (standard-output-port)))
   (define (optlen i)
     (let ([co (cadr i)] [lo (caddr i)] [oa (cadddr i)])
       (define colen (if co (string-length co) 0))
