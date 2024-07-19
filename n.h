@@ -391,14 +391,19 @@ extern obj appcases[];
 #define isshebang(o) (isimm(o, SHEBANG_ITAG))
 #define mkshebang(i) mkimm(i, SHEBANG_ITAG)
 #define getshebang(o) getimmu(o, SHEBANG_ITAG)
-/* input ports */
+/* input/output ports */
 typedef struct { /* extends cxtype_t */
   const char *tname;
   void (*free)(void*);
-  int (*close)(void*);
-  int (*getch)(void*);
-  int (*ungetch)(int, void*);
-} cxtype_iport_t;
+  enum { SPT_CLOSED = 0, SPT_INPUT = 1, SPT_OUTPUT = 2, SPT_IO = 3 } spt;
+  int  (*close)(void*);
+  int  (*getch)(void*);
+  int  (*ungetch)(int, void*);
+  int  (*putch)(int, void*);
+  int  (*flush)(void*);
+  int  (*ctl)(const char *cmd, void *dp, ...);
+} cxtype_port_t, cxtype_iport_t, cxtype_oport_t;
+/* input ports */
 extern cxtype_t *IPORT_CLOSED_NTAG;
 extern cxtype_t *IPORT_FILE_NTAG;
 extern cxtype_t *IPORT_STRING_NTAG;
@@ -431,13 +436,6 @@ typedef struct { unsigned char *p, *e; void *base; } bvifile_t;
 extern bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base);
 #define mkiport_bytevector(l, fp) hpushptr(fp, IPORT_BYTEVECTOR_NTAG, l)
 /* output ports */
-typedef struct { /* extends cxtype_t */
-  const char *tname;
-  void (*free)(void*);
-  int (*close)(void*);
-  int (*putch)(int, void*);
-  int (*flush)(void*);
-} cxtype_oport_t;
 extern cxtype_t *OPORT_CLOSED_NTAG;
 extern cxtype_t *OPORT_FILE_NTAG;
 extern cxtype_t *OPORT_STRING_NTAG;
