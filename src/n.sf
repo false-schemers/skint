@@ -267,10 +267,10 @@
 
 (%definition "#ifdef NAN_BOXING")
 
-(%definition "#define isim0(o)    (((o) & 0xffff000000000003ULL) == 3)")
-(%definition "#define isimm(o, t) (((o) & 0xffff0000000000ffULL) == (((t) << 2) | 1))")
+(%definition "#define isim0(o)    (((o) & 0xffffffff00000003ULL) == 3) /* 30 bits of payload */")
+(%definition "#define isimm(o, t) (((o) & 0xffffffff000000ffULL) == (((t) << 2) | 1)) /* 24 */")
 (%definition "#ifdef NDEBUG
-  #define getim0s(o) (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
+  #define getim0s(o) (long)(((((int32_t)(o) >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
   #define getimmu(o, t) (long)(((o) >> 8) & 0xffffff)
 #else
   extern long getim0s(obj o);
@@ -279,7 +279,7 @@
 (%localdef "#ifndef NDEBUG
 long getim0s(obj o) {
   assert(isim0(o));
-  return (long)(((((uint32_t)o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
+  return (int32_t)(((((uint32_t)o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
 }
 long getimmu(obj o, int t) {
   assert(isimm((o), t));
@@ -294,7 +294,7 @@ long getimmu(obj o, int t) {
 (%definition "#define isim0(o)    (((o) & 3) == 3)")
 (%definition "#define isimm(o, t) (((o) & 0xff) == (((t) << 2) | 1))")
 (%definition "#ifdef NDEBUG
-  #define getim0s(o) (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
+  #define getim0s(o) (long)(((((int)(o) >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000)
   #define getimmu(o, t) (long)(((o) >> 8) & 0xffffff)
 #else
   extern long getim0s(obj o);
@@ -303,7 +303,7 @@ long getimmu(obj o, int t) {
 (%localdef "#ifndef NDEBUG
 long getim0s(obj o) {
   assert(isim0(o));
-  return (long)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
+  return (int)((((o >> 2) & 0x3fffffff) ^ 0x20000000) - 0x20000000);
 }
 long getimmu(obj o, int t) {
   assert(isimm(o, t));
@@ -389,7 +389,8 @@ obj* taggedref(obj o, int t, int i) {
   if (!isobjptr(o)) return 0;
   else { obj h = objptr_from_obj(o)[-1];
     return notaptr(h) && size_from_obj(h) >= 1 
-      && isobjptr(hblkref(o, 0)); }
+      /* FIXME: manual issymbol() check */
+      && isimm(hblkref(o, 0), 4/*SYMBOL_ITAG*/); }
 }")
 
 (%definition "#ifdef NDEBUG
@@ -2848,21 +2849,34 @@ default: /* inter-host call */
 
 ; i/o ports
 
-; internal helper fo opening regular files
+; internal helper for opening regular files
 (define-inline (open-file* fn mode) ;=> #f (i.e. NULL) or foreign ptr
   (%prim*?! "obj((obj)fopen(stringchars(obj_from_$arg), stringchars(obj_from_$arg)))" fn mode))
 
-; generic input ports
-
-(%definition "/* input ports */")
+(%definition "/* input/output ports */")
 (%definition "typedef struct { /* extends cxtype_t */
   const char *tname;
   void (*free)(void*);
-  int (*close)(void*);
-  int (*getch)(void*);
-  int (*ungetch)(int, void*);
-} cxtype_iport_t;")
+  enum { SPT_CLOSED = 0, SPT_INPUT = 1, SPT_OUTPUT = 2, SPT_IO = 3 } spt;
+  int  (*close)(void*);
+  int  (*getch)(void*);
+  int  (*ungetch)(int, void*);
+  int  (*putch)(int, void*);
+  int  (*flush)(void*);
+  int  (*ctl)(const char*, void*, ...);
+} cxtype_port_t, cxtype_iport_t, cxtype_oport_t;")
+(%localdef "/* shared generic methods */")
+(%localdef "static void nofree(void *p) {}")
+(%localdef "static int noclose(void *p) { return 0; }")
+(%localdef "static int nogetch(void *p) { return EOF; }")
+(%localdef "static int noungetch(int c) { return c; }")
+(%localdef "static int noputch(int c, void *p) { return EOF; }")
+(%localdef "static int noflush(void *p) { return EOF; }")
+(%localdef "static int noctl(const char *cmd, void *p, ...) { return -1; }")
 
+; input ports
+
+(%definition "/* input ports */")
 (%definition "extern cxtype_t *IPORT_CLOSED_NTAG;")
 (%definition "extern cxtype_t *IPORT_FILE_NTAG;")
 (%definition "extern cxtype_t *IPORT_STRING_NTAG;")
@@ -2895,18 +2909,7 @@ default: /* inter-host call */
 (define-inline (set-port-fold-case! ip b) ;stub
   (%prim?! "void(ckiportvt(obj_from_$arg))" ip))
 
-
 ; closed input ports 
-
-(%definition "/* closed input ports */")
-(%localdef "static void cifree(void *p) {}")
-(%localdef "static int ciclose(void *p) { return 0; }")
-(%localdef "static int cigetch(void *p) { return EOF; }")
-(%localdef "static int ciungetch(int c) { return c; }")
-(%localdef "static cxtype_iport_t cxt_iport_closed = {
-  \"closed-input-port\", (void (*)(void*))cifree, (int (*)(void*))ciclose,
-  (int (*)(void*))cigetch, (int (*)(int, void*))ciungetch };")
-(%localdef "cxtype_t *IPORT_CLOSED_NTAG = (cxtype_t *)&cxt_iport_closed;")
 
 (define (close-input-port p)
   (%prim?! "{ /* close-input-port */
@@ -2920,12 +2923,9 @@ default: /* inter-host call */
 
 ; file input ports
 
+(%definition "/* file input ports */")
 (%localdef "static void ffree(void *vp) {
   /* FILE *fp = vp; assert(fp); cannot fclose(fp) here because of FILE reuse! */ }")
-(%localdef "static cxtype_iport_t cxt_iport_file = {
-  \"file-input-port\", ffree, (int (*)(void*))fclose,
-  (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc) };")
-(%localdef "cxtype_t *IPORT_FILE_NTAG = (cxtype_t *)&cxt_iport_file;")
 (%definition "#define mkiport_file(l, fp) hpushptr(fp, IPORT_FILE_NTAG, l)")
 
 (define *current-input-port* (%prim* "obj(mkiport_file($live, stdin))"))
@@ -2963,10 +2963,6 @@ default: /* inter-host call */
   int c; assert(fp && fp->p); if (!(c = *(fp->p))) return EOF; ++(fp->p); return c; }")
 (%localdef "static int siungetch(int c, sifile_t *fp) {
   assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }")
-(%localdef "static cxtype_iport_t cxt_iport_string = {
-  \"string-input-port\", (void (*)(void*))sifree, (int (*)(void*))siclose,
-  (int (*)(void*))sigetch, (int (*)(int, void*))siungetch };")
-(%localdef "cxtype_t *IPORT_STRING_NTAG = (cxtype_t *)&cxt_iport_string;")
 (%definition "#define mkiport_string(l, fp) hpushptr(fp, IPORT_STRING_NTAG, l)")
 
 (define-inline (open-input-string s)
@@ -2991,10 +2987,6 @@ default: /* inter-host call */
   assert(fp && fp->p && fp->e); return (fp->p >= fp->e) ? EOF : (0xff & *(fp->p)++); }")
 (%localdef "static int bviungetch(int c, bvifile_t *fp) {
   assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }")
-(%localdef "static cxtype_iport_t cxt_iport_bytevector = {
-  \"bytevector-input-port\", (void (*)(void*))bvifree, (int (*)(void*))bviclose,
-  (int (*)(void*))bvigetch, (int (*)(int, void*))bviungetch };")
-(%localdef "cxtype_t *IPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_iport_bytevector;")
 (%definition "#define mkiport_bytevector(l, fp) hpushptr(fp, IPORT_BYTEVECTOR_NTAG, l)")
 
 (define-inline (open-input-bytevector s)
@@ -3006,14 +2998,6 @@ default: /* inter-host call */
 ; generic output ports
 
 (%definition "/* output ports */")
-(%definition "typedef struct { /* extends cxtype_t */
-  const char *tname;
-  void (*free)(void*);
-  int (*close)(void*);
-  int (*putch)(int, void*);
-  int (*flush)(void*);
-} cxtype_oport_t;")
-
 (%definition "extern cxtype_t *OPORT_CLOSED_NTAG;")
 (%definition "extern cxtype_t *OPORT_FILE_NTAG;")
 (%definition "extern cxtype_t *OPORT_STRING_NTAG;")
@@ -3050,16 +3034,6 @@ default: /* inter-host call */
 
 ; closed output ports 
 
-(%definition "/* closed output ports */")
-(%localdef "static void cofree(void *p) {}")
-(%localdef "static int coclose(void *p) { return 0; }")
-(%localdef "static int coputch(int c, void *p) { return EOF; }")
-(%localdef "static int coflush(void *p) { return EOF; }")
-(%localdef "static cxtype_oport_t cxt_oport_closed = {
-  \"closed-output-port\", (void (*)(void*))cofree, (int (*)(void*))coclose,
-  (int (*)(int, void*))coputch, (int (*)(void*))coflush };")
-(%localdef "cxtype_t *OPORT_CLOSED_NTAG = (cxtype_t *)&cxt_oport_closed;")
-
 (define (close-output-port p)
   (%prim?! "{ /* close-output-port */
     obj o = obj_from_$arg; cxtype_oport_t *vt = oportvt(o); assert(vt);
@@ -3072,10 +3046,7 @@ default: /* inter-host call */
 
 ; file output ports
 
-(%localdef "static cxtype_oport_t cxt_oport_file = {
-  \"file-output-port\", ffree, (int (*)(void*))fclose,
-  (int (*)(int, void*))(fputc), (int (*)(void*))fflush };")
-(%localdef "cxtype_t *OPORT_FILE_NTAG = (cxtype_t *)&cxt_oport_file;")
+(%definition "/* file output ports */")
 (%definition "#define mkoport_file(l, fp) hpushptr(fp, OPORT_FILE_NTAG, l)")
 
 (define *current-output-port* (%prim* "obj(mkoport_file($live, stdout))"))
@@ -3137,10 +3108,6 @@ default: /* inter-host call */
 (%localdef "char* cbdata(cbuf_t* pcb) {
   if (pcb->fill == pcb->end) cbgrow(pcb, 1); *(pcb->fill) = 0; return pcb->buf; 
 }")
-(%localdef "static cxtype_oport_t cxt_oport_string = {
-  \"string-output-port\", (void (*)(void*))freecb, (int (*)(void*))cbclose,
-  (int (*)(int, void*))cbputc, (int (*)(void*))cbflush };")
-(%localdef "cxtype_t *OPORT_STRING_NTAG = (cxtype_t *)&cxt_oport_string;")
 (%definition "#define mkoport_string(l, fp) hpushptr(fp, OPORT_STRING_NTAG, l)")
 
 (define-inline (open-output-string)
@@ -3158,10 +3125,6 @@ default: /* inter-host call */
 ; bytevector output ports 
 
 (%definition "/* bytevector output ports */")
-(%localdef "static cxtype_oport_t cxt_oport_bytevector = {
-  \"bytevector-output-port\", (void (*)(void*))freecb, (int (*)(void*))cbclose,
-  (int (*)(int, void*))cbputc, (int (*)(void*))cbflush };")
-(%localdef "cxtype_t *OPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_oport_bytevector;")
 (%definition "#define mkoport_bytevector(l, fp) hpushptr(fp, OPORT_BYTEVECTOR_NTAG, l)")
 
 (define-inline (open-output-bytevector)
@@ -3176,7 +3139,68 @@ default: /* inter-host call */
     else { cbuf_t *pcb = oportdata(o); int len = (int)(pcb->fill - pcb->buf); 
     $return obj(hpushu8v($live, newbytevector((unsigned char *)pcb->buf, len))); } }" p)) 
 
-; generic port predicates and standard opening/closing convenience ops
+; port data, predicates and standard opening/closing convenience ops
+
+(%localdef "/* port type array */")
+(%localdef "#define PORTTYPES_MAX 8")
+(%localdef "static cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
+#define IPORT_CLOSED_PTINDEX     0
+  { \"closed-input-port\", (void (*)(void*))nofree, 
+    SPT_CLOSED, (int (*)(void*))noclose,
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush, 
+    (int (*)(const char *, void *, ...))noctl },
+#define IPORT_FILE_PTINDEX       1
+  { \"file-input-port\", ffree, 
+    SPT_INPUT, (int (*)(void*))fclose, 
+    (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(const char *, void *, ...))noctl },
+#define IPORT_STRING_PTINDEX     2
+  { \"string-input-port\", (void (*)(void*))sifree, 
+    SPT_INPUT, (int (*)(void*))siclose,
+    (int (*)(void*))sigetch, (int (*)(int, void*))siungetch,
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(const char *, void *, ...))noctl },
+#define IPORT_BYTEVECTOR_PTINDEX 3
+  { \"bytevector-input-port\", (void (*)(void*))bvifree, 
+    SPT_INPUT, (int (*)(void*))bviclose,
+    (int (*)(void*))bvigetch, (int (*)(int, void*))bviungetch,
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(const char *, void *, ...))noctl },
+#define OPORT_CLOSED_PTINDEX     4
+  { \"closed-output-port\", (void (*)(void*))nofree, 
+    SPT_OUTPUT, (int (*)(void*))noclose, 
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(const char *, void *, ...))noctl },
+#define OPORT_FILE_PTINDEX       5
+  { \"file-output-port\", ffree, 
+    SPT_OUTPUT, (int (*)(void*))fclose, 
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
+    (int (*)(const char *, void *, ...))noctl },
+#define OPORT_STRING_PTINDEX     6
+  { \"string-output-port\", (void (*)(void*))freecb, 
+    SPT_OUTPUT, (int (*)(void*))cbclose,
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
+    (int (*)(const char *, void *, ...))noctl },
+#define OPORT_BYTEVECTOR_PTINDEX 7
+  { \"bytevector-output-port\", (void (*)(void*))freecb, 
+    SPT_OUTPUT, (int (*)(void*))cbclose,
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
+    (int (*)(const char *, void *, ...))noctl }    
+};")
+(%localdef "cxtype_t *IPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[IPORT_CLOSED_PTINDEX];")
+(%localdef "cxtype_t *IPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_FILE_PTINDEX];")
+(%localdef "cxtype_t *IPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[IPORT_STRING_PTINDEX];")
+(%localdef "cxtype_t *IPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_port_types[IPORT_BYTEVECTOR_PTINDEX];")
+(%localdef "cxtype_t *OPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[OPORT_CLOSED_PTINDEX];")
+(%localdef "cxtype_t *OPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[OPORT_FILE_PTINDEX];")
+(%localdef "cxtype_t *OPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[OPORT_STRING_PTINDEX];")
+(%localdef "cxtype_t *OPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_port_types[OPORT_BYTEVECTOR_PTINDEX];")
 
 (define-inline (port? x) (or (input-port? x) (output-port? x)))
 (define-syntax textual-port? port?) ; all ports are bimodal

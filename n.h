@@ -401,7 +401,7 @@ typedef struct { /* extends cxtype_t */
   int  (*ungetch)(int, void*);
   int  (*putch)(int, void*);
   int  (*flush)(void*);
-  int  (*ctl)(const char *cmd, void *dp, ...);
+  int  (*ctl)(const char*, void*, ...);
 } cxtype_port_t, cxtype_iport_t, cxtype_oport_t;
 /* input ports */
 extern cxtype_t *IPORT_CLOSED_NTAG;

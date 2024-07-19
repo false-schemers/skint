@@ -887,10 +887,16 @@ typedef struct { /* extends cxtype_t */
   int  (*ungetch)(int, void*);
   int  (*putch)(int, void*);
   int  (*flush)(void*);
-  int  (*ctl)(const char *cmd, void *dp, ...);
+  int  (*ctl)(const char*, void*, ...);
 } cxtype_port_t, cxtype_iport_t, cxtype_oport_t;
 /* shared generic methods */
-static int cctl(const char *cmd, void *p, ...) { return -1; }
+static void nofree(void *p) {}
+static int noclose(void *p) { return 0; }
+static int nogetch(void *p) { return EOF; }
+static int noungetch(int c) { return c; }
+static int noputch(int c, void *p) { return EOF; }
+static int noflush(void *p) { return EOF; }
+static int noctl(const char *cmd, void *p, ...) { return -1; }
 /* input ports */
 extern cxtype_t *IPORT_CLOSED_NTAG;
 extern cxtype_t *IPORT_FILE_NTAG;
@@ -913,11 +919,6 @@ static int iportpeekc(obj o) {
   cxtype_iport_t *vt = iportvt(o); void *pp = iportdata(o); int c;
   assert(vt); c = vt->getch(pp); if (c != EOF) vt->ungetch(c, pp); return c;
 }
-/* closed input ports */
-static void cifree(void *p) {}
-static int ciclose(void *p) { return 0; }
-static int cigetch(void *p) { return EOF; }
-static int ciungetch(int c) { return c; }
 /* file input ports */
 static void ffree(void *vp) {
   /* FILE *fp = vp; assert(fp); cannot fclose(fp) here because of FILE reuse! */ }
@@ -983,11 +984,6 @@ static void oportflush(obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
   assert(vt); vt->flush(pp);
 }
-/* closed output ports */
-static void cofree(void *p) {}
-static int coclose(void *p) { return 0; }
-static int coputch(int c, void *p) { return EOF; }
-static int coflush(void *p) { return EOF; }
 /* file output ports */
 #define mkoport_file(l, fp) hpushptr(fp, OPORT_FILE_NTAG, l)
 /* string output ports */
@@ -1026,53 +1022,53 @@ char* cbdata(cbuf_t* pcb) {
 #define PORTTYPES_MAX 8
 static cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_CLOSED_PTINDEX     0
-  { "closed-input-port", (void (*)(void*))cifree, 
-    SPT_CLOSED, (int (*)(void*))ciclose,
-    (int (*)(void*))cigetch, (int (*)(int, void*))ciungetch,
-    (int (*)(int, void*))coputch, (int (*)(void*))coflush, 
-    (int (*)(const char *, void *, ...))cctl },
+  { "closed-input-port", (void (*)(void*))nofree, 
+    SPT_CLOSED, (int (*)(void*))noclose,
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush, 
+    (int (*)(const char *, void *, ...))noctl },
 #define IPORT_FILE_PTINDEX       1
   { "file-input-port", ffree, 
     SPT_INPUT, (int (*)(void*))fclose, 
     (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
-    (int (*)(int, void*))coputch, (int (*)(void*))coflush,
-    (int (*)(const char *, void *, ...))cctl },
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(const char *, void *, ...))noctl },
 #define IPORT_STRING_PTINDEX     2
   { "string-input-port", (void (*)(void*))sifree, 
     SPT_INPUT, (int (*)(void*))siclose,
     (int (*)(void*))sigetch, (int (*)(int, void*))siungetch,
-    (int (*)(int, void*))coputch, (int (*)(void*))coflush,
-    (int (*)(const char *, void *, ...))cctl },
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(const char *, void *, ...))noctl },
 #define IPORT_BYTEVECTOR_PTINDEX 3
   { "bytevector-input-port", (void (*)(void*))bvifree, 
     SPT_INPUT, (int (*)(void*))bviclose,
     (int (*)(void*))bvigetch, (int (*)(int, void*))bviungetch,
-    (int (*)(int, void*))coputch, (int (*)(void*))coflush,
-    (int (*)(const char *, void *, ...))cctl },
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(const char *, void *, ...))noctl },
 #define OPORT_CLOSED_PTINDEX     4
-  { "closed-output-port", (void (*)(void*))cofree, 
-    SPT_OUTPUT, (int (*)(void*))coclose, 
-    (int (*)(void*))cigetch, (int (*)(int, void*))ciungetch,
-    (int (*)(int, void*))coputch, (int (*)(void*))coflush,
-    (int (*)(const char *, void *, ...))cctl },
+  { "closed-output-port", (void (*)(void*))nofree, 
+    SPT_OUTPUT, (int (*)(void*))noclose, 
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(const char *, void *, ...))noctl },
 #define OPORT_FILE_PTINDEX       5
   { "file-output-port", ffree, 
     SPT_OUTPUT, (int (*)(void*))fclose, 
-    (int (*)(void*))cigetch, (int (*)(int, void*))ciungetch,
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
-    (int (*)(const char *, void *, ...))cctl },
+    (int (*)(const char *, void *, ...))noctl },
 #define OPORT_STRING_PTINDEX     6
   { "string-output-port", (void (*)(void*))freecb, 
     SPT_OUTPUT, (int (*)(void*))cbclose,
-    (int (*)(void*))cigetch, (int (*)(int, void*))ciungetch,
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
-    (int (*)(const char *, void *, ...))cctl },
+    (int (*)(const char *, void *, ...))noctl },
 #define OPORT_BYTEVECTOR_PTINDEX 7
   { "bytevector-output-port", (void (*)(void*))freecb, 
     SPT_OUTPUT, (int (*)(void*))cbclose,
-    (int (*)(void*))cigetch, (int (*)(int, void*))ciungetch,
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
-    (int (*)(const char *, void *, ...))cctl }    
+    (int (*)(const char *, void *, ...))noctl }    
 };
 cxtype_t *IPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[IPORT_CLOSED_PTINDEX];
 cxtype_t *IPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_FILE_PTINDEX];
