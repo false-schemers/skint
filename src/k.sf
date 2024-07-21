@@ -53,30 +53,7 @@
 ;---------------------------------------------------------------------------------------------
 
 ; initial transformers
-(define *transformers*
-  '((syntax-quote . syntax-quote) 
-    (quote . quote)
-    (set! . set!)
-    (set& . set&)
-    (if . if)
-    (lambda . lambda)
-    (lambda* . lambda*)
-    (letcc . letcc)
-    (withcc . withcc)
-    (body . body)
-    (begin . begin)
-    (define . define)
-    (define-syntax . define-syntax)
-    (syntax-lambda . syntax-lambda)
-    (syntax-rules . syntax-rules)
-    (syntax-length . syntax-length)
-    (syntax-error . syntax-error)
-    (define-library . define-library)
-    (program . program)
-    (import . import)
-    (export . export)
-    (... . ...)
-    (_ . _)))
+(define *transformers* '())
 
 ; adapter code for continuation closures produced by letcc 
 (define continuation-adapter-code #f) ; inited via (decode "k!...") in i.c

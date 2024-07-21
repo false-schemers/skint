@@ -4714,6 +4714,29 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
       if (!iseof(ra)) boxref(spop()) = ra;
       continue;
+    } else if (name != 0 && name[0] == 'B' && name[1] == 0) {
+      /* 'builtin' entry: install itself into location */
+      obj sym, val, bnd, al;
+      ent += 1; name = ent[0], data = ent[1];
+      assert(name != 0);
+      sym = mksymbol(internsym((char*)name));
+      val = data ? mksymbol(internsym((char*)data)) : sym;
+      /* look for dst binding (we allow redefinition) */
+      for (bnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+        obj ael = car(al);
+        if (car(ael) != sym) continue;
+        bnd = ael; break;
+      }
+      /* add new binding */
+      if (!bnd) { /* acons (sym . #f) */
+        hreserve(pairbsz()*2, sp-r);
+        *--hp = obj_from_bool(0); *--hp = sym;
+        bnd = hend_pair();
+        *--hp = cx__2Atransformers_2A; *--hp = bnd;
+        cx__2Atransformers_2A = hend_pair();
+      }
+      cdr(bnd) = val;
+      continue;    
     } else if (name != 0 && name[0] == 'A' && name[1] == 0) {
       /* 'alias' entry: copy transformer */
       obj oldsym, sym, oldbnd, oldden, bnd, al;
@@ -4823,6 +4846,31 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
 
 /* partially hand-coded module (prototyped in i.scm) */
 char *i_code[] = {
+
+  /* initialize *transformers* with xform builtins */
+  "B", "syntax-quote", 0,
+  "B", "quote", 0,
+  "B", "set!", 0,
+  "B", "set&", 0,
+  "B", "if", 0,
+  "B", "lambda", 0,
+  "B", "lambda*", 0,
+  "B", "letcc", 0,
+  "B", "withcc", 0,
+  "B", "body", 0,
+  "B", "begin", 0,
+  "B", "define", 0,
+  "B", "define-syntax", 0,
+  "B", "syntax-lambda", 0,
+  "B", "syntax-rules", 0,
+  "B", "syntax-length", 0,
+  "B", "syntax-error", 0,
+  "B", "define-library", 0,
+  "B", "program", 0,
+  "B", "import", 0,
+  "B", "export", 0,
+  "B", "...", 0,
+  "B", "_", 0,
 
   /* initialize current port variables */
   "C", 0,

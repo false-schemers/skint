@@ -515,9 +515,8 @@ obj cx_install_2Dglobal_2Dlambdas; /* install-global-lambdas */
 obj cx_main; /* main */
 obj cx_make_2Dclosure; /* make-closure */
 obj cx_tcode_2Drepl; /* tcode-repl */
-static obj cx__23109; /* constant #109 */
-static obj cx__23113; /* constant #113 */
-static obj cx__2314; /* constant #14 */
+static obj cx__2316; /* constant #16 */
+static obj cx__2320; /* constant #20 */
 
 /* gc roots */
 static obj *globv[] = {
@@ -535,9 +534,8 @@ static obj *globv[] = {
   &cx_initialize_2Dmodules,
   &cx_install_2Dglobal_2Dlambdas,
   &cx_make_2Dclosure,
-  &cx__23109,
-  &cx__23113,
-  &cx__2314,
+  &cx__2316,
+  &cx__2320,
 };
 
 static cxroot_t root = {
@@ -563,285 +561,9 @@ jump:
   switch (case_from_obj(pc)) {
 
 case 0: /* load module */
-    { /* cons */ 
-    hreserve(hbsz(3), 0); /* 0 live regs */
-    *--hp = (mksymbol(internsym("_")));
-    *--hp = (mksymbol(internsym("_")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mknull());
-    *--hp = r[0];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("...")));
-    *--hp = (mksymbol(internsym("...")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("export")));
-    *--hp = (mksymbol(internsym("export")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("import")));
-    *--hp = (mksymbol(internsym("import")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("program")));
-    *--hp = (mksymbol(internsym("program")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("define-library")));
-    *--hp = (mksymbol(internsym("define-library")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("syntax-error")));
-    *--hp = (mksymbol(internsym("syntax-error")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("syntax-length")));
-    *--hp = (mksymbol(internsym("syntax-length")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("syntax-rules")));
-    *--hp = (mksymbol(internsym("syntax-rules")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("syntax-lambda")));
-    *--hp = (mksymbol(internsym("syntax-lambda")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("define-syntax")));
-    *--hp = (mksymbol(internsym("define-syntax")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("define")));
-    *--hp = (mksymbol(internsym("define")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("begin")));
-    *--hp = (mksymbol(internsym("begin")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("body")));
-    *--hp = (mksymbol(internsym("body")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("withcc")));
-    *--hp = (mksymbol(internsym("withcc")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("letcc")));
-    *--hp = (mksymbol(internsym("letcc")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("lambda*")));
-    *--hp = (mksymbol(internsym("lambda*")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("lambda")));
-    *--hp = (mksymbol(internsym("lambda")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("if")));
-    *--hp = (mksymbol(internsym("if")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("set&")));
-    *--hp = (mksymbol(internsym("set&")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("set!")));
-    *--hp = (mksymbol(internsym("set!")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("quote")));
-    *--hp = (mksymbol(internsym("quote")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[0] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 1); /* 1 live regs */
-    *--hp = (mksymbol(internsym("syntax-quote")));
-    *--hp = (mksymbol(internsym("syntax-quote")));
-    *--hp = obj_from_size(PAIR_BTAG); 
-    r[1] = (hendblk(3)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = r[1];  
-    *--hp = obj_from_size(PAIR_BTAG); 
-    cx__2314 = (hendblk(3)); }
-    cx__23109 = (hpushstr(0, newstring("K5")));
+    cx__2316 = (hpushstr(0, newstring("K5")));
     { static char s[] = { 36, 123, 64, 40, 121, 52, 58, 114, 101, 112, 108, 41, 91, 48, 48, 125, 0 };
-    cx__23113 = (hpushstr(0, newstring(s))); }
+    cx__2320 = (hpushstr(0, newstring(s))); }
     { /* make-vector */
     obj o; int i = 0, c = (+991);
     hreserve(hbsz(c+1), 0); /* 0 live regs */
@@ -870,7 +592,7 @@ case 0: /* load module */
     { /* define decode */
     static obj c[] = { obj_from_objptr(vmcases+3) };
     cx_decode = obj_from_objptr(c); }
-    cx__2Atransformers_2A = (cx__2314);
+    cx__2Atransformers_2A = (mknull());
     cx_continuation_2Dadapter_2Dcode = obj_from_bool(0);
     { /* define decode */
     static obj c[] = { obj_from_objptr(vmcases+3) };
@@ -881,7 +603,7 @@ case 0: /* load module */
     r[2+0] = r[0];  
     pc = objptr_from_obj(r[2+0])[0];
     r[2+1] = r[1];  
-    r[2+2] = (cx__23109);
+    r[2+2] = (cx__2316);
     r += 2; /* shift reg wnd */
     rreserve(MAX_HOSTREGS);
     rc = 3;
@@ -977,7 +699,7 @@ gs_tcode_2Drepl: /* k */
     r[3+0] = r[1];  
     pc = objptr_from_obj(r[3+0])[0];
     r[3+1] = r[2];  
-    r[3+2] = (cx__23113);
+    r[3+2] = (cx__2320);
     r += 3; /* shift reg wnd */
     rreserve(MAX_HOSTREGS);
     rc = 3;
@@ -1202,6 +924,5 @@ int main(int argc, char **argv) {
   while (pc) pc = (*(cxhost_t*)pc)(pc); 
   assert(cxg_rc == 3);
   res = (cxg_regs[2] != 0); 
-  /* fprintf(stderr, "%d collections, %d reallocs\n", cxg_gccount, cxg_bumpcount); */
   return res; 
 }
