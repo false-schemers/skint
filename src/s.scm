@@ -273,8 +273,9 @@
   ; should be something like (cons name fields), but that would complicate procedure? 
   ; check that now relies on block tag being a non-immediate object, so we'll better put 
   ; some pseudo-unique immediate object here -- and we don't have to be fast doing that
-  (let loop ([fl (cons name fields)] [sl '("rtd://")])
-     (cond [(null? fl) (string->symbol (apply-to-list string-append (reverse sl)))]
+  (let loop ([fl (cons name fields)] [sl '("rtd://")]) 
+     ; NB: can't do (apply string-append ..) -- they are defined w/cover syntax below!
+     (cond [(null? fl) (string->symbol (apply-to-list %string-append (reverse sl)))]
            [(null? (cdr fl)) (loop (cdr fl) (cons (symbol->string (car fl)) sl))]
            [else (loop (cdr fl) (cons ":" (cons (symbol->string (car fl)) sl)))]))) 
   

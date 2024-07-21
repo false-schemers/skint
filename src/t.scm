@@ -1644,6 +1644,13 @@
         (if cf (file-resolve-relative-to-base-path filename (path-directory cf)) filename))
       filename))
 
+(define (call-with-current-input-file filename portproc)
+  (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
+         [fileok? (and (string? filepath) (file-exists? filepath))])
+    (unless fileok? (error "cannot open file" filename filepath)) 
+    (with-current-file filepath
+      (lambda () (call-with-input-file filepath portproc)))))
+
 
 ;--------------------------------------------------------------------------------------------------
 ; Library names and library file lookup
@@ -2309,18 +2316,13 @@
 (define (load filename . ?env)
   (define env (if (pair? ?env) (car ?env) (interaction-environment)))
   (define ci? #f) ; do not bother setting this unless told by the specification
-  (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
-         [fileok? (and (string? filepath) (file-exists? filepath))])
-    (unless fileok? (error "cannot load file" filename filepath)) 
-    (with-current-file filepath
-      (lambda ()
-        (call-with-input-file filepath
-          (lambda (port) 
-             (when ci? (set-port-fold-case! port #t))
-             (let loop ([x (read-code-sexp port)])
-               (unless (eof-object? x)
-                 (eval x env)
-                 (loop (read-code-sexp port)))))))))
+  (call-with-current-input-file filename ;=>
+    (lambda (port) 
+      (when ci? (set-port-fold-case! port #t))
+      (let loop ([x (read-code-sexp port)])
+        (unless (eof-object? x)
+          (eval x env)
+          (loop (read-code-sexp port))))))
   ; we aren't asked by the spec to call last expr tail-recursively, so this
   (void)) 
 
@@ -2330,33 +2332,30 @@
   (define ci? #f) ; normal load-like behavior is the default
   (define callmain #f) ; got changed via first #! line
   (define main-args (cons filename args))
-  (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
-         [fileok? (and (string? filepath) (file-exists? filepath))])
-    (unless fileok? (error "cannot run script" filename filepath))
-    (with-current-file filepath
-      (lambda ()
-        (call-with-input-file filepath
-          (lambda (port) 
-             (let ([x0 (read-code-sexp port)])
-               (when (shebang? x0)
-                 (let ([shs (symbol->string (shebang->symbol x0))])
-                   (cond [(string-position "r7rs" shs)
-                          (command-line main-args)]
-                         [(string-position "r5rs" shs)
-                          (set! env (scheme-report-environment 5))
-                          (set! ci? #t)]
-                         [else (error "only scheme-r[57]rs scripts are supported" shs)]) 
-                   (when ci? (set-port-fold-case! port #t))
-                   (set! callmain #t)
-                   (set! x0 (read-code-sexp port))))
-               (let loop ([x x0])
-                 (unless (eof-object? x)
-                   (eval x env)
-                   (loop (read-code-sexp port))))
-               (when callmain
-                 ; if it is a real script, exit with main's return value
-                 (exit (eval `(main (quote ,main-args)) env))))))))
-    (void)))
+  (call-with-current-input-file filename ;=>
+    (lambda (port) 
+      (let ([x0 (read-code-sexp port)])
+        (when (shebang? x0)
+          (let ([shs (symbol->string (shebang->symbol x0))])
+            (cond [(string-position "r7rs" shs)] ; skint env will do
+                  [(string-position "skint" shs)] ; ditto
+                  [(string-position "r5rs" shs)
+                   (set! env (scheme-report-environment 5))
+                   (set! ci? #t)]
+                  [else (error "only scheme-r[57]rs scripts are supported" shs)]) 
+            (when ci? (set-port-fold-case! port #t))
+            (set! callmain #t)
+            (set! x0 (read-code-sexp port))))
+        (parameterize ([command-line main-args])
+          (let loop ([x x0])
+            (unless (eof-object? x)
+              (eval x env)
+              (loop (read-code-sexp port)))))
+        (if callmain
+          ; if it is a real script, call main and return its value
+          (eval `(main (quote ,main-args)) env)
+          ; otherwise return #t -- it will be used as exit value
+          #t)))))
 
 ; r7rs scheme program processor (args is list of strings)
 (define (run-program filename args)
@@ -2366,19 +2365,15 @@
   (define env (make-controlled-environment ial global root-environment))
   (define ci? #f) ; normal load-like behavior is the default
   (define main-args (cons filename args))
-  (let* ([filepath (and (string? filename) (file-resolve-relative-to-current filename))]
-         [fileok? (and (string? filepath) (file-exists? filepath))])
-    (unless fileok? (error "cannot run program" filename filepath))
-    (with-current-file filepath
-      (lambda ()
-        (call-with-input-file filepath
-          (lambda (port) 
-            (command-line main-args)
-            (let loop ([x (read-code-sexp port)])
-              (unless (eof-object? x)
-                (eval x env)
-                (loop (read-code-sexp port))))))))
-    (exit #t)))
+  (call-with-current-input-file filename ;=>
+    (lambda (port) 
+      (command-line main-args)
+      (let loop ([x (read-code-sexp port)])
+        (unless (eof-object? x)
+          (eval x env)
+          (loop (read-code-sexp port))))))
+    ; return #t -- it will be used as exit value
+    #t)
 
 
 ;--------------------------------------------------------------------------------------------------
@@ -2556,12 +2551,12 @@
           [(append-libdir *) (append-library-path! optarg) (loop restargs #t)]
           [(prepend-libdir *) (prepend-library-path! optarg) (loop restargs #t)]
           [(eval *) (eval! optarg #t) (loop restargs #f)]
-          [(script *) (run-script optarg restargs)] ; will exit if a script
-          [(program *) (run-program optarg restargs)] ; will exit if a script
-          [(benchmark *) (run-script optarg restargs)] ; will exit if a script
+          [(script *) (exit (run-script optarg restargs))]
+          [(program *) (exit (run-program optarg restargs))]
+          [(benchmark *) (exit (run-script optarg restargs))] ; FIXME
           [(version) (print-version!) (loop '() #f)]
           [(help) (print-help!) (loop '() #f)]
-          [(#f) (cond [(pair? restargs) (run-script (car restargs) (cdr restargs))]
+          [(#f) (cond [(pair? restargs) (exit (run-script (car restargs) (cdr restargs)))]
                       [(not repl?) (exit #t)])])))) ; all done -- no need to continue
   ; falling through to interactive mode
   (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))

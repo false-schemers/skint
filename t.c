@@ -943,6 +943,11 @@ char *t_code[] = {
   "(y14:path-directory)[01},.2,@(y34:file-resolve-relative-to-base-path)["
   "22}.1]2}.0]1",
 
+  "P", "call-with-current-input-file",
+  "%2.0S0?{${.2,@(y32:file-resolve-relative-to-current)[01}}{f},.0S0?{.0F"
+  "0}{f},.0~?{${.3,.5,'(s16:cannot open file),@(y5:error)[03}}.3,.2,&2{%0"
+  ":1,:0,@(y20:call-with-input-file)[02},.2,@(y17:with-current-file)[42",
+
   "P", "lnpart?",
   "%1${.2,@(y3:id?)[01},.0?{.0]2}.1I0]2",
 
@@ -1455,39 +1460,33 @@ char *t_code[] = {
   "valuate-top-form)[32",
 
   "P", "load",
-  "%!1,,#0#1.2p?{.2a}{${@(y23:interaction-environment)[00}}.!0f.!1.3S0?{$"
-  "{.5,@(y32:file-resolve-relative-to-current)[01}}{f},.0S0?{.0F0}{f},.0~"
-  "?{${.3,.8,'(s16:cannot load file),@(y5:error)[03}}${.5,.5,.5,&3{%0:1,:"
-  "2,&2{%1:0^?{t,.1P79}${.2,@(y14:read-code-sexp)[01},,#0:1,.3,.2,&3{%1.0"
-  "R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}."
-  "!0.0^_1[11},:0,@(y20:call-with-input-file)[02},.4,@(y17:with-current-f"
-  "ile)[02}_1_1Y9]4",
+  "%!1,,#0#1.2p?{.2a}{${@(y23:interaction-environment)[00}}.!0f.!1${.2,.4"
+  ",&2{%1:0^?{t,.1P79}${.2,@(y14:read-code-sexp)[01},,#0:1,.3,.2,&3{%1.0R"
+  "8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}.!"
+  "0.0^_1[11},.6,@(y28:call-with-current-input-file)[02}Y9]4",
 
   "P", "run-script",
   "%2,,,,#0#1#2#3${@(y23:interaction-environment)[00}.!0f.!1f.!2.5,.5c.!3"
-  ".4S0?{${.6,@(y32:file-resolve-relative-to-current)[01}}{f},.0S0?{.0F0}"
-  "{f},.0~?{${.3,.9,'(s17:cannot run script),@(y5:error)[03}}${.6,.8,.6,."
-  "8,.7,&5{%0:1,:2,:3,:4,&4{%1${.2,@(y14:read-code-sexp)[01},#0.0^Y5?{.0^"
-  "Y7X4,.0,'(s4:r7rs)S8?{${:1^,@(y12:command-line)[01}}{.0,'(s4:r5rs)S8?{"
-  "${'5,@(y25:scheme-report-environment)[01}:!2t:!3}{${.2,'(s41:only sche"
-  "me-r[57]rs scripts are supported),@(y5:error)[02}}}:3^?{t,.3P79}t:!0${"
-  ".4,@(y14:read-code-sexp)[01}.!1_1}${.2^,,#0:2,.6,.2,&3{%1.0R8~?{${:2^,"
-  ".3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[01}"
-  ":0^?{${:2^,n,n,:1^c,'(y5:quote)cc,'(y4:main)c,@(y4:eval)[02},@(y4:exit"
-  ")[21}]2},:0,@(y20:call-with-input-file)[02},.4,@(y17:with-current-file"
-  ")[02}Y9]8",
+  ".1,.4,.2,.5,&4{%1${.2,@(y14:read-code-sexp)[01},#0.0^Y5?{.0^Y7X4,.0,'("
+  "s4:r7rs)S8,.0?{.0}{.1,'(s5:skint)S8,.0?{.0}{.2,'(s4:r5rs)S8?{${'5,@(y2"
+  "5:scheme-report-environment)[01}:!1t:!3}{${.4,'(s41:only scheme-r[57]r"
+  "s scripts are supported),@(y5:error)[02}}}_1}_1:3^?{t,.3P79}t:!0${.4,@"
+  "(y14:read-code-sexp)[01}.!1_1}@(y12:command-line),${f,:2^,.4[02},${.3["
+  "00},${.2,.5,&2{%0t,:1,:0[02},.6,.8,:1,&3{%0:2^,,#0:0,:1,.2,&3{%1.0R8~?"
+  "{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0"
+  "^_1[01},.5,.7,&2{%0t,:1,:0[02},@(y12:dynamic-wind)[03}_2_1:0^?{:1^,n,n"
+  ",:2^c,'(y5:quote)cc,'(y4:main)c,@(y4:eval)[22}t]2},.5,@(y28:call-with-"
+  "current-input-file)[62",
 
   "P", "run-program",
   "%2,,,,,,#0#1#2#3#4#5${${.(i10),@(y20:path-strip-directory)[01},@(y20:p"
   "ath-strip-extension)[01}X5.!0.0,&1{%1.0,'(y1:?),:0^,'(y7:prog://),@(y1"
   "3:symbol-append)[14}.!1'(y6:import)b,'(y6:import)c,l1.!2${@(y16:root-e"
   "nvironment),.4^,.6^,@(y27:make-controlled-environment)[03}.!3f.!4.7,.7"
-  "c.!5.6S0?{${.8,@(y32:file-resolve-relative-to-current)[01}}{f},.0S0?{."
-  "0F0}{f},.0~?{${.3,.(i11),'(s18:cannot run program),@(y5:error)[03}}${."
-  "9,.8,.5,&3{%0:1,:2,&2{%1${:0^,@(y12:command-line)[01}${.2,@(y14:read-c"
-  "ode-sexp)[01},,#0:1,.3,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y1"
-  "4:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[11},:0,@(y20:call-with-input-"
-  "file)[02},.4,@(y17:with-current-file)[02}t,@(y4:exit)[(i10)1",
+  "c.!5${.5,.8,&2{%1${:0^,@(y12:command-line)[01}${.2,@(y14:read-code-sex"
+  "p)[01},,#0:1,.3,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-"
+  "code-sexp)[01},:0^[11}]1}.!0.0^_1[11},.9,@(y28:call-with-current-input"
+  "-file)[02}t]8",
 
   "P", "repl-evaluate-top-form",
   "%3,,#0#1.!0${.2,&1{%!0.0:!0]1},.6,.6,&2{%0:1,:0,@(y17:evaluate-top-for"
@@ -1628,17 +1627,18 @@ char *t_code[] = {
   "}t,.4,:2^[42}${.2,'(l2:y14:prepend-libdir;y1:*;),@(y11:sexp-match?)[02"
   "}?{${.4,@(y21:prepend-library-path!)[01}t,.4,:2^[42}${.2,'(l2:y4:eval;"
   "y1:*;),@(y11:sexp-match?)[02}?{${t,.5,:4^[02}f,.4,:2^[42}${.2,'(l2:y6:"
-  "script;y1:*;),@(y11:sexp-match?)[02}?{.3,.3,@(y10:run-script)[42}${.2,"
-  "'(l2:y7:program;y1:*;),@(y11:sexp-match?)[02}?{.3,.3,@(y11:run-program"
-  ")[42}${.2,'(l2:y9:benchmark;y1:*;),@(y11:sexp-match?)[02}?{.3,.3,@(y10"
-  ":run-script)[42}${.2,'(l1:y7:version;),@(y11:sexp-match?)[02}?{${:3^[0"
-  "0}f,n,:2^[42}${.2,'(l1:y4:help;),@(y11:sexp-match?)[02}?{${:1^[00}f,n,"
-  ":2^[42}${.2,'(l1:f;),@(y11:sexp-match?)[02}?{.3p?{.3d,.4a,@(y10:run-sc"
-  "ript)[42}:0~?{t,@(y4:exit)[41}f]4}]4},@(y15:*skint-options*),.2,@(y28:"
-  "get-next-command-line-option)[23}.!0.0^_1[02}PiP09?{PoP09}{f}?{${@(y15"
-  ":*skint-version*),'(s30:SKINT Scheme Interpreter v~a~%25),t,@(y6:forma"
-  "t)[03}${'(s35:Copyright (c) 2024 False Schemers~%25),t,@(y6:format)[02"
-  "}}t]4",
+  "script;y1:*;),@(y11:sexp-match?)[02}?{${.5,.5,@(y10:run-script)[02},@("
+  "y4:exit)[41}${.2,'(l2:y7:program;y1:*;),@(y11:sexp-match?)[02}?{${.5,."
+  "5,@(y11:run-program)[02},@(y4:exit)[41}${.2,'(l2:y9:benchmark;y1:*;),@"
+  "(y11:sexp-match?)[02}?{${.5,.5,@(y10:run-script)[02},@(y4:exit)[41}${."
+  "2,'(l1:y7:version;),@(y11:sexp-match?)[02}?{${:3^[00}f,n,:2^[42}${.2,'"
+  "(l1:y4:help;),@(y11:sexp-match?)[02}?{${:1^[00}f,n,:2^[42}${.2,'(l1:f;"
+  "),@(y11:sexp-match?)[02}?{.3p?{${.5d,.6a,@(y10:run-script)[02},@(y4:ex"
+  "it)[41}:0~?{t,@(y4:exit)[41}f]4}]4},@(y15:*skint-options*),.2,@(y28:ge"
+  "t-next-command-line-option)[23}.!0.0^_1[02}PiP09?{PoP09}{f}?{${@(y15:*"
+  "skint-version*),'(s30:SKINT Scheme Interpreter v~a~%25),t,@(y6:format)"
+  "[03}${'(s35:Copyright (c) 2024 False Schemers~%25),t,@(y6:format)[02}}"
+  "t]4",
 
   0, 0, 0
 };

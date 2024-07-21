@@ -7,7 +7,8 @@
   xform write-serialized-sexp compile-to-string
   make-location syntax-rules* new-id? new-id-lookup 
   lookup-integrable write-serialized-sexp compile-to-string
-  path-strip-extension path-strip-directory))
+  path-strip-extension path-strip-directory
+  call-with-current-input-file))
 
 (define *transformers*
   (list
@@ -108,16 +109,18 @@
            (display-code (substring cstr 3 (fx- len 1)) oport) (newline oport)]
           [else (process-command (list 'set! id xlam) oport)])))
 
+(define (for-each-top-sexp filename sexpproc)
+  (call-with-current-input-file filename ;=>
+    (lambda (iport)
+      (let loop ([x (read iport)])
+        (unless (eof-object? x)
+          (sexpproc x)
+          (loop (read iport)))))))
+
 (define (scan-top-form x)
   (cond 
     [(and (list2? x) (eq? (car x) 'load) (string? (cadr x)))
-     ; FIXME: resolve relatively to the file being compiled!
-     (let ([iport (open-input-file (cadr x))])
-       (let loop ([x (read iport)])
-         (unless (eof-object? x)
-           (scan-top-form x)
-           (loop (read iport))))
-       (close-input-port iport))]
+     (for-each-top-sexp (cadr x) scan-top-form)]
     [(pair? x)
      (let ([hval (transform #t (car x))])
        (cond
@@ -132,12 +135,7 @@
 (define (process-top-form x oport)
   (cond 
     [(and (list2? x) (eq? (car x) 'load) (string? (cadr x)))
-     (let ([iport (open-input-file (cadr x))])
-       (let loop ([x (read iport)])
-         (unless (eof-object? x)
-           (scan-top-form x)
-           (loop (read iport))))
-       (close-input-port iport))]
+     (for-each-top-sexp (cadr x) scan-top-form)]
     [(pair? x)
      (let ([hval (transform #t (car x))])
        (cond
@@ -177,13 +175,13 @@
 (define (module-name filename)
   (path-strip-extension (path-strip-directory filename)))
 
-(define (process-file fname . ?ofname)
-  (define iport (open-input-file fname))
+(define (process-file ifname . ?ofname)
+  (define iport (open-input-file ifname)) ; relative to wd, not this script!
   (define oport (if (pair? ?ofname) (open-output-file (car ?ofname)) (current-output-port)))
-  (define mname (module-name fname))
+  (define mname (module-name ifname))
   (display "/* " oport) (display mname oport) 
   (display ".c -- generated via skint -c " oport) 
-  (display (path-strip-directory fname) oport) 
+  (display (path-strip-directory ifname) oport) 
   (display " */" oport) (newline oport) (newline oport)
   (display "char *" oport) (display mname oport) 
   (display "_code[] = {" oport) (newline oport)
@@ -195,9 +193,10 @@
   (close-input-port iport)
   (if (pair? ?ofname) (close-output-port oport)))
 
-  (define (main args)
-    (cond [(list2? args) (process-file (cadr args))]
-          [(list3? args) (process-file (cadr args) (caddr args))]
-          [else (error "usage: ccomp INFILE [OUTFILE]" args)]))
-  
-  ;(main (command-line))
+(define (main args)
+  (cond [(list2? args) (process-file (cadr args))]
+        [(list3? args) (process-file (cadr args) (caddr args))]
+        [else (error "usage: ccomp INFILE [OUTFILE]" args)]))
+
+; this is not a real #! script, so call main manually
+(main (command-line))
