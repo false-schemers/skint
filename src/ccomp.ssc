@@ -1,0 +1,203 @@
+;---------------------------------------------------------------------------------------------
+; Skint File compiler (Limited Scheme => Serialized code as C data)
+;---------------------------------------------------------------------------------------------
+
+(import (only (skint hidden) 
+  list2? list3? location-set-val! root-environment
+  xform write-serialized-sexp compile-to-string
+  make-location syntax-rules* new-id? new-id-lookup 
+  lookup-integrable write-serialized-sexp compile-to-string
+  path-strip-extension path-strip-directory))
+
+(define *transformers*
+  (list
+    (cons 'syntax-quote 'syntax-quote) 
+    (cons 'quote 'quote)
+    (cons 'set! 'set!)
+    (cons 'set& 'set&)
+    (cons 'if 'if)
+    (cons 'lambda 'lambda)
+    (cons 'lambda* 'lambda*)
+    (cons 'letcc 'letcc)
+    (cons 'withcc 'withcc)
+    (cons 'body 'body)
+    (cons 'begin 'begin)
+    (cons 'define 'define)
+    (cons 'define-syntax 'define-syntax)
+    (cons 'syntax-lambda 'syntax-lambda)
+    (cons 'syntax-rules 'syntax-rules)
+    (cons 'syntax-length 'syntax-length)
+    (cons 'syntax-error 'syntax-error)
+    (cons 'define-library 'define-library)
+    (cons 'program 'program)
+    (cons 'import 'import)
+    (cons 'export 'export)
+    (cons '... '...)
+    (cons '_ '_)))
+
+(define *top-transformer-env* #f)
+
+(define (top-transformer-env id at)
+  (unless *top-transformer-env*
+    (set! *top-transformer-env* 
+      (map (lambda (bnd)
+             (case (car bnd)
+               [(... _) ; syntax-rules looks them up in skint's root env!!
+                (cons (car bnd) (root-environment (car bnd) 'ref))]
+               [else ; for the rest, it is val that matters
+                (cons (car bnd) (make-location (cdr bnd)))])) 
+         *transformers*)))
+  (if (new-id? id)
+      (new-id-lookup id at) ; nonsymbolic ids can't be globally bound
+      (cond [(assq id *top-transformer-env*) => cdr]
+            [else 
+             (let ([loc (make-location (or (lookup-integrable id) (list 'ref id)))])
+               (set! *top-transformer-env* (cons (cons id loc) *top-transformer-env*))
+               loc)])))
+
+
+(define (install-transformer! s t)
+  (location-set-val! (top-transformer-env s 'ref) t))
+
+(define (transform appos? sexp . ?env)
+  (xform appos? sexp (if (null? ?env) top-transformer-env (car ?env))))
+
+(define *hide-refs* '())
+
+(define (display-code cstr oport)
+  (let loop ([i 0] [l (string-length cstr)])
+    (let ([r (fx- l i)])
+      (cond [(<= r 70)
+             (display "  \"" oport)
+             (display (substring cstr i l) oport)
+             (display "\"," oport)]
+            [else
+             (display "  \"" oport)
+             (display (substring cstr i (fx+ i 70)) oport)
+             (display "\"\n" oport)             
+             (loop (fx+ i 70) l)]))))  
+
+(define (process-syntax id xval oport)
+  (newline oport)
+  (display "  \"S\", \"" oport) (display id oport) (display "\",\n" oport)
+  (let ([p (open-output-string)]) (write-serialized-sexp xval p)
+    (display-code (get-output-string p) oport) (newline oport)))
+
+(define (process-alias id oldid oport)
+  (newline oport)
+  (display "  \"A\", \"" oport) (display id oport) (display "\"," oport)
+  (display " \"" oport) (display oldid oport) (display "\",\n" oport))
+
+(define (process-command xval oport)
+  (define cstr (compile-to-string xval))
+  (newline oport)
+  (display "  \"C\", 0,\n" oport)
+  (display-code cstr oport) (newline oport))
+
+(define (process-define id xlam oport)
+  (define cstr (compile-to-string xlam))
+  (let ([len (string-length cstr)])
+    (cond [(and (eq? (car xlam) 'lambda)
+                (> len 4) 
+                (char=? (string-ref cstr 0) #\&) 
+                (char=? (string-ref cstr 1) #\0) 
+                (char=? (string-ref cstr 2) #\{)
+                (char=? (string-ref cstr (fx- len 1)) #\}))
+           (newline oport)
+           (display "  \"P\", \"" oport) (display id oport) (display "\",\n" oport)
+           (display-code (substring cstr 3 (fx- len 1)) oport) (newline oport)]
+          [else (process-command (list 'set! id xlam) oport)])))
+
+(define (scan-top-form x)
+  (cond 
+    [(and (list2? x) (eq? (car x) 'load) (string? (cadr x)))
+     ; FIXME: resolve relatively to the file being compiled!
+     (let ([iport (open-input-file (cadr x))])
+       (let loop ([x (read iport)])
+         (unless (eof-object? x)
+           (scan-top-form x)
+           (loop (read iport))))
+       (close-input-port iport))]
+    [(pair? x)
+     (let ([hval (transform #t (car x))])
+       (cond
+         [(eq? hval 'begin)
+          (for-each scan-top-form (cdr x))]
+         [(eq? hval 'define-syntax)
+          (let ([xval (transform #t (caddr x))])
+            (install-transformer! (cadr x) xval))]
+         [(procedure? hval)
+          (scan-top-form (hval x top-transformer-env))]))]))
+
+(define (process-top-form x oport)
+  (cond 
+    [(and (list2? x) (eq? (car x) 'load) (string? (cadr x)))
+     (let ([iport (open-input-file (cadr x))])
+       (let loop ([x (read iport)])
+         (unless (eof-object? x)
+           (scan-top-form x)
+           (loop (read iport))))
+       (close-input-port iport))]
+    [(pair? x)
+     (let ([hval (transform #t (car x))])
+       (cond
+         [(eq? hval 'begin)
+          (let loop ([x* (cdr x)])
+            (when (pair? x*) 
+              (process-top-form (car x*) oport)
+              (loop (cdr x*))))]
+         [(eq? hval 'define-syntax)
+          (let ([xval (transform #t (caddr x))])
+            (install-transformer! (cadr x) xval)
+            (unless (memq (cadr x) *hide-refs*) 
+              (if (symbol? (caddr x))
+                  (process-alias (cadr x) (caddr x) oport)
+                  (process-syntax (cadr x) (caddr x) oport))))]
+         [(eq? hval 'define)
+          (let* ([dval (transform #f x)] [xval (caddr dval)])
+            (process-define (cadr dval) xval oport))]
+         [(procedure? hval)
+          (process-top-form (hval x top-transformer-env) oport)]
+         [else
+          (process-command (transform #f x) oport)]))]
+    [else
+     (process-command (transform #f x) oport)]))
+
+(define (path-strip-directory filename)
+  (let loop ([l (reverse (string->list filename))] [r '()])
+    (cond [(null? l) (list->string r)]
+          [(memv (car l) '(#\\ #\/ #\:)) (list->string r)]
+          [else (loop (cdr l) (cons (car l) r))])))
+
+(define (path-strip-extension filename)
+  (let ([l (reverse (string->list filename))])
+    (let ([r (memv #\. l)])
+      (if r (list->string (reverse (cdr r))) filename))))
+
+(define (module-name filename)
+  (path-strip-extension (path-strip-directory filename)))
+
+(define (process-file fname . ?ofname)
+  (define iport (open-input-file fname))
+  (define oport (if (pair? ?ofname) (open-output-file (car ?ofname)) (current-output-port)))
+  (define mname (module-name fname))
+  (display "/* " oport) (display mname oport) 
+  (display ".c -- generated via skint -c " oport) 
+  (display (path-strip-directory fname) oport) 
+  (display " */" oport) (newline oport) (newline oport)
+  (display "char *" oport) (display mname oport) 
+  (display "_code[] = {" oport) (newline oport)
+  (let loop ([x (read iport)])
+    (unless (eof-object? x)
+      (process-top-form x oport)
+      (loop (read iport))))
+  (display "\n  0, 0, 0\n};\n" oport)
+  (close-input-port iport)
+  (if (pair? ?ofname) (close-output-port oport)))
+
+  (define (main args)
+    (cond [(list2? args) (process-file (cadr args))]
+          [(list3? args) (process-file (cadr args) (caddr args))]
+          [else (error "usage: ccomp INFILE [OUTFILE]" args)]))
+  
+  ;(main (command-line))

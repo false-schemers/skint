@@ -1970,7 +1970,7 @@
     ; selected extracts from r7rs-large and srfis
     (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format 28 48) 
     (fprintf) (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
-    ; skint extras go into (skint) only
+    ; skint extras go into (skint); the rest goes to (skint hidden)
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
     (record?) (make-record) (record-length) (record-ref) (record-set!) 
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
@@ -1986,11 +1986,16 @@
     (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
     (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) (subbytevector) 
     (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
-    (port-fold-case?) (set-port-fold-case!) (rename-file) (void) (void?) (global-store . hidden)
-    (run-script . hidden) (get-next-command-line-option . hidden) (print-command-line-options . hidden)
-    (xform . hidden) (compile-and-run-core-expr . hidden) (compile-to-thunk-code . hidden) 
-    (deserialize-code . hidden) (closure . hidden) (repl-environment . hidden)
-    (*skint-options* . hidden)
+    (port-fold-case?) (set-port-fold-case!) (rename-file) (void) (void?)
+    ; (repl hidden) library entries below the auto-adder need to be added explicitly 
+    (*user-name-registry* . hidden) (make-readonly-environment . hidden) 
+    (make-controlled-environment . hidden) (make-sld-environment . hidden) 
+    (make-repl-environment . hidden) (find-library-in-env . hidden) (root-environment . hidden)
+    (repl-environment . hidden) (empty-environment . hidden) (make-historic-report-environment . hidden)
+    (r5rs-environment . hidden) (r5rs-null-environment . hidden) (*verbose*  . hidden) (*quiet*  . hidden)
+    (compile-and-run-core-expr . hidden) (evaluate-top-form . hidden) (run-script . hidden)
+    (run-program . hidden) (repl-evaluate-top-form . hidden) (repl-read . hidden) 
+    (repl-exec-command . hidden) (repl-from-port . hidden) (run-benchmark . hidden) (repl . hidden) 
     ))
 
 ; clean up root environment by moving all symbolic bindings not in (skint) library
@@ -2007,11 +2012,21 @@
                   (loop prev (cdr lst))]))))
 
 ; make hidden bindings available via (skint hidden) library
+; note: definitions below this expression are not yet in (global-store), so one
+; has to add them explicitly via (foo . hidden) mechanism above
 (let* ([mklib (lambda (ln) (make-library '(begin) '()))]
        [loc (name-lookup *root-name-registry* '(skint hidden) mklib)]
        [lib (location-val loc)] [eal (vector-ref *hidden-name-registry* 0)]
-       [combeal (adjoin-eals eal (library-exports lib))])
-  ;(vector-set! *hidden-name-registry* 0 combeal)
+       [combeal (adjoin-eals eal (library-exports lib))]
+       [skintloc (name-lookup *root-name-registry* '(skint) #f)]
+       [skintlib (and (location? skintloc) (location-val skintloc))]
+       [skinteal (and (val-library? skintlib) (library-exports skintlib))])
+  (define (add-hidden-ref! p)
+    (let* ([id (car p)] [in-sk? (and skinteal (assq id skinteal))])
+      (unless (or in-sk? (assq id combeal))
+        (set! combeal (cons (cons id (make-location (list 'const id))) combeal)))))
+  (let* ([gsv (global-store)] [n (vector-length gsv)])
+    (do ([i 0 (+ i 1)]) [(>= i n)] (for-each add-hidden-ref! (vector-ref gsv i)))) 
   (library-set-exports! lib combeal))
 
 ; private registry for names introduced in repl 
@@ -2511,7 +2526,7 @@
    [help           "-h" "--help" #f              "Display this help"]
 ))
 
-(define *skint-version* "0.1.9")
+(define *skint-version* "0.2.9")
 
 (define (skint-main)
   ; see if command line asks for special processing

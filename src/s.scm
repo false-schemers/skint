@@ -274,7 +274,7 @@
   ; check that now relies on block tag being a non-immediate object, so we'll better put 
   ; some pseudo-unique immediate object here -- and we don't have to be fast doing that
   (let loop ([fl (cons name fields)] [sl '("rtd://")])
-     (cond [(null? fl) (string->symbol (apply string-append (reverse sl)))]
+     (cond [(null? fl) (string->symbol (apply-to-list string-append (reverse sl)))]
            [(null? (cdr fl)) (loop (cdr fl) (cons (symbol->string (car fl)) sl))]
            [else (loop (cdr fl) (cons ":" (cons (symbol->string (car fl)) sl)))]))) 
   
@@ -1267,13 +1267,13 @@
    (newline ep))
 
 (define (simple-error . args)
-  (let ([ep (current-error-port)])
+  (let ([ep (%current-error-port)])
     (newline ep)
     (print-error-message "Error" args ep)
     (reset)))
 
 (define (assertion-violation . args)
-  (let ([ep (current-error-port)])
+  (let ([ep (%current-error-port)])
     (newline ep)
     (print-error-message "Assertion violation" args ep)
     (reset)))
