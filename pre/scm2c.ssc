@@ -1,5 +1,5 @@
 ;---------------------------------------------------------------------------------------------
-; Skint File compiler (Limited Scheme => Serialized code as C data)
+; Skint .scm precursors compiler (Limited Scheme => Serialized code as C data)
 ;---------------------------------------------------------------------------------------------
 
 (import (only (skint hidden) 
@@ -180,7 +180,7 @@
   (define oport (if (pair? ?ofname) (open-output-file (car ?ofname)) (current-output-port)))
   (define mname (module-name ifname))
   (display "/* " oport) (display mname oport) 
-  (display ".c -- generated via skint -c " oport) 
+  (display ".c -- generated via skint scm2c.ssc " oport) 
   (display (path-strip-directory ifname) oport) 
   (display " */" oport) (newline oport) (newline oport)
   (display "char *" oport) (display mname oport) 
@@ -196,7 +196,7 @@
 (define (main args)
   (cond [(list2? args) (process-file (cadr args))]
         [(list3? args) (process-file (cadr args) (caddr args))]
-        [else (error "usage: ccomp INFILE [OUTFILE]" args)]))
+        [else (error "usage: skint scm2c.ssc INFILE [OUTFILE]" args)]))
 
 ; this is not a real #! script, so call main manually
 (main (command-line))

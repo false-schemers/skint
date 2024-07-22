@@ -1,0 +1,144 @@
+;---------------------------------------------------------------------------------------------
+; Skint n.sf precursor compiler (n.sf => n.h)
+;---------------------------------------------------------------------------------------------
+
+(import (only (skint hidden) 
+  list2?))
+
+
+(define (path-strip-directory filename)
+  (let loop ([l (reverse (string->list filename))] [r '()])
+    (cond [(null? l) (list->string r)]
+          [(memv (car l) '(#\\ #\/ #\:)) (list->string r)]
+          [else (loop (cdr l) (cons (car l) r))])))
+
+(define (path-strip-extension filename)
+  (let ([l (reverse (string->list filename))])
+    (let ([r (memv #\. l)])
+      (if r (list->string (reverse (cdr r))) filename))))
+
+(define (module-name filename)
+  (path-strip-extension (path-strip-directory filename)))
+
+(define *prelude* "
+/* standard includes */
+#include <stdio.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <assert.h>
+/* extra includes */
+#include <math.h>
+#include <errno.h>
+#include <ctype.h>
+#include <string.h>
+#include <time.h>
+
+/* standard definitions */
+#ifdef NAN_BOXING
+#include <stdint.h>
+typedef int64_t obj;          /* pointers are this size, higher 16 bits and lower bit zero */
+typedef int64_t cxoint_t;     /* same thing, used as integer */
+typedef struct {              /* type descriptor */
+  const char *tname;          /* name (debug) */
+  void (*free)(void*);        /* deallocator */
+} cxtype_t;
+
+#define notobjptr(o)          (((cxoint_t)(o) - (cxoint_t)cxg_heap) & cxg_hmask)
+#define isobjptr(o)           (!notobjptr(o))
+#define notaptr(o)            ((o) & 0xffff000000000001ULL)
+#define isaptr(o)             (!notaptr(o))
+#else
+typedef ptrdiff_t obj;        /* pointers are this size, lower bit zero */
+typedef ptrdiff_t cxoint_t;   /* same thing, used as integer */
+typedef struct {              /* type descriptor */
+  const char *tname;          /* name (debug) */
+  void (*free)(void*);        /* deallocator */
+} cxtype_t;
+
+#define notobjptr(o)          (((char*)(o) - (char*)cxg_heap) & cxg_hmask)
+#define isobjptr(o)           (!notobjptr(o))
+#define notaptr(o)            ((o) & 1)
+#define isaptr(o)             (!notaptr(o))
+#endif
+
+#define obj_from_obj(o)       (o)
+#define obj_from_objptr(p)    ((obj)(p))
+#define obj_from_size(n)      (((cxoint_t)(n) << 1) | 1)
+
+#define objptr_from_objptr(p) (p)
+#define objptr_from_obj(o)    ((obj*)(o))
+
+#define size_from_obj(o)      ((int)((o) >> 1))
+
+#define obj_from_case(n)      obj_from_objptr(cases+(n))
+#define case_from_obj(o)      (objptr_from_obj(o)-cases)
+#define obj_from_ktrap()      obj_from_size(0x5D56F806)
+#define obj_from_void(v)      ((void)(v), obj_from_size(0x6F56DF77))
+
+#define bool_from_obj(o)      (o)
+#define bool_from_bool(b)     (b)
+#define bool_from_size(s)     (s)
+
+#define void_from_void(v)     (void)(v)
+#define void_from_obj(o)      (void)(o)
+
+#define rreserve(m)           if (r + (m) >= cxg_rend) r = cxm_rgc(r, m)
+#define hpushptr(p, pt, l)    (hreserve(2, l), *--hp = (obj)(p), *--hp = (obj)(pt), (obj)(hp+1))   
+#define hbsz(s)               ((s) + 1) /* 1 extra word to store block size */
+#define hreserve(n, l)        ((hp < cxg_heap + (n)) ? hp = cxm_hgc(r, r+(l), hp, n) : hp)
+#define hendblk(n)            (*--hp = obj_from_size(n), (obj)(hp+1))
+#define hblklen(p)            size_from_obj(((obj*)(p))[-1])
+#define hblkref(p, i)         (((obj*)(p))[i])
+
+typedef obj (*cxhost_t)(obj);
+typedef struct cxroot_tag {
+  int globc; obj **globv;
+  struct cxroot_tag *next;
+} cxroot_t;
+
+extern obj *cxg_heap;
+extern obj *cxg_hp;
+extern cxoint_t cxg_hmask;
+extern cxroot_t *cxg_rootp;
+extern obj *cxm_rgc(obj *regs, size_t needs);
+extern obj *cxm_hgc(obj *regs, obj *regp, obj *hp, size_t needs);
+extern obj *cxg_regs, *cxg_rend;
+extern void cxm_check(int x, char *msg);
+extern void *cxm_cknull(void *p, char *msg);
+extern int cxg_rc;
+extern char **cxg_argv;
+
+/* extra definitions */
+")
+
+
+(define (process-top-form x oport)
+  (when (and (list2? x) (symbol? (car x)) (string? (cadr x)))
+    (case (car x)
+      [(%definition) (display (cadr x) oport) (newline oport)]
+      [(%localdef)] ; does not go into n.h
+      [(%include)]))) ; time.h already in prelude
+
+(define (process-file ifname . ?ofname)
+  (define iport (open-input-file ifname)) ; relative to wd, not this script!
+  (define oport (if (pair? ?ofname) (open-output-file (car ?ofname)) (current-output-port)))
+  (define mname (module-name ifname))
+  (display "/* " oport) (display mname oport) 
+  (display ".h -- generated via skint nsf2h.ssc " oport) 
+  (display (path-strip-directory ifname) oport) 
+  (display " */" oport) (newline oport) (newline oport)
+  (display *prelude* oport)
+  (let loop ([x (read iport)])
+    (unless (eof-object? x)
+      (process-top-form x oport)
+      (loop (read iport))))
+  (close-input-port iport)
+  (if (pair? ?ofname) (close-output-port oport)))
+
+(define (main args)
+  (cond [(list2? args) (process-file (cadr args))]
+        [(list3? args) (process-file (cadr args) (caddr args))]
+        [else (error "usage: skint nsf2h.ssc INFILE [OUTFILE]" args)]))
+
+; this is not a real #! script, so call main manually
+;(main (command-line))

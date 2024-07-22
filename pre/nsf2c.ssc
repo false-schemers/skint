@@ -1,0 +1,54 @@
+;---------------------------------------------------------------------------------------------
+; Skint n.sf precursor compiler (n.sf => n.c)
+;---------------------------------------------------------------------------------------------
+
+(import (only (skint hidden) 
+  list2?))
+
+
+(define (path-strip-directory filename)
+  (let loop ([l (reverse (string->list filename))] [r '()])
+    (cond [(null? l) (list->string r)]
+          [(memv (car l) '(#\\ #\/ #\:)) (list->string r)]
+          [else (loop (cdr l) (cons (car l) r))])))
+
+(define (path-strip-extension filename)
+  (let ([l (reverse (string->list filename))])
+    (let ([r (memv #\. l)])
+      (if r (list->string (reverse (cdr r))) filename))))
+
+(define (module-name filename)
+  (path-strip-extension (path-strip-directory filename)))
+
+(define (process-top-form x oport)
+  (when (and (list2? x) (symbol? (car x)) (string? (cadr x)))
+    (case (car x)
+      [(%definition)] ; went into n.h
+      [(%localdef) (display (cadr x) oport) (newline oport) (newline oport)] ; does not go into n.h
+      [(%include)]))) ; went into n.h
+
+(define (process-file ifname . ?ofname)
+  (define iport (open-input-file ifname)) ; relative to wd, not this script!
+  (define oport (if (pair? ?ofname) (open-output-file (car ?ofname)) (current-output-port)))
+  (define mname (module-name ifname))
+  (display "/* " oport) (display mname oport) 
+  (display ".c -- generated via skint nsf2c.ssc " oport) 
+  (display (path-strip-directory ifname) oport) 
+  (display " */" oport) (newline oport) (newline oport)
+  (display "#include \"" oport)
+  (display mname oport) 
+  (display ".h\"" oport) (newline oport) (newline oport)
+  (let loop ([x (read iport)])
+    (unless (eof-object? x)
+      (process-top-form x oport)
+      (loop (read iport))))
+  (close-input-port iport)
+  (if (pair? ?ofname) (close-output-port oport)))
+
+(define (main args)
+  (cond [(list2? args) (process-file (cadr args))]
+        [(list3? args) (process-file (cadr args) (caddr args))]
+        [else (error "usage: scint nsf2c.ssc INFILE [OUTFILE]" args)]))
+
+; this is not a real #! script, so call main manually
+;(main (command-line))
