@@ -117,7 +117,7 @@ extern char **cxg_argv;
     (case (car x)
       [(%definition) (display (cadr x) oport) (newline oport)]
       [(%localdef)] ; does not go into n.h
-      [(%include)]))) ; time.h already in prelude
+      [(%include)]))) ; all needed includes already included
 
 (define (process-file ifname . ?ofname)
   (define iport (open-input-file ifname)) ; relative to wd, not this script!

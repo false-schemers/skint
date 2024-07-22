@@ -4,6 +4,7 @@
 ;
 ;------------------------------------------------------------------------------
 
+(%include "s.h")
 
 ;------------------------------------------------------------------------------
 
@@ -1526,7 +1527,6 @@ void oportputshared(obj x, obj p, int disp) {
 ; system-dependent extensions
 
 (%localdef "/* system-dependent extensions */")
-(%localdef "#include \"s.h\"")
 
 (%localdef "
 extern int is_tty_port(obj o)

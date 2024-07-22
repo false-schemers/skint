@@ -1,5 +1,6 @@
 /* n.c -- generated via skint nsf2c.ssc n.sf */
 
+#include "s.h"
 #include "n.h"
 
 #ifdef NAN_BOXING
@@ -998,8 +999,6 @@ void oportputshared(obj x, obj p, int disp) {
 }
 
 /* system-dependent extensions */
-
-#include "s.h"
 
 
 extern int is_tty_port(obj o)
