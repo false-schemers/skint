@@ -520,6 +520,8 @@ declare_instruction(wriw,       "W8\0Po",       0,  "write-simple",             
 declare_instruction(fexis,      "F0",           0,  "file-exists?",             '1', AUTOGL)
 declare_instruction(frem,       "F1",           0,  "delete-file",              '1', AUTOGL)
 declare_instruction(fren,       "F2",           0,  "rename-file",              '2', AUTOGL)
+declare_instruction(getcwd,     "F8",           0,  "%cwd",                     '0', AUTOGL)
+declare_instruction(setcwd,     "F9",           0,  "%set-cwd!",                '1', AUTOGL)
 declare_instruction(argvref,    "Z0",           0,  "%argv-ref",                '1', AUTOGL)
 declare_instruction(getenv,     "Z1",           0,  "get-environment-variable", '1', AUTOGL)
 declare_instruction(envvref,    "Z2",           0,  "%envv-ref",                '1', AUTOGL)

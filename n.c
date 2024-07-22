@@ -1042,4 +1042,16 @@ extern char *envv_ref(int idx)
   return *pv;
 }
 
+extern char *get_cwd(void)
+{
+  static char buf[FILENAME_MAX];
+  if (getcwd(buf, FILENAME_MAX) == NULL) return NULL;
+  return buf;
+}
+
+extern int set_cwd(char *cwd)
+{
+  return chdir(cwd);
+}
+
 

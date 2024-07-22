@@ -3902,6 +3902,22 @@ define_instruction(fren) {
   gonexti(); 
 }
 
+define_instruction(getcwd) {
+  extern char *get_cwd(void);
+  char *s = get_cwd();
+  if (s) ac = string_obj(newstring(s));
+  else ac = bool_obj(0); 
+  gonexti(); 
+}
+
+define_instruction(setcwd) {
+  extern int set_cwd(char *cwd);
+  int res; cks(ac);
+  res = set_cwd(stringchars(ac));
+  ac = bool_obj(res == 0);
+  gonexti(); 
+}
+
 define_instruction(argvref) {
   extern char *argv_ref(int idx);
   int i; char *s; ckk(ac);

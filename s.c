@@ -1028,6 +1028,11 @@ char *s_code[] = {
   "(y19:write-subbytevector)[34}%x,&0{%2.1,.1W3]2}%x,&0{%1Po,.1W3]1}%x,&4"
   "{|10|21|32|43%%}@!(y16:write-bytevector)",
 
+  "C", 0,
+  "&0{%2.1?{.0,@(y17:current-directory)[21}.0]2}%x,&0{%1.0F9,.0?{.0]2}.1,"
+  "'(s26:cannot change directory to),@(y5:error)[22}%x,&0{%0F8]0}%x,&3{|0"
+  "0|11|22%%}@!(y17:current-directory)",
+
   "P", "%command-line",
   "%0'0,n,,#0.0,&1{%2.1Z0,.0?{'1,.3I+,.2,.2c,:0^[32}.1A9]3}.!0.0^_1[02",
 
@@ -1035,8 +1040,14 @@ char *s_code[] = {
   "${${@(y13:%25command-line)[00},@(y14:make-parameter)[01}@!(y12:command"
   "-line)",
 
-  "P", "features",
-  "%0'(l4:y4:r7rs;y12:exact-closed;y5:skint;y11:skint-1.0.0;)]0",
+  "C", 0,
+  "@(y11:skint-1.0.0),@(y5:skint),@(y12:exact-closed),@(y4:r7rs),l4@!(y10"
+  ":*features*)",
+
+  "C", 0,
+  "&0{%2.1?{.0,@(y8:features)[21}.0]2}%x,&0{%1.0L0?{.0@!(y10:*features*)]"
+  "1}.0,'(s25:cannot change features to),@(y5:error)[12}%x,&0{%0@(y10:*fe"
+  "atures*)]0}%x,&3{|00|11|22%%}@!(y8:features)",
 
   "P", "feature-available?",
   "%1.0Y0?{${@(y8:features)[00},.1A0]1}f]1",

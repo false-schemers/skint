@@ -2003,6 +2003,11 @@
 ;
 ; (load s (env (interaction-environment))) 
 
+(define current-directory
+  (case-lambda 
+    [() (%cwd)]
+    [(d) (or (%set-cwd! d) (error "cannot change directory to" d))]
+    [(d s) (if s (current-directory d) d)]))
 
 (define (%command-line)
   (let loop ([r '()] [i 0])
@@ -2013,7 +2018,13 @@
 
 (define command-line (make-parameter (%command-line))) ; can be changed later in (main)
 
-(define (features) '(r7rs exact-closed skint skint-1.0.0))
+(define *features* (list r7rs exact-closed skint skint-1.0.0))
+
+(define features
+  (case-lambda 
+    [() *features*]
+    [(f) (if (list? f) (set! *features* f) (error "cannot change features to" f))]
+    [(f s) (if s (features f) f)]))
 
 (define (feature-available? f) (and (symbol? f) (memq f (features))))
 
