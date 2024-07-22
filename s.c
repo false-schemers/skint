@@ -1,47 +1,4 @@
-/* s.c -- generated via skint -c s.scm */
-#include "s.h"
-#include "n.h"
-
-extern int is_tty_port(obj o)
-{
-  FILE *fp = NULL;
-  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = (FILE*)iportdata(o);
-  else if ((cxtype_t*)oportvt(o) == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
-  if (!fp) return 0;
-  return isatty(fileno(fp));
-}
-
-#ifdef WIN32
-int dirsep = '\\';
-#else
-int dirsep = '/';
-#endif
-
-extern char *argv_ref(int idx)
-{
-  char **pv = cxg_argv;
-  /* be careful with indexing! */
-  if (idx < 0) return NULL;
-  while (idx-- > 0) if (*pv++ == NULL) return NULL;
-  return *pv;
-}
-
-#if defined(WIN32)
-#define cxg_envv _environ
-#elif defined(__linux) || defined(__APPLE__)
-#define cxg_envv environ
-#else /* add more systems? */
-char **cxg_envv = { NULL };
-#endif
-
-extern char *envv_ref(int idx)
-{
-  char **pv = cxg_envv;
-  /* be careful with indexing! */
-  if (idx < 0) return NULL;
-  while (idx-- > 0) if (*pv++ == NULL) return NULL;
-  return *pv;
-}
+/* s.c -- generated via skint scm2c.ssc s.scm */
 
 char *s_code[] = {
 

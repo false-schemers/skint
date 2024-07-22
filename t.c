@@ -1,4 +1,4 @@
-/* t.c -- generated via skint -c t.scm */
+/* t.c -- generated via skint scm2c.ssc t.scm */
 
 char *t_code[] = {
 

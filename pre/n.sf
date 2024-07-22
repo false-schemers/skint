@@ -1521,3 +1521,52 @@ void oportputshared(obj x, obj p, int disp) {
 ; time
 
 (%include <time.h>)
+
+
+; system-dependent extensions
+
+(%localdef "/* system-dependent extensions */")
+(%localdef "#include \"s.h\"")
+
+(%localdef "
+extern int is_tty_port(obj o)
+{
+  FILE *fp = NULL;
+  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = (FILE*)iportdata(o);
+  else if ((cxtype_t*)oportvt(o) == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
+  if (!fp) return 0;
+  return isatty(fileno(fp));
+}
+
+#ifdef WIN32
+int dirsep = '\\\\';
+#else
+int dirsep = '/';
+#endif
+
+extern char *argv_ref(int idx)
+{
+  char **pv = cxg_argv;
+  /* be careful with indexing! */
+  if (idx < 0) return NULL;
+  while (idx-- > 0) if (*pv++ == NULL) return NULL;
+  return *pv;
+}
+
+#if defined(WIN32)
+#define cxg_envv _environ
+#elif defined(__linux) || defined(__APPLE__)
+#define cxg_envv environ
+#else /* add more systems? */
+char **cxg_envv = { NULL };
+#endif
+
+extern char *envv_ref(int idx)
+{
+  char **pv = cxg_envv;
+  /* be careful with indexing! */
+  if (idx < 0) return NULL;
+  while (idx-- > 0) if (*pv++ == NULL) return NULL;
+  return *pv;
+}
+")
