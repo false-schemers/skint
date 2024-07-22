@@ -1,4 +1,5 @@
-/* n.h -- natives */
+/* n.h -- generated via skint nsf2h.ssc n.sf */
+
 
 /* standard includes */
 #include <stdio.h>
@@ -263,7 +264,7 @@ static obj obj_from_flonum(int rc, double d) {
   assert(is_flonum_obj(~u.i));
   return ~u.i; 
 }
-#else /* FLONUMS_BOXED */
+#else
 extern cxtype_t *FLONUM_NTAG;
 typedef double flonum_t;
 #define is_flonum_obj(o) (isnative(o, FLONUM_NTAG))
@@ -380,8 +381,6 @@ extern int internsym(char *name);
 extern int isprocedure(obj o);
 extern int procedurelen(obj o);
 extern obj* procedureref(obj o, int i);
-/* apply and dotted lambda list */
-extern obj appcases[];
 /* eof */
 #define EOF_ITAG 7
 #define mkeof() mkimm(0, EOF_ITAG)
@@ -425,7 +424,7 @@ static int iportpeekc(obj o) {
   cxtype_iport_t *vt = iportvt(o); void *pp = iportdata(o); int c;
   assert(vt); c = vt->getch(pp); if (c != EOF) vt->ungetch(c, pp); return c;
 }
-/* closed input ports */
+/* file input ports */
 #define mkiport_file(l, fp) hpushptr(fp, IPORT_FILE_NTAG, l)
 /* string input ports */
 typedef struct { char *p; void *base; } sifile_t;
@@ -465,7 +464,7 @@ static void oportflush(obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
   assert(vt); vt->flush(pp);
 }
-/* closed output ports */
+/* file output ports */
 #define mkoport_file(l, fp) hpushptr(fp, OPORT_FILE_NTAG, l)
 /* string output ports */
 typedef struct cbuf_tag { char *buf; char *fill; char *end; } cbuf_t;

@@ -3,7 +3,7 @@
 ;---------------------------------------------------------------------------------------------
 
 (import (only (skint hidden) 
-  list2?))
+  list2? list3?))
 
 
 (define (path-strip-directory filename)
@@ -141,4 +141,4 @@ extern char **cxg_argv;
         [else (error "usage: skint nsf2h.ssc INFILE [OUTFILE]" args)]))
 
 ; this is not a real #! script, so call main manually
-;(main (command-line))
+(main (command-line))

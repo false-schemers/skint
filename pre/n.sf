@@ -498,7 +498,7 @@ long fxflo(double f) {
   assert(is_flonum_obj(~u.i));
   return ~u.i; 
 }")
-(%definition "#else /* FLONUMS_BOXED */")
+(%definition "#else")
 (%localdef "static cxtype_t cxt_flonum = { \"flonum\", free };")
 (%localdef "cxtype_t *FLONUM_NTAG = &cxt_flonum;")
 (%definition "extern cxtype_t *FLONUM_NTAG;")
@@ -563,10 +563,12 @@ long fxflo(double f) {
 (%definition "#define stringchars(o) ((char*)(stringdata(o)+1))")
 (%definition "#define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)")
 
-(%localdef "char* stringref(obj o, int i) {
+(%localdef "#ifndef NDEBUG
+char* stringref(obj o, int i) {
   int *d = stringdata(o); assert(i >= 0 && i < *d);  
   return sdatachars(d)+i;
-}")
+}
+#endif")
 
 (%definition "#ifdef NDEBUG
   #define stringref(o, i) (stringchars(o)+(i))
@@ -668,9 +670,11 @@ long fxflo(double f) {
 #endif")
 (%definition "#define byte_from_obj(o) byte_from_fixnum(fixnum_from_obj(o))")
 
-(%localdef "unsigned char* bytevectorref(obj o, int i) {
+(%localdef "#ifndef NDEBUG
+unsigned char* bytevectorref(obj o, int i) {
   int *d = bytevectordata(o); assert(i >= 0 && i < *d); return (bvdatabytes(d))+i;
-}")
+}
+#endif")
 (%definition "#ifdef NDEBUG
   #define bytevectorref(o, i) (bytevectorbytes(o)+(i))
 #else

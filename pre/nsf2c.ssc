@@ -3,7 +3,7 @@
 ;---------------------------------------------------------------------------------------------
 
 (import (only (skint hidden) 
-  list2?))
+  list2? list3?))
 
 
 (define (path-strip-directory filename)
@@ -20,10 +20,16 @@
 (define (module-name filename)
   (path-strip-extension (path-strip-directory filename)))
 
+(define *local-definitions*
+  '("#ifdef NAN_BOXING" "#ifndef FLONUMS_BOXED" "#else" "#endif"))
+
 (define (process-top-form x oport)
   (when (and (list2? x) (symbol? (car x)) (string? (cadr x)))
     (case (car x)
-      [(%definition)] ; went into n.h
+      [(%definition)
+       ; make an exception for some conditional definitions!
+       (when (member (cadr x) *local-definitions*)
+         (display (cadr x) oport) (newline oport) (newline oport))]
       [(%localdef) (display (cadr x) oport) (newline oport) (newline oport)] ; does not go into n.h
       [(%include)]))) ; went into n.h
 
@@ -51,4 +57,4 @@
         [else (error "usage: scint nsf2c.ssc INFILE [OUTFILE]" args)]))
 
 ; this is not a real #! script, so call main manually
-;(main (command-line))
+(main (command-line))
