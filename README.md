@@ -58,7 +58,9 @@ Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and eva
   *  both `eval` and `load` accept optional environment argument
   *  command-line options can be shown by running `skint --help` 
   *  both `import` and `define-library` forms can be entered interactively into REPL
-  *  REPL supports single-line `comma-commands` — type `,help` for a full list 
+  *  REPL supports single-line `comma-commands` — type `,help` for a full list
+  *  on Un*x-like systems, interactive use of skint with line exiting requires external readline wrapper
+     such as [rlwrap](https://github.com/hanslub42/rlwrap)    
   
 Please note that SKINT's interaction environment exposes bindings for all supported R7RS-small procedures 
 and syntax forms directly, so there is no need to use `import`. All R7RS-small libraries are built-in and
