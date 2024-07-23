@@ -71,7 +71,7 @@ a language for building Scheme-like systems. Its #F source code can be found the
 
 [skint/pre](https://github.com/false-schemers/skint/tree/main/pre)
 
-SKINT's hygienic macroexpander is derived from Al Petrofsky's EIOD (please see the t.scm file for the original copyright notice).
+SKINT's hygienic macroexpander is derived from Alan Petrofsky's alexpander (please see the t.scm file for the original copyright notice).
 SKINT's VM and compiler follow the stack machine approach described in "Three Implementation Models for Scheme" thesis by R. Kent Dybvig
 ([TR87-011](https://www.cs.unc.edu/techreports/87-011.pdf), 1987).
 Supporting library code comes from #F's [LibL library](https://raw.githubusercontent.com/false-schemers/sharpF/master/lib/libl.sf).
