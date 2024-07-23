@@ -69,7 +69,7 @@ do not rely on any external .sld files.
 Parts of SKINT's run-time system and startup code are written in [#F](https://github.com/false-schemers/sharpF), 
 a language for building Scheme-like systems. Its #F source code can be found there in `precursors` directory:
 
-[skint/pre](https://raw.githubusercontent.com/false-schemers/skint/master/pre)
+[skint/pre](https://github.com/false-schemers/skint/tree/main/pre)
 
 SKINT's hygienic macroexpander is derived from Al Petrofsky's EIOD (please see the t.scm file for the original copyright notice).
 SKINT's VM and compiler follow the stack machine approach described in "Three Implementation Models for Scheme" thesis by R. Kent Dybvig
