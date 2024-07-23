@@ -3983,6 +3983,12 @@ define_instruction(heapsz) {
   gonexti();
 }
 
+define_instruction(dirsep) {
+  extern int dirsep;
+  ac = char_obj(dirsep); 
+  gonexti();
+}
+
 
 #define VM_GEN_DEFGLOBAL
 #include "i.h"

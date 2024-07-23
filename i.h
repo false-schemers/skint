@@ -534,6 +534,7 @@ declare_instruction(abort,      "Z8\0t",        0,  "%abort",                   
 declare_instruction(exit,       "Z9\0t",        0,  "%exit",                    'u', AUTOGL)
 declare_instruction(gccnt,      "Zg",           0,  "%gc-count",                '0', AUTOGL)
 declare_instruction(heapsz,     "Zh",           0,  "%heap-size",               '0', AUTOGL)
+declare_instruction(dirsep,     "Zs",           0,  "directory-separator",      '0', AUTOGL)
 
 /* serialization, deserialization, compilation-related instructions */             
 declare_instruction(igp,        "U0",           0,  "integrable?",              '1', AUTOGL)

@@ -1993,7 +1993,8 @@
     (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
     (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) (subbytevector) 
     (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
-    (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (void) (void?)
+    (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
+    (void) (void?)
     ; (repl hidden) library entries below the auto-adder need to be added explicitly 
     (*user-name-registry* . hidden) (make-readonly-environment . hidden) 
     (make-controlled-environment . hidden) (make-sld-environment . hidden) 

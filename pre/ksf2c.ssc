@@ -3,60 +3,65 @@
 ;---------------------------------------------------------------------------------------------
 
 (import (only (skint hidden) 
-  list2? list3?))
+  list2? list3? path-relative? path-directory path-strip-directory
+  path-strip-extension file-resolve-relative-to-base-path %system))
 
 (define (list4? x) (and (pair? x) (list3? (cdr x))))
 
-(define (path-strip-directory filename)
-  (let loop ([l (reverse (string->list filename))] [r '()])
-    (cond [(null? l) (list->string r)]
-          [(memv (car l) '(#\\ #\/ #\:)) (list->string r)]
-          [else (loop (cdr l) (cons (car l) r))])))
+(define *prelude* "
+#include \"i.h\"
 
-(define (path-strip-extension filename)
-  (let ([l (reverse (string->list filename))])
-    (let ([r (memv #\. l)])
-      (if r (list->string (reverse (cdr r))) filename))))
+")
 
-(define (module-name filename)
-  (path-strip-extension (path-strip-directory filename)))
+(define (convert iport oport ifbase ifname)
+  (let loop ([l (read-line iport)] [in-header? #t])
+    (cond [(eof-object? l)]
+          [(and in-header? (string=? l "/* cx globals */"))
+           (display "/* " oport) (display ifbase oport) 
+           (display ".c -- generated via skint ksf2c.ssc " oport) 
+           (display ifname oport) 
+           (display " */" oport) (newline oport) 
+           (display *prelude* oport)
+           (display l oport) (newline oport)
+           (loop (read-line iport) #f)]
+          [in-header?
+           (loop (read-line iport) #t)]
+          [(string=? l "static size_t cxg_hsize = 0;")
+           (display "size_t cxg_hsize = 0;" oport) (newline oport)
+           (loop (read-line iport) #f)]
+          [(string=? l "static int cxg_gccount = 0, cxg_bumpcount = 0;")
+           (display "int cxg_gccount = 0, cxg_bumpcount = 0;" oport) (newline oport)
+           (loop (read-line iport) #f)]
+          [else
+           (display l oport) (newline oport)
+           (loop (read-line iport) #f)])))
 
-(define *local-definitions*
-  '("#ifdef NAN_BOXING" "#ifndef FLONUMS_BOXED" "#else" "#endif"))
-
-(define (process-top-form x oport)
-  (when (and (list2? x) (symbol? (car x)) (string? (cadr x)))
-    (case (car x)
-      [(%definition)
-       ; make an exception for some conditional definitions!
-       (when (member (cadr x) *local-definitions*)
-         (display (cadr x) oport) (newline oport) (newline oport))]
-      [(%localdef) (display (cadr x) oport) (newline oport) (newline oport)] ; does not go into n.h
-      [(%include)]))) ; went into n.h
-
-(define (process-file sfcpath ifname . ?ofname)
-  (define iport (open-input-file ifname)) ; relative to wd, not this script!
-  (define oport (if (pair? ?ofname) (open-output-file (car ?ofname)) (current-output-port)))
-  (define mname (module-name ifname))
-  (display "/* " oport) (display mname oport) 
-  (display ".c -- generated via skint nsf2c.ssc " oport) 
-  (display (path-strip-directory ifname) oport) 
-  (display " */" oport) (newline oport) (newline oport)
-  (let loop ([x (read iport)] [end-of-includes? #f])
-    (unless (eof-object? x)
-      (cond [end-of-includes?
-             (process-top-form x oport) 
-             (loop (read iport) #t)]
-            [(and (list2? x) (eq? (car x) '%include) (string? (cadr x)))
-             (display "#include " oport) (write (cadr x) oport) (newline oport)
-             (loop (read iport) #f)]
-            [else ; switching to body forms
-             (display "#include \"" oport) (display mname oport) 
-             (display ".h\"" oport) (newline oport) (newline oport)
-             (process-top-form x oport) 
-             (loop (read iport) #t)])))
-  (close-input-port iport)
-  (if (pair? ?ofname) (close-output-port oport)))
+(define (process-file sfcpath ifpath . ?ofpath)
+  (define cwd (current-directory))
+  (define sfcp (file-resolve-relative-to-base-path sfcpath cwd))
+  (define ifdir (path-directory ifpath))
+  (define ifname (path-strip-directory ifpath))
+  (define ifbase (path-strip-extension ifname))
+  (define tfpath (string-append ifdir ifbase ".c"))
+  (define sfccmd (format #f "~a -v ~a" sfcp ifname))
+  (format #t "sfcp is '~a'~%" sfcp)
+  (format #t "ifdir is '~a'~%" ifdir)
+  (format #t "ifname is '~a'~%" ifname)
+  (format #t "tfpath is '~a'~%" tfpath)
+  (format #t "sfccmd is '~a'~%" sfccmd)
+  (when (file-exists? tfpath) (error "itermediate file already exists" tfpath))
+  (format #t "; running ~a~%" sfccmd)
+  (parameterize ([current-directory ifdir])
+    (define res (begin (format #t "; cd is '~a'~%" (current-directory)) (%system sfccmd)))
+    (unless (eqv? res 0) (error "sfc failed!")))
+  (unless (file-exists? tfpath) (error "itermediate file is not found" tfpath))
+  (format #t "; converting intermediate file ~a~%" tfpath)
+  (let ([iport (open-input-file tfpath)] 
+        [oport (if (null? ?ofpath) (current-output-port) (open-output-file (car ?ofpath)))])
+    (convert iport oport ifbase ifname)
+    (unless (null? ?ofpath) (close-output-port oport)))
+  (format #t "; deleting intermediate file ~a~%" tfpath)
+  (delete-file tfpath))
 
 (define (main args)
   (cond [(list3? args) (process-file (cadr args) (caddr args))]
@@ -64,4 +69,4 @@
         [else (error "usage: scint ksf2c.ssc SFCPATH INFILE [OUTFILE]" args)]))
 
 ; this is not a real #! script, so call main manually
-;(main (command-line))
+(main (command-line))

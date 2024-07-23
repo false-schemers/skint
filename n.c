@@ -1044,8 +1044,13 @@ extern char *envv_ref(int idx)
 
 extern char *get_cwd(void)
 {
-  static char buf[FILENAME_MAX];
+  static char buf[FILENAME_MAX]; size_t len;
   if (getcwd(buf, FILENAME_MAX) == NULL) return NULL;
+  len = strlen(buf);
+  /* if this is a regular path that has internal separators but not at the end, add it */ 
+  if (len > 0 && len < FILENAME_MAX-1 && strchr(buf, dirsep) && buf[len-1] != dirsep) {
+    buf[len++] = dirsep; buf[len] = 0;
+  }  
   return buf;
 }
 

@@ -5,7 +5,58 @@
 ;
 ;------------------------------------------------------------------------------
 
-(load "n-service.sf") ; needed for constants (pairs, strings, symbols)
+(load "n.sf") ; needed for basic runtime internals
+
+
+;---------------------------------------------------------------------------------------------
+; Minimal additional definitions to compile code below
+;---------------------------------------------------------------------------------------------
+
+(define-syntax let-syntax
+  (syntax-rules ()
+    [(_ ([kw init] ...))
+     (begin)]
+    [(_ ([kw init] ...) . body)
+     ((syntax-lambda (kw ...) . body)
+      init ...)]))
+
+(define-syntax %const
+  (let-syntax ([old-%const %const])
+    (syntax-rules (boolean null integer string)
+      [(_ boolean b) (%prim ("bool(" b ")"))] 
+      [(_ null) (%prim "obj(mknull())")] 
+      [(_ integer 8 sign digs 10) (%prim ("fixnum(" #&(id->string sign) digs ")"))] 
+      [(_ integer 16 sign digs 10) (%prim ("fixnum(" #&(id->string sign) digs ")"))]
+      [(_ string s) (%prim* ("obj(hpushstr($live, newstring(\"" s "\")))"))]
+      [(_ string 8 c ...)
+       (%prim* ("{ static char s[] = { " (c ", ") ... "0 };\n"
+                "    $return obj(hpushstr($live, newstring(s))); }"))]
+      [(_ arg ...) (old-%const arg ...)])))
+
+(define-syntax make-vector
+  (syntax-rules ()
+    [(_ n i) 
+     (%prim* "{ /* make-vector */
+    obj o; int i = 0, c = fixnum_from_$arg;
+    hreserve(hbsz(c+1), $live); /* $live live regs */
+    o = obj_from_$arg; /* gc-safe */
+    while (i++ < c) *--hp = o;
+    *--hp = obj_from_size(VECTOR_BTAG);
+    $return obj(hendblk(c+1)); }" n i)]))
+
+(define-syntax cons
+  (syntax-rules ()
+    [(_ a d)
+     (%prim* "{ /* cons */ 
+    hreserve(hbsz(3), $live); /* $live live regs */
+    *--hp = obj_from_$arg;
+    *--hp = obj_from_$arg;
+    *--hp = obj_from_size(PAIR_BTAG); 
+    $return obj(hendblk(3)); }" d a)]))
+
+(define-syntax eq?
+  (syntax-rules ()
+    [(_ x y) (%prim "bool(obj_from_$arg == obj_from_$arg)" x y)]))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -16,7 +67,7 @@
 
 (define *globals* (make-vector 991 '())) ; nice prime number
 
-(define *dynamic-state* (list #f)) ; for dynamic-wind
+(define *dynamic-state* (cons #f '())) ; for dynamic-wind
 
 (define *current-input* #f)
 (define *current-output* #f)
@@ -80,10 +131,13 @@
 ; Main
 ;---------------------------------------------------------------------------------------------
 
-(define (tcode-repl) 
-  (execute-thunk-closure (make-closure (decode "${@(y4:repl)[00}"))))
+(define tcode-repl
+  (lambda ()
+    (execute-thunk-closure (make-closure (decode "${@(y4:repl)[00}")))))
 
-(define (main argv)
-  ; if we fell out of tcode repl on error, go back
-  (unless (eq? (tcode-repl) #t) (main #f)))
+(define main
+  (lambda (argv)
+    ; if we fell out of tcode repl on error, go back
+    (if (eq? (tcode-repl) #t) #t (main #f))))
+
 
