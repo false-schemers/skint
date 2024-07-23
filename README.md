@@ -23,9 +23,9 @@ gcc -o skint -O3 -DNDEBUG -DNAN_BOXING [skint].c -lm
 ```
 
 NAN_BOXING option assumes that upper 16 bit of heap pointers are zero (48-bit address space). If this assumption holds,
-it is recommended to use it on 64-bit systems.
+it is recommended to use this option on 64-bit systems.
 
-The resulting interpreter has no dependencies (except C runtime and standard -lm math library) and can be run from any location.
+The resulting interpreter has no dependencies (except for C runtime and standard -lm math library) and can be run from any location.
 If compiled statically, it can be easily moved between systems with the same ABI.
 
 
@@ -73,7 +73,7 @@ a language for building Scheme-like systems. Its #F source code can be found the
 
 [skint/pre](https://github.com/false-schemers/skint/tree/main/pre)
 
-SKINT's hygienic macroexpander is derived from Alan Petrofsky's alexpander (please see the t.scm file for the original copyright notice).
+SKINT's hygienic macroexpander is derived from Alan Petrofsky's EIOD 1.17 (please see the t.scm file for the original copyright info).
 SKINT's VM and compiler follow the stack machine approach described in "Three Implementation Models for Scheme" thesis by R. Kent Dybvig
 ([TR87-011](https://www.cs.unc.edu/techreports/87-011.pdf), 1987).
 Supporting library code comes from #F's [LibL library](https://raw.githubusercontent.com/false-schemers/sharpF/master/lib/libl.sf).
