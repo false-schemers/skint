@@ -1,4 +1,4 @@
-/* k.h -- system-dependent stuff */
+/* s.h -- system-dependent stuff */
 
 #if defined(__GNUC__) && defined(__linux)
   #ifdef _FEATURES_H
@@ -13,6 +13,9 @@
     #define _XOPEN_SOURCE_EXTENDED 1
   #endif
 #endif
+
+/* this is for MS headers; shouldn't affect others */
+#define _CRT_SECURE_NO_WARNINGS 1
   
 #include <stdbool.h>
 #include <stdint.h>

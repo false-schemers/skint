@@ -20,7 +20,13 @@
 (define (module-name filename)
   (path-strip-extension (path-strip-directory filename)))
 
-(define *prelude* "
+(define *prelude* 
+"#if defined(__clang__)
+#pragma GCC diagnostic ignored \"-Wparentheses-equality\"
+#endif
+/* this is for MS headers; shouldn't affect others */
+#define _CRT_SECURE_NO_WARNINGS 1
+
 /* standard includes */
 #include <stdio.h>
 #include <stddef.h>

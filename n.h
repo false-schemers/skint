@@ -1,5 +1,10 @@
 /* n.h -- generated via skint nsf2h.ssc n.sf */
 
+#if defined(__clang__)
+#pragma GCC diagnostic ignored "-Wparentheses-equality"
+#endif
+/* this is for MS headers; shouldn't affect others */
+#define _CRT_SECURE_NO_WARNINGS 1
 
 /* standard includes */
 #include <stdio.h>
