@@ -4866,7 +4866,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
   return hp;
 }
 
-/* partially hand-coded module (prototyped in i.scm) */
+/* hand-coded! */
 char *i_code[] = {
 
   /* initialize *transformers* with xform builtins */

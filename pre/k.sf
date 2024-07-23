@@ -138,6 +138,8 @@
 (define main
   (lambda (argv)
     ; if we fell out of tcode repl on error, go back
-    (if (eq? (tcode-repl) #t) #t (main #f))))
+    (if (eq? (tcode-repl) #t) 
+        #f ; normal exit, exit code = 0 (#f conventions)
+        (main #f))))
 
 

@@ -9,7 +9,11 @@
 (define (list4? x) (and (pair? x) (list3? (cdr x))))
 
 (define *prelude* "
+#include \"n.h\"
 #include \"i.h\"
+
+#define MODULE module_k
+#define LOAD()
 
 ")
 
@@ -26,11 +30,13 @@
            (loop (read-line iport) #f)]
           [in-header?
            (loop (read-line iport) #t)]
-          [(string=? l "static size_t cxg_hsize = 0;")
+          [(string=? l "static size_t cxg_hsize = 0; ") ; sfc puts 1 trailing space!
            (display "size_t cxg_hsize = 0;" oport) (newline oport)
            (loop (read-line iport) #f)]
           [(string=? l "static int cxg_gccount = 0, cxg_bumpcount = 0;")
            (display "int cxg_gccount = 0, cxg_bumpcount = 0;" oport) (newline oport)
+           (loop (read-line iport) #f)]
+          [(string=? l "  /* fprintf(stderr, \"%d collections, %d reallocs\\n\", cxg_gccount, cxg_bumpcount); */")
            (loop (read-line iport) #f)]
           [else
            (display l oport) (newline oport)
@@ -44,11 +50,6 @@
   (define ifbase (path-strip-extension ifname))
   (define tfpath (string-append ifdir ifbase ".c"))
   (define sfccmd (format #f "~a -v ~a" sfcp ifname))
-  (format #t "sfcp is '~a'~%" sfcp)
-  (format #t "ifdir is '~a'~%" ifdir)
-  (format #t "ifname is '~a'~%" ifname)
-  (format #t "tfpath is '~a'~%" tfpath)
-  (format #t "sfccmd is '~a'~%" sfccmd)
   (when (file-exists? tfpath) (error "itermediate file already exists" tfpath))
   (format #t "; running ~a~%" sfccmd)
   (parameterize ([current-directory ifdir])
@@ -59,6 +60,7 @@
   (let ([iport (open-input-file tfpath)] 
         [oport (if (null? ?ofpath) (current-output-port) (open-output-file (car ?ofpath)))])
     (convert iport oport ifbase ifname)
+    (close-input-port iport)
     (unless (null? ?ofpath) (close-output-port oport)))
   (format #t "; deleting intermediate file ~a~%" tfpath)
   (delete-file tfpath))
