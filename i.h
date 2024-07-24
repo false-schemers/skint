@@ -532,7 +532,9 @@ declare_instruction(system,     "Z6",           0,  "%system",                  
 declare_instruction(panic,      "Z7",           0,  "%panic",                   '2', AUTOGL)
 declare_instruction(abort,      "Z8\0t",        0,  "%abort",                   'u', AUTOGL)
 declare_instruction(exit,       "Z9\0t",        0,  "%exit",                    'u', AUTOGL)
-declare_instruction(gccnt,      "Zg",           0,  "%gc-count",                '0', AUTOGL)
+declare_instruction(gc,         "Zg",           0,  "%gc",                      '0', AUTOGL)
+declare_instruction(gccnt,      "Zc",           0,  "%gc-count",                '0', AUTOGL)
+declare_instruction(bumpcnt,    "Zb",           0,  "%bump-count",              '0', AUTOGL)
 declare_instruction(heapsz,     "Zh",           0,  "%heap-size",               '0', AUTOGL)
 declare_instruction(dirsep,     "Zs",           0,  "directory-separator",      '0', AUTOGL)
 

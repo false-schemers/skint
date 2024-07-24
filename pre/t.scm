@@ -640,11 +640,23 @@
           (cons 'begin (map (lambda (sexp) (xform #f sexp env)) tail)))
       (x-error "improper begin form" (cons 'begin tail))))
 
-(define (xform-define tail env) ; actual code is spread all over
-  (x-error "definition used as expression" (cons 'define tail)))
+; used in simplistic transformer in scm2c.ssc only!
+(define (xform-define tail env) 
+  (cond [(and (list2? tail) (null? (car tail))) ; idless
+         (xform #f (cadr tail) env)]
+        [(and (list2? tail) (id? (car tail)))
+         (list 'define (id->sym (car tail)) 
+           (xform #f (cadr tail) env))]
+        [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
+         (list 'define (id->sym (caar tail))
+           (xform-lambda (cons (cdar tail) (cdr tail)) env))] 
+        [else (x-error "improper define form" (cons 'define tail))]))
 
-(define (xform-define-syntax tail env) ; actual code is spread all over
-  (x-error "syntax definition used as expression" (cons 'define-syntax tail)))
+; used in simplistic transformer in scm2c.ssc only!
+(define (xform-define-syntax tail env) ; non-internal
+  (if (and (list2? tail) (id? (car tail)))
+      (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))
+      (x-error "improper define-syntax form" (cons 'define-syntax tail))))
 
 (define (xform-syntax-quote tail env)
   (if (list1? tail)
@@ -2444,7 +2456,8 @@
   (let retry ([cmd+args (cons cmd args)])
     (sexp-case cmd+args
       [(ref <symbol>) (write (repl-environment (car args) 'ref) op) (newline op)]
-      [(ref (* * ...)) (write (repl-environment (car args) 'ref) op) (newline op)]
+      [(ref (* * ...)) (let ([x (repl-environment (car args) 'peek)]) 
+                         (write (and (location? x) x) op) (newline op))]
       [(rnr) (write *root-name-registry* op) (newline op)]
       [(rref *) (write (name-lookup *root-name-registry* (car args) #f) op) (newline op)]
       [(rrem! *) (cond [(name-lookup *root-name-registry* (car args) #f)
@@ -2460,12 +2473,10 @@
        (let* ([k (car args)] [v (global-store)] [i (immediate-hash k (vector-length v))]) 
          (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
       [(load <string>) (load (car args))]
-      [(verbose on) (set! *verbose* #t)]
-      [(verbose off) (set! *verbose* #f)]
-      [(v) (set! *verbose* #t)]
-      [(quiet on) (set! *quiet* #t)]
-      [(quiet off) (set! *quiet* #f)]
-      [(q) (set! *quiet* #t)]
+      [(v)  (set! *verbose* #t) (format #t "verbosity is on~%")]
+      [(v-) (set! *verbose* #f) (format #t "verbosity is off~%")]
+      [(q)  (set! *quiet* #t) (format #t "quiet is on~%")]
+      [(q-) (set! *quiet* #f) (format #t "quiet is off~%")]
       [(time *) (let ([start (current-jiffy)])
                   (repl-evaluate-top-form (car args) repl-environment op)
                   (format #t "; elapsed time: ~s ms.~%"
@@ -2473,31 +2484,32 @@
       [(pwd) (display (current-directory) op) (newline op)]
       [(cd <string>) (current-directory (car args))]
       [(sh <string>) (%system (car args))]
-      [(si) (format #t "~d collections, heap size ~d words~%" (%gc-count) (%heap-size))]
+      [(si) (format #t "~d collections, ~d reallocs, heap size ~d words~%" 
+               (%gc-count) (%bump-count) (%heap-size))]
+      [(gc) (%gc) (retry '(si))]
       [(help)
-       (display "\nAvailable commands:\n" op)
-       (display " ,load <fname>  -- loads <fname> (no quotes needed)\n" op)
-       (display " ,q             -- disable informational messages\n" op)
-       (display " ,quiet on      -- disable informational messages\n" op)
-       (display " ,quiet off     -- enable informational messages\n" op)
-       (display " ,v             -- turn verbosity on\n" op)
-       (display " ,verbose on    -- turn verbosity on\n" op)
-       (display " ,verbose off   -- turn verbosity off\n" op)
-       (display " ,ref <name>    -- show denotation for <name> (may alloc)\n" op)
-       (display " ,rnr           -- show root name registry\n" op)
-       (display " ,rref <name>   -- lookup name in root registry\n" op)
-       (display " ,rrem! <name>  -- remove name from root registry\n" op)
-       (display " ,unr           -- show user name registry\n" op)
-       (display " ,uref <name>   -- lookup name in user registry\n" op)
-       (display " ,urem! <name>  -- remove name from user registry\n" op)
-       (display " ,gs            -- show global store (big!)\n" op)
-       (display " ,gs <name>     -- lookup global location for <name>\n" op)
-       (display " ,time <expr>   -- time short expression <expr>\n" op)
-       (display " ,pwd           -- show skint's current working directory\n" op)
-       (display " ,cd <dir>      -- change skint's current working directory\n" op)
-       (display " ,sh <cmdline>  -- send <cmdline> to local shell\n" op)
-       (display " ,si            -- display system info\n" op)
-       (display " ,help          -- this help\n" op)]
+       (display "\nREPL commands (,load ,cd ,sh arguments need no quotes):\n" op)
+       (display " ,load <fname>       load <fname> into REPL\n" op)
+       (display " ,q                  quiet: disable informational messages\n" op)
+       (display " ,q-                 enable informational messages\n" op)
+       (display " ,v                  turn verbosity on\n" op)
+       (display " ,v-                 turn verbosity off\n" op)
+       (display " ,ref <name>         show denotation for <name>\n" op)
+       (display " ,rnr                show root name registry\n" op)
+       (display " ,rref <name>        lookup name in root registry\n" op)
+       (display " ,rrem! <name>       remove name from root registry\n" op)
+       (display " ,unr                show user name registry\n" op)
+       (display " ,uref <name>        lookup name in user registry\n" op)
+       (display " ,urem! <name>       remove name from user registry\n" op)
+       (display " ,gs                 show global store (big!)\n" op)
+       (display " ,gs <name>          lookup global location for <name>\n" op)
+       (display " ,time <expr>        time single-line expression <expr>\n" op)
+       (display " ,pwd                show skint's current working directory\n" op)
+       (display " ,cd <dir>           change skint's current working directory\n" op)
+       (display " ,sh <cmdline>       send <cmdline> to local shell\n" op)
+       (display " ,si                 display system info\n" op)
+       (display " ,gc                 force gc to finalize lost objects\n" op)
+       (display " ,help               this help\n" op)]
       [(h) (retry '(help))]
       [else
        (display "syntax error in repl command\n" op)
@@ -2566,12 +2578,12 @@
    [eval           "-e" "--eval" "SEXP"          "Evaluate and print an expression"] 
    [script         "-s" "--script" "FILE"        "Run file as a Scheme script"]
    [program        "-p" "--program" "FILE"       "Run file as a Scheme program"]
-   [benchmark       #f  "--benchmark" "FILE"     "Run .sf benchmark file (internal)"]
+   ;[benchmark       #f  "--benchmark" "FILE"     "Run .sf benchmark file (internal)"]
    [version        "-V" "--version" #f           "Display version info"]
    [help           "-h" "--help" #f              "Display this help"]
 ))
 
-(define *skint-version* "0.2.9")
+(define *skint-version* "0.3.9")
 
 (define (skint-main)
   ; see if command line asks for special processing
@@ -2601,12 +2613,13 @@
           [(append-libdir *) (append-library-path! optarg) (loop restargs #t)]
           [(prepend-libdir *) (prepend-library-path! optarg) (loop restargs #t)]
           [(eval *) (eval! optarg #t) (loop restargs #f)]
-          [(script *) (exit (run-script optarg restargs))]
-          [(program *) (exit (run-program optarg restargs))]
+          [(script *) (set! *quiet* #t) (exit (run-script optarg restargs))]
+          [(program *) (set! *quiet* #t) (exit (run-program optarg restargs))]
           [(benchmark *) (exit (run-script optarg restargs))] ; FIXME
           [(version) (print-version!) (loop '() #f)]
           [(help) (print-help!) (loop '() #f)]
-          [(#f) (cond [(pair? restargs) (exit (run-script (car restargs) (cdr restargs)))]
+          [(#f) (cond [(pair? restargs) 
+                       (set! *quiet* #t) (exit (run-script (car restargs) (cdr restargs)))]
                       [(not repl?) (exit #t)])])))) ; all done -- no need to continue
   ; falling through to interactive mode
   (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))

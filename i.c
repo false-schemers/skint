@@ -194,6 +194,12 @@ static void _sck(obj *s) {
 #define sgrow(n)      (sp += (n))
 #endif
 
+/* forcing gc explicitly */
+#define hp_collect() do { \
+   unload_ac(); unload_ip();   \
+   hp = cxm_hgc(r, sp, hp, 0); \
+   reload_ac(); reload_ip();   \
+ } while (0)
 /* reserving heap memory inside instructions */
 #define hp_reserve(n) do { \
  if (unlikely(hp < cxg_heap + (n))) { \
@@ -3971,9 +3977,22 @@ define_instruction(system) {
   gonexti(); 
 }
 
+define_instruction(gc) {
+  extern int cxg_gccount;
+  hp_collect();
+  ac = fixnum_obj(cxg_gccount); 
+  gonexti();
+}
+
 define_instruction(gccnt) {
   extern int cxg_gccount;
   ac = fixnum_obj(cxg_gccount); 
+  gonexti();
+}
+
+define_instruction(bumpcnt) {
+  extern size_t cxg_bumpcount;
+  ac = fixnum_obj((int)cxg_bumpcount); 
   gonexti();
 }
 
