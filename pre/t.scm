@@ -733,6 +733,7 @@
     (let collect ([x x] [inc include-scalars] [l '()])
       (cond [(id? x) (if (and inc (pred? x)) (cons x l) l)]
             [(vector? x) (collect (vector->list x) inc l)]
+            [(box? x) (collect (unbox x) inc l)]
             [(pair? x)
              (if (ellipsis-pair? (cdr x))
                  (collect (car x) #t (collect (cddr x) inc l))
@@ -762,9 +763,10 @@
              (if (pat-literal? pat)
                  (continue-if (and (id? sexp) (free-id=? sexp use-env pat mac-env)))
                  (cons (cons pat sexp) bindings))]
-            [(vector? pat)
-             (or (vector? sexp) (fail))
+            [(vector? pat) (or (vector? sexp) (fail))
              (match (vector->list pat) (vector->list sexp) bindings)]
+            [(box? pat) (or (box? sexp) (fail))
+             (match (unbox pat) (unbox sexp) bindings)]
             [(not (pair? pat))
              (continue-if (equal? pat sexp))]
             [(ellipsis-pair? (cdr pat))
@@ -812,6 +814,8 @@
                     (assq tmpl new-literals)))]
           [(vector? tmpl)
            (list->vector (expand-part (vector->list tmpl) esc?))]
+          [(box? tmpl)
+           (box (expand-part (unbox tmpl) esc?))]
           [(and (not esc?) (pair? tmpl) (ellipsis? (car tmpl))) ; r7rs
            (if (pair? (cdr tmpl)) (expand-part (cadr tmpl) #t)
                (x-error "invalid escaped template syntax" tmpl))]
@@ -890,6 +894,7 @@
     (define (lit=? id sym) ; match literal as free identifier
       (and (id? id) (free-id=? id env sym root-environment sym)))
     (cons begin-id (preprocess-cond-expand lit=? sexp env))))
+
 
 ; library transformers
 
