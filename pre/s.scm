@@ -121,13 +121,13 @@
     [(_ test) test]
     [(_ test . tests) (let ([x test]) (if x x (or . tests)))]))
 
-(define-syntax cond
+(define-syntax cond ; + body support
   (syntax-rules (else =>)
     [(_) #f]
-    [(_ (else . exps)) (begin . exps)]
+    [(_ (else . exps)) (body . exps)]
     [(_ (x) . rest) (or x (cond . rest))]
     [(_ (x => proc) . rest) (let ([tmp x]) (cond [tmp (proc tmp)] . rest))]
-    [(_ (x . exps) . rest) (if x (begin . exps) (cond . rest))]))
+    [(_ (x . exps) . rest) (if x (body . exps) (cond . rest))]))
 
 (define-syntax %case-test
   (syntax-rules () 
@@ -135,23 +135,23 @@
     [(_ k (datum)) (eqv? k 'datum)] 
     [(_ k data) (memv k 'data)]))
 
-(define-syntax %case
+(define-syntax %case ; + body support
   (syntax-rules (else =>)
     [(_ key) (begin)]
     [(_ key (else => resproc))
      (resproc key)]
     [(_ key (else expr ...))
-     (begin expr ...)]
+     (body expr ...)]
     [(_ key ((datum ...) => resproc) . clauses)
      (if (%case-test key (datum ...))
          (resproc key)
          (%case key . clauses))]
     [(_ key ((datum ...) expr ...) . clauses)
      (if (%case-test key (datum ...))
-         (begin expr ...)
+         (body expr ...)
          (%case key . clauses))]))
 
-(define-syntax case
+(define-syntax case ; + body support
   (syntax-rules ()
     [(_ x . clauses) (let ([key x]) (%case key . clauses))]))
 
@@ -159,15 +159,15 @@
   (syntax-rules () 
     [(_ x) x] [(_ x y) y]))
 
-(define-syntax do
+(define-syntax do ; + body support
   (syntax-rules ()
     [(_ ([var init step ...] ...)
        [test expr ...]
        command ...)
      (let loop ([var init] ...)
        (if test
-           (begin expr ...)
-           (let () command ...
+           (body expr ...)
+           (let () command ... 
              (loop (%do-step var step ...) ...))))]))
 
 
@@ -182,13 +182,13 @@
     [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
     [(_ x . d) 'x]))
 
-(define-syntax when
+(define-syntax when ; + body support
   (syntax-rules ()
-    [(_ test . rest) (if test (begin . rest))]))
+    [(_ test . rest) (if test (body . rest))]))
 
-(define-syntax unless
+(define-syntax unless ; + body support
   (syntax-rules ()
-    [(_ test . rest) (if (not test) (begin . rest))]))
+    [(_ test . rest) (if (not test) (body . rest))]))
 
 (define-syntax case-lambda
   (syntax-rules ()
@@ -1317,10 +1317,10 @@
     (parameterize ([current-exception-handler (eh)])
       (eh obj))))
 
-(define-syntax %guard-aux
+(define-syntax %guard-aux ; + body support
   (syntax-rules (else =>)
     [(_ reraise (else result1 result2 ...))
-     (begin result1 result2 ...)]
+     (body result1 result2 ...)]
     [(_ reraise (test => result))
      (let ([temp test]) (if temp (result temp) reraise))]
     [(_ reraise (test => result) clause1 clause2 ...)
@@ -1333,10 +1333,10 @@
      (let ([temp test])
        (if temp temp (%guard-aux reraise clause1 clause2 ...)))]
     [(_ reraise (test result1 result2 ...))
-     (if test (begin result1 result2 ...) reraise)]
+     (if test (body result1 result2 ...) reraise)]
     [(_ reraise (test result1 result2 ...) clause1 clause2 ...)
      (if test
-         (begin result1 result2 ...)
+         (body result1 result2 ...)
          (%guard-aux reraise clause1 clause2 ...))]))
 
 (define-syntax guard

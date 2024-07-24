@@ -87,11 +87,11 @@ char *s_code[] = {
 
   "S", "cond",
   "l7:y12:syntax-rules;l2:y4:else;y2:=>;;l2:l1:y1:_;;f;;l2:l2:y1:_;py4:el"
-  "se;y4:exps;;;py5:begin;y4:exps;;;l2:py1:_;pl1:y1:x;;y4:rest;;;l3:y2:or"
-  ";y1:x;py4:cond;y4:rest;;;;l2:py1:_;pl3:y1:x;y2:=>;y4:proc;;y4:rest;;;l"
-  "3:y3:let;l1:l2:y3:tmp;y1:x;;;py4:cond;pl2:y3:tmp;l2:y4:proc;y3:tmp;;;y"
-  "4:rest;;;;;l2:py1:_;ppy1:x;y4:exps;;y4:rest;;;l4:y2:if;y1:x;py5:begin;"
-  "y4:exps;;py4:cond;y4:rest;;;;",
+  "se;y4:exps;;;py4:body;y4:exps;;;l2:py1:_;pl1:y1:x;;y4:rest;;;l3:y2:or;"
+  "y1:x;py4:cond;y4:rest;;;;l2:py1:_;pl3:y1:x;y2:=>;y4:proc;;y4:rest;;;l3"
+  ":y3:let;l1:l2:y3:tmp;y1:x;;;py4:cond;pl2:y3:tmp;l2:y4:proc;y3:tmp;;;y4"
+  ":rest;;;;;l2:py1:_;ppy1:x;y4:exps;;y4:rest;;;l4:y2:if;y1:x;py4:body;y4"
+  ":exps;;py4:cond;y4:rest;;;;",
 
   "S", "%case-test",
   "l5:y12:syntax-rules;n;l2:l3:y1:_;y1:k;n;;f;;l2:l3:y1:_;y1:k;l1:y5:datu"
@@ -101,13 +101,13 @@ char *s_code[] = {
   "S", "%case",
   "l7:y12:syntax-rules;l2:y4:else;y2:=>;;l2:l2:y1:_;y3:key;;l1:y5:begin;;"
   ";l2:l3:y1:_;y3:key;l3:y4:else;y2:=>;y7:resproc;;;l2:y7:resproc;y3:key;"
-  ";;l2:l3:y1:_;y3:key;l3:y4:else;y4:expr;y3:...;;;l3:y5:begin;y4:expr;y3"
-  ":...;;;l2:py1:_;py3:key;pl3:l2:y5:datum;y3:...;;y2:=>;y7:resproc;;y7:c"
-  "lauses;;;;l4:y2:if;l3:y10:%25case-test;y3:key;l2:y5:datum;y3:...;;;l2:"
-  "y7:resproc;y3:key;;py5:%25case;py3:key;y7:clauses;;;;;l2:py1:_;py3:key"
-  ";pl3:l2:y5:datum;y3:...;;y4:expr;y3:...;;y7:clauses;;;;l4:y2:if;l3:y10"
-  ":%25case-test;y3:key;l2:y5:datum;y3:...;;;l3:y5:begin;y4:expr;y3:...;;"
-  "py5:%25case;py3:key;y7:clauses;;;;;",
+  ";;l2:l3:y1:_;y3:key;l3:y4:else;y4:expr;y3:...;;;l3:y4:body;y4:expr;y3:"
+  "...;;;l2:py1:_;py3:key;pl3:l2:y5:datum;y3:...;;y2:=>;y7:resproc;;y7:cl"
+  "auses;;;;l4:y2:if;l3:y10:%25case-test;y3:key;l2:y5:datum;y3:...;;;l2:y"
+  "7:resproc;y3:key;;py5:%25case;py3:key;y7:clauses;;;;;l2:py1:_;py3:key;"
+  "pl3:l2:y5:datum;y3:...;;y4:expr;y3:...;;y7:clauses;;;;l4:y2:if;l3:y10:"
+  "%25case-test;y3:key;l2:y5:datum;y3:...;;;l3:y4:body;y4:expr;y3:...;;py"
+  "5:%25case;py3:key;y7:clauses;;;;;",
 
   "S", "case",
   "l3:y12:syntax-rules;n;l2:py1:_;py1:x;y7:clauses;;;l3:y3:let;l1:l2:y3:k"
@@ -120,9 +120,9 @@ char *s_code[] = {
   "S", "do",
   "l3:y12:syntax-rules;n;l2:l5:y1:_;l2:l4:y3:var;y4:init;y4:step;y3:...;;"
   "y3:...;;l3:y4:test;y4:expr;y3:...;;y7:command;y3:...;;l4:y3:let;y4:loo"
-  "p;l2:l2:y3:var;y4:init;;y3:...;;l4:y2:if;y4:test;l3:y5:begin;y4:expr;y"
-  "3:...;;l5:y3:let;n;y7:command;y3:...;l3:y4:loop;l4:y8:%25do-step;y3:va"
-  "r;y4:step;y3:...;;y3:...;;;;;;",
+  "p;l2:l2:y3:var;y4:init;;y3:...;;l4:y2:if;y4:test;l3:y4:body;y4:expr;y3"
+  ":...;;l5:y3:let;n;y7:command;y3:...;l3:y4:loop;l4:y8:%25do-step;y3:var"
+  ";y4:step;y3:...;;y3:...;;;;;;",
 
   "S", "quasiquote",
   "l10:y12:syntax-rules;l3:y7:unquote;y16:unquote-splicing;y10:quasiquote"
@@ -139,12 +139,12 @@ char *s_code[] = {
   "2:y5:quote;y1:x;;;",
 
   "S", "when",
-  "l3:y12:syntax-rules;n;l2:py1:_;py4:test;y4:rest;;;l3:y2:if;y4:test;py5"
-  ":begin;y4:rest;;;;",
+  "l3:y12:syntax-rules;n;l2:py1:_;py4:test;y4:rest;;;l3:y2:if;y4:test;py4"
+  ":body;y4:rest;;;;",
 
   "S", "unless",
   "l3:y12:syntax-rules;n;l2:py1:_;py4:test;y4:rest;;;l3:y2:if;l2:y3:not;y"
-  "4:test;;py5:begin;y4:rest;;;;",
+  "4:test;;py4:body;y4:rest;;;;",
 
   "S", "case-lambda",
   "l3:y12:syntax-rules;n;l2:l3:y1:_;py4:args;y5:forms;;y3:...;;l3:y7:lamb"
@@ -710,21 +710,21 @@ char *s_code[] = {
 
   "S", "%guard-aux",
   "l9:y12:syntax-rules;l2:y4:else;y2:=>;;l2:l3:y1:_;y7:reraise;l4:y4:else"
-  ";y7:result1;y7:result2;y3:...;;;l4:y5:begin;y7:result1;y7:result2;y3:."
-  "..;;;l2:l3:y1:_;y7:reraise;l3:y4:test;y2:=>;y6:result;;;l3:y3:let;l1:l"
-  "2:y4:temp;y4:test;;;l4:y2:if;y4:temp;l2:y6:result;y4:temp;;y7:reraise;"
-  ";;;l2:l6:y1:_;y7:reraise;l3:y4:test;y2:=>;y6:result;;y7:clause1;y7:cla"
-  "use2;y3:...;;l3:y3:let;l1:l2:y4:temp;y4:test;;;l4:y2:if;y4:temp;l2:y6:"
-  "result;y4:temp;;l5:y10:%25guard-aux;y7:reraise;y7:clause1;y7:clause2;y"
-  "3:...;;;;;l2:l3:y1:_;y7:reraise;l1:y4:test;;;l3:y2:or;y4:test;y7:rerai"
-  "se;;;l2:l6:y1:_;y7:reraise;l1:y4:test;;y7:clause1;y7:clause2;y3:...;;l"
-  "3:y3:let;l1:l2:y4:temp;y4:test;;;l4:y2:if;y4:temp;y4:temp;l5:y10:%25gu"
-  "ard-aux;y7:reraise;y7:clause1;y7:clause2;y3:...;;;;;l2:l3:y1:_;y7:rera"
-  "ise;l4:y4:test;y7:result1;y7:result2;y3:...;;;l4:y2:if;y4:test;l4:y5:b"
-  "egin;y7:result1;y7:result2;y3:...;;y7:reraise;;;l2:l6:y1:_;y7:reraise;"
-  "l4:y4:test;y7:result1;y7:result2;y3:...;;y7:clause1;y7:clause2;y3:...;"
-  ";l4:y2:if;y4:test;l4:y5:begin;y7:result1;y7:result2;y3:...;;l5:y10:%25"
-  "guard-aux;y7:reraise;y7:clause1;y7:clause2;y3:...;;;;",
+  ";y7:result1;y7:result2;y3:...;;;l4:y4:body;y7:result1;y7:result2;y3:.."
+  ".;;;l2:l3:y1:_;y7:reraise;l3:y4:test;y2:=>;y6:result;;;l3:y3:let;l1:l2"
+  ":y4:temp;y4:test;;;l4:y2:if;y4:temp;l2:y6:result;y4:temp;;y7:reraise;;"
+  ";;l2:l6:y1:_;y7:reraise;l3:y4:test;y2:=>;y6:result;;y7:clause1;y7:clau"
+  "se2;y3:...;;l3:y3:let;l1:l2:y4:temp;y4:test;;;l4:y2:if;y4:temp;l2:y6:r"
+  "esult;y4:temp;;l5:y10:%25guard-aux;y7:reraise;y7:clause1;y7:clause2;y3"
+  ":...;;;;;l2:l3:y1:_;y7:reraise;l1:y4:test;;;l3:y2:or;y4:test;y7:rerais"
+  "e;;;l2:l6:y1:_;y7:reraise;l1:y4:test;;y7:clause1;y7:clause2;y3:...;;l3"
+  ":y3:let;l1:l2:y4:temp;y4:test;;;l4:y2:if;y4:temp;y4:temp;l5:y10:%25gua"
+  "rd-aux;y7:reraise;y7:clause1;y7:clause2;y3:...;;;;;l2:l3:y1:_;y7:rerai"
+  "se;l4:y4:test;y7:result1;y7:result2;y3:...;;;l4:y2:if;y4:test;l4:y4:bo"
+  "dy;y7:result1;y7:result2;y3:...;;y7:reraise;;;l2:l6:y1:_;y7:reraise;l4"
+  ":y4:test;y7:result1;y7:result2;y3:...;;y7:clause1;y7:clause2;y3:...;;l"
+  "4:y2:if;y4:test;l4:y4:body;y7:result1;y7:result2;y3:...;;l5:y10:%25gua"
+  "rd-aux;y7:reraise;y7:clause1;y7:clause2;y3:...;;;;",
 
   "S", "guard",
   "l3:y12:syntax-rules;n;l2:l5:y5:guard;l3:y3:var;y6:clause;y3:...;;y2:e1"
