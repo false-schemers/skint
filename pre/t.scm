@@ -1046,7 +1046,67 @@
                (loop decls code eal esps `(,@forms (,include-ci-id . ,(cdr decl))))]
               [(eq? (car decl) ld-begin-id)
                (loop decls code eal esps (append forms (xform-sexp->datum (cdr decl))))]))))))
-        
+
+; scan forms and return reversed list of core forms, interspersed with (define gs exp)
+; forms that need further processing (each one will become (set! gs core) form
+(define (preprocess-top-forms-scan forms cenv env) ;=> code* in reverse order
+  (define (scan body code*) ;=> code* extended, with side-effect on cenv
+    (if (null? body) 
+        code*
+        (let ([first (car body)] [rest (cdr body)])
+          (if (pair? first)
+              (let* ([head (car first)] [tail (cdr first)] [hval (xform #t head cenv)])
+                (cond
+                  [(eq? hval 'begin)
+                   (unless (list? tail) (x-error "improper begin form" first))
+                   (scan (append tail rest) code*)] ; splice
+                  [(eq? hval 'define)
+                   (let ([tail (preprocess-define head tail)])
+                     (if (list1? tail) ; tail is either (sexp) or (id sexp)
+                         (scan (append tail rest) code*) ; idless, splice
+                         (let ([loc (top-defined-id-lookup cenv (car tail) 'define)])
+                           (unless (and (location? loc) (sexp-match? '(ref *) (location-val loc)))
+                             (x-error "unexpected define for id" (car tail) first))
+                           (let ([gs (cadr (location-val loc))] [exp (cadr tail)])
+                             ; exp expansiom is delayed until all defined ids are ready
+                             (scan rest (cons (list 'define gs exp) code*))))))] 
+                  [(eq? hval 'define-syntax)
+                   (let* ([tail (preprocess-define-syntax head tail)]
+                          [loc (top-defined-id-lookup cenv (car tail) 'define-syntax)])
+                     (unless (location? loc) 
+                       (x-error "unexpected define-syntax for id" (car tail) first))
+                     (location-set-val! loc (xform #t (cadr tail) cenv))
+                     (scan rest code*))]
+                  [(eq? hval 'define-library)
+                   (let* ([core (xform-define-library head tail env #f)]
+                          ; core is (define-library <listname> <library>)
+                          [loc (xenv-lookup env (cadr core) 'define-syntax)])
+                     (unless (location? loc) 
+                       (x-error "unexpected define-library for id" (cadr core) first))
+                     (location-set-val! loc (caddr core))
+                     (scan rest code*))]
+                  [(eq? hval 'import) ; support, in case there is an internal import
+                   (let* ([core (xform-import head tail cenv #f)] 
+                          ; core is (import <library>)
+                          [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
+                     (unless (cenv eal 'import) ; adjoins eal to cenv's imports
+                       (x-error "broken import inside library code" first))
+                     (scan rest (cons code code*)))] ; adds library init code 
+                  [(val-transformer? hval) ; apply transformer and loop
+                   (scan (cons (hval first cenv) rest) code*)]
+                  [else ; form expansion may need to be delayed
+                   (scan rest (cons (list 'define '() first) code*))]))
+              ; form expansion may need to be delayed
+              (scan rest (cons (list 'define '() first) code*)))))) 
+  (scan forms '()))
+
+; scan returns underprocessed defines; this fn fixes that
+(define (preprocess-forms-fix-define! code cenv) ;=> core
+  (if (and (pair? code) (eq? (car code) 'define) (list3? code))
+      (let* ([gs (cadr code)] [exp (caddr code)] [core (xform #f exp cenv)])
+        (if (null? gs) core (list 'set! gs core)))
+      code))
+
 (define (preprocess-library sexp env) ;=> (init-core . exports-eal)
   ; generator of globals: use prefix or temporary if no prefix is given 
   (define (make-nid id) 
@@ -1060,56 +1120,9 @@
          [icimesfs (preprocess-library-declarations (cons (car sexp) decls) env)])
     (let* ([code (car icimesfs)] [ial (cadr icimesfs)] [esps (caddr icimesfs)] [forms (cadddr icimesfs)] 
            [cenv (make-controlled-environment ial make-nid env)] [eal '()]) ; m-c-e is defined below
-      (define (scan body code*) ;=> code* extended, with side-effect on cenv
-        (if (null? body) 
-            code*
-            (let ([first (car body)] [rest (cdr body)])
-              (if (pair? first)
-                  (let* ([head (car first)] [tail (cdr first)] [hval (xform #t head cenv)])
-                    (cond
-                      [(eq? hval 'begin)
-                       (unless (list? tail) (x-error "improper begin form" first))
-                       (scan (append tail rest) code*)] ; splice
-                      [(eq? hval 'define)
-                       (let ([tail (preprocess-define head tail)])
-                         (if (list1? tail) ; tail is either (sexp) or (id sexp)
-                             (scan (append tail rest) code*) ; idless, splice
-                             (let ([loc (top-defined-id-lookup cenv (car tail) 'define)])
-                               (unless (and (location? loc) (sexp-match? '(ref *) (location-val loc)))
-                                 (x-error "unexpected define for id" (car tail) first))
-                               (let ([g (cadr (location-val loc))] [core (xform #f (cadr tail) cenv)])
-                                 (scan rest (cons (list 'set! g core) code*))))))] 
-                      [(eq? hval 'define-syntax)
-                       (let* ([tail (preprocess-define-syntax head tail)]
-                              [loc (top-defined-id-lookup cenv (car tail) 'define-syntax)])
-                         (unless (location? loc) 
-                           (x-error "unexpected define-syntax for id" (car tail) first))
-                         (location-set-val! loc (xform #t (cadr tail) cenv))
-                         (scan rest code*))]
-                      [(eq? hval 'define-library)
-                       (let* ([core (xform-define-library head tail env #f)]
-                              ; core is (define-library <listname> <library>)
-                              [loc (xenv-lookup env (cadr core) 'define-syntax)])
-                         (unless (location? loc) 
-                           (x-error "unexpected define-library for id" (cadr core) first))
-                         (location-set-val! loc (caddr core))
-                         (scan rest code*))]
-                      [(eq? hval 'import) ; support, in case there is an internal import
-                       (let* ([core (xform-import head tail cenv #f)] 
-                              ; core is (import <library>)
-                              [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
-                         (unless (cenv eal 'import) ; adjoins eal to cenv's imports
-                           (x-error "broken import inside library code" first))
-                         (scan rest (cons code code*)))] ; adds library init code 
-                      ; TODO: check for built-in (export) and modify eal!
-                      [(val-transformer? hval) ; apply transformer and loop
-                       (scan (cons (hval first cenv) rest) code*)]
-                      [(val-integrable? hval) ; integrable application
-                       (scan rest (cons (xform-integrable hval tail cenv) code*))]
-                      [else ; other specials and calls (xform does not return libraries)
-                       (scan rest (cons (xform #f first cenv) code*))]))
-                  (scan rest (cons (xform #f first cenv) code*)))))) 
-      (let* ([code* (scan forms '())] [forms-code (cons 'begin (reverse! code*))] 
+      (let* ([code* (preprocess-top-forms-scan forms cenv env)]
+             [fix! (lambda (code) (preprocess-forms-fix-define! code cenv))] 
+             [forms-code (cons 'begin (map fix! (reverse! code*)))] 
              [combined-code (adjoin-code code (if lid (list 'once lid forms-code) forms-code))])
         ; walk through esps, fetching locations from cenv
         (let loop ([esps esps] [eal eal])

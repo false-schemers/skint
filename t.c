@@ -613,6 +613,31 @@ char *t_code[] = {
   ".1aq?{${.2d,@(y17:xform-sexp->datum)[01},.7L6,.6,.6,.6,.5,:0^[75}f]7}."
   "!0.0^_1[(i17)5",
 
+  "P", "preprocess-top-forms-scan",
+  "%3,#0.2,.4,.2,&3{%2.0u?{.1]2}.0d,.1a,.0p?{.0a,.1d,${:2,.4,t,@(y5:xform"
+  ")[03},'(y5:begin),.1q?{.1L0~?{${.5,'(s19:improper begin form),@(y7:x-e"
+  "rror)[02}}.6,.5,.3L6,:0^[72}'(y6:define),.1q?{${.3,.5,@(y17:preprocess"
+  "-define)[02},${.2,@(y6:list1?)[01}?{.7,.6,.2L6,:0^[82}${'(y6:define),."
+  "3a,:2,@(y21:top-defined-id-lookup)[03},.0Y2?{${.2z,'(l2:y3:ref;y1:*;),"
+  "@(y11:sexp-match?)[02}}{f}~?{${.7,.4a,'(s24:unexpected define for id),"
+  "@(y7:x-error)[03}}.1da,.1zda,.(i10),.2,.2,'(y6:define),l3c,.9,:0^[(i11"
+  ")2}'(y13:define-syntax),.1q?{${.3,.5,@(y24:preprocess-define-syntax)[0"
+  "2},${'(y13:define-syntax),.3a,:2,@(y21:top-defined-id-lookup)[03},.0Y2"
+  "~?{${.7,.4a,'(s31:unexpected define-syntax for id),@(y7:x-error)[03}}$"
+  "{:2,.4da,t,@(y5:xform)[03},.1sz.8,.7,:0^[92}'(y14:define-library),.1q?"
+  "{${f,:1,.5,.7,@(y20:xform-define-library)[04},${'(y13:define-syntax),."
+  "3da,:1,@(y11:xenv-lookup)[03},.0Y2~?{${.7,.4da,'(s32:unexpected define"
+  "-library for id),@(y7:x-error)[03}}.1dda,.1sz.8,.7,:0^[92}'(y6:import)"
+  ",.1q?{${f,:2,.5,.7,@(y12:xform-import)[04},.0da,'0,.1V4,'1,.2V4,${'(y6"
+  ":import),.3,:2[02}~?{${.9,'(s33:broken import inside library code),@(y"
+  "7:x-error)[02}}.(i10),.2c,.9,:0^[(i11)2}.0K0?{.6,.5,${:2,.8,.6[02}c,:0"
+  "^[72}.6,.4,n,'(y6:define),l3c,.5,:0^[72}.3,.1,n,'(y6:define),l3c,.2,:0"
+  "^[42}.!0n,.2,.2^[42",
+
+  "P", "preprocess-forms-fix-define!",
+  "%2.0p?{'(y6:define),.1aq?{${.2,@(y6:list3?)[01}}{f}}{f}?{.0da,.1dda,${"
+  ".5,.3,f,@(y5:xform)[03},.2u?{.0]5}.0,.3,'(y4:set!),l3]5}.0]2",
+
   "P", "preprocess-library",
   "%2,#0.1,&1{%1${:0,@(y7:list2+?)[01}?{${:0da,@(y3:id?)[01}}{f}?{${.2,@("
   "y7:id->sym)[01},${:0da,@(y7:id->sym)[01},@(y37:fully-qualified-library"
@@ -621,32 +646,15 @@ char *t_code[] = {
   "03}${.3,@(y7:list2+?)[01}?{${.3da,@(y3:id?)[01}}{f}?{${.3da,@(y7:id->s"
   "ym)[01}}{f},.0?{.2dd}{.2d},${.6,.3,.7ac,@(y31:preprocess-library-decla"
   "rations)[02},.0a,.1da,.2dda,.3ddda,${.(i11),.(i10)^,.6,@(y27:make-cont"
-  "rolled-environment)[03},n,,#0.(i12),.1,.4,&3{%2.0u?{.1]2}.0d,.1a,.0p?{"
-  ".0a,.1d,${:0,.4,t,@(y5:xform)[03},'(y5:begin),.1q?{.1L0~?{${.5,'(s19:i"
-  "mproper begin form),@(y7:x-error)[02}}.6,.5,.3L6,:1^[72}'(y6:define),."
-  "1q?{${.3,.5,@(y17:preprocess-define)[02},${.2,@(y6:list1?)[01}?{.7,.6,"
-  ".2L6,:1^[82}${'(y6:define),.3a,:0,@(y21:top-defined-id-lookup)[03},.0Y"
-  "2?{${.2z,'(l2:y3:ref;y1:*;),@(y11:sexp-match?)[02}}{f}~?{${.7,.4a,'(s2"
-  "4:unexpected define for id),@(y7:x-error)[03}}${:0,.4da,f,@(y5:xform)["
-  "03},.1zda,.(i10),.2,.2,'(y4:set!),l3c,.9,:1^[(i11)2}'(y13:define-synta"
-  "x),.1q?{${.3,.5,@(y24:preprocess-define-syntax)[02},${'(y13:define-syn"
-  "tax),.3a,:0,@(y21:top-defined-id-lookup)[03},.0Y2~?{${.7,.4a,'(s31:une"
-  "xpected define-syntax for id),@(y7:x-error)[03}}${:0,.4da,t,@(y5:xform"
-  ")[03},.1sz.8,.7,:1^[92}'(y14:define-library),.1q?{${f,:2,.5,.7,@(y20:x"
-  "form-define-library)[04},${'(y13:define-syntax),.3da,:2,@(y11:xenv-loo"
-  "kup)[03},.0Y2~?{${.7,.4da,'(s32:unexpected define-library for id),@(y7"
-  ":x-error)[03}}.1dda,.1sz.8,.7,:1^[92}'(y6:import),.1q?{${f,:0,.5,.7,@("
-  "y12:xform-import)[04},.0da,'0,.1V4,'1,.2V4,${'(y6:import),.3,:0[02}~?{"
-  "${.9,'(s33:broken import inside library code),@(y7:x-error)[02}}.(i10)"
-  ",.2c,.9,:1^[(i11)2}.0K0?{.6,.5,${:0,.8,.6[02}c,:1^[72}.0U0?{.6,${:0,.5"
-  ",.5,@(y16:xform-integrable)[03}c,.5,:1^[72}.6,${:0,.7,f,@(y5:xform)[03"
-  "}c,.5,:1^[72}.3,${:0,.4,f,@(y5:xform)[03}c,.2,:1^[42}.!0${n,.6,.4^[02}"
-  ",.0A9,'(y5:begin)c,${.(i13)?{.2,.(i14),'(y4:once),l3}{.2},.(i11),@(y11"
-  ":adjoin-code)[02},.4,.8,,#0.8,.1,.5,&3{%2.0u?{.1A9,:0c]2}.0aa,.1ad,${'"
-  "(y3:ref),.4,:2[02},.0~?{.2,'(s16:cannot export id),@(y7:x-error)[52}${"
-  ".2,@(y17:location-special?)[01}?{.4,.1,.3cc,.4d,:1^[52}.0z,.0p~,.0?{.0"
-  "}{'(l2:y3:ref;y5:const;),.2aA0}_1?{.5,.2,.4cc,.5d,:1^[62}.0,.4,'(s27:c"
-  "annot export code alias id),@(y7:x-error)[63}.!0.0^_1[(i16)2",
+  "rolled-environment)[03},n,${.(i13),.4,.6,@(y25:preprocess-top-forms-sc"
+  "an)[03},.2,&1{%1:0,.1,@(y28:preprocess-forms-fix-define!)[12},${.3A9,."
+  "3,@(y5:%25map1)[02},'(y5:begin)c,${.(i13)?{.2,.(i14),'(y4:once),l3}{.2"
+  "},.(i11),@(y11:adjoin-code)[02},.4,.8,,#0.8,.1,.5,&3{%2.0u?{.1A9,:0c]2"
+  "}.0aa,.1ad,${'(y3:ref),.4,:2[02},.0~?{.2,'(s16:cannot export id),@(y7:"
+  "x-error)[52}${.2,@(y17:location-special?)[01}?{.4,.1,.3cc,.4d,:1^[52}."
+  "0z,.0p~,.0?{.0}{'(l2:y3:ref;y5:const;),.2aA0}_1?{.5,.2,.4cc,.5d,:1^[62"
+  "}.0,.4,'(s27:cannot export code alias id),@(y7:x-error)[63}.!0.0^_1[(i"
+  "16)2",
 
   "P", "xform-define-library",
   "%4${.3,@(y7:list2+?)[01}?{${.3a,@(y9:listname?)[01}}{f}?{${.3a,@(y17:x"
