@@ -5,6 +5,7 @@
 
 (load "s.scm")
 
+
 ;--------------------------------------------------------------------------------------------------
 ; Utils
 ;--------------------------------------------------------------------------------------------------
@@ -157,7 +158,7 @@
 
 
 ;--------------------------------------------------------------------------------------------------
-; Syntax of the Scheme Core language
+; Syntax of the 'Scheme Core' language
 ;--------------------------------------------------------------------------------------------------
 
 ;  <core> -> (quote <object>)
@@ -229,6 +230,11 @@
 ; Macro transformer (from Scheme to Scheme Core) derived from Al Petrofsky's EIOD 1.17
 ;--------------------------------------------------------------------------------------------------
 
+; EIOD Copyright notice (amended with the author's permission): 
+; Copyright 2002, 2004, 2005 Al Petrofsky <al@petrofsky.org>
+; LICENSING (3-clause BSD or GNU GPL 2 and up)
+; <the text of the 3-clause BSD license is in the LICENSE file>
+
 ; An environment is a procedure that accepts any identifier and access type and returns a 
 ; denotation. Access type is one of these symbols: ref, set!, define, define-syntax.
 ; The denotation of an identifier is its macro location, which is a cell storing the 
@@ -292,13 +298,32 @@
   (unless peek (x-error "env peek failed!" id env (id->sym id) (and (new-id? id) (new-id-lookup id 'peek))))
   (new-id (id->sym id) peek getlits))
 
+; common code for consistency between two procedures below
+; precondition: peek part of spg is a name registry; it is replaced by location
+; containing (ref gs) value, where gs is a gensym derived from spg name part
+(define (gensym-ref-value-helper def? spg)
+  ; on top level, make sure the def? calling path should reach this procedure first!
+  (name-lookup (cadr spg) (car spg) (lambda (n) (list 'ref (if def? (gensym n) n)))))
+
 ; look up denotation of renamed identifier, trying to delay allocation up to the moment
 ; when actual location is needed -- peeks don't have to go all the way (see )
 (define (new-id-lookup id at)
   (let* ([spg (id)] [peek (cadr spg)])
     (if (or (eq? at 'peek) (location? peek))
         peek ; delay binding allocation until absolutely necessary
-        (name-lookup peek (car spg) (lambda (n) (list 'ref n))))))
+        (gensym-ref-value-helper #f spg))))
+
+; this operation should be consistent with new-id-lookup, but comes with a twist: if it is
+; called with new-id and at=define/define-syntax, (env id at) is guaranteed to fail because
+; renamed ids cannot be interned into name registries. 
+(define (top-defined-id-lookup env id at) ;=> loc | #f
+  (and (memq at '(define define-syntax))
+       (if (symbol? id) (xenv-lookup env id at)
+           (let* ([spg (id)] [peek (cadr spg)])
+             (if (location? peek) 
+                 peek ; loc is already there, use it
+                 (gensym-ref-value-helper #t spg))))))
+
 
 ; Expand-time environments map names (identifiers or listnames) to denotations, i.e. locations
 ; containing either a <special> or a <core> value. In normal case, <core> value is (ref <gid>),
@@ -374,7 +399,7 @@
                  [else                    hval]))]
         [(not (pair? sexp))
          (xform-quote (list sexp) env)]
-        [else 
+        [else ; note: these transformations are made in 'expression' context
          (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
            (case hval
              [(quote)          (xform-quote          tail env)]
@@ -508,6 +533,19 @@
         (xform-body (cdr tail) env) #f)
       (x-error "improper withcc form" (cons 'withcc tail))))
 
+(define (preprocess-define head tail) ;=> (id sexp) or (sexp) for idless
+  (cond [(and (list2? tail) (null? (car tail))) (cdr tail)] ; idless
+        [(and (list2? tail) (id? (car tail))) tail] ; simple
+        [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
+         (list (caar tail) (cons lambda-id (cons (cdar tail) (cdr tail))))]
+        ; TODO? here we can do full MIT-style define (arbitrarily nested)
+        [else (x-error "improper define form" (cons head tail))]))
+
+(define (preprocess-define-syntax head tail) ;=> (id sexp)
+  (cond [(and (list2? tail) (id? (car tail))) tail] ; simple
+        ; TODO? here we can do some fancy shortcuts or extensions
+        [else (x-error "improper define-syntax form" (cons head tail))]))
+
 (define (xform-body tail env appos?)
   (cond
     [(null? tail) 
@@ -527,24 +565,19 @@
                       (loop env ids inits nids (append tail rest))
                       (x-error "improper begin form" first))]
                  [(define) ; internal
-                  (cond [(and (list2? tail) (null? (car tail))) ; idless
-                         (let ([init (cadr tail)])
-                           (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))]
-                        [(and (list2? tail) (id? (car tail)))
-                         (let* ([id (car tail)] [init (cadr tail)]
-                                [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
-                           (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
-                        [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
-                         (let* ([id (caar tail)] [init (cons lambda-id (cons (cdar tail) (cdr tail)))]
-                                [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
-                           (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]
-                        [else (x-error "improper define form" first)])]
+                  (let ([tail (preprocess-define head tail)])
+                    (cond [(list1? tail) ; idless
+                           (let ([init (car tail)])
+                             (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))]
+                          [else ; (id sexp)
+                           (let* ([id (car tail)] [init (cadr tail)]
+                                  [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
+                             (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]))]
                  [(define-syntax) ; internal
-                  (if (and (list2? tail) (id? (car tail))) 
-                      (let* ([id (car tail)] [init (cadr tail)]
-                             [env (extend-xenv-local id '(undefined) env)]) ; placeholder val
-                        (loop env (cons id ids) (cons init inits) (cons #t nids) rest))
-                      (x-error "improper define-syntax form" first))]
+                  (let ([tail (preprocess-define-syntax head tail)])
+                    (let* ([id (car tail)] [init (cadr tail)]
+                           [env (extend-xenv-local id '(undefined) env)]) ; placeholder val
+                      (loop env (cons id ids) (cons init inits) (cons #t nids) rest)))]
                  [(define-library) ; internal
                   (if (and (list2+? tail) (listname? (car tail)))
                       ; note: library is fully expanded in incomplete env, to make it
@@ -615,8 +648,7 @@
         [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
          (list 'define (id->sym (caar tail))
            (xform-lambda (cons (cdar tail) (cdr tail)) env))] 
-        [else 
-         (x-error "improper define form" (cons 'define tail))]))
+        [else (x-error "improper define form" (cons 'define tail))]))
 
 (define (xform-define-syntax tail env) ; non-internal
   (if (and (list2? tail) (id? (car tail)))
@@ -1037,20 +1069,22 @@
                     (cond
                       [(eq? hval 'begin)
                        (unless (list? tail) (x-error "improper begin form" first))
-                       (scan (append tail rest) code*)]
-                      [(and (eq? hval 'define) (list2? tail) (null? (car tail))) ; special idless define
-                       (scan (append (cadr tail) rest) code*)]
+                       (scan (append tail rest) code*)] ; splice
                       [(eq? hval 'define)
-                       (let* ([core (xform-define tail cenv)] 
-                              [loc (xenv-lookup cenv (cadr core) 'define)])
-                         (unless (location? loc) (x-error "unexpected define for id" (cadr core) first))
-                         (scan rest (cons (list 'set! (cadr (location-val loc)) (caddr core)) code*)))] 
+                       (let ([tail (preprocess-define head tail)])
+                         (if (list1? tail) ; tail is either (sexp) or (id sexp)
+                             (scan (append tail rest) code*) ; idless, splice
+                             (let ([loc (top-defined-id-lookup cenv (car tail) 'define)])
+                               (unless (and (location? loc) (sexp-match? '(ref *) (location-val loc)))
+                                 (x-error "unexpected define for id" (car tail) first))
+                               (let ([g (cadr (location-val loc))] [core (xform #f (cadr tail) cenv)])
+                                 (scan rest (cons (list 'set! g core) code*))))))] 
                       [(eq? hval 'define-syntax)
-                       (let* ([core (xform-define-syntax tail cenv)]
-                              [loc (xenv-lookup cenv (cadr core) 'define-syntax)])
+                       (let* ([tail (preprocess-define-syntax head tail)]
+                              [loc (top-defined-id-lookup cenv (car tail) 'define-syntax)])
                          (unless (location? loc) 
-                           (x-error "unexpected define-syntax for id" (cadr core) first))
-                         (location-set-val! loc (caddr core))
+                           (x-error "unexpected define-syntax for id" (car tail) first))
+                         (location-set-val! loc (xform #t (cadr tail) cenv))
                          (scan rest code*))]
                       [(eq? hval 'define-library)
                        (let* ([core (xform-define-library head tail env #f)]
@@ -2249,28 +2283,27 @@
         (cond
           [(eq? hval 'begin) ; splice
            (let loop ([x* (cdr x)])
-             (cond [(null? x*) (void)] ; nothing valuable leaks
+             (cond [(null? x*) (void)]
                    [(not (pair? x*)) (x-error "invalid begin form:" x)]
                    [(null? (cdr x*)) (evaluate-top-form (car x*) env)] ; tail call
                    [else (evaluate-top-form (car x*) env) (loop (cdr x*))]))]
-          [(and (eq? hval 'define) (null? (cadr x))) ; special idless define
-           (evaluate-top-form (caddr x) env) (void)] ; nothing valuable leaks
           [(eq? hval 'define) ; use new protocol for top-level envs
-           (let* ([core (xform-define (cdr x) env)]
-                  [loc (xenv-lookup env (cadr core) 'define)])
-             (if (and loc (sexp-match? '(ref *) (location-val loc)))
-                 (compile-and-run-core-expr ; tail
-                   (list 'set! (cadr (location-val loc)) (caddr core)))
-                 (x-error "identifier cannot be (re)defined as variable in env:" 
-                   (cadr core) env)))]
+           (let ([tail (preprocess-define (car x) (cdr x))])
+             (if (list1? tail) ; tail is either (sexp) or (id sexp)
+                 (begin (evaluate-top-form (car tail) env) (void))
+                 (let ([loc (top-defined-id-lookup env (car tail) 'define)])
+                   (unless (and (location? loc) (sexp-match? '(ref *) (location-val loc)))
+                     (x-error "identifier cannot be (re)defined as variable" (car tail) x))
+                   (let ([g (cadr (location-val loc))] [core (xform #f (cadr tail) env)])
+                     (compile-and-run-core-expr (list 'set! g core)) (void)))))]
           [(eq? hval 'define-syntax) ; use new protocol for top-level envs
-           (let* ([core (xform-define-syntax (cdr x) env)]
-                  ; core is (define-syntax <name> <library>)
-                  [loc (xenv-lookup env (cadr core) 'define-syntax)])
+           (let* ([tail (preprocess-define-syntax (car x) (cdr x))]
+                  [loc (top-defined-id-lookup env (car tail) 'define-syntax)])
              (unless (location? loc) 
-               (x-error "unexpected define-syntax for id" (cadr core) x))
-             (location-set-val! loc (caddr core))
-             (when *verbose* (display "SYNTAX INSTALLED: ") (write (cadr core)) (newline)))]
+               (x-error "unexpected define-syntax for id" (car tail) x))
+             (location-set-val! loc (xform #t (cadr tail) env))
+             (when *verbose* (display "SYNTAX INSTALLED: ") (write (car tail)) (newline))
+             (void))]
           [(eq? hval 'define-library) ; use new protocol for top-level envs
            (let* ([core (xform-define-library (car x) (cdr x) env #t)]
                   ; core is (define-library <listname> <library>)
