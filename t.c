@@ -402,17 +402,12 @@ char *t_code[] = {
   "c,'(s19:improper begin form),@(y7:x-error)[32",
 
   "P", "xform-define",
-  "%2${.2,@(y6:list2?)[01}?{.0au}{f}?{.1,.1da,f,@(y5:xform)[23}${.2,@(y6:"
-  "list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,f,@(y5:xform)[03},${.3"
-  "a,@(y7:id->sym)[01},'(y6:define),l3]2}${.2,@(y7:list2+?)[01}?{.0ap?{${"
-  ".2aa,@(y3:id?)[01}?{${.2ad,@(y8:idslist?)[01}}{f}}{f}}{f}?{${.3,.3d,.4"
-  "adc,@(y12:xform-lambda)[02},${.3aa,@(y7:id->sym)[01},'(y6:define),l3]2"
-  "}.0,'(y6:define)c,'(s20:improper define form),@(y7:x-error)[22",
+  "%2.0,'(y6:define)c,'(s29:definition used as expression),@(y7:x-error)["
+  "22",
 
   "P", "xform-define-syntax",
-  "%2${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}}{f}?{${.3,.3da,t,@(y5:xfo"
-  "rm)[03},${.3a,@(y7:id->sym)[01},'(y13:define-syntax),l3]2}.0,'(y13:def"
-  "ine-syntax)c,'(s27:improper define-syntax form),@(y7:x-error)[22",
+  "%2.0,'(y13:define-syntax)c,'(s36:syntax definition used as expression)"
+  ",@(y7:x-error)[22",
 
   "P", "xform-syntax-quote",
   "%2${.2,@(y6:list1?)[01}?{.0a]2}.0,'(y12:syntax-quote)c,'(s26:improper "

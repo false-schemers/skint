@@ -632,28 +632,19 @@
            (location-set-val! (xenv-lookup env (car ids) 'set!) (xform #t (car inits) env))
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
+; FIXME: make sure that (begin (begin) x (begin)) == x !! (tail-rec includes hack)
 (define (xform-begin tail env appos?) ; non-internal
-  (if (list? tail) ; FIXME: make sure that (begin (begin) x (begin)) == x !! (for include)
+  (if (list? tail) 
       (if (list1? tail)
           (xform appos? (car tail) env) ; (begin x) == x
           (cons 'begin (map (lambda (sexp) (xform #f sexp env)) tail)))
       (x-error "improper begin form" (cons 'begin tail))))
 
-(define (xform-define tail env) ; non-internal
-  (cond [(and (list2? tail) (null? (car tail))) ; idless
-         (xform #f (cadr tail) env)]
-        [(and (list2? tail) (id? (car tail)))
-         (list 'define (id->sym (car tail)) 
-           (xform #f (cadr tail) env))]
-        [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
-         (list 'define (id->sym (caar tail))
-           (xform-lambda (cons (cdar tail) (cdr tail)) env))] 
-        [else (x-error "improper define form" (cons 'define tail))]))
+(define (xform-define tail env) ; actual code is spread all over
+  (x-error "definition used as expression" (cons 'define tail)))
 
-(define (xform-define-syntax tail env) ; non-internal
-  (if (and (list2? tail) (id? (car tail)))
-      (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))
-      (x-error "improper define-syntax form" (cons 'define-syntax tail))))
+(define (xform-define-syntax tail env) ; actual code is spread all over
+  (x-error "syntax definition used as expression" (cons 'define-syntax tail)))
 
 (define (xform-syntax-quote tail env)
   (if (list1? tail)
