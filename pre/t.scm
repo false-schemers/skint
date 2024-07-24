@@ -1101,7 +1101,7 @@
   (scan forms '()))
 
 ; scan returns underprocessed defines; this fn fixes that
-(define (preprocess-forms-fix-define! code cenv) ;=> core
+(define (preprocess-top-form-fix! code cenv) ;=> core
   (if (and (pair? code) (eq? (car code) 'define) (list3? code))
       (let* ([gs (cadr code)] [exp (caddr code)] [core (xform #f exp cenv)])
         (if (null? gs) core (list 'set! gs core)))
@@ -1121,7 +1121,7 @@
     (let* ([code (car icimesfs)] [ial (cadr icimesfs)] [esps (caddr icimesfs)] [forms (cadddr icimesfs)] 
            [cenv (make-controlled-environment ial make-nid env)] [eal '()]) ; m-c-e is defined below
       (let* ([code* (preprocess-top-forms-scan forms cenv env)]
-             [fix! (lambda (code) (preprocess-forms-fix-define! code cenv))] 
+             [fix! (lambda (code) (preprocess-top-form-fix! code cenv))] 
              [forms-code (cons 'begin (map fix! (reverse! code*)))] 
              [combined-code (adjoin-code code (if lid (list 'once lid forms-code) forms-code))])
         ; walk through esps, fetching locations from cenv
@@ -2341,7 +2341,15 @@
                  (write (caddr res)) (display " added\n")))
              (compile-and-run-core-expr code))]
           [(val-transformer? hval) ; apply transformer and loop
-           (evaluate-top-form (hval x env) env)] ; tail
+           ; NOTE: if transformer output is a begin, it needs to be scanned for defines 
+           ; in case some of them use generated names that need to be gensym'd via pp pass
+           (let* ([x (hval x env)] [hv (and (pair? x) (xform #t (car x) env))])
+             (if (and (eq? hv 'begin) (list2+? x))
+                 (let* ([code* (preprocess-top-forms-scan (cdr x) env env)]
+                        [fix! (lambda (code) (preprocess-top-form-fix! code env))]
+                        [code (cons 'begin (map fix! (reverse! code*)))])
+                   (compile-and-run-core-expr code)) ; tail
+                 (evaluate-top-form x env)))] ; tail
           [(val-integrable? hval) ; integrable application
            (compile-and-run-core-expr (xform-integrable hval (cdr x) env))]
           [(val-builtin? hval) ; other builtins

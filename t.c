@@ -634,7 +634,7 @@ char *t_code[] = {
   "^[72}.6,.4,n,'(y6:define),l3c,.5,:0^[72}.3,.1,n,'(y6:define),l3c,.2,:0"
   "^[42}.!0n,.2,.2^[42",
 
-  "P", "preprocess-forms-fix-define!",
+  "P", "preprocess-top-form-fix!",
   "%2.0p?{'(y6:define),.1aq?{${.2,@(y6:list3?)[01}}{f}}{f}?{.0da,.1dda,${"
   ".5,.3,f,@(y5:xform)[03},.2u?{.0]5}.0,.3,'(y4:set!),l3]5}.0]2",
 
@@ -647,14 +647,13 @@ char *t_code[] = {
   "ym)[01}}{f},.0?{.2dd}{.2d},${.6,.3,.7ac,@(y31:preprocess-library-decla"
   "rations)[02},.0a,.1da,.2dda,.3ddda,${.(i11),.(i10)^,.6,@(y27:make-cont"
   "rolled-environment)[03},n,${.(i13),.4,.6,@(y25:preprocess-top-forms-sc"
-  "an)[03},.2,&1{%1:0,.1,@(y28:preprocess-forms-fix-define!)[12},${.3A9,."
-  "3,@(y5:%25map1)[02},'(y5:begin)c,${.(i13)?{.2,.(i14),'(y4:once),l3}{.2"
-  "},.(i11),@(y11:adjoin-code)[02},.4,.8,,#0.8,.1,.5,&3{%2.0u?{.1A9,:0c]2"
-  "}.0aa,.1ad,${'(y3:ref),.4,:2[02},.0~?{.2,'(s16:cannot export id),@(y7:"
-  "x-error)[52}${.2,@(y17:location-special?)[01}?{.4,.1,.3cc,.4d,:1^[52}."
-  "0z,.0p~,.0?{.0}{'(l2:y3:ref;y5:const;),.2aA0}_1?{.5,.2,.4cc,.5d,:1^[62"
-  "}.0,.4,'(s27:cannot export code alias id),@(y7:x-error)[63}.!0.0^_1[(i"
-  "16)2",
+  "an)[03},.2,&1{%1:0,.1,@(y24:preprocess-top-form-fix!)[12},${.3A9,.3,@("
+  "y5:%25map1)[02},'(y5:begin)c,${.(i13)?{.2,.(i14),'(y4:once),l3}{.2},.("
+  "i11),@(y11:adjoin-code)[02},.4,.8,,#0.8,.1,.5,&3{%2.0u?{.1A9,:0c]2}.0a"
+  "a,.1ad,${'(y3:ref),.4,:2[02},.0~?{.2,'(s16:cannot export id),@(y7:x-er"
+  "ror)[52}${.2,@(y17:location-special?)[01}?{.4,.1,.3cc,.4d,:1^[52}.0z,."
+  "0p~,.0?{.0}{'(l2:y3:ref;y5:const;),.2aA0}_1?{.5,.2,.4cc,.5d,:1^[62}.0,"
+  ".4,'(s27:cannot export code alias id),@(y7:x-error)[63}.!0.0^_1[(i16)2",
 
   "P", "xform-define-library",
   "%4${.3,@(y7:list2+?)[01}?{${.3a,@(y9:listname?)[01}}{f}?{${.3a,@(y17:x"
@@ -1474,11 +1473,15 @@ char *t_code[] = {
   "?)[02}}{f}?{@(y9:*verbose*)?{Po,'(s8:IMPORT: )W4}{Po,'(s10:; import: )"
   "W4}Po,.1aW5Po,'(s24: bindings are the same, )W4Po,.1daW5Po,'(s11: modi"
   "fied, )W4Po,.1ddaW5Po,'(s7: added%0a)W4}_1.1,@(y25:compile-and-run-cor"
-  "e-expr)[71}.0K0?{.2,${.5,.5,.5[02},@(y17:evaluate-top-form)[32}.0U0?{$"
-  "{.4,.4d,.4,@(y16:xform-integrable)[03},@(y25:compile-and-run-core-expr"
-  ")[31}.0Y0?{${.4,.4,f,@(y5:xform)[03},@(y25:compile-and-run-core-expr)["
-  "31}${.4,.4d,.4,@(y10:xform-call)[03},@(y25:compile-and-run-core-expr)["
-  "31}${.3,.3,f,@(y5:xform)[03},@(y25:compile-and-run-core-expr)[21",
+  "e-expr)[71}.0K0?{${.4,.4,.4[02},.0p?{${.5,.3a,t,@(y5:xform)[03}}{f},'("
+  "y5:begin),.1q?{${.3,@(y7:list2+?)[01}}{f}?{${.6,.7,.5d,@(y25:preproces"
+  "s-top-forms-scan)[03},.5,&1{%1:0,.1,@(y24:preprocess-top-form-fix!)[12"
+  "},${.3A9,.3,@(y5:%25map1)[02},'(y5:begin)c,.0,@(y25:compile-and-run-co"
+  "re-expr)[81}.4,.2,@(y17:evaluate-top-form)[52}.0U0?{${.4,.4d,.4,@(y16:"
+  "xform-integrable)[03},@(y25:compile-and-run-core-expr)[31}.0Y0?{${.4,."
+  "4,f,@(y5:xform)[03},@(y25:compile-and-run-core-expr)[31}${.4,.4d,.4,@("
+  "y10:xform-call)[03},@(y25:compile-and-run-core-expr)[31}${.3,.3,f,@(y5"
+  ":xform)[03},@(y25:compile-and-run-core-expr)[21",
 
   "P", "eval",
   "%!1,#0.1p?{.1a}{${@(y23:interaction-environment)[00}}.!0.0^,.3,@(y17:e"
