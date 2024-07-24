@@ -2571,16 +2571,17 @@
 ;--------------------------------------------------------------------------------------------------
 
 (define *skint-options*
- '([verbose        "-v" "--verbose" #f           "Increase output verbosity"]
-   [quiet          "-q" "--quiet" #f             "Suppress nonessential messages"]
-   [append-libdir  "-A" "--append-libdir" "DIR"  "Append a library search directory"] 
-   [prepend-libdir "-I" "--prepend-libdir" "DIR" "Prepend a library search directory"] 
-   [eval           "-e" "--eval" "SEXP"          "Evaluate and print an expression"] 
-   [script         "-s" "--script" "FILE"        "Run file as a Scheme script"]
-   [program        "-p" "--program" "FILE"       "Run file as a Scheme program"]
+ '([verbose        "-v" "--verbose" #f            "Increase output verbosity"]
+   [quiet          "-q" "--quiet" #f              "Suppress nonessential messages"]
+   [append-libdir  "-A" "--append-libdir" "DIR"   "Append a library search directory"] 
+   [prepend-libdir "-I" "--prepend-libdir" "DIR"  "Prepend a library search directory"] 
+   [define-feature "-D" "--define-feature" "NAME" "Add name to the list of features"] 
+   [eval           "-e" "--eval" "SEXP"           "Evaluate and print an expression"] 
+   [script         "-s" "--script" "FILE"         "Run file as a Scheme script"]
+   [program        "-p" "--program" "FILE"        "Run file as a Scheme program"]
    ;[benchmark       #f  "--benchmark" "FILE"     "Run .sf benchmark file (internal)"]
-   [version        "-V" "--version" #f           "Display version info"]
-   [help           "-h" "--help" #f              "Display this help"]
+   [version        "-V" "--version" #f            "Display version info"]
+   [help           "-h" "--help" #f               "Display this help"]
 ))
 
 (define *skint-version* "0.3.9")
@@ -2591,6 +2592,8 @@
     (let ([obj (read-from-string str)])
       (for-each (lambda (val) (when print? (write val) (newline)))
         (call-with-values (lambda () (eval obj)) list))))
+  (define (add-feature! f)
+    (features (set-cons (string->symbol f) (features))))
   (define (print-version!)
     (format #t "(version ~s)~%(scheme.id skint)~%" *skint-version*))
   (define (print-help!)
@@ -2612,6 +2615,7 @@
           [(quiet) (set! *quiet* #t) (loop restargs #t)]
           [(append-libdir *) (append-library-path! optarg) (loop restargs #t)]
           [(prepend-libdir *) (prepend-library-path! optarg) (loop restargs #t)]
+          [(define-feature *) (add-feature! optarg) (loop restargs #t)]
           [(eval *) (eval! optarg #t) (loop restargs #f)]
           [(script *) (set! *quiet* #t) (exit (run-script optarg restargs))]
           [(program *) (set! *quiet* #t) (exit (run-program optarg restargs))]
