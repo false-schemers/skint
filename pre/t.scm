@@ -142,6 +142,7 @@
 (define (list2? x) (and (pair? x) (list1? (cdr x))))
 (define (list2+? x) (and (pair? x) (list1+? (cdr x))))
 (define (list3? x) (and (pair? x) (list2? (cdr x))))
+(define (list3+? x) (and (pair? x) (list2+? (cdr x))))
 
 (define (read-code-sexp port)
   ; for now, we will just use read with no support for circular structures
@@ -371,8 +372,9 @@
 (define syntax-quote-id  (new-id 'syntax-quote  (make-location 'syntax-quote) #f))
 
 ; standard way of comparing identifiers used as keywords and such; details below
-(define (free-id=? id1 env1 id2 env2)
-  (let ([p1 (env1 id1 'peek)] [p2 (env2 id2 'peek)])
+(define (free-id=? id1 env1 id2 . ?env2)
+  (let* ([p1 (env1 id1 'peek)] [nr *root-name-registry*]
+         [p2 (if (pair? ?env2) ((car ?env2) id2 'peek) (or (name-lookup nr id2 #f) nr))])
     (and p1 p2 ; both envs should be supported by name registries
       (if (and (name-registry? p1) (name-registry? p2))
           (and (eq? p1 p2) (eq? id1 id2)) ; would end w/same loc if alloced
@@ -695,6 +697,17 @@
         (apply x-error args)
         (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
 
+; named pattern/template escapes 
+
+(define (pattern-escape->test x named-escape?)
+  (cond [(named-escape? x 'number?)        (lambda (sexp env) (number? sexp))]
+        [(named-escape? x 'exact-integer?) (lambda (sexp env) (exact-integer? sexp))]
+        [(named-escape? x 'boolean?)       (lambda (sexp env) (boolean? sexp))]
+        [(named-escape? x 'char?)          (lambda (sexp env) (char? sexp))]
+        [(named-escape? x 'string?)        (lambda (sexp env) (string? sexp))]
+        [(named-escape? x 'bytevector?)    (lambda (sexp env) (bytevector? sexp))]
+        [(named-escape? x 'id?)            (lambda (sexp env) (id? sexp))]
+        [else #f]))
 
 ; make transformer procedure from the rules
 
@@ -723,6 +736,10 @@
   (define (underscore? x)
     (and (id? x) (eq? (mac-env x 'peek) underscore-den)))
 
+  ; lazier variant for named escapes
+  (define (named-escape? x sym)
+    (and (id? x) (free-id=? x mac-env sym)))    
+
   ; List-ids returns a list of the non-ellipsis ids in a pattern or template for which 
   ; (pred? id) is true.  If include-scalars is false, we only include ids that are
   ; within the scope of at least one ellipsis.
@@ -731,6 +748,8 @@
       (cond [(id? x) (if (and inc (pred? x)) (cons x l) l)]
             [(vector? x) (collect (vector->list x) inc l)]
             [(box? x) (collect (unbox x) inc l)]
+            [(and (list3+? x) (ellipsis? (car x)))
+             (collect (cddr x) inc l)] ; args of escape
             [(pair? x)
              (if (ellipsis-pair? (cdr x))
                  (collect (car x) #t (collect (cddr x) inc l))
@@ -747,26 +766,31 @@
 
   ; Returns #f or an alist mapping each pattern var to a part of the input. Ellipsis vars
   ; are mapped to lists of parts (or lists of lists ...). There is no mapping for underscore
-  (define (match-pattern pat use use-env)
+  (define (match-pattern mac-pat use use-env)
     (call-with-current-continuation
       (lambda (return)
         (define (fail) (return #f))
-        (let match ([pat pat] [sexp use] [bindings '()])
+        (let match ([pat mac-pat] [sexp use] [bindings '()] [esc? #f])
           (define (continue-if condition)
             (if condition bindings (fail)))
           (cond
-            [(underscore? pat) bindings]
+            [(and (not esc?) (underscore? pat)) bindings]
             [(id? pat)
              (if (pat-literal? pat)
                  (continue-if (and (id? sexp) (free-id=? sexp use-env pat mac-env)))
                  (cons (cons pat sexp) bindings))]
             [(vector? pat) (or (vector? sexp) (fail))
-             (match (vector->list pat) (vector->list sexp) bindings)]
+             (match (vector->list pat) (vector->list sexp) bindings esc?)]
             [(box? pat) (or (box? sexp) (fail))
-             (match (unbox pat) (unbox sexp) bindings)]
+             (match (unbox pat) (unbox sexp) bindings esc?)]
             [(not (pair? pat))
              (continue-if (equal? pat sexp))]
-            [(ellipsis-pair? (cdr pat))
+            [(and (not esc?) (ellipsis? (car pat)) (list2? pat))
+             (match (cadr pat) sexp bindings #t)] 
+            [(and (not esc?) (ellipsis? (car pat)) (list3? pat) (pattern-escape->test (cadr pat) named-escape?)) 
+             => (lambda (test) (if (test sexp use-env) (match (caddr pat) sexp bindings esc?) (fail)))]
+            [(and (not esc?) (ellipsis? (car pat))) (fail)]
+            [(and (not esc?) (ellipsis-pair? (cdr pat)))
              (let* ([tail-len (proper-head-length (cddr pat) #t)] 
                     [sexp-len (proper-head-length sexp #f)]
                     [seq-len (fx- sexp-len tail-len)]
@@ -774,13 +798,13 @@
                     [seq (list-head sexp seq-len)]
                     [vars (list-ids (car pat) #t not-pat-literal?)])
                (define (match1 sexp)
-                 (map cdr (match (car pat) sexp '())))
+                 (map cdr (match (car pat) sexp '() esc?)))
                (append
                  (apply map (cons list (cons vars (map match1 seq))))
-                 (match (cddr pat) sexp-tail bindings)))]
+                 (match (cddr pat) sexp-tail bindings esc?)))]
             [(pair? sexp)
              (match (car pat) (car sexp)
-               (match (cdr pat) (cdr sexp) bindings))]
+               (match (cdr pat) (cdr sexp) bindings esc?) esc?)]
             [else (fail)])))))
 
   (define (expand-template pat tmpl top-bindings)
