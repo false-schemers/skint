@@ -1027,7 +1027,7 @@
 ; (bytevector-length b)
 ; (bytevector-u8-ref b i)
 ; (bytevector-u8-set! b i u8)
-; (list->bytevector l)
+; (list->bytevector l) +
 ; (subbytevector b from to) +
 ; (bytevector=? b1 b2 b ...)
 

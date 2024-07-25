@@ -64,7 +64,9 @@
       (and (eq? pat '<number>) (number? x))
       (and (eq? pat '<string>) (string? x))
       (and (eq? pat '<vector>) (vector? x))
-      (and (eq? pat '<box>) (box? x))
+      (and (eq? pat '<bytevector>) (bytevector? x))
+      (and (eq? pat '<char>) (char? x))
+      (and (eq? pat '<byte>) (and (exact-integer? x) (<= 0 x 255)))
       (eqv? x pat)
       (and (pair? pat)
            (cond [(and (eq? (car pat) '...)
@@ -372,9 +374,8 @@
 (define syntax-quote-id  (new-id 'syntax-quote  (make-location 'syntax-quote) #f))
 
 ; standard way of comparing identifiers used as keywords and such; details below
-(define (free-id=? id1 env1 id2 . ?env2)
-  (let* ([p1 (env1 id1 'peek)] [nr *root-name-registry*]
-         [p2 (if (pair? ?env2) ((car ?env2) id2 'peek) (or (name-lookup nr id2 #f) nr))])
+(define (free-id=? id1 env1 id2 env2)
+  (let ([p1 (env1 id1 'peek)] [p2 (env2 id2 'peek)])
     (and p1 p2 ; both envs should be supported by name registries
       (if (and (name-registry? p1) (name-registry? p2))
           (and (eq? p1 p2) (eq? id1 id2)) ; would end w/same loc if alloced
@@ -411,8 +412,8 @@
              [(withcc)         (xform-withcc         tail env)]
              [(body)           (xform-body           tail env appos?)]
              [(begin)          (xform-begin          tail env appos?)]
-             [(define)         (xform-define         tail env)]
-             [(define-syntax)  (xform-define-syntax  tail env)]
+             [(define)         (xform-define         tail env)] ; as expression: will fail later
+             [(define-syntax)  (xform-define-syntax  tail env)] ; as expression: will fail later
              [(syntax-quote)   (xform-syntax-quote   tail env)]
              [(syntax-lambda)  (xform-syntax-lambda  tail env appos?)]
              [(syntax-rules)   (xform-syntax-rules   tail env)]
@@ -639,23 +640,18 @@
           (cons 'begin (map (lambda (sexp) (xform #f sexp env)) tail)))
       (x-error "improper begin form" (cons 'begin tail))))
 
-; used in simplistic transformer in scm2c.ssc only!
-(define (xform-define tail env) 
-  (cond [(and (list2? tail) (null? (car tail))) ; idless
-         (xform #f (cadr tail) env)]
-        [(and (list2? tail) (id? (car tail)))
-         (list 'define (id->sym (car tail)) 
-           (xform #f (cadr tail) env))]
-        [(and (list2+? tail) (pair? (car tail)) (id? (caar tail)) (idslist? (cdar tail)))
-         (list 'define (id->sym (caar tail))
-           (xform-lambda (cons (cdar tail) (cdr tail)) env))] 
-        [else (x-error "improper define form" (cons 'define tail))]))
+; not for general use: used in scm2c.ssc simplistic transformer only!
+(define (xform-define tail env)
+  (let ([tail (preprocess-define 'define tail)])
+    (if (list1? tail) ; idless
+        (xform #f (cadr tail) env)
+        (list 'define (id->sym (car tail)) 
+          (xform #f (cadr tail) env)))))
 
-; used in simplistic transformer in scm2c.ssc only!
-(define (xform-define-syntax tail env) ; non-internal
-  (if (and (list2? tail) (id? (car tail)))
-      (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))
-      (x-error "improper define-syntax form" (cons 'define-syntax tail))))
+; not for general use: used in scm2c.ssc simplistic transformer only!
+(define (xform-define-syntax tail env)
+  (let ([tail (preprocess-define-syntax 'define-syntax tail)])
+    (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))))
 
 (define (xform-syntax-quote tail env)
   (if (list1? tail)
@@ -697,17 +693,78 @@
         (apply x-error args)
         (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
 
-; named pattern/template escapes 
+; named pattern/template escapes (syntax-rules extension)
 
-(define (pattern-escape->test x named-escape?)
-  (cond [(named-escape? x 'number?)        (lambda (sexp env) (number? sexp))]
-        [(named-escape? x 'exact-integer?) (lambda (sexp env) (exact-integer? sexp))]
-        [(named-escape? x 'boolean?)       (lambda (sexp env) (boolean? sexp))]
-        [(named-escape? x 'char?)          (lambda (sexp env) (char? sexp))]
-        [(named-escape? x 'string?)        (lambda (sexp env) (string? sexp))]
-        [(named-escape? x 'bytevector?)    (lambda (sexp env) (bytevector? sexp))]
-        [(named-escape? x 'id?)            (lambda (sexp env) (id? sexp))]
-        [else #f]))
+(define (pattern-escape->test x id-escape=?)
+  (cond 
+    [(id-escape=? x 'number?)        
+     number?]
+    [(id-escape=? x 'exact-integer?) 
+     exact-integer?]
+    [(id-escape=? x 'boolean?)       
+     boolean?]
+    [(id-escape=? x 'char?)          
+     char? sexp]
+    [(id-escape=? x 'string?)        
+     string?]
+    [(id-escape=? x 'bytevector?)    
+     bytevector?]
+    [(id-escape=? x 'id?)            
+     id?]
+    [else #f]))
+
+(define (template-escape->conv x id-escape=?)
+  (cond 
+    [(id-escape=? x 'number->string)
+     (lambda (sexps) (check-syntax sexps '(<number>) "invalid number->string template args")
+       (number->string (car sexps)))]
+    [(id-escape=? x 'string->number)
+     (lambda (sexps) (check-syntax sexps '(<string>) "invalid string->number template args")
+       (string->number (car sexps)))]
+    [(id-escape=? x 'list->string)
+     (lambda (sexps) (check-syntax sexps '((<char> ...)) "invalid list->string template args")
+       (list->string (car sexps)))]
+    [(id-escape=? x 'string->list)
+     (lambda (sexps) (check-syntax sexps '(<string>) "invalid string->list template args")
+       (string->list (car sexps)))]
+    [(id-escape=? x 'list->bytevector)
+     (lambda (sexps) (check-syntax sexps '((<byte> ...)) "invalid list->bytevector template args")
+       (list->bytevector (car sexps)))]
+    [(id-escape=? x 'bytevector->list)
+     (lambda (sexps) (check-syntax sexps '(<bytevector>) "invalid bytevector->list template args")
+       (bytevector->list (car sexps)))]
+    [(id-escape=? x 'length)
+     (lambda (sexps) (check-syntax sexps '((* ...)) "invalid length template args")
+       (length (car sexps)))]
+    [(id-escape=? x 'make-list)
+     (lambda (sexps) (check-syntax sexps '(<number> *) "invalid make-list template args")
+       (make-list (car sexps) (cadr sexps)))]
+    [(id-escape=? x 'string-append)
+     (lambda (sexps) (check-syntax sexps '(<string> ...) "invalid string-append template args")
+       (apply string-append sexps))]
+    [(id-escape=? x 'char<=?)
+     (lambda (sexps) (check-syntax sexps '(<char> ...) "invalid char<=? template args")
+       (apply < sexps))]
+    [(id-escape=? x '<=)
+     (lambda (sexps) (check-syntax sexps '(<number> ...) "invalid <= template args")
+       (apply < sexps))]
+    [(id-escape=? x '+)
+     (lambda (sexps) (check-syntax sexps '(<number> ...) "invalid + template args")
+       (apply + sexps))]
+    [(id-escape=? x '-)
+     (lambda (sexps) (check-syntax sexps '(<number> ...) "invalid - template args")
+       (apply - sexps))]
+    [(id-escape=? x 'id->string)
+     (lambda (sexps) (check-syntax sexps '(<id>) "invalid id->string template args")
+       (symbol->string (id->sym (car sexps))))]
+    [(id-escape=? x 'string->id)
+     (lambda (sexps) 
+       (sexp-case sexps
+         [(<string>) (id-rename-as x (string->symbol (car sexps)))]
+         [(<string> <id>) (id-rename-as (cadr sexps) (string->symbol (car sexps)))]
+         [else (x-error "invalid string->id template args")]))]
+    [else #f]))
+  
 
 ; make transformer procedure from the rules
 
@@ -736,9 +793,11 @@
   (define (underscore? x)
     (and (id? x) (eq? (mac-env x 'peek) underscore-den)))
 
-  ; lazier variant for named escapes
-  (define (named-escape? x sym)
-    (and (id? x) (free-id=? x mac-env sym)))    
+  ; slow version of the above for escape keywords
+  (define (id-escape=? x s)  
+    (and (id? x) 
+         (eq? (mac-env x 'peek) 
+              (name-lookup *root-name-registry* s (lambda (n) (list 'ref s))))))
 
   ; List-ids returns a list of the non-ellipsis ids in a pattern or template for which 
   ; (pred? id) is true.  If include-scalars is false, we only include ids that are
@@ -787,9 +846,10 @@
              (continue-if (equal? pat sexp))]
             [(and (not esc?) (ellipsis? (car pat)) (list2? pat))
              (match (cadr pat) sexp bindings #t)] 
-            [(and (not esc?) (ellipsis? (car pat)) (list3? pat) (pattern-escape->test (cadr pat) named-escape?)) 
-             => (lambda (test) (if (test sexp use-env) (match (caddr pat) sexp bindings esc?) (fail)))]
-            [(and (not esc?) (ellipsis? (car pat))) (fail)]
+            [(and (not esc?) (ellipsis? (car pat)) (list3? pat)
+                  (pattern-escape->test (cadr pat) id-escape=?)) => 
+             (lambda (test) (if (test sexp) (match (caddr pat) sexp bindings esc?) (fail)))]
+            [(and (not esc?) (ellipsis? (car pat))) (x-error "unrecognized pattern escape" pat)]
             [(and (not esc?) (ellipsis-pair? (cdr pat)))
              (let* ([tail-len (proper-head-length (cddr pat) #t)] 
                     [sexp-len (proper-head-length sexp #f)]
@@ -807,7 +867,7 @@
                (match (cdr pat) (cdr sexp) bindings esc?) esc?)]
             [else (fail)])))))
 
-  (define (expand-template pat tmpl top-bindings)
+  (define (expand-template pat tmpl top-bindings use-env)
     ; New-literals is an alist mapping each literal id in the
     ; template to a fresh id for inserting into the output.  It
     ; might have duplicate entries mapping an id to two different
@@ -837,10 +897,16 @@
            (list->vector (expand-part (vector->list tmpl) esc?))]
           [(box? tmpl)
            (box (expand-part (unbox tmpl) esc?))]
-          [(and (not esc?) (pair? tmpl) (ellipsis? (car tmpl))) ; r7rs
-           (if (pair? (cdr tmpl)) (expand-part (cadr tmpl) #t)
-               (x-error "invalid escaped template syntax" tmpl))]
-          [(and (not esc?) (pair? tmpl) (ellipsis-pair? (cdr tmpl)))
+          [(not (pair? tmpl))
+           tmpl]
+          [(and (not esc?) (ellipsis? (car tmpl)) (list3+? tmpl) 
+                (template-escape->conv (cadr tmpl) id-escape=?)) => 
+           (lambda (conv) (conv (expand-part (cddr tmpl) esc?)))]
+          [(and (not esc?) (ellipsis? (car tmpl)) (list2? tmpl))
+           (expand-part (cadr tmpl) #t)] 
+          [(and (not esc?) (ellipsis? (car tmpl))) 
+           (x-error "unrecognized template escape" tmpl)]
+          [(and (not esc?) (ellipsis-pair? (cdr tmpl)))
            (let ([vars-to-iterate (list-ellipsis-vars (car tmpl))])
              (define (lookup var)
                (cdr (assq var bindings)))
@@ -854,16 +920,15 @@
                  (let ([val-lists (map lookup vars-to-iterate)]
                        [euv (lambda v* (apply expand-using-vals esc? v*))])
                    (append (apply map (cons euv val-lists)) (expand-part (cddr tmpl) esc?)))))]
-          [(pair? tmpl)
-           (cons (expand-part (car tmpl) esc?) (expand-part (cdr tmpl) esc?))]
-          [else tmpl]))))
+          [else ; regular pair
+           (cons (expand-part (car tmpl) esc?) (expand-part (cdr tmpl) esc?))]))))
 
   (lambda (use use-env)
     (let loop ([rules rules])
       (if (null? rules) (x-error "invalid syntax" use))
       (let* ([rule (car rules)] [pat (car rule)] [tmpl (cadr rule)])
         (cond [(match-pattern pat use use-env) =>
-               (lambda (bindings) (expand-template pat tmpl bindings))]
+               (lambda (bindings) (expand-template pat tmpl bindings use-env))]
               [else (loop (cdr rules))])))))
 
 
