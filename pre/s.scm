@@ -739,6 +739,12 @@
 ; (string->symbol s)
 ; (symbol=? x y z ...)
 
+(define (string-ci->symbol s) ; + for r5rs environment
+  (string->symbol (string-foldcase s)))
+
+(define (symbol-append . syms) ; +
+  (string->symbol (apply-to-list %string-append (%map1 symbol->string syms))))
+
 
 ;---------------------------------------------------------------------------------------------
 ; Characters
@@ -1587,10 +1593,10 @@
     [(k) (read-subbytevector k (current-input-port))]
     [(k p) (read-subbytevector k p)]))
 
-(define (%read port simple?)
+(define (%read port simple? ci?)
   (define-syntax r-error
     (syntax-rules () [(_ p msg a ...) (read-error msg a ... 'port: p)]))
-  (define fold-case? (port-fold-case? port))
+  (define fold-case? (or ci? (port-fold-case? port)))
   (define shared '())
   (define (make-shared-ref loc) (lambda () (unbox loc)))
   (define (shared-ref? form) (procedure? form))
@@ -1936,13 +1942,19 @@
 
 (define read
   (case-lambda
-    [() (%read (current-input-port) #f)]
-    [(p) (%read p #f)]))
+    [() (%read (current-input-port) #f #f)]
+    [(p) (%read p #f #f)]))
 
 (define read-simple
   (case-lambda
-    [() (%read (current-input-port) #t)]
-    [(p) (%read p #t)]))
+    [() (%read (current-input-port) #t #f)]
+    [(p) (%read p #t #f)]))
+
+(define read-simple-ci ; + r5rs compatibility
+  (case-lambda
+    [() (%read (current-input-port) #t #t)]
+    [(p) (%read p #t #t)]))
+
 
 
 ;---------------------------------------------------------------------------------------------

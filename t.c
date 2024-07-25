@@ -59,10 +59,6 @@ char *t_code[] = {
   "quote;y3:pat;;y3:key;;l4:y5:begin;y7:result1;y7:result2;y3:...;;l5:y9:"
   "sexp-case;y3:key;y6:clause;y7:clauses;y3:...;;;;",
 
-  "P", "symbol-append",
-  "%!0${${.4,@(y14:symbol->string),@(y5:%25map1)[02},@(y14:%25string-appe"
-  "nd),@(y13:apply-to-list)[02}X5]1",
-
   "C", 0,
   "'0,#0.0,&1{%!0'1,:0^I+:!0.0u,.0?{.0}{.1aY0~}_1?{'(i10),:0^X6,'(s1:#)S6"
   "X5]1}'(i10),:0^X6,'(s1:#)S6,.1aX4S6X5]1}_1@!(y6:gensym)",
@@ -1401,6 +1397,18 @@ char *t_code[] = {
 
   "P", "empty-environment",
   "%2.0K0?{.1,.1,@(y13:new-id-lookup)[22}f]2",
+
+  "C", 0,
+  "'1,${@(y16:root-environment),'(l2:y5:skint;y6:hidden;),@(y19:find-libr"
+  "ary-in-env)[02}V4,'(y17:string-ci->symbol)A3,'1,${@(y16:root-environme"
+  "nt),'(l2:y6:scheme;y4:r5rs;),@(y19:find-library-in-env)[02}V4,'(y14:st"
+  "ring->symbol)A3,.0p?{.1p}{f}?{.1d,.1sd}_2",
+
+  "C", 0,
+  "'1,${@(y16:root-environment),'(l2:y5:skint;y6:hidden;),@(y19:find-libr"
+  "ary-in-env)[02}V4,'(y14:read-simple-ci)A3,'1,${@(y16:root-environment)"
+  ",'(l2:y6:scheme;y4:r5rs;),@(y19:find-library-in-env)[02}V4,'(y4:read)A"
+  "3,.0p?{.1p}{f}?{.1d,.1sd}_2",
 
   "P", "make-historic-report-environment",
   "%2${f,.3,@(y20:*root-name-registry*),@(y11:name-lookup)[03},.0?{.0z}{f"
