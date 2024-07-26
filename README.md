@@ -1,3 +1,5 @@
+![](https://raw.githubusercontent.com/false-schemers/skint/master/misc/skint-298x128.png)
+
 # SKINT - Cheap and fast R7RS Scheme Interpreter
                          
 SKINT is a portable interpreter for the R7RS Scheme programming language. 
