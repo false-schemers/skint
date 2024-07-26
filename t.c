@@ -268,14 +268,13 @@ char *t_code[] = {
   "@(y18:xpand-syntax-rules)[72}'(y13:syntax-length),.1v?{.6,.3,@(y19:xpa"
   "nd-syntax-length)[72}'(y12:syntax-error),.1v?{.6,.3,@(y18:xpand-syntax"
   "-error)[72}'(y14:define-library),.1v?{f,.7,.4,.6,@(y20:xpand-define-li"
-  "brary)[74}'(y6:import),.1v?{f,.7,.4,.6,@(y12:xpand-import)[74}'(l2:y6:"
-  "export;y7:program;),.1A1?{.5,.2,'(s26:FIXME: not yet implemented),@(y7"
-  ":x-error)[73}'(l2:y3:...;y1:_;),.1A1?{.5,.2,'(s32:improper use of auxi"
-  "liary syntax),@(y7:x-error)[73}.1U0?{.6,.3,.3,@(y16:xpand-integrable)["
-  "73}.1K0?{.6,${.9,.9,.6[02},.6,@(y5:xpand)[73}.1V0?{.5,.2,'(s23:imprope"
-  "r use of library),@(y7:x-error)[73}.1Y8?{.5,.2,'(s24:use of uninitiali"
-  "zed val),@(y7:x-error)[73}.1p~?{.1,'(s27:improper use of syntax form),"
-  "@(y7:x-error)[72}.6,.3,.3,@(y10:xpand-call)[73",
+  "brary)[74}'(y6:import),.1v?{f,.7,.4,.6,@(y12:xpand-import)[74}'(l2:y3:"
+  "...;y1:_;),.1A1?{.5,.2,'(s32:improper use of auxiliary syntax),@(y7:x-"
+  "error)[73}.1U0?{.6,.3,.3,@(y16:xpand-integrable)[73}.1K0?{.6,${.9,.9,."
+  "6[02},.6,@(y5:xpand)[73}.1V0?{.5,.2,'(s23:improper use of library),@(y"
+  "7:x-error)[73}.1Y8?{.5,.2,'(s24:use of uninitialized val),@(y7:x-error"
+  ")[73}.1p~?{.1,'(s27:improper use of syntax form),@(y7:x-error)[72}.6,."
+  "3,.3,@(y10:xpand-call)[73",
 
   "P", "xpand-quote",
   "%2${.2,@(y6:list1?)[01}?{${.2a,@(y17:xpand-sexp->datum)[01},'(y5:quote"
