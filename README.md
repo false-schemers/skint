@@ -1,4 +1,4 @@
-![](https://raw.githubusercontent.com/false-schemers/skint/master/misc/skint-298x128.png)
+![](https://raw.githubusercontent.com/false-schemers/skint/master/misc/skint-252x100.png)
 
 # SKINT - Cheap and fast R7RS Scheme Interpreter
                          
