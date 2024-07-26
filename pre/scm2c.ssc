@@ -4,7 +4,7 @@
 
 (import (only (skint hidden) 
   list2? list3? location-set-val! root-environment
-  xform write-serialized-sexp compile-to-string
+  xpand write-serialized-sexp compile-to-string
   make-location syntax-rules* new-id? new-id-lookup 
   lookup-integrable write-serialized-sexp compile-to-string
   path-strip-extension path-strip-directory
@@ -61,7 +61,7 @@
   (location-set-val! (top-transformer-env s 'ref) t))
 
 (define (transform appos? sexp . ?env)
-  (xform appos? sexp (if (null? ?env) top-transformer-env (car ?env))))
+  (xpand appos? sexp (if (null? ?env) top-transformer-env (car ?env))))
 
 (define *hide-refs* '())
 

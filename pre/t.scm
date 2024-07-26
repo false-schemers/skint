@@ -187,7 +187,7 @@
 ;  <core> -> (define-library <listname> <library>) where <library> is a vector (see below)
 ;  <core> -> (import <library>)
 
-;  These names are bound to specials never returned by xform:
+;  These names are bound to specials never returned by xpand:
 
 ;  (syntax-quote <value>)
 ;  (body <expr or def> ...)
@@ -349,11 +349,11 @@
 
 (define (xenv-lookup env id at)
   (or (env id at)
-      (error* "transformer: invalid identifier access" (list id (xform-sexp->datum id) at))))
+      (error* "transformer: invalid identifier access" (list id (xpand-sexp->datum id) at))))
 
 (define (xenv-ref env id) (xenv-lookup env id 'ref))
 
-(define (xform-sexp->datum sexp)
+(define (xpand-sexp->datum sexp)
   (let conv ([sexp sexp])
     (cond [(id? sexp) (id->sym sexp)]
           [(pair? sexp) (cons (conv (car sexp)) (conv (cdr sexp)))]
@@ -381,66 +381,65 @@
           (and (eq? p1 p2) (eq? id1 id2)) ; would end w/same loc if alloced
           (eq? p1 p2))))) ; nrs and locs are distinct, so this means "same loc" 
 
-; xform receives Scheme s-expressions and returns either Core Scheme <core> form
+; xpand receives Scheme s-expressions and returns either Core Scheme <core> form
 ; (always a pair) or so-called 'special', which is either a builtin (a symbol), a
 ; a transformer (a procedure), or an integrable (an integer). Appos? flag is true 
-; when the context allows xform to return a special; otherwise, only <core> can 
+; when the context allows xpand to return a special; otherwise, only <core> can 
 ; be returned. 
 
-(define (xform appos? sexp env)
+(define (xpand appos? sexp env)
   (cond [(id? sexp) 
-         (let ([hval (xform-ref sexp env)])
+         (let ([hval (xpand-ref sexp env)])
            (cond [appos?                  hval] ; anything goes in app position
                  [(val-integrable? hval)  (list 'const (integrable-global hval))]
-                 [(val-transformer? hval) (xform appos? (hval sexp env) env)] ; id-syntax
+                 [(val-transformer? hval) (xpand appos? (hval sexp env) env)] ; id-syntax
                  [(val-library? hval)     (x-error "improper use of library" hval sexp)]
                  [(val-void? hval)        (x-error "id has no value" hval sexp (id->sym sexp))]
                  [(not (val-core? hval))  (x-error "improper use of syntax form" hval)]
                  [else                    hval]))]
         [(not (pair? sexp))
-         (xform-quote (list sexp) env)]
+         (xpand-quote (list sexp) env)]
         [else ; note: these transformations are made in 'expression' context
-         (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xform #t head env)])
+         (let* ([head (car sexp)] [tail (cdr sexp)] [hval (xpand #t head env)])
            (case hval
-             [(quote)          (xform-quote          tail env)]
-             [(set!)           (xform-set!           tail env)]
-             [(set&)           (xform-set&           tail env)]
-             [(if)             (xform-if             tail env)]
-             [(lambda)         (xform-lambda         tail env)]
-             [(lambda*)        (xform-lambda*        tail env)]
-             [(letcc)          (xform-letcc          tail env)]
-             [(withcc)         (xform-withcc         tail env)]
-             [(body)           (xform-body           tail env appos?)]
-             [(begin)          (xform-begin          tail env appos?)]
-             [(define)         (xform-define         tail env)] ; as expression: will fail later
-             [(define-syntax)  (xform-define-syntax  tail env)] ; as expression: will fail later
-             [(syntax-quote)   (xform-syntax-quote   tail env)]
-             [(syntax-lambda)  (xform-syntax-lambda  tail env appos?)]
-             [(syntax-rules)   (xform-syntax-rules   tail env)]
-             [(syntax-length)  (xform-syntax-length  tail env)]
-             [(syntax-error)   (xform-syntax-error   tail env)]
-             [(define-library) (xform-define-library head tail env #f)]
-             [(import)         (xform-import         head tail env #f)]
-             [(export program) (x-error "FIXME: not yet implemented" hval sexp)]
+             [(quote)          (xpand-quote          tail env)]
+             [(set!)           (xpand-set!           tail env)]
+             [(set&)           (xpand-set&           tail env)]
+             [(if)             (xpand-if             tail env)]
+             [(lambda)         (xpand-lambda         tail env)]
+             [(lambda*)        (xpand-lambda*        tail env)]
+             [(letcc)          (xpand-letcc          tail env)]
+             [(withcc)         (xpand-withcc         tail env)]
+             [(body)           (xpand-body           tail env appos?)]
+             [(begin)          (xpand-begin          tail env appos?)]
+             [(define)         (xpand-define         tail env)] ; as expression: will fail later
+             [(define-syntax)  (xpand-define-syntax  tail env)] ; as expression: will fail later
+             [(syntax-quote)   (xpand-syntax-quote   tail env)]
+             [(syntax-lambda)  (xpand-syntax-lambda  tail env appos?)]
+             [(syntax-rules)   (xpand-syntax-rules   tail env)]
+             [(syntax-length)  (xpand-syntax-length  tail env)]
+             [(syntax-error)   (xpand-syntax-error   tail env)]
+             [(define-library) (xpand-define-library head tail env #f)]
+             [(import)         (xpand-import         head tail env #f)]
              [(... _)          (x-error "improper use of auxiliary syntax" hval sexp)]
-             [else (cond [(val-integrable? hval)  (xform-integrable hval tail env)]
-                         [(val-transformer? hval) (xform appos? (hval sexp env) env)]
+             [else (cond [(val-integrable? hval)  (xpand-integrable hval tail env)]
+                         [(val-transformer? hval) (xpand appos? (hval sexp env) env)]
                          [(val-library? hval)     (x-error "improper use of library" hval sexp)]
                          [(val-void? hval)        (x-error "use of uninitialized val" hval sexp)]
                          [(not (val-core? hval))  (x-error "improper use of syntax form" hval)]
-                         [else                    (xform-call hval tail env)])]))]))
+                         [else                    (xpand-call hval tail env)])]))]))
 
-(define (xform-quote tail env)
+(define (xpand-quote tail env)
   (if (list1? tail)
-      (list 'quote (xform-sexp->datum (car tail)))
+      (list 'quote (xpand-sexp->datum (car tail)))
       (x-error "improper quote form" (cons 'quote tail))))
 
-(define (xform-ref id env)
+(define (xpand-ref id env)
   (location-val (xenv-ref env id))) 
 
-(define (xform-set! tail env)
+(define (xpand-set! tail env)
   (if (and (list2? tail) (id? (car tail)))
-      (let ([den (xenv-lookup env (car tail) 'set!)] [xexp (xform #f (cadr tail) env)])
+      (let ([den (xenv-lookup env (car tail) 'set!)] [xexp (xpand #f (cadr tail) env)])
         (if (location-special? den) ;; was (location-set-val! den xexp) '(begin)
             (x-error "set! to macro or integrable identifier" (cons 'set! tail))
             (let ([val (location-val den)])
@@ -449,7 +448,7 @@
                   (x-error "set! is not allowed" (cons 'set! tail))))))
       (x-error "improper set! form" (cons 'set! tail))))
 
-(define (xform-set& tail env)
+(define (xpand-set& tail env)
   (if (list1? tail)
       (let ([den (xenv-lookup env (car tail) 'set!)])      
         (if (location-special? den) 
@@ -460,18 +459,18 @@
                   (x-error "set& is not allowed" (cons 'set! tail))))))
       (x-error "improper set& form" (cons 'set& tail))))
 
-(define (xform-if tail env)
+(define (xpand-if tail env)
   (if (list? tail)
-      (let ([xexps (map (lambda (sexp) (xform #f sexp env)) tail)])
+      (let ([xexps (map (lambda (sexp) (xpand #f sexp env)) tail)])
         (case (length xexps)
           [(2) (cons 'if (append xexps '((begin))))]
           [(3) (cons 'if xexps)]
           [else (x-error "malformed if form" (cons 'if tail))]))
       (x-error "improper if form" (cons 'if tail))))
 
-(define (xform-call xexp tail env)
+(define (xpand-call xexp tail env)
   (if (list? tail)
-      (let ([xexps (map (lambda (sexp) (xform #f sexp env)) tail)])
+      (let ([xexps (map (lambda (sexp) (xpand #f sexp env)) tail)])
         (if (and (null? xexps) (eq? (car xexp) 'lambda) (null? (cadr xexp)))
             (caddr xexp) ; ((let () x)) => x
             (pair* 'call xexp xexps)))
@@ -485,27 +484,27 @@
     [(#\#) (>= n 0)]   [(#\@) #f]
     [else  #f])) 
 
-(define (xform-integrable ig tail env)
+(define (xpand-integrable ig tail env)
   (if (integrable-argc-match? (integrable-type ig) (length tail))
-      (cons 'integrable (cons ig (map (lambda (sexp) (xform #f sexp env)) tail)))
-      (xform-call (list 'ref (integrable-global ig)) tail env)))
+      (cons 'integrable (cons ig (map (lambda (sexp) (xpand #f sexp env)) tail)))
+      (xpand-call (list 'ref (integrable-global ig)) tail env)))
 
-(define (xform-lambda tail env)
+(define (xpand-lambda tail env)
   (if (and (list1+? tail) (idslist? (car tail)))
       (let loop ([vars (car tail)] [ienv env] [ipars '()])
         (cond [(pair? vars)
                (let* ([var (car vars)] [nvar (gensym (id->sym var))])
                  (loop (cdr vars) (add-local-var var nvar ienv) (cons nvar ipars)))]
               [(null? vars)
-               (list 'lambda (reverse ipars) (xform-body (cdr tail) ienv #f))]
+               (list 'lambda (reverse ipars) (xpand-body (cdr tail) ienv #f))]
               [else ; improper 
                (let* ([var vars] [nvar (gensym (id->sym var))] 
                       [ienv (add-local-var var nvar ienv)])
                  (list 'lambda (append (reverse ipars) nvar)
-                   (xform-body (cdr tail) ienv #f)))]))
+                   (xpand-body (cdr tail) ienv #f)))]))
       (x-error "improper lambda body" (cons 'lambda tail))))
 
-(define (xform-lambda* tail env)
+(define (xpand-lambda* tail env)
   (if (list? tail)
       (cons 'lambda*
          (map (lambda (aexp)
@@ -515,22 +514,22 @@
                                    (boolean? (cadar aexp)))
                               (idslist? (car aexp))))
                      (list (normalize-arity (car aexp))
-                           (xform #f (cadr aexp) env))
+                           (xpand #f (cadr aexp) env))
                      (x-error "improper lambda* clause" aexp)))
               tail))
       (x-error "improper lambda* form" (cons 'lambda* tail))))
 
-(define (xform-letcc tail env)
+(define (xpand-letcc tail env)
   (if (and (list2+? tail) (id? (car tail)))
       (let* ([var (car tail)] [nvar (gensym (id->sym var))])
         (list 'letcc nvar 
-          (xform-body (cdr tail) (add-local-var var nvar env) #f)))
+          (xpand-body (cdr tail) (add-local-var var nvar env) #f)))
       (x-error "improper letcc form" (cons 'letcc tail))))
 
-(define (xform-withcc tail env)
+(define (xpand-withcc tail env)
   (if (list2+? tail)
-      (list 'withcc (xform #f (car tail) env)
-        (xform-body (cdr tail) env) #f)
+      (list 'withcc (xpand #f (car tail) env)
+        (xpand-body (cdr tail) env) #f)
       (x-error "improper withcc form" (cons 'withcc tail))))
 
 (define (preprocess-define head tail) ;=> (id sexp) or (sexp) for idless
@@ -546,19 +545,19 @@
         ; TODO? here we can do some fancy shortcuts or extensions
         [else (x-error "improper define-syntax form" (cons head tail))]))
 
-(define (xform-body tail env appos?)
+(define (xpand-body tail env appos?)
   (cond
     [(null? tail) 
      (list 'begin)]
     [(list1? tail) ; can't have defines there
-     (xform appos? (car tail) env)]
+     (xpand appos? (car tail) env)]
     [(not (list? tail))
      (x-error "improper body form" (cons 'body tail))]
     [else
      (let loop ([env env] [ids '()] [inits '()] [nids '()] [body tail])
        (if (and (pair? body) (pair? (car body)))
            (let ([first (car body)] [rest (cdr body)])
-             (let* ([head (car first)] [tail (cdr first)] [hval (xform #t head env)])
+             (let* ([head (car first)] [tail (cdr first)] [hval (xpand #t head env)])
                (case hval
                  [(begin) ; internal
                   (if (list? tail) 
@@ -582,16 +581,16 @@
                   (if (and (list2+? tail) (listname? (car tail)))
                       ; note: library is fully expanded in incomplete env, to make it
                       ; immediately available for import; it ignores lexical scope anyway 
-                      (let* ([core (xform-define-library head tail env #f)] 
+                      (let* ([core (xpand-define-library head tail env #f)] 
                              ; core is (define-library <listname> <library>)
                              [listname (cadr core)] [library (caddr core)]
                              [env (extend-xenv-local listname library env)])
-                        (loop env ids inits nids rest)) ; no trace for xform-labels
+                        (loop env ids inits nids rest)) ; no trace for xpand-labels
                       (x-error "improper define-library form" first))]
                  [(import) ; internal
                   (if (list? tail)
                       ; note: import is fully expanded in incomplete env, right now! 
-                      (let* ([core (xform-import head tail env #f)] ; core is (import <library>)
+                      (let* ([core (xpand-import head tail env #f)] ; core is (import <library>)
                              [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
                         (let scan ([eal eal] [env env])
                           (if (null? eal) ; add init code as if it were idless define
@@ -605,76 +604,76 @@
                  [else
                   (if (val-transformer? hval)
                       (loop env ids inits nids (cons (hval first env) rest))
-                      (xform-labels (reverse ids) (reverse inits) (reverse nids) body env appos?))])))
-           (xform-labels (reverse ids) (reverse inits) (reverse nids) body env appos?)))]))
+                      (xpand-labels (reverse ids) (reverse inits) (reverse nids) body env appos?))])))
+           (xpand-labels (reverse ids) (reverse inits) (reverse nids) body env appos?)))]))
 
-(define (xform-labels ids inits nids body env appos?)
+(define (xpand-labels ids inits nids body env appos?)
   (define no-defines? (andmap (lambda (nid) (eq? nid #t)) nids))
   (let loop ([ids ids] [inits inits] [nids nids] [sets '()] [lids '()])
     (cond [(null? ids)
            (if (and no-defines? (list1? body))
                ; special case: expand body using current appos?
-               (xform appos? (car body) env)
+               (xpand appos? (car body) env)
                ; general case: produce expression    
-               (let* ([xexps (append (reverse sets) (map (lambda (x) (xform #f x env)) body))]
+               (let* ([xexps (append (reverse sets) (map (lambda (x) (xpand #f x env)) body))]
                       [xexp (if (list1? xexps) (car xexps) (cons 'begin xexps))])
                  (if (null? lids) xexp
                      (pair* 'call (list 'lambda (reverse lids) xexp)
                        (map (lambda (lid) '(begin)) lids)))))]
           [(not (car ids)) ; idless define, nid is #f
            (loop (cdr ids) (cdr inits) (cdr nids)
-             (cons (xform #f (car inits) env) sets) lids)]
+             (cons (xpand #f (car inits) env) sets) lids)]
           [(symbol? (car nids)) ; define
            (loop (cdr ids) (cdr inits) (cdr nids)
-             (cons (xform-set! (list (car ids) (car inits)) env) sets)
+             (cons (xpand-set! (list (car ids) (car inits)) env) sets)
              (cons (car nids) lids))]
           [else ; define-syntax, nid is #t
-           (location-set-val! (xenv-lookup env (car ids) 'set!) (xform #t (car inits) env))
+           (location-set-val! (xenv-lookup env (car ids) 'set!) (xpand #t (car inits) env))
            (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
 
 ; FIXME: make sure that (begin (begin) x (begin)) == x !! (tail-rec includes hack)
-(define (xform-begin tail env appos?) ; non-internal
+(define (xpand-begin tail env appos?) ; non-internal
   (if (list? tail) 
       (if (list1? tail)
-          (xform appos? (car tail) env) ; (begin x) == x
-          (cons 'begin (map (lambda (sexp) (xform #f sexp env)) tail)))
+          (xpand appos? (car tail) env) ; (begin x) == x
+          (cons 'begin (map (lambda (sexp) (xpand #f sexp env)) tail)))
       (x-error "improper begin form" (cons 'begin tail))))
 
 ; not for general use: used in scm2c.ssc simplistic transformer only!
-(define (xform-define tail env)
+(define (xpand-define tail env)
   (let ([tail (preprocess-define 'define tail)])
     (if (list1? tail) ; idless
-        (xform #f (cadr tail) env)
+        (xpand #f (cadr tail) env)
         (list 'define (id->sym (car tail)) 
-          (xform #f (cadr tail) env)))))
+          (xpand #f (cadr tail) env)))))
 
 ; not for general use: used in scm2c.ssc simplistic transformer only!
-(define (xform-define-syntax tail env)
+(define (xpand-define-syntax tail env)
   (let ([tail (preprocess-define-syntax 'define-syntax tail)])
-    (list 'define-syntax (id->sym (car tail)) (xform #t (cadr tail) env))))
+    (list 'define-syntax (id->sym (car tail)) (xpand #t (cadr tail) env))))
 
-(define (xform-syntax-quote tail env)
+(define (xpand-syntax-quote tail env)
   (if (list1? tail)
       (car tail) ; must be <core>, todo: check?
       (x-error "improper syntax-quote form" (cons 'syntax-quote tail))))
 
-(define (xform-syntax-lambda tail env appos?)
+(define (xpand-syntax-lambda tail env appos?)
   (if (and (list2+? tail) (andmap id? (car tail)))
       (let ([vars (car tail)] [macenv env] [forms (cdr tail)])
         ; return a transformer that wraps xformed body in (syntax-quote ...)
-        ; to make sure xform treats it as final <core> form and exits the loop
+        ; to make sure xpand treats it as final <core> form and exits the loop
         (lambda (use useenv)
           (if (and (list1+? use) (fx=? (length vars) (length (cdr use))))
               (let loop ([vars vars] [exps (cdr use)] [env macenv])
                 (if (null? vars)
-                    (list syntax-quote-id (xform-body forms env appos?))
+                    (list syntax-quote-id (xpand-body forms env appos?))
                     (loop (cdr vars) (cdr exps)
                       (extend-xenv-local (car vars) 
-                        (xform #t (car exps) useenv) env))))  
+                        (xpand #t (car exps) useenv) env))))  
               (x-error "invalid syntax-lambda application" use))))  
       (x-error "improper syntax-lambda body" (cons 'syntax-lambda tail))))
 
-(define (xform-syntax-rules tail env)
+(define (xpand-syntax-rules tail env)
   (cond [(and (list2+? tail) (id? (car tail)) (andmap id? (cadr tail)))
          (syntax-rules* env (car tail) (cadr tail) (cddr tail))]
         [(and (list1+? tail) (andmap id? (car tail)))
@@ -682,13 +681,13 @@
         [else
          (x-error "improper syntax-rules form" (cons 'syntax-rules tail))]))
 
-(define (xform-syntax-length tail env)
+(define (xpand-syntax-length tail env)
   (if (and (list1? tail) (list? (car tail)))
       (list 'quote (length (car tail)))
       (x-error "improper syntax-length form" (cons 'syntax-length tail))))
 
-(define (xform-syntax-error tail env)
-  (let ([args (map xform-sexp->datum tail)])
+(define (xpand-syntax-error tail env)
+  (let ([args (map xpand-sexp->datum tail)])
     (if (and (list1+? args) (string? (car args)))
         (apply x-error args)
         (x-error "improper syntax-error form" (cons 'syntax-error tail)))))
@@ -961,7 +960,7 @@
     (cond [(lit=? freq 'else) (con)]
           [(id? freq) (if (feature-available? (id->sym freq)) (con) (alt))]
           [(and (list2? freq) (lit=? (car freq) 'library))
-           (if (library-available? (xform-sexp->datum (cadr freq)) env) (con) (alt))]
+           (if (library-available? (xpand-sexp->datum (cadr freq)) env) (con) (alt))]
           [(and (list1+? freq) (lit=? (car freq) 'and))
            (cond [(null? (cdr freq)) (con)] [(null? (cddr freq)) (pp (cadr freq) con alt)]
                  [else (pp (cadr freq) (lambda () (pp (cons (car freq) (cddr freq)) con alt)) alt)])]
@@ -1053,7 +1052,7 @@
          (pp (cadr s) ;=>
            (lambda (code al) 
              (return code            
-               (let loop ([al al] [idpairs (xform-sexp->datum (cddr s))])
+               (let loop ([al al] [idpairs (xpand-sexp->datum (cddr s))])
                  (cond [(null? al) al]
                        [(assq (caar al) idpairs) => 
                         (lambda (idpair) (cons (cons (cadr idpair) (cdar al)) (loop (cdr al) idpairs)))]
@@ -1063,7 +1062,7 @@
            (return (car ic&ex) (cdr ic&ex)))]
         [(and (list1+? s) (andmap libpart? s))
          ; NB: this is part 1/4 of listname <-> library interaction
-         (let* ([listname (xform-sexp->datum s)] [val (xform-ref listname env)])
+         (let* ([listname (xpand-sexp->datum s)] [val (xpand-ref listname env)])
            (unless (val-library? val) (x-error "invalid library" listname val))
            (return (library-code val) (library-exports val)))]
         [else
@@ -1095,7 +1094,7 @@
              (toesps (cdr ee) (adjoin-esps (list (cons s s)) esps)))]
             [(and (sexp-match? '(<id> <id> <id>) (car ee)) (eq? (caar ee) ld-rename-id))
              (toesps (cdr ee) (adjoin-esps (list (cons (id->sym (cadar ee)) (id->sym (caddar ee)))) esps))]
-            [else (x-error "invalid export spec element" (xform-sexp->datum (car ee)))]))
+            [else (x-error "invalid export spec element" (xpand-sexp->datum (car ee)))]))
     (let loop ([decls (cdr sexp)] [code '(begin)] [eal '()] [esps '()] [forms '()])
       (if (null? decls)
           (list code eal esps forms)
@@ -1139,7 +1138,7 @@
                (check-syntax decl '(<id> <string> ...) "invalid include-ci library declaration syntax")
                (loop decls code eal esps `(,@forms (,include-ci-id . ,(cdr decl))))]
               [(eq? (car decl) ld-begin-id)
-               (loop decls code eal esps (append forms (xform-sexp->datum (cdr decl))))]))))))
+               (loop decls code eal esps (append forms (xpand-sexp->datum (cdr decl))))]))))))
 
 ; scan forms and return reversed list of core forms, interspersed with (define gs exp)
 ; forms that need further processing (each one will become (set! gs core) form
@@ -1149,7 +1148,7 @@
         code*
         (let ([first (car body)] [rest (cdr body)])
           (if (pair? first)
-              (let* ([head (car first)] [tail (cdr first)] [hval (xform #t head cenv)])
+              (let* ([head (car first)] [tail (cdr first)] [hval (xpand #t head cenv)])
                 (cond
                   [(eq? hval 'begin)
                    (unless (list? tail) (x-error "improper begin form" first))
@@ -1169,10 +1168,10 @@
                           [loc (top-defined-id-lookup cenv (car tail) 'define-syntax)])
                      (unless (location? loc) 
                        (x-error "unexpected define-syntax for id" (car tail) first))
-                     (location-set-val! loc (xform #t (cadr tail) cenv))
+                     (location-set-val! loc (xpand #t (cadr tail) cenv))
                      (scan rest code*))]
                   [(eq? hval 'define-library)
-                   (let* ([core (xform-define-library head tail env #f)]
+                   (let* ([core (xpand-define-library head tail env #f)]
                           ; core is (define-library <listname> <library>)
                           [loc (xenv-lookup env (cadr core) 'define-syntax)])
                      (unless (location? loc) 
@@ -1180,7 +1179,7 @@
                      (location-set-val! loc (caddr core))
                      (scan rest code*))]
                   [(eq? hval 'import) ; support, in case there is an internal import
-                   (let* ([core (xform-import head tail cenv #f)] 
+                   (let* ([core (xpand-import head tail cenv #f)] 
                           ; core is (import <library>)
                           [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
                      (unless (cenv eal 'import) ; adjoins eal to cenv's imports
@@ -1197,7 +1196,7 @@
 ; scan returns underprocessed defines; this fn fixes that
 (define (preprocess-top-form-fix! code cenv) ;=> core
   (if (and (pair? code) (eq? (car code) 'define) (list3? code))
-      (let* ([gs (cadr code)] [exp (caddr code)] [core (xform #f exp cenv)])
+      (let* ([gs (cadr code)] [exp (caddr code)] [core (xpand #f exp cenv)])
         (if (null? gs) core (list 'set! gs core)))
       code))
 
@@ -1234,9 +1233,9 @@
 ; it should become available in local env immediately, even at definition-scanning phase -- so we
 ; introduce new special <core> form define-library
 
-(define (xform-define-library head tail env top?) ; non-internal
+(define (xpand-define-library head tail env top?) ; non-internal
   (if (and (list2+? tail) (listname? (car tail)))
-      (let* ([listname (xform-sexp->datum (car tail))]
+      (let* ([listname (xpand-sexp->datum (car tail))]
              [prefix (and top? (listname->symbol listname))]
              ; NB: head is used as seed id for renamings; fixed prefix used on top only
              [libform (cons head (if prefix (cons prefix (cdr tail)) (cdr tail)))]
@@ -1248,7 +1247,7 @@
 ; for now, we have no clear idea of how to process import in all possible contexts, so we will also
 ; introduce new special <core> form import
 
-(define (xform-import head tail env top?)
+(define (xpand-import head tail env top?)
   (if (list? tail)
       (let ([ic&ex (preprocess-import-sets (cons head tail) env)])
         ; NB: this is part 3/4 of listname <-> library interaction
@@ -1904,8 +1903,8 @@
       (lambda () 
         (let ([sexps (read-file-sexps filepath #f)])
           (if (sexp-match? '((define-library * * ...)) sexps)
-              ; invoke xform-define-library in 'top' context (for lib:// globals)
-              (let ([core (xform-define-library (caar sexps) (cdar sexps) sld-env #t)])
+              ; invoke xpand-define-library in 'top' context (for lib:// globals)
+              (let ([core (xpand-define-library (caar sexps) (cdar sexps) sld-env #t)])
                 (if (and (sexp-match? '(define-library * *) core)
                          (equal? (cadr core) listname) (val-library? (caddr core)))
                     (caddr core) ;=> <library>
@@ -2114,13 +2113,13 @@
     (write w v) (current-jiffy t) (current-second t) (jiffies-per-second t) (write-shared w)
     (write-simple w)
     ; these are special forms in skint!
-    (define-library) (import) (export) (program) 
+    (define-library) (import)
     ; selected extracts from r7rs-large and srfis
     (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format 28 48) 
     (fprintf) (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
-    ; skint extras go into (skint); the rest goes to (skint hidden)
+    ; skint extras go into repl and (skint) library; the rest goes to (skint hidden)
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
-    (record?) (make-record) (record-length) (record-ref) (record-set!) 
+    (record?) (make-record) (record-length) (record-ref) (record-set!) (expand)
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg)
     (fxabs) (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
@@ -2130,10 +2129,10 @@
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
     (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
     (flmax) (flremainder) (flmodulo) (flquotient) (flmodquo) (flonum->fixnum) (flonum->string) 
-    (string->flonum) (list-cat) (last-pair) (list-head) (meme) (asse) (reverse!) (circular?) (cons*)
-    (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) (string-cmp) (string-ci-cmp) 
-    (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) (subbytevector) 
-    (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
+    (string->flonum) (list-cat) (last-pair) (list-head) (meme) (asse) (memp) (assp) (reverse!) 
+    (circular?) (cons*) (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) 
+    (string-cmp) (string-ci-cmp) (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) 
+    (subbytevector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
     (void) (void?)
     ; (repl hidden) library entries below the auto-adder need to be added explicitly 
@@ -2396,7 +2395,7 @@
 
 (define (evaluate-top-form x env)
   (if (pair? x)
-      (let ([hval (xform #t (car x) env)]) ; returns <core>
+      (let ([hval (xpand #t (car x) env)]) ; returns <core>
         (cond
           [(eq? hval 'begin) ; splice
            (let loop ([x* (cdr x)])
@@ -2411,18 +2410,18 @@
                  (let ([loc (top-defined-id-lookup env (car tail) 'define)])
                    (unless (and (location? loc) (sexp-match? '(ref *) (location-val loc)))
                      (x-error "identifier cannot be (re)defined as variable" (car tail) x))
-                   (let ([g (cadr (location-val loc))] [core (xform #f (cadr tail) env)])
+                   (let ([g (cadr (location-val loc))] [core (xpand #f (cadr tail) env)])
                      (compile-and-run-core-expr (list 'set! g core)) (void)))))]
           [(eq? hval 'define-syntax) ; use new protocol for top-level envs
            (let* ([tail (preprocess-define-syntax (car x) (cdr x))]
                   [loc (top-defined-id-lookup env (car tail) 'define-syntax)])
              (unless (location? loc) 
                (x-error "unexpected define-syntax for id" (car tail) x))
-             (location-set-val! loc (xform #t (cadr tail) env))
+             (location-set-val! loc (xpand #t (cadr tail) env))
              (when *verbose* (display "SYNTAX INSTALLED: ") (write (car tail)) (newline))
              (void))]
           [(eq? hval 'define-library) ; use new protocol for top-level envs
-           (let* ([core (xform-define-library (car x) (cdr x) env #t)]
+           (let* ([core (xpand-define-library (car x) (cdr x) env #t)]
                   ; core is (define-library <listname> <library>)
                   [loc (xenv-lookup env (cadr core) 'define-syntax)])
              (unless (location? loc) 
@@ -2430,7 +2429,7 @@
              (location-set-val! loc (caddr core))
              (when *verbose* (display "LIBRARY INSTALLED: ") (write (cadr core)) (newline)))]
           [(eq? hval 'import) ; splice as definitions
-           (let* ([core (xform-import (car x) (cdr x) env #t)] 
+           (let* ([core (xpand-import (car x) (cdr x) env #t)] 
                   ; core is (import <library>)
                   [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
              ; note: try to use env's import protocol
@@ -2447,7 +2446,7 @@
           [(val-transformer? hval) ; apply transformer and loop
            ; NOTE: if transformer output is a begin, it needs to be scanned for defines 
            ; in case some of them use generated names that need to be gensym'd via pp pass
-           (let* ([x (hval x env)] [hv (and (pair? x) (xform #t (car x) env))])
+           (let* ([x (hval x env)] [hv (and (pair? x) (xpand #t (car x) env))])
              (if (and (eq? hv 'begin) (list2+? x))
                  (let* ([code* (preprocess-top-forms-scan (cdr x) env env)]
                         [fix! (lambda (code) (preprocess-top-form-fix! code env))]
@@ -2455,13 +2454,13 @@
                    (compile-and-run-core-expr code)) ; tail
                  (evaluate-top-form x env)))] ; tail
           [(val-integrable? hval) ; integrable application
-           (compile-and-run-core-expr (xform-integrable hval (cdr x) env))]
+           (compile-and-run-core-expr (xpand-integrable hval (cdr x) env))]
           [(val-builtin? hval) ; other builtins
-           (compile-and-run-core-expr (xform #f x env))]
+           (compile-and-run-core-expr (xpand #f x env))]
           [else ; regular call
-           (compile-and-run-core-expr (xform-call hval (cdr x) env))]))
+           (compile-and-run-core-expr (xpand-call hval (cdr x) env))]))
       ; var refs and literals
-      (compile-and-run-core-expr (xform #f x env))))
+      (compile-and-run-core-expr (xpand #f x env))))
 
 
 ; public interface to eval as per r7rs
@@ -2483,7 +2482,13 @@
           (eval x env)
           (loop (read-code-sexp port))))))
   ; we aren't asked by the spec to call last expr tail-recursively, so this
-  (void)) 
+  (void))
+
+; useful debugging form 
+(define (expand expr . ?env)
+  (define env (if (pair? ?env) (car ?env) (interaction-environment)))
+  (xpand #t expr env)) ; allow it to return any expressed value
+
 
 ; srfi-22 - like script processor (args is list of strings)
 (define (run-script filename args)
@@ -2685,7 +2690,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.3.9")
+(define *skint-version* "0.4.9")
 
 (define (skint-main)
   ; see if command line asks for special processing

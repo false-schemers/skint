@@ -2128,8 +2128,8 @@
   (cond [(or (eq? arg #f) (string? arg))
          (let ([args (if arg (cons arg args) args)] [p (open-output-string)]) 
            (apply fprintf p args) (get-output-string p))]
-        [(eq? arg #t) (apply fprintf (current-output-port) args)]
-        [else (apply fprintf arg args)]))
+        [(eq? arg #t) (apply fprintf (current-output-port) args) (void)]
+        [else (apply fprintf arg args) (void)]))
 
 (define (write-to-string obj)
   (let ([p (open-output-string)])

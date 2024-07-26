@@ -4888,7 +4888,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
 /* hand-coded! */
 char *i_code[] = {
 
-  /* initialize *transformers* with xform builtins */
+  /* initialize *transformers* with xpand builtins */
   "B", "syntax-quote", 0,
   "B", "quote", 0,
   "B", "set!", 0,
@@ -4907,9 +4907,7 @@ char *i_code[] = {
   "B", "syntax-length", 0,
   "B", "syntax-error", 0,
   "B", "define-library", 0,
-  "B", "program", 0,
   "B", "import", 0,
-  "B", "export", 0,
   "B", "...", 0,
   "B", "_", 0,
 

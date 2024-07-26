@@ -1123,8 +1123,9 @@ char *s_code[] = {
 
   "P", "format",
   "%!1f,.2q,.0?{.0}{.2S0}_1?{P51,.2?{.1,.3c}{.1},${.2,.4c,@(y7:fprintf),@"
-  "(y13:apply-to-list)[02}.1P90]4}t,.2q?{.0,Poc,@(y7:fprintf),@(y13:apply"
-  "-to-list)[22}.0,.2c,@(y7:fprintf),@(y13:apply-to-list)[22",
+  "(y13:apply-to-list)[02}.1P90]4}t,.2q?{${.2,Poc,@(y7:fprintf),@(y13:app"
+  "ly-to-list)[02}Y9]2}${.2,.4c,@(y7:fprintf),@(y13:apply-to-list)[02}Y9]"
+  "2",
 
   "P", "write-to-string",
   "%1P51,.0,.2W5.0P90,.1P61.0]3",
