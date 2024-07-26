@@ -1,4 +1,4 @@
-# SKINT - Cheap and Fast R7RS Scheme Interpreter
+# SKINT - Cheap and fast R7RS Scheme Interpreter
                          
 SKINT is a portable interpreter for the R7RS Scheme programming language. 
 It can be built from five C source files with a single command. There is no distributives or packages: 
@@ -16,17 +16,18 @@ gcc -o skint [skint].c -lm
 Some compilers link `<math.h>` library automatically, some require explicit option like `-lm` above. It can be built on 32-bit 
 and 64-bit systems (tested on Windows and Linux).
 
-For much better performance (especially in floating-point calculations), you may add optimization options, e.g.:  
+For much better performance (especially in floating-point calculations), you may pick another compiler, add optimization options,
+and add some SKINT-spicific flags, e.g.:  
 
 ```
-gcc -o skint -O3 -DNDEBUG -DNAN_BOXING [skint].c -lm
+clang -o skint -O3 -D NDEBUG -D NAN_BOXING [skint].c -lm
 ```
 
-NAN_BOXING option assumes that upper 16 bit of heap pointers are zero (48-bit address space). If this assumption holds,
+The NAN_BOXING option assumes that upper 16 bit of heap pointers are zero (48-bit address space). If this assumption holds,
 it is recommended to use this option on 64-bit systems.
 
 The resulting interpreter has no dependencies (except for C runtime and standard -lm math library) and can be run from any location.
-If compiled statically, it can be easily moved between systems with the same ABI.
+If linked statically, it can be easily moved between systems with the same ABI.
 
 
 ## Scheme Compatibility
@@ -51,18 +52,18 @@ Some features of the R7RS-Small standard are not yet implemented or implemented 
 Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and evaluation/libraries support:
 
   *  `read` supports R7RS notation for circular structures, but both `eval` and `load` reject them
-  *  all supported R7RS-small forms are available in the built-in `(skint)` library and REPL environment
+  *  all R7RS-small forms are available in the built-in `(skint)` library and REPL environment
   *  `-I` and `-A` command-line options extend library search path; initial path is `./`
   *  `cond-expand` checks against `(features)` and available libraries
-  *  `environment` dynamically fetches library definitions from `.sld` files
+  *  `environment` may dynamically fetch external library definitions from `.sld` files
   *  both `eval` and `load` accept optional environment argument
   *  command-line options can be shown by running `skint --help` 
   *  both `import` and `define-library` forms can be entered interactively into REPL
-  *  REPL supports single-line `comma-commands` — type `,help` for a full list
+  *  REPL supports single-line “comma-commands” — type `,help` for a full list
   *  on Un*x-like systems, interactive use of skint with line exiting requires external readline wrapper
      such as [rlwrap](https://github.com/hanslub42/rlwrap)    
   
-Please note that SKINT's interaction environment exposes bindings for all supported R7RS-small procedures 
+Please note that SKINT's interaction environment exposes bindings for all R7RS-small procedures 
 and syntax forms directly, so there is no need to use `import`. All R7RS-small libraries are built-in and
 do not rely on any external .sld files.
 
@@ -73,12 +74,12 @@ a language for building Scheme-like systems. Its #F source code can be found the
 
 [skint/pre](https://github.com/false-schemers/skint/tree/main/pre)
 
-SKINT's hygienic macroexpander is derived from Alan Petrofsky's EIOD 1.17 (please see the t.scm file for the original copyright info).
-SKINT's VM and compiler follow the stack machine approach described in "Three Implementation Models for Scheme" thesis by R. Kent Dybvig
+SKINT's hygienic macroexpander is derived from Al Petrofsky's EIOD 1.17 (please see the t.scm file for the original copyright info).
+SKINT's VM and compiler follow the stack machine approach described in “Three Implementation Models for Scheme” thesis by R. Kent Dybvig
 ([TR87-011](https://www.cs.unc.edu/techreports/87-011.pdf), 1987).
 Supporting library code comes from #F's [LibL library](https://raw.githubusercontent.com/false-schemers/sharpF/master/lib/libl.sf).
 
 ## Family
 
 Please see [SIOF](https://github.com/false-schemers/siof) repository for a single-file R7RS-small interpreter. It is
-more portable and easier to build, but runs significantly slower.
+more portable and easier to build, but is less complete and runs significantly slower.
