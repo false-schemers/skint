@@ -31,6 +31,15 @@ it is recommended to use this option on 64-bit systems.
 The resulting interpreter has no dependencies (except for C runtime and standard -lm math library) and can be run from any location.
 If linked statically, it can be easily moved between systems with the same ABI.
 
+If you would prefer these decisions to be made for you, please follow the instructions below. Skint will be
+installed as `/usr/local/bin/skint` command.
+
+```
+$ git clone https://github.com/false-schemers/skint.git
+$ cd skint
+$ make
+$ sudo make install
+```
 
 ## Scheme Compatibility
 
