@@ -62,7 +62,7 @@ Example (also uses box templates):
     [(_ (... number? x)) '#(x)]
     [(_ x) 'x]))
 
-(list (wrap-by-type 42) (wrap-by-type "yes") (wrap-by-type #\c))) 
+(list (wrap-by-type 42) (wrap-by-type "yes") (wrap-by-type #\c)) 
 ; => (#(42) #&"yes" #\c)
 ```
 
@@ -83,24 +83,27 @@ A template of the form `(<ellipsis> <converter name> <template+>)` where `<ellip
   * `(... + <template+>)`
   * `(... - <template+>)`
   * `(... id->string <template>)`
-  * `(... string->id <template>)`
   * `(... string->id <template> <id template>)`
 
-All but the last three converters have the same meaning as the corresponding Scheme procedures. The `id->string` converter expects either a symbol or a syntax object representing an identifier and produces a string containing a “quote name” of the identifier (the result of applying `symbol->string` to the original name supplied by the user after all substitutions).
+All but the last two converters have the same meaning as the corresponding Scheme procedures. The `id->string` converter expects either a symbol or a syntax object representing an identifier and produces a string containing a “quote name” of the identifier (the result of applying `symbol->string` to the original name supplied by the user after all substitutions).
 
-The `string->id` converter allows one to produce identifiers having the same syntax properties as identifiers explicitly introduced as part of macro definitions or macro uses. In two-argument case, the properies are copied from `<id template>`, which, after all substitutions are performed, should instantiate to an identifier serving as a prototype. If it is not provided, the `string->id` identifier itself is used as `<id template>`. The `<template>` argument should instantiate into a string, which is then converted to a symbol via `string->symbol` and then turned into an identifier syntax object *as if* it was introduced side-by-side with the prototype identifier (same expression, same expansion phase).
+The `string->id` converter allows one to produce identifiers having the same syntax properties as identifiers explicitly introduced as part of macro definitions or macro uses. The properies are copied from `<id template>`, which, after all substitutions are performed, should instantiate to an identifier serving as a prototype. The `<template>` argument should instantiate to a string, which is then converted to a symbol via `string->symbol` and then turned into an identifier syntax object *as if* it was introduced side-by-side with the prototype identifier (same expression, same expansion phase).
+
+Please note that identifiers generated with `string->id` are not autorenamed with other “free” template
+identifiers; their syntactic identity is defined entirely by that of `<id template>` id, which might have already being renamed by the time `string->id` converter is applied.
 
 Examples:
 
 ```scheme
-(define-syntax with-math-defines 
+; generated and plain versions of pi and e are syntactically the same
+(define-syntax pi-e-example 
   (syntax-rules () 
-    [(_ x) 
-     ((lambda ((... string->id "pi") (... string->id "e")) x) 
-      3.14 2.72)]))
-
-(with-math-defines (+ pi e))     
-; => 5.86 
+    [(_)  
+     (let ([(... string->id "pi" e) 3.14] [e 2.72])
+       (+ pi (... string->id "e" pi)))]))
+ 
+(pi-e-example)
+; => 5.86    
 ```
 
 ```scheme
@@ -208,4 +211,4 @@ To demonstrate combined use of different converters, here is a thin macro layer 
 
 ## Why stop here?
 
-The above collection of named escapes is selected as *almost* minimal one. Its purpose is not to make `syntax-rules`-based macro programming more convenient, but just extend it to non-structural S-expressions, so it is possible to recognize them and work with them by converting them to another form if a need arises. Arithmetics is limited to what one can do using lists as Peano numbers; also, for numbers and chars, access to ordering is provided, to support simple ranges. One can imitate `string-append` without a dedicated converter, but this unnecessarily complicates generation of identifiers, which is a major use case.
+The above collection of named escapes is selected as *almost* minimal one. Its purpose is not to make `syntax-rules`-based macro programming more convenient, but just to extend its core abilities in dealing with non-structural S-expressions, so it is possible to recognize them and work with them via convertion to/from structural form if a need arises. Arithmetics is limited to what one can do using lists as Peano numbers; also, for numbers and chars, access to ordering is provided, to support simple ranges. One can imitate `string-append` without a dedicated converter, but this unnecessarily complicates generation of identifiers, which is a major use case.
