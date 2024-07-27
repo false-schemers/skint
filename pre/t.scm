@@ -866,7 +866,7 @@
                (match (cdr pat) (cdr sexp) bindings esc?) esc?)]
             [else (fail)])))))
 
-  (define (expand-template pat tmpl top-bindings use-env)
+  (define (expand-template pat tpl top-bindings use-env)
     ; New-literals is an alist mapping each literal id in the
     ; template to a fresh id for inserting into the output.  It
     ; might have duplicate entries mapping an id to two different
@@ -876,59 +876,64 @@
       (body
         (define nl
           (map (lambda (id) (cons id (new-literal-id id mac-env (lambda () nl))))
-               (list-ids tmpl #t (lambda (id) (not (assq id top-bindings))))))
+               (list-ids tpl #t (lambda (id) (not (assq id top-bindings))))))
         nl))
 
     (define ellipsis-vars
       (list-ids pat #f not-pat-literal?))
 
-    (define (list-ellipsis-vars subtmpl)
-      (list-ids subtmpl #t (lambda (id) (memq id ellipsis-vars))))
+    (define (list-ellipsis-vars subtpl)
+      (list-ids subtpl #t (lambda (id) (memq id ellipsis-vars))))
 
-    (let expand ([tmpl tmpl] [bindings top-bindings] [esc? #f])
-      (let expand-part ([tmpl tmpl] [esc? esc?])
+    (let expand ([tpl tpl] [bindings top-bindings] [esc? #f])
+      (let expand-part ([tpl tpl] [esc? esc?])
         (cond
-          [(id? tmpl)
-           (cdr (or (assq tmpl bindings)
-                    (assq tmpl top-bindings)
-                    (assq tmpl new-literals)))]
-          [(vector? tmpl)
-           (list->vector (expand-part (vector->list tmpl) esc?))]
-          [(box? tmpl)
-           (box (expand-part (unbox tmpl) esc?))]
-          [(not (pair? tmpl))
-           tmpl]
-          [(and (not esc?) (ellipsis? (car tmpl)) (list3+? tmpl) 
-                (template-escape->conv (cadr tmpl) id-escape=?)) => 
-           (lambda (conv) (conv (expand-part (cddr tmpl) esc?)))]
-          [(and (not esc?) (ellipsis? (car tmpl)) (list2? tmpl))
-           (expand-part (cadr tmpl) #t)] 
-          [(and (not esc?) (ellipsis? (car tmpl))) 
-           (x-error "unrecognized template escape" tmpl)]
-          [(and (not esc?) (ellipsis-pair? (cdr tmpl)))
-           (let ([vars-to-iterate (list-ellipsis-vars (car tmpl))])
+          [(id? tpl)
+           (cdr (or (assq tpl bindings)
+                    (assq tpl top-bindings)
+                    (assq tpl new-literals)))]
+          [(vector? tpl)
+           (list->vector (expand-part (vector->list tpl) esc?))]
+          [(box? tpl)
+           (box (expand-part (unbox tpl) esc?))]
+          [(not (pair? tpl))
+           tpl]
+          [(and (not esc?) (ellipsis? (car tpl)) (list3+? tpl) 
+                (template-escape->conv (cadr tpl) id-escape=?)) => 
+           (lambda (conv) (conv (expand-part (cddr tpl) esc?)))]
+          [(and (not esc?) (ellipsis? (car tpl)) (list2? tpl))
+           (expand-part (cadr tpl) #t)] 
+          [(and (not esc?) (ellipsis? (car tpl))) 
+           (x-error "unrecognized template escape" tpl)]
+          [(and (not esc?) (ellipsis-pair? (cdr tpl)))
+           (let ([vars-to-iterate (list-ellipsis-vars (car tpl))])
              (define (lookup var)
                (cdr (assq var bindings)))
              (define (expand-using-vals esc? . vals)
-               (expand (car tmpl) (map cons vars-to-iterate vals) esc?))
+               (expand (car tpl) (map cons vars-to-iterate vals) esc?))
              (if (null? vars-to-iterate)
                  ; ellipsis following non-repeatable part is an error, but we don't care
-                 (cons (expand-part (car tmpl) esc?) 
-                       (expand-part (cddr tmpl) esc?)) ; 'repeat' once
+                 (cons (expand-part (car tpl) esc?) 
+                       (expand-part (cddr tpl) esc?)) ; 'repeat' once
                  ; correct use of ellipsis
                  (let ([val-lists (map lookup vars-to-iterate)]
                        [euv (lambda v* (apply expand-using-vals esc? v*))])
-                   (append (apply map (cons euv val-lists)) (expand-part (cddr tmpl) esc?)))))]
+                   (append (apply map (cons euv val-lists)) (expand-part (cddr tpl) esc?)))))]
           [else ; regular pair
-           (cons (expand-part (car tmpl) esc?) (expand-part (cdr tmpl) esc?))]))))
+           (cons (expand-part (car tpl) esc?) (expand-part (cdr tpl) esc?))]))))
 
   (lambda (use use-env)
     (let loop ([rules rules])
       (if (null? rules) (x-error "invalid syntax" use))
-      (let* ([rule (car rules)] [pat (car rule)] [tmpl (cadr rule)])
-        (cond [(match-pattern pat use use-env) =>
-               (lambda (bindings) (expand-template pat tmpl bindings use-env))]
-              [else (loop (cdr rules))])))))
+      (let ([rule (car rules)] [rules (cdr rules)])
+        (unless (list2? rule) (x-error "invalid syntax rule" rule))
+        (let* ([head-prematch? (and (pair? (car rule)) (id? (caar rule)) (pair? use))]
+               [pat (if head-prematch? (cdar rule) (car rule))] 
+               [use (if head-prematch? (cdr use) use)]
+               [tpl (cadr rule)])
+          (cond [(match-pattern pat use use-env) =>
+                 (lambda (bindings) (expand-template pat tpl bindings use-env))]
+                [else (loop rules)]))))))
 
 
 ; hand-made transformers (use functionality defined below)

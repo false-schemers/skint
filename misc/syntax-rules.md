@@ -1,10 +1,6 @@
 # Syntax-rules extensions
 
-SKINT implements all standard features of R7RS `syntax-rules`, including custom ellipsis, non-final ellipsis patterns, non-binding underscore pattern, and `(... tpl)` template escapes. It also has the following incompatibilities and extensions:
-
-## Keyword at the beginning of the pattern
-
-Current implementation is incompatible with R7RS in one aspect: the keyword at the beginning of the pattern in a `<syntax rule>` *is* considered a pattern variable (please see below for why it is important). In the future, we will allow this behavior only through simple pattern escape mechanism.
+SKINT implements all standard features of R7RS `syntax-rules`, including custom ellipsis, non-final ellipsis patterns, non-binding underscore pattern, and `(... tpl)` template escapes. It also supports the following extensions:
 
 ## Support for boxes
 
@@ -12,7 +8,7 @@ Boxes, as defined by SRFI-111 and the future `(scheme box)` library, are support
 
 ## Simple pattern escape
 
-A pattern of the form `(<ellipsis> <pattern>)` where `<ellipsis>` is the current ellipsis is interpreted as if it were `<pattern>`, but ellipses and underscores in `<pattern>` lose their special meaning, e.g.:
+A pattern of the form `(<ellipsis> <pattern>)`, where `<ellipsis>` is the current ellipsis, is interpreted as if it were `<pattern>`, but ellipses and underscores in `<pattern>` lose their special meaning, e.g.:
 
 ```scheme
 (define-syntax underscored
@@ -22,8 +18,24 @@ A pattern of the form `(<ellipsis> <pattern>)` where `<ellipsis>` is the current
 (underscored 1 2)
 ; => (2 1) 
 ```
+Note that R7RS prescribes special treatment of keyword identifier at the beginning of the pattern in a `<syntax rule>`: it is matched automatically with the head of the use form, but is not considered a pattern variable. SKINT's pattern escape extension drops this positional restriction, and matches its sub-pattern in a normal way, e.g.:
 
-This feature may be useful in macro-generators to make sure that any identifier can play a role of a pattern variable.
+```scheme
+; in R7RS, x is not a pattern variable here due to its head position:
+(let-syntax ([ttt (syntax-rules () [(x y) '(x y)])]) (ttt 123))
+; => (x 123)
+
+; x is a pattern variable here, even though it is in the head position:
+(let-syntax ([ttt (syntax-rules () [((... x) y) '(x y)])]) (ttt 123))
+; => (ttt 123)
+
+; same thing, but with pattern template escaped via template escape to work properly:
+((syntax-rules () ; NB: anonymous transformer positioned at the head of the use form
+  [(_) (let-syntax ([ttt (syntax-rules () [(((... ...) x) y) '(x y)])]) (ttt 123))]))
+; => (ttt 123)
+```
+
+The importance of this feature will be clear when we get to circumventing hygiene part below.
 
 ## Named pattern escapes
 
@@ -95,7 +107,7 @@ Examples:
 (let-syntax 
   ([define-math-constants
     (syntax-rules () 
-      [(ref-id)
+      [((... ref-id))
        (begin (define (... string->id "pi" ref-id) 3.14)
               (define (... string->id "e" ref-id) 2.72))])])
   (define-math-constants)
@@ -103,14 +115,14 @@ Examples:
 ; => 5.86 
 ```  
 
-Note that in the last example the keyword `ref-id` at the beginning of the pattern was used to bring in the `define-math-constants` from the macro use to serve as a prototype id for introduced `pi` and `e` identifiers, allowing them to capture the corresponding identifier names typed in by the user in `(+ pi e)`. Since this keyword, according to R7RS rules, should not be treated as a pattern variable, in the future wi will require using simple pattern escape instead.
+Note that in the last example the escaped keyword `ref-id` at the beginning of the pattern was used to bring in the `define-math-constants` from the macro use to serve as a prototype id for introduced `pi` and `e` identifiers, allowing them to capture the corresponding identifier names typed in by the user in `(+ pi e)`. Without simple pattern escape, this keyword would not be treated as a pattern variable.
 
 Here are some more examples:
 
 ```scheme
 (define-syntax loop-until-break
   (syntax-rules ()
-    [(ref-id e ...)
+    [((... ref-id) e ...)
      (call/cc 
        (lambda ((... string->id "break" ref-id))
          (let loop () e ... (loop))))]))
@@ -129,14 +141,14 @@ To demonstrate combined use of different converters, here is a thin macro layer 
 ```scheme
 (define-syntax define-variant
   (syntax-rules ()
-    [(define-variant name () ([field0 index0] ...))
+    [((... ref-id) name () ([field0 index0] ...))
      (begin
        (define-syntax name
          (lambda (field0 ...)
            (vector 'name field0 ...)))
        (define-syntax 
          (... string->id 
-           (... string-append (... id->string name) "?") define-variant)
+           (... string-append (... id->string name) "?") ref-id)
          (lambda (object)
            (and (vector? object)
              (= (vector-length object) (... length (name field0 ...)))
@@ -144,29 +156,29 @@ To demonstrate combined use of different converters, here is a thin macro layer 
        (define-syntax 
          (... string->id 
            (... string-append (... id->string name) "->" 
-             (... id->string field0)) define-variant)
+             (... id->string field0)) ref-id)
          (lambda (object)
            (vector-ref object index0)))
        ...)]
-    [(define-variant name (field0 field ...) (pair ...))
-     (define-variant name (field ...)  
+    [((... ref-id) name (field0 field ...) (pair ...))
+     (ref-id name (field ...)  
        (pair ... [field0 (... length (name pair ...))]))]
-    [(define-variant name (field0 ...))
-     (define-variant name (field0 ...) ())]))
+    [((... ref-id) name (field0 ...))
+     (ref-id name (field0 ...) ())]))
 
 (define-syntax variant-case
   (syntax-rules (else)
-    [(variant-case (a . d) clause ...)
-     (let ([var (a . d)]) (variant-case var clause ...))]
-    [(variant-case var) (error "no variant-case clause matches" var)]
-    [(variant-case var (else exp1 exp2 ...)) (body exp1 exp2 ...)]
-    [(variant-case var [name (field ...) exp1 exp2 ...] clause ...)
-     (if ((... string->id (... string-append (... id->string name) "?") variant-case) var)
+    [((... ref-id) (a . d) clause ...)
+     (let ([var (a . d)]) (ref-id var clause ...))]
+    [((... ref-id) var) (error "no variant-case clause matches" var)]
+    [((... ref-id) var (else exp1 exp2 ...)) (body exp1 exp2 ...)]
+    [((... ref-id) var [name (field ...) exp1 exp2 ...] clause ...)
+     (if ((... string->id (... string-append (... id->string name) "?") ref-id) var)
          (let ([field ((... string->id (... string-append (... id->string name) "->" 
-                         (... id->string field)) variant-case) 
+                         (... id->string field)) ref-id) 
                        var)] ...)
            exp1 exp2 ...)
-         (variant-case var clause ...))]))
+         (ref-id var clause ...))]))
 
 (let ()
   (define-variant point (x y))
@@ -196,6 +208,4 @@ To demonstrate combined use of different converters, here is a thin macro layer 
 
 ## Why stop here?
 
-The above collection of named escapes is selected as *almost* minimal one. Its purpose is not make `syntax-rules`-based macro programming more convenient, but just extend it to non-structural S-expressions, so it is possible to recognize them and work with them by converting them to another form if a need arises. Arithmetics is limited to what one can do using lists as Peano numbers; for chars, access to ordering is provided, to support simple char ranges. One can imitate `string-append` converter without a dedicated converter, but this unnecessarily complicates generation of identifiers, which is a major use case.
-
-
+The above collection of named escapes is selected as *almost* minimal one. Its purpose is not to make `syntax-rules`-based macro programming more convenient, but just extend it to non-structural S-expressions, so it is possible to recognize them and work with them by converting them to another form if a need arises. Arithmetics is limited to what one can do using lists as Peano numbers; also, for numbers and chars, access to ordering is provided, to support simple ranges. One can imitate `string-append` without a dedicated converter, but this unnecessarily complicates generation of identifiers, which is a major use case.
