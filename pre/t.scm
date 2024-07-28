@@ -233,7 +233,7 @@
 ; EIOD Copyright notice (amended with the author's permission): 
 ; Copyright 2002, 2004, 2005 Al Petrofsky <al@petrofsky.org>
 ; LICENSING (3-clause BSD or GNU GPL 2 and up)
-; <the text of the 3-clause BSD license is in the LICENSE file>
+; <terms of the 3-clause BSD license are in the LICENSE file>
 
 ; An environment is a procedure that accepts any identifier and access type and returns a 
 ; denotation. Access type is one of these symbols: ref, set!, define, define-syntax.

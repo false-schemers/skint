@@ -1052,8 +1052,7 @@ char *s_code[] = {
   "-line)",
 
   "C", 0,
-  "@(y11:skint-1.0.0),@(y5:skint),@(y12:exact-closed),@(y4:r7rs),l4@!(y10"
-  ":*features*)",
+  "@(y11:skint-1.0.0),@(y5:skint),@(y4:r7rs),l3@!(y10:*features*)",
 
   "C", 0,
   "&0{%2.1?{.0,@(y8:features)[21}.0]2}%x,&0{%1.0L0?{.0@!(y10:*features*)]"

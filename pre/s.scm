@@ -2030,7 +2030,7 @@
 
 (define command-line (make-parameter (%command-line))) ; can be changed later in (main)
 
-(define *features* (list r7rs exact-closed skint skint-1.0.0))
+(define *features* (list r7rs skint skint-1.0.0))
 
 (define features
   (case-lambda 
