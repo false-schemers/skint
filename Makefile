@@ -61,6 +61,9 @@ objects = $(sources:%.c=%.o)
 all: $(exe)
 
 clean:
+	$(RM) $(objects)
+
+realclean:
 	$(RM) $(objects) $(exe)
 
 install:

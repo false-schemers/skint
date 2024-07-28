@@ -2,6 +2,10 @@
 
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Wparentheses-equality"
+#pragma GCC diagnostic ignored "-Wignored-attributes"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#pragma GCC diagnostic ignored "-Woverlength-strings"
 #endif
 /* this is for MS headers; shouldn't affect others */
 #define _CRT_SECURE_NO_WARNINGS 1

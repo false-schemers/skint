@@ -964,8 +964,7 @@ static void wrdatum(obj o, wenv_t *e) {
     wrc('>', e);
   } else if (isprocedure(o)) {
     char buf[60];
-    if (isobjptr(hblkref(o, 0))) sprintf(buf, "#<vmclosure @%p>", objptr_from_obj(o));
-    else sprintf(buf, "#<procedure @%p>", objptr_from_obj(o)); 
+    sprintf(buf, "#<procedure @%p>", (void*)objptr_from_obj(o));
     wrs(buf, e);
   } else if (isrecord(o)) {
     int i, n = recordlen(o);
@@ -1027,7 +1026,10 @@ extern char *argv_ref(int idx)
 
 #if defined(WIN32)
 #define cxg_envv _environ
-#elif defined(__linux) || defined(__APPLE__)
+#elif defined(__linux) 
+#define cxg_envv environ
+#elif defined(__APPLE__)
+extern char **environ;
 #define cxg_envv environ
 #else /* add more systems? */
 char **cxg_envv = { NULL };
