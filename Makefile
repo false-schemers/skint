@@ -42,7 +42,7 @@ ifeq ($(ARCH),AMD64)
   CFLAGS += -D NAN_BOXING
 endif
 
-.PHONY: all clean install uninstall
+.PHONY: all clean realclean install uninstall
 
 exe     = ./skint
 
