@@ -2139,7 +2139,7 @@
     (string-cmp) (string-ci-cmp) (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) 
     (subbytevector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
-    (void) (void?)
+    (void) (void?) (implementation-name) (implementation-version)
     ; (repl hidden) library entries below the auto-adder need to be added explicitly 
     (*user-name-registry* . hidden) (make-readonly-environment . hidden) 
     (make-controlled-environment . hidden) (make-sld-environment . hidden) 
@@ -2148,7 +2148,7 @@
     (r5rs-environment . hidden) (r5rs-null-environment . hidden) (*verbose*  . hidden) (*quiet*  . hidden)
     (compile-and-run-core-expr . hidden) (evaluate-top-form . hidden) (run-script . hidden)
     (run-program . hidden) (repl-evaluate-top-form . hidden) (repl-read . hidden) 
-    (repl-exec-command . hidden) (repl-from-port . hidden) (run-benchmark . hidden) (repl . hidden) 
+    (repl-exec-command . hidden) (repl-from-port . hidden) (run-benchmark . hidden) (repl . hidden)
     ))
 
 ; clean up root environment by moving all symbolic bindings not in (skint) library
@@ -2696,6 +2696,9 @@
 ))
 
 (define *skint-version* "0.4.9")
+
+(define (implementation-version) *skint-version*)
+(define (implementation-name) "SKINT")
 
 (define (skint-main)
   ; see if command line asks for special processing
