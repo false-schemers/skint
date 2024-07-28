@@ -38,6 +38,7 @@ installed as `/usr/local/bin/skint` command.
 $ git clone https://github.com/false-schemers/skint.git
 $ cd skint
 $ make
+$ make test
 $ sudo make install
 ```
 
