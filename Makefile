@@ -42,7 +42,7 @@ ifeq ($(ARCH),AMD64)
   CFLAGS += -D NAN_BOXING
 endif
 
-.PHONY: all clean realclean install uninstall
+.PHONY: all clean realclean test install uninstall
 
 exe     = ./skint
 
@@ -59,6 +59,9 @@ includes = i.h \
 objects = $(sources:%.c=%.o)
 
 all: $(exe)
+
+test:
+	$(exe) misc/test.scm
 
 clean:
 	$(RM) $(objects)
