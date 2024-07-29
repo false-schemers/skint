@@ -3,9 +3,9 @@
 # Cheap and fast R7RS Scheme Interpreter
                          
 SKINT is a portable interpreter for the R7RS Scheme programming language. 
-It can be built from five C source files with a single command. There is no distributives or packages: 
-just compile the source files with your favorite C compiler, link them with the standard C runtime libraries 
-and be done with it. For some platforms, precompiled binaries are available (please see [releases](https://github.com/false-schemers/skint/releases)).
+It can be built from five C source files with a single command. There is no distributives or packages; 
+just compile the source files with your favorite C compiler, link them with the standard C runtime libraries, 
+and you're done. For some platforms, precompiled binaries are available (please see [releases](https://github.com/false-schemers/skint/releases)).
 
 ## Installation
 
@@ -18,20 +18,20 @@ gcc -o skint [skint].c -lm
 Some compilers link `<math.h>` library automatically, some require explicit option like `-lm` above. It can be built on 32-bit 
 and 64-bit systems (tested on Windows and Linux).
 
-For much better performance (especially in floating-point calculations), you may pick another compiler, add optimization options,
-and add some SKINT-spicific flags, e.g.:  
+For much better performance (especially in floating-point calculations) you may pick another compiler, add optimization flags,
+and some SKINT-spicific options, e.g.:  
 
 ```
 clang -o skint -O3 -D NDEBUG -D NAN_BOXING [skint].c -lm
 ```
 
-The NAN_BOXING option assumes that upper 16 bit of heap pointers are zero (48-bit address space). If this assumption holds,
-it is recommended to use this option on 64-bit systems.
+The NAN_BOXING option assumes that the upper 16 bits of heap pointers are zero (48-bit address space). It is recommended to use this
+option on 64-bit systems that guarantee this.
 
 The resulting interpreter has no dependencies (except for C runtime and standard -lm math library) and can be run from any location.
 If linked statically, it can be easily moved between systems with the same ABI.
 
-If you would prefer these decisions to be made for you, please follow the instructions below. Skint will be
+For a more traditional install, please follow the instructions below. Skint will be
 installed as `/usr/local/bin/skint` command.
 
 ```
@@ -44,9 +44,9 @@ $ sudo make install
 
 ## Scheme Compatibility
 
-SKINT is true to basic Scheme principles -- it features precise garbage collector, supports proper tail recursion, `call/cc`, 
-`dynamic-wind`, multiple return values, and has a hygienic macro system and a library system. It is almost fully compatible 
-with R7RS-small, but it has the following known limitations and deviations from the standard:
+SKINT is true to basic Scheme principles -- it features a precise garbage collector, supports proper tail recursion, `call/cc`, 
+`dynamic-wind`, multiple return values, has a hygienic macro system, and a library system. It is almost fully compatible 
+with R7RS-small, but has the following known limitations and deviations from the standard:
 
   *  fixnums are 30 bit long, flonums are doubles
   *  no support for bignums/rational/complex numbers
