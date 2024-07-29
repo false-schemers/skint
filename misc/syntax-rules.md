@@ -8,7 +8,7 @@ Boxes, as defined by SRFI-111 and the future `(scheme box)` library, are support
 
 ## Simple pattern escape
 
-A pattern of the form `(<ellipsis> <pattern>)`, where `<ellipsis>` is the current ellipsis, is interpreted as if it were `<pattern>`, but ellipses and underscores in `<pattern>` lose their special meaning, e.g.:
+A pattern of the form `(<ellipsis> <pattern>)` where `<ellipsis>` is the current ellipsis is interpreted as if it were `<pattern>`, but ellipses and underscores in `<pattern>` lose their special meaning; e.g.:
 
 ```scheme
 (define-syntax underscored
@@ -18,7 +18,7 @@ A pattern of the form `(<ellipsis> <pattern>)`, where `<ellipsis>` is the curren
 (underscored 1 2)
 ; => (2 1) 
 ```
-Note that R7RS prescribes special treatment of keyword identifier at the beginning of the pattern in a `<syntax rule>`: it is matched automatically with the head of the use form, but is not considered a pattern variable. SKINT's pattern escape extension drops this positional restriction, and matches its sub-pattern in a normal way, e.g.:
+Note that R7RS prescribes special treatment of the keyword identifier at the beginning of the pattern in a `<syntax rule>`: it is matched automatically with the head of the use form, but is not considered a pattern variable. SKINT's pattern escape extension drops this positional restriction and matches its sub-pattern in a normal way; e.g.:
 
 ```scheme
 ; in R7RS, x is not a pattern variable here due to its head position:
@@ -35,11 +35,11 @@ Note that R7RS prescribes special treatment of keyword identifier at the beginni
 ; => (ttt 123)
 ```
 
-The importance of this feature will be clear when we get to circumventing hygiene part below.
+The importance of this feature will be clear when we get to circumventing hygiene below.
 
 ## Named pattern escapes
 
-A pattern of the form `(<ellipsis> <predicate name> <pattern>)` where `<ellipsis>` is the current ellipsis is interpreted as if it were `<pattern>`, with additional constraint that the S-expression it matches should also satisfy the constraint specified by `<predicate name>`. Predicate names are compared to predefined symbols according to `free-identifier=?` rules. The following named pattern escapes are supported:
+A pattern of the form `(<ellipsis> <predicate name> <pattern>)`, where `<ellipsis>` is the current ellipsis, is interpreted as if it were `<pattern>` as long as the matching S-expression satisfies the constraint specified by `<predicate name>`. Predicate names are compared to predefined symbols according to `free-identifier=?` rules. The following named pattern escapes are supported:
 
   * `(... number? <pattern>)`
   * `(... exact-integer? <pattern>)`
@@ -68,7 +68,7 @@ Example (also uses box templates):
 
 ## Named template escapes
 
-A template of the form `(<ellipsis> <converter name> <template+>)` where `<ellipsis>` is the current ellipsis is interpreted as follows. First, `<template+>` (which can be any nonempty sequence of `<template>`s), is instantiated recursively, resulting in a list of S-expressions. These S-expressions become arguments to a converter specified by `<converter name>`. It is a syntax error to apply converters to a wrong type or number of arguments. Converter names are compared to predefined symbols according to `free-identifier=?` rules.  The following named template escapes are supported:
+A template of the form `(<ellipsis> <converter name> <template+>)` where `<ellipsis>` is the current ellipsis is interpreted as follows: First, `<template+>` (which can be any nonempty sequence of `<template>`s), is instantiated recursively, resulting in a list of S-expressions. These S-expressions become arguments to a converter specified by `<converter name>`. It is a syntax error to apply converters to a wrong type or number of arguments. Converter names are compared to predefined symbols according to `free-identifier=?` rules.  The following named template escapes are supported:
 
   * `(... number->string <template>)`
   * `(... string->number <template>)`
@@ -87,7 +87,7 @@ A template of the form `(<ellipsis> <converter name> <template+>)` where `<ellip
 
 All but the last two converters have the same meaning as the corresponding Scheme procedures. The `id->string` converter expects either a symbol or a syntax object representing an identifier and produces a string containing a “quote name” of the identifier (the result of applying `symbol->string` to the original name supplied by the user after all substitutions).
 
-The `string->id` converter allows one to produce identifiers having the same syntax properties as identifiers explicitly introduced as part of macro definitions or macro uses. The properies are copied from `<id template>`, which, after all substitutions are performed, should instantiate to an identifier serving as a prototype. The `<template>` argument should instantiate to a string, which is then converted to a symbol via `string->symbol` and then turned into an identifier syntax object *as if* it was introduced side-by-side with the prototype identifier (same expression, same expansion phase).
+The `string->id` converter allows one to produce identifiers having the same syntax properties as identifiers explicitly introduced as part of macro definitions or macro uses. The properies are copied from `<id template>`, which, after all substitutions are performed, should instantiate to an identifier serving as a prototype. The `<template>` argument should instantiate to a string, which is then converted to a symbol via `string->symbol`, and then turned into an identifier syntax object *as if* it was introduced alongside the prototype identifier (same expression, same expansion phase).
 
 Please note that identifiers generated with `string->id` are not autorenamed with other “free” template
 identifiers; their syntactic identity is defined entirely by that of `<id template>` id, which might have already being renamed by the time `string->id` converter is applied.
@@ -118,7 +118,7 @@ Examples:
 ; => 5.86 
 ```  
 
-Note that in the last example the escaped keyword `ref-id` at the beginning of the pattern was used to bring in the `define-math-constants` from the macro use to serve as a prototype id for introduced `pi` and `e` identifiers, allowing them to capture the corresponding identifier names typed in by the user in `(+ pi e)`. Without simple pattern escape, this keyword would not be treated as a pattern variable.
+Note that in the last example the escaped keyword `ref-id` at the beginning of the pattern was used to bring in the `define-math-constants` from the macro use, and then used as a prototype id for the introduced `pi` and `e` identifiers. This allows them to capture the corresponding identifier names typed in by the user in `(+ pi e)`. Without a simple pattern escape, this keyword would not be treated as a pattern variable.
 
 Here are some more examples:
 
@@ -211,4 +211,4 @@ To demonstrate combined use of different converters, here is a thin macro layer 
 
 ## Why stop here?
 
-The above collection of named escapes is selected as *almost* minimal one. Its purpose is not to make `syntax-rules`-based macro programming more convenient, but just to extend its core abilities in dealing with non-structural S-expressions, so it is possible to recognize them and work with them via convertion to/from structural form if a need arises. Arithmetics is limited to what one can do using lists as Peano numbers; also, for numbers and chars, access to ordering is provided, to support simple ranges. One can imitate `string-append` without a dedicated converter, but this unnecessarily complicates generation of identifiers, which is a major use case.
+The above collection of named escapes is selected as an *almost* minimal one. Its purpose is not to make `syntax-rules`-based macro programming more convenient, but to extend its core abilities in dealing with non-structural S-expressions. It is possible to recognize them and work with them via convertion to/from structural form if a need be. Arithmetics is limited to what one can do using lists as Peano numbers; also, for numbers and chars, access to ordering is provided to support simple ranges. One can imitate `string-append` without a dedicated converter, but this unnecessarily complicates generation of identifiers, which is a major use case.
