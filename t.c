@@ -1053,7 +1053,7 @@ char *t_code[] = {
   "e-path)[22}.!0.0^_1[42",
 
   "C", 0,
-  "${@(y22:base-library-directory)[00},l1@!(y19:*library-path-list*)",
+  "Zd,l1@!(y19:*library-path-list*)",
 
   "P", "append-library-path!",
   "%1#0${.2^,@(y19:base-path-separator)[01}~?{Zs,S11,.1^S6.!0}.0^,l1,@(y1"

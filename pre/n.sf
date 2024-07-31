@@ -1548,7 +1548,7 @@ char *lib_path = ##LIBPATH;
 #elif defined(WIN32)
 char *lib_path = \".\\\\\";
 #else
-char *lib_path =  \"./\";
+char *lib_path = \"./\";
 #endif
 
 extern char *argv_ref(int idx)
