@@ -193,7 +193,6 @@
 ;  (body <expr or def> ...)
 ;  (syntax-lambda (<id> ...) <expr>)
 ;  (syntax-rules (<id> ...) <rule> ...)
-;  (syntax-length <form>)
 ;  (syntax-error <msg> <arg> ...)
 
 
@@ -250,7 +249,7 @@
 ; <special>     ->  <builtin> | <integrable> | <transformer> | <library> | <void>
 ; <builtin>     ->  syntax-quote | quote | set! | set& | if | lambda | lambda* |
 ;                   letcc | withcc | body | begin | define | define-syntax |
-;                   syntax-lambda | syntax-rules | syntax-length | syntax-error |
+;                   syntax-lambda | syntax-rules | syntax-error |
 ;                   define-library | import
 ; <integrable>  ->  <fixnum serving as index in internal integrables table>
 ; <transformer> ->  <procedure of exp and env returning exp>
@@ -417,7 +416,6 @@
              [(syntax-quote)   (xpand-syntax-quote   tail env)]
              [(syntax-lambda)  (xpand-syntax-lambda  tail env appos?)]
              [(syntax-rules)   (xpand-syntax-rules   tail env)]
-             [(syntax-length)  (xpand-syntax-length  tail env)]
              [(syntax-error)   (xpand-syntax-error   tail env)]
              [(define-library) (xpand-define-library head tail env #f)]
              [(import)         (xpand-import         head tail env #f)]
@@ -680,11 +678,6 @@
          (syntax-rules* env #f (car tail) (cdr tail))]
         [else
          (x-error "improper syntax-rules form" (cons 'syntax-rules tail))]))
-
-(define (xpand-syntax-length tail env)
-  (if (and (list1? tail) (list? (car tail)))
-      (list 'quote (length (car tail)))
-      (x-error "improper syntax-length form" (cons 'syntax-length tail))))
 
 (define (xpand-syntax-error tail env)
   (let ([args (map xpand-sexp->datum tail)])
@@ -2123,7 +2116,7 @@
     (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format 28 48) 
     (fprintf) (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
     ; skint extras go into repl and (skint) library; the rest goes to (skint hidden)
-    (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
+    (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda)
     (record?) (make-record) (record-length) (record-ref) (record-set!) (expand)
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg)

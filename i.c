@@ -4002,6 +4002,15 @@ define_instruction(heapsz) {
   gonexti();
 }
 
+define_instruction(flimmp) {
+#ifdef NAN_BOXING
+  ac = bool_obj(1); 
+#else
+  ac = bool_obj(0); 
+#endif
+  gonexti();
+}
+
 define_instruction(dirsep) {
   extern int dirsep;
   ac = char_obj(dirsep); 

@@ -310,7 +310,7 @@
          (new-record-type 'rtn '(f ...)))
        (define consn 
          (lambda (id ...) 
-           (let ([r (make-record rtn (syntax-length (f ...)))])
+           (let ([r (make-record rtn (... length (f ...)))])
              (%drt-init r (id ...) ([f i] ...) ()))))
        (define predn 
          (lambda (obj) (record? obj rtn)))
@@ -322,14 +322,14 @@
        ...)]
     [(_ rtn cf* predn ([fn accn] fam ...) (fi ...) (ai ...) (mi ...))
      (%drt-unroll rtn cf* predn (fam ...) 
-       (fi ... [fn (syntax-length (fi ...))]) 
-       (ai ... [accn (syntax-length (fi ...))]) 
+       (fi ... [fn (... length (fi ...))]) 
+       (ai ... [accn (... length (fi ...))]) 
        (mi ...))]
     [(_  rtn cf* predn ([fn accn modn] fam ...) (fi ...) (ai ...) (mi ...))
      (%drt-unroll rtn cf* predn (fam ...) 
-       (fi ... [fn (syntax-length (fi ...))]) 
-       (ai ... [accn (syntax-length (fi ...))]) 
-       (mi ... [modn (syntax-length (fi ...))]))]))
+       (fi ... [fn (... length (fi ...))]) 
+       (ai ... [accn (... length (fi ...))]) 
+       (mi ... [modn (... length (fi ...))]))]))
 
 (define-syntax define-record-type
   (syntax-rules ()

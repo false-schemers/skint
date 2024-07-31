@@ -530,6 +530,7 @@ declare_instruction(gc,         "Zg",           0,  "%gc",                      
 declare_instruction(gccnt,      "Zc",           0,  "%gc-count",                '0', AUTOGL)
 declare_instruction(bumpcnt,    "Zb",           0,  "%bump-count",              '0', AUTOGL)
 declare_instruction(heapsz,     "Zh",           0,  "%heap-size",               '0', AUTOGL)
+declare_instruction(flimmp,     "Zf",           0,  "%flonums-immediate?",      '0', AUTOGL)
 declare_instruction(dirsep,     "Zs",           0,  "directory-separator",      '0', AUTOGL)
 
 /* serialization, deserialization, compilation-related instructions */             

@@ -27,12 +27,12 @@
     (cons 'define-syntax 'define-syntax)
     (cons 'syntax-lambda 'syntax-lambda)
     (cons 'syntax-rules 'syntax-rules)
-    (cons 'syntax-length 'syntax-length)
     (cons 'syntax-error 'syntax-error)
     (cons 'define-library 'define-library)
     (cons 'program 'program)
     (cons 'import 'import)
     (cons 'export 'export)
+    (cons 'length 'length) ; used as escape by define-record-type
     (cons '... '...)
     (cons '_ '_)))
 
@@ -43,7 +43,7 @@
     (set! *top-transformer-env* 
       (map (lambda (bnd)
              (case (car bnd)
-               [(... _) ; syntax-rules looks them up in skint's root env!!
+               [(... _ length) ; syntax-rules looks them up in root env!!
                 (cons (car bnd) (root-environment (car bnd) 'ref))]
                [else ; for the rest, it is val that matters
                 (cons (car bnd) (make-location (cdr bnd)))])) 
