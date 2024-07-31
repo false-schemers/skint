@@ -191,7 +191,6 @@ declare_instruction(atest1,     "%1",           0,  NULL,                       
 declare_instruction(atest2,     "%2",           0,  NULL,                        0,  NULL) 
 declare_instruction(atest3,     "%3",           0,  NULL,                        0,  NULL) 
 declare_instruction(atest4,     "%4",           0,  NULL,                        0,  NULL) 
-/* declare_instruction(brnotlt,    "<?",          'b', NULL,                        0,  NULL) */
 declare_instruction(pushsub,    "-,",           0,  NULL,                        0,  NULL) 
 
 /* type checks: integrables but no globals  */
@@ -532,6 +531,7 @@ declare_instruction(bumpcnt,    "Zb",           0,  "%bump-count",              
 declare_instruction(heapsz,     "Zh",           0,  "%heap-size",               '0', AUTOGL)
 declare_instruction(flimmp,     "Zf",           0,  "%flonums-immediate?",      '0', AUTOGL)
 declare_instruction(dirsep,     "Zs",           0,  "directory-separator",      '0', AUTOGL)
+declare_instruction(libdir,     "Zd",           0,  "base-library-directory",   '0', AUTOGL)
 
 /* serialization, deserialization, compilation-related instructions */             
 declare_instruction(igp,        "U0",           0,  "integrable?",              '1', AUTOGL)

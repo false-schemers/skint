@@ -983,8 +983,8 @@ char *t_code[] = {
   "{'(c%5c),.1ddav}{f}}{f}}{f}?{f]2}t]2",
 
   "P", "file-resolve-relative-to-base-path",
-  "%2${.2,@(y14:path-relative?)[01}?{${.3,@(y19:base-path-separator)[01}}"
-  "{f}?{.0,.2S6]2}.0]2",
+  "%2${.2,@(y14:path-relative?)[01}?{${.3,@(y19:base-path-separator)[01}?"
+  "{.0,.2S6]2}.0,Zs,S11,.3,@(y14:%25string-append)[23}.0]2",
 
   "C", 0,
   "n@!(y20:*current-file-stack*)",
@@ -1046,25 +1046,22 @@ char *t_code[] = {
   "3:invalid library name name element),@(y7:c-error)[12",
 
   "P", "listname->path",
-  "%3,#0${.4,@(y19:base-path-separator)[01},.0?{.0,S11}{${.5,'(s38:librar"
-  "y path does not end in separator),@(y7:c-error)[02}}_1.!0n,.2,,#0.5,.7"
-  ",.2,.6,&4{%2.0p?{.1u?{.1,${.3a,@(y24:listname-segment->string)[01}c}{."
-  "1,:0^c,${.3a,@(y24:listname-segment->string)[01}c},.1d,:1^[22}:3,${.4,"
-  ":2cA8,@(y14:string-append*)[01},@(y34:file-resolve-relative-to-base-pa"
-  "th)[22}.!0.0^_1[42",
+  "%3,#0${.4,@(y19:base-path-separator)[01},.0?{.0}{Zs}_1,S11.!0n,.2,,#0."
+  "5,.7,.2,.6,&4{%2.0p?{.1u?{.1,${.3a,@(y24:listname-segment->string)[01}"
+  "c}{.1,:0^c,${.3a,@(y24:listname-segment->string)[01}c},.1d,:1^[22}:3,$"
+  "{.4,:2cA8,@(y14:string-append*)[01},@(y34:file-resolve-relative-to-bas"
+  "e-path)[22}.!0.0^_1[42",
 
   "C", 0,
-  "'(l1:s2:./;)@!(y19:*library-path-list*)",
+  "${@(y22:base-library-directory)[00},l1@!(y19:*library-path-list*)",
 
   "P", "append-library-path!",
-  "%1${.2,@(y19:base-path-separator)[01}?{.0,l1,@(y19:*library-path-list*"
-  ")L6@!(y19:*library-path-list*)]1}.0,'(s46:library path should end in d"
-  "irectory separator),@(y7:c-error)[12",
+  "%1#0${.2^,@(y19:base-path-separator)[01}~?{Zs,S11,.1^S6.!0}.0^,l1,@(y1"
+  "9:*library-path-list*)L6@!(y19:*library-path-list*)]1",
 
   "P", "prepend-library-path!",
-  "%1${.2,@(y19:base-path-separator)[01}?{@(y19:*library-path-list*),.1,l"
-  "1L6@!(y19:*library-path-list*)]1}.0,'(s46:library path should end in d"
-  "irectory separator),@(y7:c-error)[12",
+  "%1#0${.2^,@(y19:base-path-separator)[01}~?{Zs,S11,.1^S6.!0}@(y19:*libr"
+  "ary-path-list*),.1^,l1L6@!(y19:*library-path-list*)]1",
 
   "P", "find-library-path",
   "%1@(y19:*library-path-list*),,#0.0,.3,&2{%1.0p?{${'(s4:.sld),.3a,:0,@("
@@ -1174,7 +1171,7 @@ char *t_code[] = {
   "0:*root-name-registry*),@(y11:name-lookup)[03}",
 
   "C", 0,
-  "${'(l509:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
+  "${'(l510:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
   "3:...;y1:v;y1:u;y1:b;;l3:y1:/;y1:v;y1:b;;l3:y1:<;y1:v;y1:b;;l3:y2:<=;y"
   "1:v;y1:b;;l3:y1:=;y1:v;y1:b;;l4:y2:=>;y1:v;y1:u;y1:b;;l3:y1:>;y1:v;y1:"
   "b;;l3:y2:>=;y1:v;y1:b;;l2:y1:_;y1:b;;l3:y3:abs;y1:v;y1:b;;l4:y3:and;y1"
@@ -1337,38 +1334,39 @@ char *t_code[] = {
   "tevector;;l1:y19:standard-input-port;;l1:y20:standard-output-port;;l1:"
   "y19:standard-error-port;;l1:y9:tty-port?;;l1:y15:port-fold-case?;;l1:y"
   "19:set-port-fold-case!;;l1:y11:rename-file;;l1:y17:current-directory;;"
-  "l1:y19:directory-separator;;l1:y4:void;;l1:y5:void?;;l1:y19:implementa"
-  "tion-name;;l1:y22:implementation-version;;py20:*user-name-registry*;y6"
-  ":hidden;;py25:make-readonly-environment;y6:hidden;;py27:make-controlle"
-  "d-environment;y6:hidden;;py20:make-sld-environment;y6:hidden;;py21:mak"
-  "e-repl-environment;y6:hidden;;py19:find-library-in-env;y6:hidden;;py16"
-  ":root-environment;y6:hidden;;py16:repl-environment;y6:hidden;;py17:emp"
-  "ty-environment;y6:hidden;;py32:make-historic-report-environment;y6:hid"
-  "den;;py16:r5rs-environment;y6:hidden;;py21:r5rs-null-environment;y6:hi"
-  "dden;;py9:*verbose*;y6:hidden;;py7:*quiet*;y6:hidden;;py25:compile-and"
-  "-run-core-expr;y6:hidden;;py17:evaluate-top-form;y6:hidden;;py10:run-s"
-  "cript;y6:hidden;;py11:run-program;y6:hidden;;py22:repl-evaluate-top-fo"
-  "rm;y6:hidden;;py9:repl-read;y6:hidden;;py17:repl-exec-command;y6:hidde"
-  "n;;py14:repl-from-port;y6:hidden;;py13:run-benchmark;y6:hidden;;py4:re"
-  "pl;y6:hidden;;),&0{%1,,,,#0#1#2#3&0{%1.0,'(y1:w),.1v?{'(l2:y6:scheme;y"
-  "5:write;)]2}'(y1:t),.1v?{'(l2:y6:scheme;y4:time;)]2}'(y1:p),.1v?{'(l2:"
-  "y6:scheme;y4:repl;)]2}'(y1:r),.1v?{'(l2:y6:scheme;y4:read;)]2}'(y1:v),"
-  ".1v?{'(l2:y6:scheme;y4:r5rs;)]2}'(y1:u),.1v?{'(l2:y6:scheme;y9:r5rs-nu"
-  "ll;)]2}'(y1:d),.1v?{'(l2:y6:scheme;y4:load;)]2}'(y1:z),.1v?{'(l2:y6:sc"
-  "heme;y4:lazy;)]2}'(y1:s),.1v?{'(l2:y6:scheme;y15:process-context;)]2}'"
-  "(y1:i),.1v?{'(l2:y6:scheme;y7:inexact;)]2}'(y1:f),.1v?{'(l2:y6:scheme;"
-  "y4:file;)]2}'(y1:e),.1v?{'(l2:y6:scheme;y4:eval;)]2}'(y1:o),.1v?{'(l2:"
-  "y6:scheme;y7:complex;)]2}'(y1:h),.1v?{'(l2:y6:scheme;y4:char;)]2}'(y1:"
-  "l),.1v?{'(l2:y6:scheme;y11:case-lambda;)]2}'(y1:a),.1v?{'(l2:y6:scheme"
-  ";y3:cxr;)]2}'(y1:b),.1v?{'(l2:y6:scheme;y4:base;)]2}'(y1:x),.1v?{'(l2:"
-  "y6:scheme;y3:box;)]2}.1I0?{.1,'(y4:srfi),l2]2}.1,l1]2}.!0&0{%1${&0{%1n"
-  ",'(l1:y5:begin;),V12]1},.3,@(y20:*root-name-registry*),@(y11:name-look"
-  "up)[03}z]1}.!1&0{%3'1,.1V4,.0,.3A3,.0?{.4,.1sd]5}.1,.5,.5cc,'1,.4V5]5}"
-  ".!2&0{%1&0{%1.0,'(y5:const),l2]1},.1,@(y20:*root-name-registry*),@(y11"
-  ":name-lookup)[13}.!3.4d,.5a,,#0.0,.6,.5,.7,.(i10),&5{%2.1u?{${.2,:0^[0"
-  "1},.1,${'(l1:y5:skint;),:1^[01},:3^[23}.1p~?{${.2,:0^[01},.1,${n,.6c,'"
-  "(y5:skint)c,:1^[01},:3^[23}${${.4,:0^[01},.3,${${.9a,:2^[01},:1^[01},:"
-  "3^[03}.1d,.1,:4^[22}.!0.0^_1[52},@(y10:%25for-each1)[02}",
+  "l1:y19:directory-separator;;l1:y22:base-library-directory;;l1:y4:void;"
+  ";l1:y5:void?;;l1:y19:implementation-name;;l1:y22:implementation-versio"
+  "n;;py20:*user-name-registry*;y6:hidden;;py25:make-readonly-environment"
+  ";y6:hidden;;py27:make-controlled-environment;y6:hidden;;py20:make-sld-"
+  "environment;y6:hidden;;py21:make-repl-environment;y6:hidden;;py19:find"
+  "-library-in-env;y6:hidden;;py16:root-environment;y6:hidden;;py16:repl-"
+  "environment;y6:hidden;;py17:empty-environment;y6:hidden;;py32:make-his"
+  "toric-report-environment;y6:hidden;;py16:r5rs-environment;y6:hidden;;p"
+  "y21:r5rs-null-environment;y6:hidden;;py9:*verbose*;y6:hidden;;py7:*qui"
+  "et*;y6:hidden;;py25:compile-and-run-core-expr;y6:hidden;;py17:evaluate"
+  "-top-form;y6:hidden;;py10:run-script;y6:hidden;;py11:run-program;y6:hi"
+  "dden;;py22:repl-evaluate-top-form;y6:hidden;;py9:repl-read;y6:hidden;;"
+  "py17:repl-exec-command;y6:hidden;;py14:repl-from-port;y6:hidden;;py13:"
+  "run-benchmark;y6:hidden;;py4:repl;y6:hidden;;),&0{%1,,,,#0#1#2#3&0{%1."
+  "0,'(y1:w),.1v?{'(l2:y6:scheme;y5:write;)]2}'(y1:t),.1v?{'(l2:y6:scheme"
+  ";y4:time;)]2}'(y1:p),.1v?{'(l2:y6:scheme;y4:repl;)]2}'(y1:r),.1v?{'(l2"
+  ":y6:scheme;y4:read;)]2}'(y1:v),.1v?{'(l2:y6:scheme;y4:r5rs;)]2}'(y1:u)"
+  ",.1v?{'(l2:y6:scheme;y9:r5rs-null;)]2}'(y1:d),.1v?{'(l2:y6:scheme;y4:l"
+  "oad;)]2}'(y1:z),.1v?{'(l2:y6:scheme;y4:lazy;)]2}'(y1:s),.1v?{'(l2:y6:s"
+  "cheme;y15:process-context;)]2}'(y1:i),.1v?{'(l2:y6:scheme;y7:inexact;)"
+  "]2}'(y1:f),.1v?{'(l2:y6:scheme;y4:file;)]2}'(y1:e),.1v?{'(l2:y6:scheme"
+  ";y4:eval;)]2}'(y1:o),.1v?{'(l2:y6:scheme;y7:complex;)]2}'(y1:h),.1v?{'"
+  "(l2:y6:scheme;y4:char;)]2}'(y1:l),.1v?{'(l2:y6:scheme;y11:case-lambda;"
+  ")]2}'(y1:a),.1v?{'(l2:y6:scheme;y3:cxr;)]2}'(y1:b),.1v?{'(l2:y6:scheme"
+  ";y4:base;)]2}'(y1:x),.1v?{'(l2:y6:scheme;y3:box;)]2}.1I0?{.1,'(y4:srfi"
+  "),l2]2}.1,l1]2}.!0&0{%1${&0{%1n,'(l1:y5:begin;),V12]1},.3,@(y20:*root-"
+  "name-registry*),@(y11:name-lookup)[03}z]1}.!1&0{%3'1,.1V4,.0,.3A3,.0?{"
+  ".4,.1sd]5}.1,.5,.5cc,'1,.4V5]5}.!2&0{%1&0{%1.0,'(y5:const),l2]1},.1,@("
+  "y20:*root-name-registry*),@(y11:name-lookup)[13}.!3.4d,.5a,,#0.0,.6,.5"
+  ",.7,.(i10),&5{%2.1u?{${.2,:0^[01},.1,${'(l1:y5:skint;),:1^[01},:3^[23}"
+  ".1p~?{${.2,:0^[01},.1,${n,.6c,'(y5:skint)c,:1^[01},:3^[23}${${.4,:0^[0"
+  "1},.3,${${.9a,:2^[01},:1^[01},:3^[03}.1d,.1,:4^[22}.!0.0^_1[52},@(y10:"
+  "%25for-each1)[02}",
 
   "C", 0,
   "@(y20:*root-name-registry*),${f,'(l1:y5:skint;),.4,@(y11:name-lookup)["

@@ -4017,6 +4017,12 @@ define_instruction(dirsep) {
   gonexti();
 }
 
+define_instruction(libdir) {
+  extern char *lib_path;
+  ac = string_obj(newstring(lib_path));
+  gonexti();
+}
+
 
 #define VM_GEN_DEFGLOBAL
 #include "i.h"

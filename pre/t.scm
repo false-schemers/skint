@@ -1747,8 +1747,10 @@
           [else #t])))
 
 (define (file-resolve-relative-to-base-path filename basepath)
-  (if (and (path-relative? filename) (base-path-separator basepath))
-      (string-append basepath filename) ; leading . and .. to be resolved by OS
+  (if (path-relative? filename) ; leading . and .. to be resolved by OS
+      (if (base-path-separator basepath)
+          (string-append basepath filename) 
+          (string-append basepath (string (directory-separator)) filename))
       filename))
 
 ; hacks for relative file name resolution
@@ -1833,9 +1835,7 @@
         [else (c-error "invalid library name name element" s)]))
 
 (define (listname->path listname basepath ext)
-  (define sep 
-    (let ([sc (base-path-separator basepath)])
-      (if sc (string sc) (c-error "library path does not end in separator" basepath))))
+  (define sep (string (or (base-path-separator basepath) (directory-separator))))
   (let loop ([l listname] [r '()])
     (if (pair? l)
         (loop (cdr l) 
@@ -1846,17 +1846,17 @@
 
 ; hacks for locating library files
 
-(define *library-path-list* '("./")) ; will do for now; FIXME: get access to real separator!
+(define *library-path-list* (list (base-library-directory)))
 
 (define (append-library-path! path)
-  (if (base-path-separator path)
-      (set! *library-path-list* (append *library-path-list* (list path)))
-      (c-error "library path should end in directory separator" path))) 
+  (unless (base-path-separator path)
+    (set! path (string-append path (string (directory-separator)))))
+  (set! *library-path-list* (append *library-path-list* (list path))))
 
 (define (prepend-library-path! path)
-  (if (base-path-separator path)
-      (set! *library-path-list* (append (list path) *library-path-list*))
-      (c-error "library path should end in directory separator" path))) 
+  (unless (base-path-separator path)
+    (set! path (string-append path (string (directory-separator)))))
+  (set! *library-path-list* (append (list path) *library-path-list*)))
 
 (define (find-library-path listname) ;=> name of existing .sld file or #f
   (let loop ([l *library-path-list*])
@@ -2132,7 +2132,7 @@
     (string-cmp) (string-ci-cmp) (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) 
     (subbytevector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
-    (void) (void?) (implementation-name) (implementation-version)
+    (base-library-directory) (void) (void?) (implementation-name) (implementation-version)
     ; (repl hidden) library entries below the auto-adder need to be added explicitly 
     (*user-name-registry* . hidden) (make-readonly-environment . hidden) 
     (make-controlled-environment . hidden) (make-sld-environment . hidden) 

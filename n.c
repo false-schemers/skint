@@ -1015,6 +1015,14 @@ int dirsep = '\\';
 int dirsep = '/';
 #endif
 
+#ifdef LIBPATH
+char *lib_path = ##LIBPATH;
+#elif defined(WIN32)
+char *lib_path = ".\\";
+#else
+char *lib_path = "./";
+#endif
+
 extern char *argv_ref(int idx)
 {
   char **pv = cxg_argv;
