@@ -100,6 +100,10 @@ char *t_code[] = {
   "P", "read-code-sexp",
   "%1.0,@(y11:read-simple)[11",
 
+  "P", "lookup-global",
+  "%!1U2,.0V3,.3H2,.0,.2V4,.4A3,.0?{.0d]5}.3p?{.3a}{f}?{.4b,.2,.4V4,.1,.7"
+  "cc,.3,.5V5.0]6}f]5",
+
   "P", "error*",
   "%2${.3,.3,f,@(y12:error-object)[03},@(y5:raise)[21",
 
@@ -1550,26 +1554,31 @@ char *t_code[] = {
 
   "P", "load",
   "%!1,,#0#1.2p?{.2a}{${@(y23:interaction-environment)[00}}.!0f.!1${.2,.4"
-  ",&2{%1:0^?{t,.1P79}${.2,@(y14:read-code-sexp)[01},'(s21:/usr/bin/env s"
-  "kint -f)X5Y6,.1q?{f,.2,@(y18:run-fasl-from-port)[22}.0,,#0:1,.4,.2,&3{"
-  "%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}"
-  "]1}.!0.0^_1[21},.6,@(y28:call-with-current-input-file)[02}Y9]4",
+  ",&2{%1:0^?{t,.1P79}${.2,@(y14:read-code-sexp)[01},#0'(s21:/usr/bin/env"
+  " skint -f)X5Y6,.1^q?{f,.2,@(y18:run-fasl-from-port)[22}'(s21:/usr/bin/"
+  "env skint -s)X5Y6,.1^q?{${.3,@(y14:read-code-sexp)[01}.!0}.0^,,#0:1,.4"
+  ",.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},"
+  ":0^[11}]1}.!0.0^_1[21},.6,@(y28:call-with-current-input-file)[02}Y9]4",
 
   "P", "expand",
   "%!1,#0.1p?{.1a}{${@(y23:interaction-environment)[00}}.!0.0^,.3,t,@(y5:"
   "xpand)[33",
 
   "P", "run-fasl-from-port",
-  "%2,,#0#1${@(y23:interaction-environment)[00}.!0&0{%1,#0.1U4,U91.!0.0^["
-  "20}.!1'(c#),.3R1v?{,#0${.5,@(y14:read-code-sexp)[01}.!0'(s21:/usr/bin/"
-  "env skint -f)X5Y6,.1^q~?{${.2^,'(s30:unexpected header in FASL file),@"
-  "(y5:error)[02}}_1}${.4R1,,#0.6,.1,&2{%1'(l2:c%0a;c%0d;),.1A1?{:1R0:1R1"
-  ",:0^[11}]1}.!0.0^_1[01}'1,,#0.0,.4,.6,.8,.6,&5{%1:2R1R8~?{,,,,#0#1#2#3"
-  ":2R0.!0:2R0.!1:2R0.!2.2^,.2^,.2^,l3.!3'(l3:cC;c%09;c%09;),.4^e?{${${:2"
-  ",@(y9:read-line)[01},:3^[01}'1,.5+,:4^[51}'(l3:cM;c%09;c%09;),.4^e?{:1"
-  "p?{:0^,n,n,:1c,'(y5:quote)cc,'(y4:main)c,@(y4:eval)[52}f]5}.3^,.5,'(s4"
-  "0:unexpected line header on FASL body line),@(y5:error)[53}]1}.!0.0^_1"
-  "[41",
+  "%2,,,,#0#1#2#3${@(y23:interaction-environment)[00}.!0&0{%1,#0.1U4,U91."
+  "!0.0^[20}.!1&0{%2,#0.2U4,U91.!0.0^,${t,.5,@(y13:lookup-global)[02}sz]3"
+  "}.!2&0{%2.1,.1,'(s40:unexpected line header on FASL body line),@(y5:er"
+  "ror)[23}.!3'(c#),.5R1v?{,#0${.7,@(y14:read-code-sexp)[01}.!0'(s21:/usr"
+  "/bin/env skint -f)X5Y6,.1^q~?{${.2^,'(s30:unexpected header in FASL fi"
+  "le),@(y5:error)[02}}_1}${.6R1,,#0.8,.1,&2{%1'(l2:c%0a;c%0d;),.1A1?{:1R"
+  "0:1R1,:0^[11}]1}.!0.0^_1[01}'1,,#0.3,.7,.6,.3,.(i11),.7,.(i11),&7{%1:5"
+  "R1R8~?{,,,,#0#1#2#3:5R0.!0:5R0.!1:5R0.!2.2^,.2^,.2^,l3.!3'(l3:cC;c%09;"
+  "c%09;),.4^e?{${${:5,@(y9:read-line)[01},:6^[01}'1,.5+,:3^[51}'(cP),.1^"
+  "v?{'(c%09),.2^v?{.2^R8~}{f}}{f}?{.2^,l1,:5R0,,#0:5,.1,:3,.(i10),:4,:0,"
+  "&6{%2.0R8?{'(y3:eof),:2,:0^[22}'(c%09),.1v?{,#0.2A9X3X5.!0${${:5,@(y9:"
+  "read-line)[01},.3^,:1^[02}'1,:2+,:3^[31}.1,.1c,:5R0,:4^[22}.!0.0^_1[52"
+  "}'(l3:cM;c%09;c%09;),.4^e?{:2p?{:1^,n,n,:2c,'(y5:quote)cc,'(y4:main)c,"
+  "@(y4:eval)[52}f]5}.3^,.5,:0^[52}]1}.!0.0^_1[61",
 
   "P", "run-fasl",
   "%2,#0.2,.2c.!0.0,&1{%1:0^,.1,@(y18:run-fasl-from-port)[12},.2,@(y28:ca"
@@ -1635,47 +1644,47 @@ char *t_code[] = {
   "registry*),@(y11:name-lookup)[03}?{${:0^a,@(y20:*user-name-registry*),"
   "@(y12:name-remove!)[02}:2,'(s6:done!%0a)W4]1}:2,'(s16:name not found: "
   ")W4:2,@(y4:name)W5:2W6]1}${.2,'(l1:y2:gs;),@(y11:sexp-match?)[02}?{:2,"
-  "U2W5:2W6]1}${.2,'(l2:y2:gs;y8:<symbol>;),@(y11:sexp-match?)[02}?{:0^a,"
-  "U2,.0V3,.2H2,:2,.1,.3V4,.4A3,.0?{.0d}{f}_1W5:2W6]4}${.2,'(l2:y4:load;y"
-  "8:<string>;),@(y11:sexp-match?)[02}?{:0^a,@(y4:load)[11}${.2,'(l1:y1:v"
-  ";),@(y11:sexp-match?)[02}?{t@!(y9:*verbose*)'(s17:verbosity is on~%25)"
-  ",t,@(y6:format)[12}${.2,'(l1:y2:v-;),@(y11:sexp-match?)[02}?{f@!(y9:*v"
-  "erbose*)'(s18:verbosity is off~%25),t,@(y6:format)[12}${.2,'(l1:y1:q;)"
-  ",@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)'(s13:quiet is on~%25),t,@(y6:"
-  "format)[12}${.2,'(l1:y2:q-;),@(y11:sexp-match?)[02}?{f@!(y7:*quiet*)'("
-  "s14:quiet is off~%25),t,@(y6:format)[12}${.2,'(l2:y4:time;y1:*;),@(y11"
-  ":sexp-match?)[02}?{Z3,${:2,@(y16:repl-environment),:0^a,@(y22:repl-eva"
-  "luate-top-form)[03}Z4,.1,Z3-/,'(i1000)*,'(s24:; elapsed time: ~s ms.~%"
-  "25),t,@(y6:format)[23}${.2,'(l1:y3:pwd;),@(y11:sexp-match?)[02}?{:2,${"
-  "@(y17:current-directory)[00}W4:2W6]1}${.2,'(l2:y2:cd;y8:<string>;),@(y"
-  "11:sexp-match?)[02}?{:0^a,@(y17:current-directory)[11}${.2,'(l2:y2:sh;"
-  "y8:<string>;),@(y11:sexp-match?)[02}?{:0^aZ6]1}${.2,'(l1:y2:si;),@(y11"
-  ":sexp-match?)[02}?{Zh,Zb,Zc,'(s49:~d collections, ~d reallocs, heap si"
-  "ze ~d words~%25),t,@(y6:format)[15}${.2,'(l1:y2:gc;),@(y11:sexp-match?"
-  ")[02}?{Zg'(l1:y2:si;),:1^[11}${.2,'(l1:y4:help;),@(y11:sexp-match?)[02"
-  "}?{:2,'(s57:%0aREPL commands (,load ,cd ,sh arguments need no quotes):"
-  "%0a)W4:2,'(s44: ,load <fname>       load <fname> into REPL%0a)W4:2,'(s"
-  "59: ,q                  quiet: disable informational messages%0a)W4:2,"
-  "'(s51: ,q-                 enable informational messages%0a)W4:2,'(s39"
-  ": ,v                  turn verbosity on%0a)W4:2,'(s40: ,v-            "
-  "     turn verbosity off%0a)W4:2,'(s48: ,ref <name>         show denota"
-  "tion for <name>%0a)W4:2,'(s45: ,rnr                show root name regi"
-  "stry%0a)W4:2,'(s50: ,rref <name>        lookup name in root registry%0"
-  "a)W4:2,'(s52: ,rrem! <name>       remove name from root registry%0a)W4"
-  ":2,'(s45: ,unr                show user name registry%0a)W4:2,'(s50: ,"
-  "uref <name>        lookup name in user registry%0a)W4:2,'(s52: ,urem! "
-  "<name>       remove name from user registry%0a)W4:2,'(s46: ,gs        "
-  "         show global store (big!)%0a)W4:2,'(s55: ,gs <name>          l"
-  "ookup global location for <name>%0a)W4:2,'(s56: ,time <expr>        ti"
-  "me single-line expression <expr>%0a)W4:2,'(s60: ,pwd                sh"
-  "ow skint's current working directory%0a)W4:2,'(s62: ,cd <dir>         "
-  "  change skint's current working directory%0a)W4:2,'(s51: ,sh <cmdline"
-  ">       send <cmdline> to local shell%0a)W4:2,'(s41: ,si              "
-  "   display system info%0a)W4:2,'(s55: ,gc                 force gc to "
-  "finalize lost objects%0a)W4:2,'(s31: ,help               this help%0a)"
-  "W4]1}${.2,'(l1:y1:h;),@(y11:sexp-match?)[02}?{'(l1:y4:help;),:1^[11}:2"
-  ",'(s29:syntax error in repl command%0a)W4:2,'(s37:type ,help to see av"
-  "ailable commands%0a)W4]1}.!0.0^_1[41",
+  "U2W5:2W6]1}${.2,'(l2:y2:gs;y8:<symbol>;),@(y11:sexp-match?)[02}?{:2,${"
+  ":0^a,@(y13:lookup-global)[01}W5:2W6]1}${.2,'(l2:y4:load;y8:<string>;),"
+  "@(y11:sexp-match?)[02}?{:0^a,@(y4:load)[11}${.2,'(l1:y1:v;),@(y11:sexp"
+  "-match?)[02}?{t@!(y9:*verbose*)'(s17:verbosity is on~%25),t,@(y6:forma"
+  "t)[12}${.2,'(l1:y2:v-;),@(y11:sexp-match?)[02}?{f@!(y9:*verbose*)'(s18"
+  ":verbosity is off~%25),t,@(y6:format)[12}${.2,'(l1:y1:q;),@(y11:sexp-m"
+  "atch?)[02}?{t@!(y7:*quiet*)'(s13:quiet is on~%25),t,@(y6:format)[12}${"
+  ".2,'(l1:y2:q-;),@(y11:sexp-match?)[02}?{f@!(y7:*quiet*)'(s14:quiet is "
+  "off~%25),t,@(y6:format)[12}${.2,'(l2:y4:time;y1:*;),@(y11:sexp-match?)"
+  "[02}?{Z3,${:2,@(y16:repl-environment),:0^a,@(y22:repl-evaluate-top-for"
+  "m)[03}Z4,.1,Z3-/,'(i1000)*,'(s24:; elapsed time: ~s ms.~%25),t,@(y6:fo"
+  "rmat)[23}${.2,'(l1:y3:pwd;),@(y11:sexp-match?)[02}?{:2,${@(y17:current"
+  "-directory)[00}W4:2W6]1}${.2,'(l2:y2:cd;y8:<string>;),@(y11:sexp-match"
+  "?)[02}?{:0^a,@(y17:current-directory)[11}${.2,'(l2:y2:sh;y8:<string>;)"
+  ",@(y11:sexp-match?)[02}?{:0^aZ6]1}${.2,'(l1:y2:si;),@(y11:sexp-match?)"
+  "[02}?{Zh,Zb,Zc,'(s49:~d collections, ~d reallocs, heap size ~d words~%"
+  "25),t,@(y6:format)[15}${.2,'(l1:y2:gc;),@(y11:sexp-match?)[02}?{Zg'(l1"
+  ":y2:si;),:1^[11}${.2,'(l1:y4:help;),@(y11:sexp-match?)[02}?{:2,'(s57:%"
+  "0aREPL commands (,load ,cd ,sh arguments need no quotes):%0a)W4:2,'(s4"
+  "4: ,load <fname>       load <fname> into REPL%0a)W4:2,'(s59: ,q       "
+  "           quiet: disable informational messages%0a)W4:2,'(s51: ,q-   "
+  "              enable informational messages%0a)W4:2,'(s39: ,v         "
+  "         turn verbosity on%0a)W4:2,'(s40: ,v-                 turn ver"
+  "bosity off%0a)W4:2,'(s48: ,ref <name>         show denotation for <nam"
+  "e>%0a)W4:2,'(s45: ,rnr                show root name registry%0a)W4:2,"
+  "'(s50: ,rref <name>        lookup name in root registry%0a)W4:2,'(s52:"
+  " ,rrem! <name>       remove name from root registry%0a)W4:2,'(s45: ,un"
+  "r                show user name registry%0a)W4:2,'(s50: ,uref <name>  "
+  "      lookup name in user registry%0a)W4:2,'(s52: ,urem! <name>       "
+  "remove name from user registry%0a)W4:2,'(s46: ,gs                 show"
+  " global store (big!)%0a)W4:2,'(s55: ,gs <name>          lookup global "
+  "location for <name>%0a)W4:2,'(s56: ,time <expr>        time single-lin"
+  "e expression <expr>%0a)W4:2,'(s60: ,pwd                show skint's cu"
+  "rrent working directory%0a)W4:2,'(s62: ,cd <dir>           change skin"
+  "t's current working directory%0a)W4:2,'(s51: ,sh <cmdline>       send "
+  "<cmdline> to local shell%0a)W4:2,'(s41: ,si                 display sy"
+  "stem info%0a)W4:2,'(s55: ,gc                 force gc to finalize lost"
+  " objects%0a)W4:2,'(s31: ,help               this help%0a)W4]1}${.2,'(l"
+  "1:y1:h;),@(y11:sexp-match?)[02}?{'(l1:y4:help;),:1^[11}:2,'(s29:syntax"
+  " error in repl command%0a)W4:2,'(s37:type ,help to see available comma"
+  "nds%0a)W4]1}.!0.0^_1[41",
 
   "P", "repl-from-port",
   "%4,#0${@(y18:current-file-stack)[00}.!0${k0,.0,${.2,.9,.(i12),.(i12),."
@@ -1712,19 +1721,20 @@ char *t_code[] = {
   ",@(y16:repl-environment),.8^,@(y14:repl-from-port)[04}_3}t]3",
 
   "C", 0,
-  "'(l11:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity"
+  "'(l12:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity"
   ";;l5:y5:quiet;s2:-q;s7:--quiet;f;s30:Suppress nonessential messages;;l"
   "5:y13:append-libdir;s2:-A;s15:--append-libdir;s3:DIR;s33:Append a libr"
   "ary search directory;;l5:y14:prepend-libdir;s2:-I;s16:--prepend-libdir"
   ";s3:DIR;s34:Prepend a library search directory;;l5:y14:define-feature;"
   "s2:-D;s16:--define-feature;s4:NAME;s32:Add name to the list of feature"
   "s;;l5:y4:eval;s2:-e;s6:--eval;s4:SEXP;s32:Evaluate and print an expres"
-  "sion;;l5:y6:script;s2:-s;s8:--script;s4:FILE;s27:Run file as a Scheme "
-  "script;;l5:y4:fasl;s2:-f;s6:--fasl;s4:FILE;s29:Run file as a compiled "
-  "script;;l5:y7:program;s2:-p;s9:--program;s4:FILE;s28:Run file as a Sch"
-  "eme program;;l5:y7:version;s2:-V;s9:--version;f;s20:Display version in"
-  "fo;;l5:y4:help;s2:-h;s6:--help;f;s17:Display this help;;)@!(y15:*skint"
-  "-options*)",
+  "sion;;l5:y4:load;s2:-l;s6:--load;s4:FILE;s33:Load file and continue pr"
+  "ocessing;;l5:y6:script;s2:-s;s8:--script;s4:FILE;s27:Run file as a Sch"
+  "eme script;;l5:y4:fasl;s2:-f;s6:--fasl;s4:FILE;s29:Run file as a compi"
+  "led script;;l5:y7:program;s2:-p;s9:--program;s4:FILE;s28:Run file as a"
+  " Scheme program;;l5:y7:version;s2:-V;s9:--version;f;s20:Display versio"
+  "n info;;l5:y4:help;s2:-h;s6:--help;f;s17:Display this help;;)@!(y15:*s"
+  "kint-options*)",
 
   "C", 0,
   "'(s5:0.4.9)@!(y15:*skint-version*)",
@@ -1757,21 +1767,22 @@ char *t_code[] = {
   "ibrary-path!)[01}t,.4,:2^[42}${.2,'(l2:y14:prepend-libdir;y1:*;),@(y11"
   ":sexp-match?)[02}?{${.4,@(y21:prepend-library-path!)[01}t,.4,:2^[42}${"
   ".2,'(l2:y14:define-feature;y1:*;),@(y11:sexp-match?)[02}?{${.4,:5^[01}"
-  "t,.4,:2^[42}${.2,'(l2:y4:eval;y1:*;),@(y11:sexp-match?)[02}?{${t,.5,:4"
-  "^[02}f,.4,:2^[42}${.2,'(l2:y6:script;y1:*;),@(y11:sexp-match?)[02}?{t@"
-  "!(y7:*quiet*)${.5,.5,@(y10:run-script)[02},@(y4:exit)[41}${.2,'(l2:y4:"
-  "fasl;y1:*;),@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)${.5,.5,@(y8:run-fa"
-  "sl)[02},@(y4:exit)[41}${.2,'(l2:y7:program;y1:*;),@(y11:sexp-match?)[0"
-  "2}?{t@!(y7:*quiet*)${.5,.5,@(y11:run-program)[02},@(y4:exit)[41}${.2,'"
-  "(l2:y9:benchmark;y1:*;),@(y11:sexp-match?)[02}?{${.5,.5,@(y10:run-scri"
-  "pt)[02},@(y4:exit)[41}${.2,'(l1:y7:version;),@(y11:sexp-match?)[02}?{$"
-  "{:3^[00}f,n,:2^[42}${.2,'(l1:y4:help;),@(y11:sexp-match?)[02}?{${:1^[0"
-  "0}f,n,:2^[42}${.2,'(l1:f;),@(y11:sexp-match?)[02}?{.3p?{t@!(y7:*quiet*"
-  ")${.5d,.6a,@(y10:run-script)[02},@(y4:exit)[41}:0~?{t,@(y4:exit)[41}f]"
-  "4}]4},@(y15:*skint-options*),.2,@(y28:get-next-command-line-option)[23"
-  "}.!0.0^_1[02}PiP09?{PoP09}{f}?{${@(y15:*skint-version*),'(s30:SKINT Sc"
-  "heme Interpreter v~a~%25),t,@(y6:format)[03}${'(s35:Copyright (c) 2024"
-  " False Schemers~%25),t,@(y6:format)[02}}t]5",
+  "t,.4,:2^[42}${.2,'(l2:y4:load;y1:*;),@(y11:sexp-match?)[02}?{${.4,@(y4"
+  ":load)[01}t,.4,:2^[42}${.2,'(l2:y4:eval;y1:*;),@(y11:sexp-match?)[02}?"
+  "{${t,.5,:4^[02}f,.4,:2^[42}${.2,'(l2:y6:script;y1:*;),@(y11:sexp-match"
+  "?)[02}?{t@!(y7:*quiet*)${.5,.5,@(y10:run-script)[02},@(y4:exit)[41}${."
+  "2,'(l2:y4:fasl;y1:*;),@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)${.5,.5,@"
+  "(y8:run-fasl)[02},@(y4:exit)[41}${.2,'(l2:y7:program;y1:*;),@(y11:sexp"
+  "-match?)[02}?{t@!(y7:*quiet*)${.5,.5,@(y11:run-program)[02},@(y4:exit)"
+  "[41}${.2,'(l2:y9:benchmark;y1:*;),@(y11:sexp-match?)[02}?{${.5,.5,@(y1"
+  "0:run-script)[02},@(y4:exit)[41}${.2,'(l1:y7:version;),@(y11:sexp-matc"
+  "h?)[02}?{${:3^[00}f,n,:2^[42}${.2,'(l1:y4:help;),@(y11:sexp-match?)[02"
+  "}?{${:1^[00}f,n,:2^[42}${.2,'(l1:f;),@(y11:sexp-match?)[02}?{.3p?{t@!("
+  "y7:*quiet*)${.5d,.6a,@(y10:run-script)[02},@(y4:exit)[41}:0~?{t,@(y4:e"
+  "xit)[41}f]4}]4},@(y15:*skint-options*),.2,@(y28:get-next-command-line-"
+  "option)[23}.!0.0^_1[02}PiP09?{PoP09}{f}?{${@(y15:*skint-version*),'(s3"
+  "0:SKINT Scheme Interpreter v~a~%25),t,@(y6:format)[03}${'(s35:Copyrigh"
+  "t (c) 2024 False Schemers~%25),t,@(y6:format)[02}}t]5",
 
   0, 0, 0
 };

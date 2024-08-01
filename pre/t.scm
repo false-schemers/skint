@@ -150,6 +150,15 @@
   ; for now, we will just use read with no support for circular structures
   (read-simple port))
 
+(define (lookup-global k . ?alloc) ;=> box | #f if !defined and !alloc
+  (let* ([v (global-store)] [i (immediate-hash k (vector-length v))])
+    (cond [(assq k (vector-ref v i)) => cdr]
+          [(and (pair? ?alloc) (car ?alloc))
+           (let ([b (box k)]) ; default value is k itself
+             (vector-set! v i (cons (cons k b) (vector-ref v i)))
+             b)]
+          [else #f])))   
+
 (define (error* msg args)
   (raise (error-object #f msg args)))
 
@@ -2478,10 +2487,13 @@
       (let ([x0 (read-code-sexp port)]) ; support loading fasl files too
         (if (eq? x0 (symbol->shebang (string->symbol "/usr/bin/env skint -f")))
             (run-fasl-from-port port #f) ; do not call main even if it is there
-            (let loop ([x x0])
-              (unless (eof-object? x)
-                (eval x env)
-                (loop (read-code-sexp port))))))))
+            (begin
+              (when (eq? x0 (symbol->shebang (string->symbol "/usr/bin/env skint -s")))
+                (set! x0 (read-code-sexp port))) ; just skip -- this file is loadable
+              (let loop ([x x0])
+                (unless (eof-object? x)
+                  (eval x env)
+                  (loop (read-code-sexp port)))))))))
   ; we aren't asked by the spec to call last expr tail-recursively, so this
   (void))
 
@@ -2496,6 +2508,11 @@
   (define (exec code)
     (define cl (closure (deserialize-code code)))
     (cl))
+  (define (def id code)
+    (define cl (closure (deserialize-code code)))
+    (set-box! (lookup-global id #t) cl))
+  (define (fail! lno hd) 
+    (error "unexpected line header on FASL body line" lno hd))
   (when (eqv? (peek-char port) #\#) ; header is optional if call is explicit
     (define x (read-code-sexp port))
     (unless (eq? x (symbol->shebang (string->symbol "/usr/bin/env skint -f")))
@@ -2503,7 +2520,7 @@
   (let loop ([c (peek-char port)])
     (when (memv c '(#\newline #\return))
       (read-char port) (loop (peek-char port))))
-  (let loop ([line 1])
+  (let loop ([lno 1])
     (unless (eof-object? (peek-char port))
       (define c1 (read-char port))
       (define c2 (read-char port))
@@ -2511,10 +2528,18 @@
       (define hd (list c1 c2 c3))
       (cond [(equal? hd '(#\C #\tab #\tab))
              (exec (read-line port))
-             (loop (+ line 1))]
+             (loop (+ lno 1))]
+            [(and (eqv? c1 #\P) (eqv? c2 #\tab) (not (eof-object? c3)))
+             (let scan ([c (read-char port)] [l (list c3)])
+               (cond [(eof-object? c) (fail! lno 'eof)]
+                     [(eqv? c #\tab)
+                      (define id (string->symbol (list->string (reverse! l))))
+                      (def id (read-line port))
+                      (loop (+ lno 1))]
+                     [else (scan (read-char port) (cons c l))]))]
             [(equal? hd '(#\M #\tab #\tab))
              (and (pair? main-args) (eval `(main (quote ,main-args)) env))]
-            [else (error "unexpected line header on FASL body line" line hd)]))))
+            [else (fail! lno hd)]))))
 
 (define (run-fasl filename args)
   (define main-args (cons filename args))
@@ -2619,9 +2644,7 @@
                         (name-remove! *user-name-registry* (car args)) (display "done!\n" op)]
                       [else (display "name not found: " op) (write name op) (newline op)])]
       [(gs) (write (global-store) op) (newline op)]
-      [(gs <symbol>) 
-       (let* ([k (car args)] [v (global-store)] [i (immediate-hash k (vector-length v))]) 
-         (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
+      [(gs <symbol>) (write (lookup-global (car args)) op) (newline op)]
       [(load <string>) (load (car args))]
       [(v)  (set! *verbose* #t) (format #t "verbosity is on~%")]
       [(v-) (set! *verbose* #f) (format #t "verbosity is off~%")]
@@ -2727,6 +2750,7 @@
    [prepend-libdir "-I" "--prepend-libdir" "DIR"  "Prepend a library search directory"] 
    [define-feature "-D" "--define-feature" "NAME" "Add name to the list of features"] 
    [eval           "-e" "--eval" "SEXP"           "Evaluate and print an expression"] 
+   [load           "-l" "--load" "FILE"           "Load file and continue processing"] 
    [script         "-s" "--script" "FILE"         "Run file as a Scheme script"]
    [fasl           "-f" "--fasl" "FILE"           "Run file as a compiled script"]
    [program        "-p" "--program" "FILE"        "Run file as a Scheme program"]
@@ -2769,6 +2793,7 @@
           [(append-libdir *) (append-library-path! optarg) (loop restargs #t)]
           [(prepend-libdir *) (prepend-library-path! optarg) (loop restargs #t)]
           [(define-feature *) (add-feature! optarg) (loop restargs #t)]
+          [(load *) (load optarg) (loop restargs #t)]
           [(eval *) (eval! optarg #t) (loop restargs #f)]
           [(script *) (set! *quiet* #t) (exit (run-script optarg restargs))]
           [(fasl *) (set! *quiet* #t) (exit (run-fasl optarg restargs))]
