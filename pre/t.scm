@@ -2475,10 +2475,13 @@
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (when ci? (set-port-fold-case! port #t))
-      (let loop ([x (read-code-sexp port)])
-        (unless (eof-object? x)
-          (eval x env)
-          (loop (read-code-sexp port))))))
+      (let ([x0 (read-code-sexp port)]) ; support loading fasl files too
+        (if (eq? x0 (symbol->shebang (string->symbol "/usr/bin/env skint -f")))
+            (run-fasl-from-port port #f) ; do not call main even if it is there
+            (let loop ([x x0])
+              (unless (eof-object? x)
+                (eval x env)
+                (loop (read-code-sexp port))))))))
   ; we aren't asked by the spec to call last expr tail-recursively, so this
   (void))
 
@@ -2487,37 +2490,80 @@
   (define env (if (pair? ?env) (car ?env) (interaction-environment)))
   (xpand #t expr env)) ; allow it to return any expressed value
 
+; run fasl-compiled script, optionally starting with #! /usr/bin/env skint -f
+(define (run-fasl-from-port port main-args)
+  (define env (interaction-environment))
+  (define (exec code)
+    (define cl (closure (deserialize-code code)))
+    (cl))
+  (when (eqv? (peek-char port) #\#) ; header is optional if call is explicit
+    (define x (read-code-sexp port))
+    (unless (eq? x (symbol->shebang (string->symbol "/usr/bin/env skint -f")))
+      (error "unexpected header in FASL file" x)))
+  (let loop ([c (peek-char port)])
+    (when (memv c '(#\newline #\return))
+      (read-char port) (loop (peek-char port))))
+  (let loop ([line 1])
+    (unless (eof-object? (peek-char port))
+      (define c1 (read-char port))
+      (define c2 (read-char port))
+      (define c3 (read-char port))
+      (define hd (list c1 c2 c3))
+      (cond [(equal? hd '(#\C #\tab #\tab))
+             (exec (read-line port))
+             (loop (+ line 1))]
+            [(equal? hd '(#\M #\tab #\tab))
+             (and (pair? main-args) (eval `(main (quote ,main-args)) env))]
+            [else (error "unexpected line header on FASL body line" line hd)]))))
+
+(define (run-fasl filename args)
+  (define main-args (cons filename args))
+  (call-with-current-input-file filename ;=>
+    (lambda (port) (run-fasl-from-port port main-args))))
 
 ; srfi-22 - like script processor (args is list of strings)
+; since this one is a default file processor, support other kinds too
 (define (run-script filename args)
   (define env (interaction-environment))
   (define ci? #f) ; normal load-like behavior is the default
   (define callmain #f) ; got changed via first #! line
   (define main-args (cons filename args))
+  (define fasl? #f)
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (let ([x0 (read-code-sexp port)])
+        (when (and (pair? x0) (eq? (car x0) 'import))
+          ; consider it a 'program script', prepare program env
+          (define modname (string->symbol 
+             (path-strip-extension (path-strip-directory filename))))
+          (define global (lambda (n) (symbol-append 'prog:// modname '? n)))
+          (define ial (list (cons 'import (make-location 'import))))
+          (set! env (make-controlled-environment ial global root-environment)))
         (when (shebang? x0)
           (let ([shs (symbol->string (shebang->symbol x0))])
             (cond [(string-position "r7rs" shs)] ; skint env will do
-                  [(string-position "skint" shs)] ; ditto
+                  [(string-position "skint -f" shs) (set! fasl? #t)]
+                  [(string-position "skint" shs)] ; skint env will do
                   [(string-position "r5rs" shs)
                    (set! env (scheme-report-environment 5))
                    (set! ci? #t)]
-                  [else (error "only scheme-r[57]rs scripts are supported" shs)]) 
-            (when ci? (set-port-fold-case! port #t))
-            (set! callmain #t)
-            (set! x0 (read-code-sexp port))))
-        (parameterize ([command-line main-args])
-          (let loop ([x x0])
-            (unless (eof-object? x)
-              (eval x env)
-              (loop (read-code-sexp port)))))
-        (if callmain
-          ; if it is a real script, call main and return its value
-          (eval `(main (quote ,main-args)) env)
-          ; otherwise return #t -- it will be used as exit value
-          #t)))))
+                  [else (error "unsupported script type" shs)]) 
+            (unless fasl?
+              (when ci? (set-port-fold-case! port #t))
+              (set! callmain #t)
+              (set! x0 (read-code-sexp port)))))
+        (if fasl? ; call (main) if it was a script
+            (run-fasl-from-port port main-args)
+            (parameterize ([command-line main-args])
+              (let loop ([x x0])
+                (unless (eof-object? x)
+                  (eval x env)
+                  (loop (read-code-sexp port))))
+              (if callmain
+                ; if it is a real script, call main and return its value
+                (eval `(main (quote ,main-args)) env)
+                ; otherwise return #t -- it will be used as exit value
+                #t)))))))
 
 ; r7rs scheme program processor (args is list of strings)
 (define (run-program filename args)
@@ -2682,8 +2728,8 @@
    [define-feature "-D" "--define-feature" "NAME" "Add name to the list of features"] 
    [eval           "-e" "--eval" "SEXP"           "Evaluate and print an expression"] 
    [script         "-s" "--script" "FILE"         "Run file as a Scheme script"]
+   [fasl           "-f" "--fasl" "FILE"           "Run file as a compiled script"]
    [program        "-p" "--program" "FILE"        "Run file as a Scheme program"]
-   ;[benchmark       #f  "--benchmark" "FILE"     "Run .sf benchmark file (internal)"]
    [version        "-V" "--version" #f            "Display version info"]
    [help           "-h" "--help" #f               "Display this help"]
 ))
@@ -2725,6 +2771,7 @@
           [(define-feature *) (add-feature! optarg) (loop restargs #t)]
           [(eval *) (eval! optarg #t) (loop restargs #f)]
           [(script *) (set! *quiet* #t) (exit (run-script optarg restargs))]
+          [(fasl *) (set! *quiet* #t) (exit (run-fasl optarg restargs))]
           [(program *) (set! *quiet* #t) (exit (run-program optarg restargs))]
           [(benchmark *) (exit (run-script optarg restargs))] ; FIXME
           [(version) (print-version!) (loop '() #f)]

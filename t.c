@@ -1550,26 +1550,48 @@ char *t_code[] = {
 
   "P", "load",
   "%!1,,#0#1.2p?{.2a}{${@(y23:interaction-environment)[00}}.!0f.!1${.2,.4"
-  ",&2{%1:0^?{t,.1P79}${.2,@(y14:read-code-sexp)[01},,#0:1,.3,.2,&3{%1.0R"
-  "8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}.!"
-  "0.0^_1[11},.6,@(y28:call-with-current-input-file)[02}Y9]4",
+  ",&2{%1:0^?{t,.1P79}${.2,@(y14:read-code-sexp)[01},'(s21:/usr/bin/env s"
+  "kint -f)X5Y6,.1q?{f,.2,@(y18:run-fasl-from-port)[22}.0,,#0:1,.4,.2,&3{"
+  "%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}"
+  "]1}.!0.0^_1[21},.6,@(y28:call-with-current-input-file)[02}Y9]4",
 
   "P", "expand",
   "%!1,#0.1p?{.1a}{${@(y23:interaction-environment)[00}}.!0.0^,.3,t,@(y5:"
   "xpand)[33",
 
+  "P", "run-fasl-from-port",
+  "%2,,#0#1${@(y23:interaction-environment)[00}.!0&0{%1,#0.1U4,U91.!0.0^["
+  "20}.!1'(c#),.3R1v?{,#0${.5,@(y14:read-code-sexp)[01}.!0'(s21:/usr/bin/"
+  "env skint -f)X5Y6,.1^q~?{${.2^,'(s30:unexpected header in FASL file),@"
+  "(y5:error)[02}}_1}${.4R1,,#0.6,.1,&2{%1'(l2:c%0a;c%0d;),.1A1?{:1R0:1R1"
+  ",:0^[11}]1}.!0.0^_1[01}'1,,#0.0,.4,.6,.8,.6,&5{%1:2R1R8~?{,,,,#0#1#2#3"
+  ":2R0.!0:2R0.!1:2R0.!2.2^,.2^,.2^,l3.!3'(l3:cC;c%09;c%09;),.4^e?{${${:2"
+  ",@(y9:read-line)[01},:3^[01}'1,.5+,:4^[51}'(l3:cM;c%09;c%09;),.4^e?{:1"
+  "p?{:0^,n,n,:1c,'(y5:quote)cc,'(y4:main)c,@(y4:eval)[52}f]5}.3^,.5,'(s4"
+  "0:unexpected line header on FASL body line),@(y5:error)[53}]1}.!0.0^_1"
+  "[41",
+
+  "P", "run-fasl",
+  "%2,#0.2,.2c.!0.0,&1{%1:0^,.1,@(y18:run-fasl-from-port)[12},.2,@(y28:ca"
+  "ll-with-current-input-file)[32",
+
   "P", "run-script",
-  "%2,,,,#0#1#2#3${@(y23:interaction-environment)[00}.!0f.!1f.!2.5,.5c.!3"
-  ".1,.4,.2,.5,&4{%1${.2,@(y14:read-code-sexp)[01},#0.0^Y5?{.0^Y7X4,.0,'("
-  "s4:r7rs)S8,.0?{.0}{.1,'(s5:skint)S8,.0?{.0}{.2,'(s4:r5rs)S8?{${'5,@(y2"
-  "5:scheme-report-environment)[01}:!1t:!3}{${.4,'(s41:only scheme-r[57]r"
-  "s scripts are supported),@(y5:error)[02}}}_1}_1:3^?{t,.3P79}t:!0${.4,@"
-  "(y14:read-code-sexp)[01}.!1_1}@(y12:command-line),${f,:2^,.4[02},${.3["
-  "00},${.2,.5,&2{%0t,:1,:0[02},.6,.8,:1,&3{%0:2^,,#0:0,:1,.2,&3{%1.0R8~?"
-  "{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0"
-  "^_1[01},.5,.7,&2{%0t,:1,:0[02},@(y12:dynamic-wind)[03}_2_1:0^?{:1^,n,n"
-  ",:2^c,'(y5:quote)cc,'(y4:main)c,@(y4:eval)[22}t]2},.5,@(y28:call-with-"
-  "current-input-file)[62",
+  "%2,,,,,#0#1#2#3#4${@(y23:interaction-environment)[00}.!0f.!1f.!2.6,.6c"
+  ".!3f.!4.5,.2,.2,.5,.7,.9,&6{%1${.2,@(y14:read-code-sexp)[01},#0.0^p?{'"
+  "(y6:import),.1^aq}{f}?{,,,#0#1#2${${:5,@(y20:path-strip-directory)[01}"
+  ",@(y20:path-strip-extension)[01}X5.!0.0,&1{%1.0,'(y1:?),:0^,'(y7:prog:"
+  "//),@(y13:symbol-append)[14}.!1'(y6:import)b,'(y6:import)c,l1.!2${@(y1"
+  "6:root-environment),.4^,.6^,@(y27:make-controlled-environment)[03}:!3_"
+  "3}.0^Y5?{.0^Y7X4,.0,'(s4:r7rs)S8,.0?{.0}{.1,'(s8:skint -f)S8?{t:!0}{.1"
+  ",'(s5:skint)S8,.0?{.0}{.2,'(s4:r5rs)S8?{${'5,@(y25:scheme-report-envir"
+  "onment)[01}:!3t:!4}{${.4,'(s23:unsupported script type),@(y5:error)[02"
+  "}}}_1}}_1:0^~?{:4^?{t,.3P79}t:!2${.4,@(y14:read-code-sexp)[01}.!1}_1}:"
+  "0^?{:1^,.2,@(y18:run-fasl-from-port)[22}@(y12:command-line),${f,:1^,.4"
+  "[02},${.3[00},.0,.3,&2{%0t,:1,:0[02},:2,:3,:1,.8,.8,&5{%0${:0^,,#0:3,:"
+  "1,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01}"
+  ",:0^[11}]1}.!0.0^_1[01}:4^?{:3^,n,n,:2^c,'(y5:quote)cc,'(y4:main)c,@(y"
+  "4:eval)[02}t]0},.3,.5,&2{%0t,:1,:0[02},@(y12:dynamic-wind)[53},.6,@(y2"
+  "8:call-with-current-input-file)[72",
 
   "P", "run-program",
   "%2,,,,,,#0#1#2#3#4#5${${.(i10),@(y20:path-strip-directory)[01},@(y20:p"
@@ -1690,7 +1712,7 @@ char *t_code[] = {
   ",@(y16:repl-environment),.8^,@(y14:repl-from-port)[04}_3}t]3",
 
   "C", 0,
-  "'(l10:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity"
+  "'(l11:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity"
   ";;l5:y5:quiet;s2:-q;s7:--quiet;f;s30:Suppress nonessential messages;;l"
   "5:y13:append-libdir;s2:-A;s15:--append-libdir;s3:DIR;s33:Append a libr"
   "ary search directory;;l5:y14:prepend-libdir;s2:-I;s16:--prepend-libdir"
@@ -1698,6 +1720,7 @@ char *t_code[] = {
   "s2:-D;s16:--define-feature;s4:NAME;s32:Add name to the list of feature"
   "s;;l5:y4:eval;s2:-e;s6:--eval;s4:SEXP;s32:Evaluate and print an expres"
   "sion;;l5:y6:script;s2:-s;s8:--script;s4:FILE;s27:Run file as a Scheme "
+  "script;;l5:y4:fasl;s2:-f;s6:--fasl;s4:FILE;s29:Run file as a compiled "
   "script;;l5:y7:program;s2:-p;s9:--program;s4:FILE;s28:Run file as a Sch"
   "eme program;;l5:y7:version;s2:-V;s9:--version;f;s20:Display version in"
   "fo;;l5:y4:help;s2:-h;s6:--help;f;s17:Display this help;;)@!(y15:*skint"
@@ -1736,18 +1759,19 @@ char *t_code[] = {
   ".2,'(l2:y14:define-feature;y1:*;),@(y11:sexp-match?)[02}?{${.4,:5^[01}"
   "t,.4,:2^[42}${.2,'(l2:y4:eval;y1:*;),@(y11:sexp-match?)[02}?{${t,.5,:4"
   "^[02}f,.4,:2^[42}${.2,'(l2:y6:script;y1:*;),@(y11:sexp-match?)[02}?{t@"
-  "!(y7:*quiet*)${.5,.5,@(y10:run-script)[02},@(y4:exit)[41}${.2,'(l2:y7:"
-  "program;y1:*;),@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)${.5,.5,@(y11:ru"
-  "n-program)[02},@(y4:exit)[41}${.2,'(l2:y9:benchmark;y1:*;),@(y11:sexp-"
-  "match?)[02}?{${.5,.5,@(y10:run-script)[02},@(y4:exit)[41}${.2,'(l1:y7:"
-  "version;),@(y11:sexp-match?)[02}?{${:3^[00}f,n,:2^[42}${.2,'(l1:y4:hel"
-  "p;),@(y11:sexp-match?)[02}?{${:1^[00}f,n,:2^[42}${.2,'(l1:f;),@(y11:se"
-  "xp-match?)[02}?{.3p?{t@!(y7:*quiet*)${.5d,.6a,@(y10:run-script)[02},@("
-  "y4:exit)[41}:0~?{t,@(y4:exit)[41}f]4}]4},@(y15:*skint-options*),.2,@(y"
-  "28:get-next-command-line-option)[23}.!0.0^_1[02}PiP09?{PoP09}{f}?{${@("
-  "y15:*skint-version*),'(s30:SKINT Scheme Interpreter v~a~%25),t,@(y6:fo"
-  "rmat)[03}${'(s35:Copyright (c) 2024 False Schemers~%25),t,@(y6:format)"
-  "[02}}t]5",
+  "!(y7:*quiet*)${.5,.5,@(y10:run-script)[02},@(y4:exit)[41}${.2,'(l2:y4:"
+  "fasl;y1:*;),@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)${.5,.5,@(y8:run-fa"
+  "sl)[02},@(y4:exit)[41}${.2,'(l2:y7:program;y1:*;),@(y11:sexp-match?)[0"
+  "2}?{t@!(y7:*quiet*)${.5,.5,@(y11:run-program)[02},@(y4:exit)[41}${.2,'"
+  "(l2:y9:benchmark;y1:*;),@(y11:sexp-match?)[02}?{${.5,.5,@(y10:run-scri"
+  "pt)[02},@(y4:exit)[41}${.2,'(l1:y7:version;),@(y11:sexp-match?)[02}?{$"
+  "{:3^[00}f,n,:2^[42}${.2,'(l1:y4:help;),@(y11:sexp-match?)[02}?{${:1^[0"
+  "0}f,n,:2^[42}${.2,'(l1:f;),@(y11:sexp-match?)[02}?{.3p?{t@!(y7:*quiet*"
+  ")${.5d,.6a,@(y10:run-script)[02},@(y4:exit)[41}:0~?{t,@(y4:exit)[41}f]"
+  "4}]4},@(y15:*skint-options*),.2,@(y28:get-next-command-line-option)[23"
+  "}.!0.0^_1[02}PiP09?{PoP09}{f}?{${@(y15:*skint-version*),'(s30:SKINT Sc"
+  "heme Interpreter v~a~%25),t,@(y6:format)[03}${'(s35:Copyright (c) 2024"
+  " False Schemers~%25),t,@(y6:format)[02}}t]5",
 
   0, 0, 0
 };
