@@ -18,7 +18,7 @@ A pattern of the form `(<ellipsis> <pattern>)` where `<ellipsis>` is the current
 (underscored 1 2)
 ; => (2 1) 
 ```
-Note that R7RS prescribes special treatment of the keyword identifier at the beginning of the pattern in a `<syntax rule>`: it is matched automatically with the head of the use form, but is not considered a pattern variable. SKINT's pattern escape extension drops this positional restriction and matches its sub-pattern in a normal way; e.g.:
+Note that R7RS prescribes special treatment of the keyword identifier at the beginning of the pattern in a `<syntax rule>`: it is matched automatically with the head of the use form, but is not considered a pattern variable, so can't be substituted. SKINT's pattern escape extension drops this positional restriction and matches its sub-pattern in a normal way; e.g.:
 
 ```scheme
 ; in R7RS, x is not a pattern variable here due to its head position:
@@ -39,7 +39,7 @@ The importance of this feature will be clear when we get to circumventing hygien
 
 ## Named pattern escapes
 
-A pattern of the form `(<ellipsis> <predicate name> <pattern>)`, where `<ellipsis>` is the current ellipsis, is interpreted as if it were `<pattern>` as long as the matching S-expression satisfies the constraint specified by `<predicate name>`. Predicate names are compared to predefined symbols according to `free-identifier=?` rules. The following named pattern escapes are supported:
+A pattern of the form `(<ellipsis> <predicate name> <pattern>)`, where `<ellipsis>` is the current ellipsis, is interpreted as if it were `<pattern>` as long as the matching S-expression satisfies the constraint specified by `<predicate name>`. The matching fails if the predicate returns `#f`. Predicate names are compared to predefined symbols according to `free-identifier=?` rules. The following named pattern escapes are supported:
 
   * `(... number? <pattern>)`
   * `(... exact-integer? <pattern>)`
@@ -211,4 +211,4 @@ To demonstrate combined use of different converters, here is a thin macro layer 
 
 ## Why stop here?
 
-The above collection of named escapes is selected as an *almost* minimal one. Its purpose is not to make `syntax-rules`-based macro programming more convenient, but to extend its core abilities in dealing with non-structural S-expressions. It is possible to recognize them and work with them via convertion to/from structural form if a need be. Arithmetics is limited to what one can do using lists as Peano numbers; also, for numbers and chars, access to ordering is provided to support simple ranges. One can imitate `string-append` without a dedicated converter, but this unnecessarily complicates generation of identifiers, which is a major use case.
+The above collection of named escapes is selected as an *almost* minimal one. Its purpose is not to make `syntax-rules`-based macro programming more convenient, but to extend its core abilities in dealing with non-structural S-expressions. It is possible to recognize them and work with them via convertion to/from structural form if a need arises. Arithmetics is limited to what one can do using lists as Peano numbers; also, for numbers and chars, access to ordering is provided to support simple ranges. One can imitate `string-append` without a dedicated converter, but this unnecessarily complicates generation of identifiers, which is a major use case.
