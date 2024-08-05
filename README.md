@@ -18,7 +18,7 @@ gcc -o skint [skint].c -lm
 Some compilers link `<math.h>` library automatically, some require explicit option like `-lm` above. It can be built on 32-bit 
 and 64-bit systems.
 
-For much better performance (especially in floating-point calculations) you may pick another compiler, add optimization flags
+For *much* better performance (especially in floating-point calculations) you may pick another compiler, add optimization flags
 and some SKINT-specific options, e.g.:  
 
 ```
@@ -35,11 +35,11 @@ For a more traditional install, please follow the instructions below. Skint will
 installed as `/usr/local/bin/skint` command.
 
 ```
-$ git clone https://github.com/false-schemers/skint.git
-$ cd skint
-$ make
-$ make test
-$ sudo make install
+git clone https://github.com/false-schemers/skint.git
+cd skint
+make
+make test
+sudo make install
 ```
 
 ## Scheme Compatibility
