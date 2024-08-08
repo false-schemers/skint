@@ -38,10 +38,17 @@ else
     ifneq ($(filter arm%,$(UNAME)),)
         ARCH = ARM
     endif
+    ifeq ($(UNAME),riscv64)
+        ARCH = RV64
+    endif
 endif
 
 ifeq ($(ARCH),AMD64)
   $(info x86_64 architecture is detected)
+  CFLAGS += -D NAN_BOXING
+endif
+ifeq ($(ARCH),RV64)
+  $(info RISCV_64 architecture is detected)
   CFLAGS += -D NAN_BOXING
 endif
 
