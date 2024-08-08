@@ -25,14 +25,17 @@ ifeq ($(OS),Windows_NT)
         endif
     endif
 else
-    UNAME_P := $(shell uname -p)
-    ifeq ($(UNAME_P),x86_64)
+    UNAME := $(shell uname -p)
+    ifeq ($(UNAME),unknown)
+        UNAME := $(shell uname -m)
+    endif
+    ifeq ($(UNAME),x86_64)
         ARCH = AMD64
     endif
-    ifneq ($(filter %86,$(UNAME_P)),)
+    ifneq ($(filter %86,$(UNAME)),)
         ARCH = IA32
     endif
-    ifneq ($(filter arm%,$(UNAME_P)),)
+    ifneq ($(filter arm%,$(UNAME)),)
         ARCH = ARM
     endif
 endif
