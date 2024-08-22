@@ -476,10 +476,12 @@ static void oportflush(obj o) {
 /* file output ports */
 #define mkoport_file(l, fp) hpushptr(fp, OPORT_FILE_NTAG, l)
 /* string output ports */
-typedef struct cbuf_tag { char *buf; char *fill; char *end; } cbuf_t;
+typedef struct cbuf_tag { char *buf; char *fill; char *end; size_t off; } cbuf_t;
 extern cbuf_t* newcb(void);
 extern void freecb(cbuf_t* pcb);
 extern int cbputc(int c, cbuf_t* pcb);
+extern int cbgetc(cbuf_t* pcb);
+extern int cbungetc(cbuf_t* pcb, int c);
 extern size_t cblen(cbuf_t* pcb);
 extern char* cbdata(cbuf_t* pcb);
 #define mkoport_string(l, fp) hpushptr(fp, OPORT_STRING_NTAG, l)

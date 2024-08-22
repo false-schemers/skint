@@ -263,7 +263,8 @@ static void _sck(obj *s) {
 #define string_obj(s) hp_pushptr((s), STRING_NTAG)
 #define is_string(o) isstring(o)
 #define string_len(o) stringlen(o) 
-#define string_ref(o, i) (*stringref(o, i))
+#define string_get(o, i) (*stringref(o, i))
+#define string_put(o, i, c) (*stringref(o, i) = (c))
 #define bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
 #define is_bytevector(o) isbytevector(o)
 #define bytevector_len(o) bytevectorlen(o)
@@ -279,6 +280,8 @@ static void _sck(obj *s) {
 #define is_box(o) isbox(o)
 #define box_ref(o) boxref(o)
 #define is_proc(o) isvmclo(o)
+#define proc_len(o) vmclolen(o)
+#define proc_ref(o, i) vmcloref(o, i)
 #define is_tuple(o) (isrecord(o) && recordrtd(o) == 0)
 #define tuple_len(o) tuplelen(o)
 #define tuple_ref(o, i) tupleref(o, i)
@@ -286,6 +289,7 @@ static void _sck(obj *s) {
 #define record_rtd(o) recordrtd(o)
 #define record_len(o) recordlen(o)
 #define record_ref(o, i) recordref(o, i)
+
 
 
 /* cxi instructions protocol; retval is new hp: */
@@ -732,14 +736,14 @@ define_instruction(cwmv) {
   obj t = ac, x = spop();
   ckx(t); ckx(x);
   /* we can run in constant space in some situations */
-  if (vmcloref(x, 0) == cx_continuation_2Dadapter_2Dcode 
-   && vmcloref(x, 1) ==  cx__2Adynamic_2Dstate_2A) {
+  if (proc_ref(x, 0) == cx_continuation_2Dadapter_2Dcode 
+   && proc_ref(x, 1) ==  cx__2Adynamic_2Dstate_2A) {
     /* arrange call of t with x as continuation */
     /* [0] adapter_code, [1] dynamic_state */
-    int n = vmclolen(x) - 2; 
+    int n = proc_len(x) - 2; 
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
     sp = r + VM_REGC; /* stack is empty */
-    objcpy(sp, &vmcloref(x, 2), n);
+    objcpy(sp, &proc_ref(x, 2), n);
     sp += n; /* contains n elements now */
     rd = t; rx = fixnum_obj(0); 
     ac = fixnum_obj(0);
@@ -833,15 +837,15 @@ define_instruction(lck0) {
 
 define_instruction(wck) {
   obj x = ac, t = spop(); ckx(t); ckx(x);
-  if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
+  if (proc_ref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  if (vmcloref(x, 1) == cx__2Adynamic_2Dstate_2A) {
+  if (proc_ref(x, 1) == cx__2Adynamic_2Dstate_2A) {
     /* restore cont stack and invoke t there */
-    int n = vmclolen(x) - 2; 
+    int n = proc_len(x) - 2; 
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
     sp = r + VM_REGC; /* stack is empty */
-    objcpy(sp, &vmcloref(x, 2), n);
+    objcpy(sp, &proc_ref(x, 2), n);
     sp += n; /* contains n elements now */
     rd = t; rx = fixnum_obj(0); 
     ac = fixnum_obj(0);
@@ -860,15 +864,15 @@ define_instruction(wck) {
 
 define_instruction(wckr) {
   obj x = ac, o = spop(); ckx(x);
-  if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
+  if (proc_ref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  if (vmcloref(x, 1) == cx__2Adynamic_2Dstate_2A) {
+  if (proc_ref(x, 1) == cx__2Adynamic_2Dstate_2A) {
     /* restore cont stack and return o there */
-    int n = vmclolen(x) - 2;
+    int n = proc_len(x) - 2;
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
     sp = r + VM_REGC; /* stack is empty */
-    objcpy(sp, &vmcloref(x, 2), n);
+    objcpy(sp, &proc_ref(x, 2), n);
     sp += n;
     ac = o;
     rx = spop();
@@ -887,7 +891,7 @@ define_instruction(wckr) {
 define_instruction(rck) {
   /* called with continuation as rd: 
    * in: ac:argc, args on stack, rd display is dys, saved stack */
-  if (vmcloref(rd, 1) != cx__2Adynamic_2Dstate_2A) {
+  if (proc_ref(rd, 1) != cx__2Adynamic_2Dstate_2A) {
     /* need to run the rest of the code to unwind/rewind on the
      * old stack; rck will be called again when done */
     gonexti(); 
@@ -896,8 +900,8 @@ define_instruction(rck) {
     goi(wckr);
   } else { /* multiple results case */
     /* rd[0] adapter_code, rd[1] dynamic_state */
-    int c = get_fixnum(ac), n = vmclolen(rd) - 2, i;
-    obj *ks = &vmcloref(rd, 2), *ke = ks + n;
+    int c = get_fixnum(ac), n = proc_len(rd) - 2, i;
+    obj *ks = &proc_ref(rd, 2), *ke = ks + n;
     if (ke-ks > 3 && *--ke == fixnum_obj(0) && *--ke == cx_callmv_2Dadapter_2Dclosure) {
       obj *sb = r + VM_REGC;
       rd = *--ke; rx = fixnum_obj(0); n = (int)(ke - ks); /* cns */
@@ -935,7 +939,7 @@ define_instruction(setdys) {
 define_instruction(save) {
   int dx = get_fixnum(*ip++); 
   spush(rd);
-  spush(fixnum_obj(ip + dx - &vector_ref(vmcloref(rd, 0), 0)));  
+  spush(fixnum_obj(ip + dx - &vector_ref(proc_ref(rd, 0), 0)));  
   gonexti();
 }
 
@@ -1318,7 +1322,7 @@ define_instruction(sget) {
   cks(ac); ckk(x); 
   i = get_fixnum(x); 
   if (i >= string_len(ac)) failtype(x, "valid string index");
-  ac = char_obj(string_ref(ac, i));
+  ac = char_obj(string_get(ac, i));
   gonexti();
 }
 
@@ -1327,7 +1331,7 @@ define_instruction(sput) {
   cks(ac); ckk(x); ckc(y); 
   i = get_fixnum(x); 
   if (i >= string_len(ac)) failtype(x, "valid string index");
-  string_ref(ac, i) = get_char(y);
+  string_put(ac, i, get_char(y));
   gonexti();
 }
 
@@ -1606,7 +1610,7 @@ define_instruction(stol) {
   cks(ac); n = string_len(ac);
   hp_reserve(pairbsz()*n);
   while (n > 0) {
-    *--hp = l; *--hp = char_obj(string_ref(ac, n-1));
+    *--hp = l; *--hp = char_obj(string_get(ac, n-1));
     l = hend_pair();
     --n;
   }
@@ -3516,6 +3520,26 @@ define_instruction(vmclo) {
   sdrop(n);
   gonexti();
 }
+
+define_instruction(ctov) {
+  int n, i; ckx(ac);
+  n = proc_len(ac);
+  hp_reserve(vecbsz(n));
+  for (i = n; i > 0; --i) *--hp = proc_ref(ac, i-1);
+  ac = hend_vec(n);
+  gonexti();
+}
+
+define_instruction(vtoc) {
+  int n, i; ckv(ac); 
+  n = vector_len(ac);
+  hp_reserve(vmclobsz(n));
+  for (i = n; i > 0; --i) *--hp = vector_ref(ac, i-1);
+  ac = hend_vmclo(n);
+  gonexti();
+}
+
+
 
 define_instruction(hshim) {
   unsigned long long v = (unsigned long long)ac, base = 0; obj b = spop(); 

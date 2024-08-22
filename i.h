@@ -544,6 +544,8 @@ declare_instruction(igty,       "U6",           0,  "integrable-type",          
 declare_instruction(iggl,       "U7",           0,  "integrable-global",        '1', AUTOGL)
 declare_instruction(igco,       "U8",           0,  "integrable-code",          '2', AUTOGL)
 declare_instruction(vmclo,      "U9",           1,  "closure",                  '#', INLINED)
+declare_instruction(ctov,       "Uv",           0,  "%closure->vector",         '1', AUTOGL)
+declare_instruction(vtoc,       "Uc",           0,  "%vector->closure",         '1', AUTOGL)
 declare_instruction(hshim,      "H2\0f",        0,  "immediate-hash",           'b', AUTOGL)
 
 /* inlined integrables (no custom instructions) */               

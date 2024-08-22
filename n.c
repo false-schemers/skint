@@ -519,7 +519,8 @@ static int bviungetch(int c, bvifile_t *fp) {
 cbuf_t* newcb(void) {
   cbuf_t* pcb = cxm_cknull(malloc(sizeof(cbuf_t)), "malloc(cbuf)");
   pcb->fill = pcb->buf = cxm_cknull(malloc(64), "malloc(cbdata)");
-  pcb->end = pcb->buf + 64; return pcb;
+  pcb->end = pcb->buf + 64; pcb->off = 0;
+  return pcb;
 }
 
 void freecb(cbuf_t* pcb) { if (pcb) { free(pcb->buf); free(pcb); } }
@@ -533,8 +534,21 @@ static void cbgrow(cbuf_t* pcb, size_t n) {
 }
 
 int cbputc(int c, cbuf_t* pcb) {
-  if ((pcb)->fill == (pcb)->end) cbgrow(pcb, 1); *((pcb)->fill)++ = c; return c;
+  if (pcb->fill == pcb->end) cbgrow(pcb, 1); 
+  *(pcb->fill)++ = c; return c;
 }
+
+int cbgetc(cbuf_t* pcb) {
+  if (pcb->buf + pcb->off >= pcb->fill) return EOF;
+  return pcb->buf[pcb->off++];
+}
+
+int cbungetc(cbuf_t* pcb, int c) {
+  if (!pcb->off) return EOF;
+  pcb->off -= 1;
+  return c;
+}
+
 
 static int cbflush(cbuf_t* pcb) { return 0; }
 
@@ -1011,8 +1025,10 @@ extern int is_tty_port(obj o)
 
 #ifdef WIN32
 int dirsep = '\\';
+int pathsep = ';';
 #else
 int dirsep = '/';
+int pathsep = ':';
 #endif
 
 #ifdef LIBPATH
