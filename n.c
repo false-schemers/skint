@@ -478,7 +478,7 @@ static int noputch(int c, void *p) { return EOF; }
 
 static int noflush(void *p) { return EOF; }
 
-static int noctl(const char *cmd, void *p, ...) { return -1; }
+static int noctl(ctlop_t op, void *p, ...) { return -1; }
 
 static void ffree(void *vp) {
   /* FILE *fp = vp; assert(fp); cannot fclose(fp) here because of FILE reuse! */ }
@@ -499,6 +499,27 @@ static int sigetch(sifile_t *fp) {
 static int siungetch(int c, sifile_t *fp) {
   assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
 
+static int sictl(ctlop_t op, sifile_t *fp, ...)
+{
+  if (op == CTLOP_RDLN) {
+    va_list args; int **pd;
+    va_start(args, fp); 
+    pd = va_arg(args, int **);
+    if (*(fp->p) == 0) {
+      *pd = NULL;
+    } else {
+      char *s = strchr(fp->p, '\n');
+      if (s) { *pd = newstringn(fp->p, s-fp->p); fp->p = s+1; }
+      else { *pd = newstring(fp->p); fp->p += strlen(fp->p); }
+    }  
+    va_end(args);
+    return 0;
+  }
+  return -1;
+}
+
+
+
 bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
   bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), "malloc(bvifile)");
   fp->p = p; fp->e = e; fp->base = base; return fp; }
@@ -516,11 +537,14 @@ static int bvigetch(bvifile_t *fp) {
 static int bviungetch(int c, bvifile_t *fp) {
   assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }
 
+cbuf_t* cbinit(cbuf_t* pcb) {
+  pcb->fill = pcb->buf = cxm_cknull(malloc(64), "malloc(cbdata)");
+  pcb->end = pcb->buf + 64; return pcb;
+}
+
 cbuf_t* newcb(void) {
   cbuf_t* pcb = cxm_cknull(malloc(sizeof(cbuf_t)), "malloc(cbuf)");
-  pcb->fill = pcb->buf = cxm_cknull(malloc(64), "malloc(cbdata)");
-  pcb->end = pcb->buf + 64; pcb->off = 0;
-  return pcb;
+  return cbinit(pcb);
 }
 
 void freecb(cbuf_t* pcb) { if (pcb) { free(pcb->buf); free(pcb); } }
@@ -533,22 +557,17 @@ static void cbgrow(cbuf_t* pcb, size_t n) {
   pcb->fill = pcb->buf + cnt, pcb->end = pcb->buf + newsz;
 }
 
+char* cballoc(cbuf_t* pcb, size_t n) {
+  assert(pcb); /* allow for extra 1 char after n */
+  if (pcb->fill + n+1 > pcb->end) cbgrow(pcb, n+1);
+  pcb->fill += n;
+  return pcb->fill - n;
+}
+
 int cbputc(int c, cbuf_t* pcb) {
   if (pcb->fill == pcb->end) cbgrow(pcb, 1); 
   *(pcb->fill)++ = c; return c;
 }
-
-int cbgetc(cbuf_t* pcb) {
-  if (pcb->buf + pcb->off >= pcb->fill) return EOF;
-  return pcb->buf[pcb->off++];
-}
-
-int cbungetc(cbuf_t* pcb, int c) {
-  if (!pcb->off) return EOF;
-  pcb->off -= 1;
-  return c;
-}
-
 
 static int cbflush(cbuf_t* pcb) { return 0; }
 
@@ -560,64 +579,149 @@ char* cbdata(cbuf_t* pcb) {
   if (pcb->fill == pcb->end) cbgrow(pcb, 1); *(pcb->fill) = 0; return pcb->buf; 
 }
 
+cbuf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }
+
+typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
+typedef struct tifile_tag { cbuf_t cb; char *next; FILE *fp; int lno; tiflags_t flags; } tifile_t;
+
+tifile_t *tialloc(FILE *fp) {
+  tifile_t *tp = cxm_cknull(malloc(sizeof(tifile_t)), "malloc(tifile)");
+  cbinit(&tp->cb); tp->next = tp->cb.buf; *(tp->next) = 0;
+  tp->fp = fp; tp->lno = 0; tp->flags = TIF_NONE;
+  return tp; 
+}
+
+static void tifree(tifile_t *tp) { 
+  assert(tp); cbclose(&tp->cb); ffree(tp->fp); free(tp); }
+
+static int ticlose(tifile_t *tp) { 
+  assert(tp); cbclose(&tp->cb); fclose(tp->fp); return 0; }
+
+static int tigetch(tifile_t *tp) {
+  int c; retry: c = *(tp->next); 
+  if (c != 0) { ++(tp->next); return c; } 
+  /* see if we need to return actual 0 or refill the line */
+  if (tp->next < tp->cb.fill)  { ++(tp->next); return c; }
+  else if (tp->flags & TIF_EOF || !tp->fp) return EOF;
+  else { /* refill with next line from fp */
+    cbuf_t *pcb = cbclear(&tp->cb); FILE *fp = tp->fp; 
+#if 1
+    char *line = fgets(cballoc(pcb, 256), 256, fp);
+    if (!line) { cbclear(pcb); tp->flags |= TIF_EOF; }
+    else { /* manually add the rest of the line */
+      size_t len = strlen(line); pcb->fill = pcb->buf + len;
+      if (len > 0 && line[len-1] != '\n') {
+        do { c = getc(fp); if (c == EOF) break; cbputc(c, pcb); } while (c != '\n');
+        if (c == EOF) tp->flags |= TIF_EOF;
+      }
+    }
+#else
+    do { c = getc(fp); if (c == EOF) break; cbputc(c, pcb); } while (c != '\n');
+    if (c == EOF) tp->flags |= TIF_EOF;
+#endif
+    tp->lno += 1; tp->next = cbdata(pcb); /* 0-term */
+    goto retry;
+  }
+}
+
+static int tiungetch(int c, tifile_t *tp) { 
+  assert(tp->next > tp->cb.buf && tp->next <= tp->cb.fill);
+  tp->next -= 1; // todo: utf-8
+  return c;
+}
+
+static int tictl(ctlop_t op, tifile_t *tp, ...)
+{
+  if (op == CTLOP_RDLN) {
+    va_list args; int c, n, **pd;
+    va_start(args, tp); 
+    pd = va_arg(args, int **);
+    c = tigetch(tp);
+    if (c == EOF) {
+      *pd = NULL;
+    } else {
+      char *s; tiungetch(c, tp);
+      s = tp->next; n = tp->cb.fill - s;
+      if (n > 0 && s[n-1] == '\n') --n;
+      *pd = newstringn(s, n);
+      tp->next = tp->cb.fill;
+    }  
+    va_end(args);
+    return 0;
+  }
+  return -1;
+}
+
 /* port type array */
 
-#define PORTTYPES_MAX 8
-
-static cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
+cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_CLOSED_PTINDEX     0
   { "closed-input-port", (void (*)(void*))nofree, 
-    SPT_CLOSED, (int (*)(void*))noclose,
+    SPT_INPUT, (int (*)(void*))noclose,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush, 
-    (int (*)(const char *, void *, ...))noctl },
+    (int (*)(ctlop_t, void *, ...))noctl },
 #define IPORT_FILE_PTINDEX       1
-  { "file-input-port", ffree, 
-    SPT_INPUT, (int (*)(void*))fclose, 
+  { "file-input-port", (void (*)(void*))tifree, 
+    SPT_INPUT, (int (*)(void*))ticlose, 
+    (int (*)(void*))tigetch, (int (*)(int, void*))tiungetch,
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(ctlop_t, void *, ...))tictl },
+#define IPORT_BYTEFILE_PTINDEX   2
+  { "binary-file-input-port", ffree, 
+    SPT_INPUT|SPT_BINARY, (int (*)(void*))fclose, 
     (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define IPORT_STRING_PTINDEX     2
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define IPORT_STRING_PTINDEX     3
   { "string-input-port", (void (*)(void*))sifree, 
     SPT_INPUT, (int (*)(void*))siclose,
     (int (*)(void*))sigetch, (int (*)(int, void*))siungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define IPORT_BYTEVECTOR_PTINDEX 3
+    (int (*)(ctlop_t, void *, ...))sictl },
+#define IPORT_BYTEVECTOR_PTINDEX 4
   { "bytevector-input-port", (void (*)(void*))bvifree, 
-    SPT_INPUT, (int (*)(void*))bviclose,
+    SPT_INPUT|SPT_BINARY, (int (*)(void*))bviclose,
     (int (*)(void*))bvigetch, (int (*)(int, void*))bviungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define OPORT_CLOSED_PTINDEX     4
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_CLOSED_PTINDEX     5
   { "closed-output-port", (void (*)(void*))nofree, 
     SPT_OUTPUT, (int (*)(void*))noclose, 
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define OPORT_FILE_PTINDEX       5
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_FILE_PTINDEX       6
   { "file-output-port", ffree, 
     SPT_OUTPUT, (int (*)(void*))fclose, 
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define OPORT_STRING_PTINDEX     6
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_BYTEFILE_PTINDEX   7
+  { "binary-file-output-port", ffree, 
+    SPT_OUTPUT|SPT_BINARY, (int (*)(void*))fclose, 
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_STRING_PTINDEX     8
   { "string-output-port", (void (*)(void*))freecb, 
     SPT_OUTPUT, (int (*)(void*))cbclose,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define OPORT_BYTEVECTOR_PTINDEX 7
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_BYTEVECTOR_PTINDEX 9
   { "bytevector-output-port", (void (*)(void*))freecb, 
-    SPT_OUTPUT, (int (*)(void*))cbclose,
+    SPT_OUTPUT|SPT_BINARY, (int (*)(void*))cbclose,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
-    (int (*)(const char *, void *, ...))noctl }    
+    (int (*)(ctlop_t, void *, ...))noctl }    
 };
 
 cxtype_t *IPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[IPORT_CLOSED_PTINDEX];
 
 cxtype_t *IPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_FILE_PTINDEX];
+
+cxtype_t *IPORT_BYTEFILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_BYTEFILE_PTINDEX];
 
 cxtype_t *IPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[IPORT_STRING_PTINDEX];
 
@@ -626,6 +730,8 @@ cxtype_t *IPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_port_types[IPORT_BYTEVECTOR_P
 cxtype_t *OPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[OPORT_CLOSED_PTINDEX];
 
 cxtype_t *OPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[OPORT_FILE_PTINDEX];
+
+cxtype_t *OPORT_BYTEFILE_NTAG = (cxtype_t *)&cxt_port_types[OPORT_BYTEFILE_PTINDEX];
 
 cxtype_t *OPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[OPORT_STRING_PTINDEX];
 
@@ -864,10 +970,29 @@ static void wrs(char *s, wenv_t *e) {
   assert(vt); while (*s) vt->putch(*s++, pp);
 }
 static int cleansymname(char *s) {
+#if 1
+  static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-]  */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  };
+  char *p = s; while (*p) if (inisub_map[*p++ & 0xFF] == 0) return 0; if (!s[0]) return 0;
+  if (inisub_map[s[0] & 0xFF] == 1) return 1;
+#else
   char *inits = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*/:<=>?@^_~";
   char *subss = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*/:<=>?@^_~0123456789.@+-";
   if (s[0] == 0 || s[strspn(s, subss)] != 0) return 0; else if (strchr(inits, s[0])) return 1;
-  else if (s[0] == '+' || s[0] == '-') return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || !isdigit(s[1]);
+#endif
+  if (s[0] == '+' || s[0] == '-') {
+    if (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0) return 0;
+    if ((s[1] == 'i' || s[1] == 'I') && s[2] == 0) return 0;
+    return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || (s[1] != '.' && !isdigit(s[1]));
+  }
   else return s[0] == '.' && s[1] && !isdigit(s[1]); 
 }
 static void wrdatum(obj o, wenv_t *e) {
@@ -1017,7 +1142,7 @@ void oportputshared(obj x, obj p, int disp) {
 extern int is_tty_port(obj o)
 {
   FILE *fp = NULL;
-  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = (FILE*)iportdata(o);
+  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = ((tifile_t*)iportdata(o))->fp;
   else if ((cxtype_t*)oportvt(o) == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
   if (!fp) return 0;
   return isatty(fileno(fp));
@@ -1085,4 +1210,324 @@ extern int set_cwd(char *cwd)
   return chdir(cwd);
 }
 
+#define TT_FALSE      'f'
+#define TT_TRUE       't'
+#define TT_NUMBER     'n'
+#define TT_CHAR       'c'
+#define TT_STRING     's'
+#define TT_SYMBOL     'y'
+#define TT_OPENLIST   'l'
+#define TT_OPENVEC    'v'
+#define TT_OPENU8VEC  'u'
+#define TT_CLOSE      'r'
+#define TT_OPENLIST2  'b'
+#define TT_CLOSE2     'k'
+#define TT_QUOTE      '\''
+#define TT_QQUOTE     '`'
+#define TT_UNQUOTE    ','
+#define TT_UNQSPL     '@'
+#define TT_DOT        '.'
+#define TT_BOX        '&'
+#define TT_HDEF       '='
+#define TT_HREF       '#'
+#define TT_HSEMI      ';'
+#define TT_SHEBANG    '!'
+#define TT_SHEBANG_FC 'F'
+#define TT_SHEBANG_NF 'N'
+#define TT_ERR         0
+#define TT_EOF        -1
+
+#if 1
+static char num_map[256] = { /* [#A-Za-z/0123456789.@+-] */
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
+   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+   0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+#define is_num(c) (num_map[(c) & 0xFF]) /* NB: eof at num_map[255] */   
+#else
+static int is_num(int c)
+{ /* this covers all initials and constituents of prefixed numbers */
+  char *s = "#ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/0123456789+-.@";
+  return c != EOF && strchr(s, c) != NULL;
+}
+#endif
+
+#if 1
+static char numsym_map[256] = { /* [A-Za-z!$%&*:/<=>?^_~0123456789.@+-] */
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1,
+   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+   0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+#define is_numsym(c) (numsym_map[(c) & 0xFF]) /* NB: eof at numsym_map[255] */   
+#else
+static int is_numsym(int c)
+{ /* this covers all initials and constituents of plain symbols and nonprefixed decimals */
+  char *s = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!$%&*/:<=>?^_~0123456789+-.@";
+  return c != EOF && strchr(s, c) != NULL;
+}
+#endif
+
+static int is_delimiter(int c)
+{
+  switch (c) {
+    case '\t': case '\r': case '\n': case ' ':
+    case '(':  case ')':  case '[':  case ']':
+    case '|':  case '\"': case ';':  case EOF:
+      return 1;
+  }
+  return 0;
+}
+
+static int lex_1esc(int c)
+{
+  switch (c) {
+    case 'a':  return '\a';
+    case 'b':  return '\b';
+    case 't':  return '\t';
+    case 'n':  return '\n';
+    case 'r':  return '\r';
+    case '|':  return '|';
+    case '\"': return '\"';
+    case '\\': return '\\';
+  }
+  return EOF;
+}
+
+static int lex_xesc(int c, int xc)
+{
+  if (c >= '0' && c <= '9') return (xc << 4) + c - '0';
+  if (c >= 'A' && c <= 'F') return (xc << 4) + 10 + c - 'A';
+  if (c >= 'a' && c <= 'f') return (xc << 4) + 10 + c - 'a';
+  return EOF;
+}
+
+/* slex: splits input into tokens delivered via char buf */
+int slex(int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, cbuf_t *pcb)
+{
+  int c, xc;
+  next: cbclear(pcb);
+  switch (c = in_getc(in)) {
+    case EOF:  return TT_EOF;
+    case ',':  goto after_comma;
+    case '`':  return TT_QQUOTE;
+    case '\'': return TT_QUOTE;
+    case ']':  return TT_CLOSE2;
+    case '[':  return TT_OPENLIST2;
+    case ')':  return TT_CLOSE;
+    case '(':  return TT_OPENLIST;
+    case ';':  goto in_linecomm;
+    case '|':  goto in_barsym;
+    case '\"': goto in_string;
+    case '#':  cbputc(c, pcb); goto after_hash;
+    case '.':  cbputc(c, pcb); goto after_dot;
+    default:   
+    if (is_numsym(c)) goto in_numsym;
+    if ((c >= '\t' && c <= '\n') || (c >= '\f' && c <= '\r') || c == ' ') goto in_whitespace;
+    in_ungetc(c, in); goto err;
+  }
+  in_whitespace: 
+    c = in_getc(in);
+    if (c == EOF) return TT_EOF;
+    if ((c >= '\t' && c <= '\n') || (c >= '\f' && c <= '\r') || c == ' ') goto in_whitespace;
+    in_ungetc(c, in); goto next;
+  in_linecomm:
+    c = in_getc(in);
+    if (c == EOF) return TT_EOF;
+    if (c != '\n') goto in_linecomm;
+    goto next;
+  in_numsym:
+    while (is_numsym(c)) { cbputc(c, pcb); c = in_getc(in); }
+    if (!is_delimiter(c)) goto err; if (c != EOF) in_ungetc(c, in);
+    if (cleansymname(cbdata(pcb))) return TT_SYMBOL;
+    return TT_NUMBER;
+  after_dot:
+    c = in_getc(in); if (is_numsym(c)) goto in_numsym;
+    if (!is_delimiter(c)) goto err; if (c != EOF) in_ungetc(c, in);
+    return TT_DOT;
+  after_hash:
+    c = in_getc(in); if (c == EOF) goto err;
+    if (c == '(') return TT_OPENVEC;
+    if (c == '\\') { cbclear(pcb); goto in_char; }
+    if (c == '|') { // handcoded
+      int level = 1;
+      normal: 
+      switch (in_getc(in)) {
+        case EOF: goto err;
+        case '#': goto after_hashc; 
+        case '|': goto after_barc;
+        default: goto normal; 
+      }
+      after_hashc: 
+      switch (in_getc(in)) {
+        case EOF: goto err;
+        case '#': goto after_hashc; 
+        case '|': level++;
+        default: goto normal; 
+      }
+      after_barc: 
+      switch (in_getc(in)) {
+        case EOF: goto err;
+        case '|': goto after_barc;
+        case '#': if (!--level) goto next;
+        default: goto normal; 
+      }
+    }
+    if (c == '!') { cbclear(pcb); goto after_shebang; }
+    if (c == '&') return TT_BOX;
+    if (c == 'u' || c == 'U') { cbputc(tolower(c), cbclear(pcb)); goto after_hashu; }
+    if (c >= '0' && c <= '9') { cbputc(c, cbclear(pcb)); goto in_hashnum; }
+    if (c == 'B' || (c >= 'D' && c <= 'E') || c == 'I' || c == 'O' || c == 'X' || 
+        c == 'b' || (c >= 'd' && c <= 'e') || c == 'i' || c == 'o' || c == 'x') 
+      { cbputc(tolower(c), pcb); goto in_hashradixie; }
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+      { cbputc(tolower(c), cbclear(pcb)); goto in_hashname; }
+    if (c == ';') { cbclear(pcb); return TT_HSEMI; } // todo: skip S-exp
+    in_ungetc(c, in); goto err;
+  after_comma:
+    c = in_getc(in);
+    if (c == EOF) return TT_UNQUOTE;
+    if (c == '@') return TT_UNQSPL;
+    in_ungetc(c, in); return TT_UNQUOTE;
+  in_char:
+    c = in_getc(in); if (c == EOF) goto eoferr;
+    if (c == 'x' || c == 'X') goto in_char_xesc;
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) goto in_char_name;
+    cbputc(c, pcb); // todo: parse utf-8
+    c = in_getc(in); if (c != EOF) in_ungetc(c, in); 
+    if (!is_delimiter(c)) goto err; 
+    return TT_CHAR;
+  in_char_name:
+    while ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) { cbputc(c, pcb); c = in_getc(in); }
+    if (cblen(pcb) > 1) {
+      char *s = cbdata(pcb); int x = EOF;
+      if (0 == strcmp(s, "null")) x = '\0';
+      else if (0 == strcmp(s, "alarm")) x = '\a';
+      else if (0 == strcmp(s, "backspace")) x = '\b';
+      else if (0 == strcmp(s, "delete")) x = '\x7F';
+      else if (0 == strcmp(s, "escape")) x = '\x1B';
+      else if (0 == strcmp(s, "newline")) x = '\n';
+      else if (0 == strcmp(s, "return")) x = '\r';
+      else if (0 == strcmp(s, "space")) x = ' ';
+      else if (0 == strcmp(s, "tab")) x = '\t';
+      else if (0 == strcmp(s, "vtab")) x = '\v'; //++
+      else if (0 == strcmp(s, "page")) x = '\f'; //++
+      else if (0 == strcmp(s, "linefeed")) x = '\n'; //++
+      if (x == EOF) goto err;
+      cbputc(x, cbclear(pcb));
+    }
+    if (c != EOF) in_ungetc(c, in);
+    if (!is_delimiter(c)) goto err;
+    return TT_CHAR;
+  in_char_xesc:
+    xc = c; c = in_getc(in); 
+    if (is_delimiter(c)) { if (c != EOF) in_ungetc(c, in); cbputc(xc, pcb); return TT_CHAR; } 
+    else xc = 0; 
+    while (!is_delimiter(c) && (xc = lex_xesc(c, xc)) != EOF) c = in_getc(in);
+    if (!is_delimiter(c) || xc == EOF) goto err;
+    if (c != EOF) in_ungetc(c, in); cbputc(xc, pcb); return TT_CHAR; // todo: cbput8c
+  in_barsym:
+    c = in_getc(in); if (c == EOF) goto eoferr;
+    else if (c == '|') return TT_SYMBOL;
+    else if (c == '\\') goto in_barsym_esc;
+    cbputc(c, pcb); goto in_barsym; // todo: parse utf-8
+  in_barsym_esc:
+    c = in_getc(in); if (c == EOF) goto err;
+    if (c == 'x' || c == 'X') goto in_barsym_xesc;
+    xc = lex_1esc(c); if (xc == EOF) goto err;
+    cbputc(xc, pcb); goto in_barsym; // todo: cbput8c
+  in_barsym_xesc:
+    xc = 0; do c = in_getc(in); 
+    while (c != ';' && (xc = lex_xesc(c, xc)) != EOF);
+    if (c != ';' || xc == EOF) goto err;
+    cbputc(xc, pcb); goto in_barsym; // todo: cbput8c
+  in_string:
+    c = in_getc(in); if (c == EOF) goto eoferr;
+    else if (c == '\"') return TT_STRING;
+    else if (c == '\\') goto in_str_esc;
+    cbputc(c, pcb); goto in_string; // todo: parse utf-8
+  in_str_esc:
+    c = in_getc(in); if (c == EOF) goto err;
+    if (c == 'x' || c == 'X') goto in_str_xesc;
+    if (c == '\t' || c == ' ' || c == '\r' || c == '\n') goto in_str_sesc;
+    xc = lex_1esc(c); if (xc == EOF) goto err;
+    cbputc(xc, pcb); goto in_string; // todo: cbput8c
+  in_str_sesc:
+    while (c == '\t' || c == ' ' || c == '\r') c = in_getc(in);
+    if (c != '\n') goto err;
+    do c = in_getc(in); while (c == '\t' || c == ' ');
+    if (c == EOF) goto err;
+    in_ungetc(c, in); goto in_string;
+  in_str_xesc:
+    xc = 0; do c = in_getc(in); 
+    while (c != ';' && (xc = lex_xesc(c, xc)) != EOF);
+    if (c != ';' || xc == EOF) goto err;
+    cbputc(xc, pcb); goto in_string; // todo: cbput8c
+  in_hashradixie:
+    c = in_getc(in); if (c == EOF) goto err;
+    while (is_num(c)) { cbputc(tolower(c), pcb); c = in_getc(in); }
+    if (!is_delimiter(c)) goto err; if (c != EOF) in_ungetc(c, in);
+    return TT_NUMBER;
+  in_hashname:
+    c = in_getc(in);
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) { cbputc(tolower(c), pcb); goto in_hashname; }
+    if (is_delimiter(c)) {
+      char *s = cbdata(pcb); if (c != EOF) in_ungetc(c, in);
+      if (0 == strcmp(s, "t")) return TT_TRUE;
+      else if (0 == strcmp(s, "true")) return TT_TRUE;
+      else if (0 == strcmp(s, "f")) return TT_FALSE;
+      else if (0 == strcmp(s, "false")) return TT_FALSE;
+    }
+    goto err;
+  in_hashnum:
+    c = in_getc(in); if (c == EOF) goto err;
+    if (c == '#') return TT_HREF;
+    if (c == '=') return TT_HDEF;
+    if (c >= '0' && c <= '9') { cbputc(c, pcb); goto in_hashnum; }
+    in_ungetc(c, in); goto err;
+  after_hashu:
+    c = in_getc(in);
+    if (c == '8') { cbclear(pcb); goto after_hashu8; }
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) { cbputc(tolower(c), pcb); goto in_hashname; }
+    in_ungetc(c, in); goto err;
+  after_hashu8:
+    c = in_getc(in); if (c == EOF) goto err;
+    if (c == '(') return TT_OPENU8VEC;
+    in_ungetc(c, in); goto err;
+  after_shebang:
+    c = in_getc(in); if (c == EOF) goto err;
+    if (c == ' ' || c == '\t') goto in_shebang_line;
+    else if (c == '-' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z')) 
+      { cbputc(c, pcb); goto in_shebang_name; }
+    in_ungetc(c, in); goto err;
+  in_shebang_line:
+    while (c == ' ' || c == '\t') c = in_getc(in);
+    while (c != EOF && c != '\n') { cbputc(c, pcb); c = in_getc(in); }
+    while (pcb->fill > pcb->buf && (pcb->fill[-1] == ' ' || pcb->fill[-1] == '\t')) pcb->fill -= 1;
+    return TT_SHEBANG;
+  in_shebang_name:
+    c = in_getc(in);
+    if (c == EOF) goto in_shebang_pre;
+    else if (c == '-' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || c == '_' || (c >= 'a' && c <= 'z')) 
+     { cbputc(c, pcb); goto in_shebang_name; }
+    else { in_ungetc(c, in); goto in_shebang_pre; }
+  in_shebang_pre: {
+    char *s = cbdata(pcb);
+    if (strcmp_ci(s, "fold-case") == 0) return TT_SHEBANG_FC;
+    if (strcmp_ci(s, "no-fold-case") == 0) return TT_SHEBANG_NF;
+    return TT_SHEBANG;
+  }
+  err:
+  eoferr:
+    return TT_ERR;
+}
 

@@ -13,8 +13,6 @@ extern obj cx__2Acurrent_2Dinput_2A;
 extern obj cx__2Acurrent_2Doutput_2A;
 extern obj cx__2Acurrent_2Derror_2A;
 
-//#define istagged(o, t) istagged_inlined(o, t) 
-
 /* forwards */
 static struct intgtab_entry *lookup_integrable(int sym);
 static int intgtab_count(void);
@@ -269,8 +267,10 @@ static void _sck(obj *s) {
 #define is_bytevector(o) isbytevector(o)
 #define bytevector_len(o) bytevectorlen(o)
 #define bytevector_ref(o, i) (*bytevectorref(o, i))
-#define iport_file_obj(fp) hp_pushptr((fp), IPORT_FILE_NTAG)
+#define iport_file_obj(fp) hp_pushptr(tialloc(fp), IPORT_FILE_NTAG)
+#define iport_bytefile_obj(fp) hp_pushptr((fp), IPORT_BYTEFILE_NTAG)
 #define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
+#define oport_bytefile_obj(fp) hp_pushptr((fp), OPORT_BYTEFILE_NTAG)
 #define iport_string_obj(fp) hp_pushptr((fp), IPORT_STRING_NTAG)
 #define oport_string_obj(fp) hp_pushptr((fp), OPORT_STRING_NTAG)
 #define iport_bytevector_obj(fp) hp_pushptr((fp), IPORT_BYTEVECTOR_NTAG)
@@ -1293,9 +1293,11 @@ define_instruction(strp) {
 }
 
 define_instruction(str) {
-  int i, n = get_fixnum(*ip++);
-  obj o = string_obj(allocstring(n, ' '));
-  unsigned char *s = (unsigned char *)stringchars(o);
+  int i, n; obj o = *ip++; unsigned char *s;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; n = get_fixnum(o);
+  o = string_obj(allocstring(n, ' '));
+  s = (unsigned char *)stringchars(o);
   for (i = 0; i < n; ++i) {
     obj x = sref(i); ckc(x); s[i] = get_char(x);
   }
@@ -1335,8 +1337,27 @@ define_instruction(sput) {
   gonexti();
 }
 
-define_instruction(scat) {
-  obj x = ac, y = spop(); int *d; 
+define_instruction(sapp) {
+  int a, c, i, n, *d; obj o = *ip++;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; c = get_fixnum(o);
+  for (n = 0, a = 0; a < c; ++a) {
+    obj s = sref(a); cks(s);
+    n += string_len(s);
+  }
+  d = allocstring(n, ' ');
+  for (i = 0, a = 0; a < c; ++a) {
+    obj s = sref(a); n = string_len(s);
+    memcpy(sdatachars(d)+i, stringchars(s), n);
+    i += n;
+  }
+  sdrop(c); ac = string_obj(d);
+  gonexti();
+}
+
+define_instruction(sapp2) {
+  /* specialized version of sapp; both args on stack */
+  obj x = spop(), y = spop(); int *d; 
   cks(x); cks(y);
   d = stringcat(stringdata(x), stringdata(y));
   ac = string_obj(d);
@@ -1398,9 +1419,11 @@ define_instruction(bvecp) {
 }
 
 define_instruction(bvec) {
-  int i, n = get_fixnum(*ip++);
-  obj o = bytevector_obj(allocbytevector(n));
-  unsigned char *s = (unsigned char *)bytevectorbytes(o);
+  int i, n; obj o = *ip++; unsigned char *s;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; n = get_fixnum(o);
+  o = bytevector_obj(allocbytevector(n));
+  s = (unsigned char *)bytevectorbytes(o);
   for (i = 0; i < n; ++i) {
     obj x = sref(i); ck8(x); s[i] = byte_from_obj(x);
   }
@@ -1450,6 +1473,25 @@ define_instruction(bsub) {
   ac = bytevector_obj(d);
   gonexti();
 }
+
+define_instruction(bapp) {
+  int a, c, i, n, *d; obj o = *ip++;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; c = get_fixnum(o);
+  for (n = 0, a = 0; a < c; ++a) {
+    obj b = sref(a); ckb(b);
+    n += bytevector_len(b);
+  }
+  d = allocbytevector(n);
+  for (i = 0, a = 0; a < c; ++a) {
+    obj b = sref(a); n = bytevector_len(b);
+    memcpy(bvdatabytes(d)+i, bytevectorbytes(b), n);
+    i += n;
+  }
+  sdrop(c); ac = bytevector_obj(d);
+  gonexti();
+}
+
 
 define_instruction(beq) {
   obj x = ac, y = spop(); ckb(x); ckb(y);
@@ -1515,7 +1557,9 @@ define_instruction(vecp) {
 }
 
 define_instruction(vec) {
-  int i, n = get_fixnum(*ip++);
+  int i, n; obj o = *ip++;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; n = get_fixnum(o);
   hp_reserve(vecbsz(n));
   for (i = n-1; i >= 0; --i) *--hp = sref(i);
   ac = hend_vec(n);
@@ -1557,8 +1601,27 @@ define_instruction(vput) {
   gonexti();
 }
 
-define_instruction(vcat) {
-  obj x = ac, y = sref(0); int n1, n2, n;
+define_instruction(vapp) {
+  int a, c, n, i; obj o = *ip++;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; c = get_fixnum(o);
+  for (n = 0, a = 0; a < c; ++a) {
+    obj v = sref(a); ckv(v);
+    n += vector_len(v);
+  }
+  hp_reserve(vecbsz(n));
+  for (a = c; a > 0; --a) {
+    obj v = sref(a-1); i = vector_len(v);
+    /* NB: vector_ref fails to return pointer to empty vector's start */
+    hp -= i; if (i) objcpy(hp, &vector_ref(v, 0), i);
+  }
+  sdrop(c); ac = hend_vec(n);
+  gonexti();
+}
+
+define_instruction(vapp2) {
+  /* specialized version of sapp; both args on stack */
+  obj x = sref(0), y = sref(1); int n1, n2, n;
   ckv(x); ckv(y);
   n1 = vector_len(x), n2 = vector_len(y), n = n1 + n2;
   hp_reserve(vecbsz(n));
@@ -1566,7 +1629,7 @@ define_instruction(vcat) {
   hp -= n2; if (n2) objcpy(hp, &vector_ref(y, 0), n2);
   hp -= n1; if (n1) objcpy(hp, &vector_ref(x, 0), n1);
   ac = hend_vec(n);
-  sdrop(1);
+  sdrop(2);
   gonexti();
 }
 
@@ -1619,11 +1682,14 @@ define_instruction(stol) {
 }
 
 define_instruction(ltos) {
-  obj l = ac; int n = 0, i, *d;
-  while (is_pair(l)) { l = pair_cdr(l); ++n; }
+  obj l; int n, i, *d;
+  for (n = 0, l = ac; is_pair(l); l = pair_cdr(l)) {
+    obj x = pair_car(ac); ckc(x);
+    ++n; 
+  }
   d = allocstring(n, ' ');
   for (i = 0; i < n; ac = pair_cdr(ac), ++i) {
-    obj x = pair_car(ac); ckc(x);
+    obj x = pair_car(ac);
     sdatachars(d)[i] = get_char(x);
   }
   ac = string_obj(d);
@@ -3237,14 +3303,14 @@ define_instruction(oof) {
 define_instruction(obif) {
   FILE *fp; cks(ac);
   fp = fopen(stringchars(ac), "rb");
-  ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp);
+  ac = (fp == NULL) ? bool_obj(0) : iport_bytefile_obj(fp);
   gonexti();
 }
 
 define_instruction(obof) {
   FILE *fp; cks(ac);
   fp = fopen(stringchars(ac), "wb");
-  ac = (fp == NULL) ? bool_obj(0) : oport_file_obj(fp);
+  ac = (fp == NULL) ? bool_obj(0) : oport_bytefile_obj(fp);
   gonexti();
 }
 
@@ -3310,7 +3376,6 @@ define_instruction(spfc) {
   gonexti();
 }
 
-
 define_instruction(gos) {
   cxtype_oport_t *vt; ckw(ac);
   vt = ckoportvt(ac);
@@ -3320,6 +3385,7 @@ define_instruction(gos) {
   } else {
     cbuf_t *pcb = oportdata(ac);
     ac = string_obj(newstring(cbdata(pcb)));
+    cbclear(pcb); /* a-la Chez */
   }
   gonexti();
 }
@@ -3334,6 +3400,30 @@ define_instruction(gob) {
     cbuf_t *pcb = oportdata(ac);
     int len = (int)(pcb->fill - pcb->buf);
     ac = bytevector_obj(newbytevector((unsigned char *)pcb->buf, len));
+  }
+  gonexti();
+}
+
+define_instruction(gov) {
+  obj c = spop(); cxtype_oport_t *vt = oportvt(ac); 
+  int tk; char *s; ckc(c); tk = get_char(c);
+  if (vt != (cxtype_oport_t *)OPORT_STRING_NTAG) failactype("string input port");
+  s = cbdata((cbuf_t*)oportdata(ac));
+  switch (tk) {
+    case 'n': {
+      int radix = 10; long l; double d;
+      switch (strtofxfl(s, radix, &l, &d)) {
+        case 'e': ac = fixnum_obj(l); break;
+        case 'i': ac = flonum_obj(d); break;
+        default : ac = bool_obj(0); break;
+      }
+    } break;
+    case 'c': ac = char_obj(*s); break;
+    case 'y': ac = mksymbol(internsym(s)); break;
+    case 's': ac = string_obj(newstring(s)); break;
+    case '#': case '=':  ac = fixnum_obj(atoi(s)); break;
+    case '!': ac = mkshebang(internsym(s)); break;
+    default : ac = bool_obj(0);
   }
   gonexti();
 }
@@ -3382,6 +3472,25 @@ define_instruction(rd8r) {
   gonexti();
 }
 
+define_instruction(rdln) {
+  int *d = NULL; cxtype_iport_t *vt = iportvt(ac); 
+  if (!vt || vt->ctl(CTLOP_RDLN, iportdata(ac), &d) < 0) failactype("text input port");
+  else if (d == NULL) ac = eof_obj();  
+  else ac = string_obj(d);
+  gonexti(); 
+}
+
+define_instruction(rdtk) {
+  obj o = spop(); cbuf_t *pcb; int tk;
+  cxtype_iport_t *ivt = iportvt(ac); 
+  cxtype_oport_t *bvt = oportvt(o);
+  if (!ivt) failactype("text input port"); 
+  if (bvt != (cxtype_oport_t *)OPORT_STRING_NTAG) failtype(o, "string output port");
+  pcb = oportdata(o);
+  tk = slex(ivt->getch, ivt->ungetch, iportdata(ac), pcb);
+  ac = (tk <= 0) ? bool_obj(tk < 0) : char_obj(tk);
+  gonexti(); 
+}
 
 define_instruction(eofp) {
   ac = bool_obj(is_eof(ac));
@@ -4015,7 +4124,7 @@ define_instruction(gccnt) {
 }
 
 define_instruction(bumpcnt) {
-  extern size_t cxg_bumpcount;
+  extern int cxg_bumpcount;
   ac = fixnum_obj((int)cxg_bumpcount); 
   gonexti();
 }

@@ -274,8 +274,8 @@
   ; check that now relies on block tag being a non-immediate object, so we'll better put 
   ; some pseudo-unique immediate object here -- and we don't have to be fast doing that
   (let loop ([fl (cons name fields)] [sl '("rtd://")]) 
-     ; NB: can't do (apply string-append ..) -- they are defined w/cover syntax below!
-     (cond [(null? fl) (string->symbol (apply-to-list %string-append (reverse sl)))]
+     ; NB: can't do (apply string-append ..) -- apply is defined w/cover syntax below!
+     (cond [(null? fl) (string->symbol (apply-to-list string-append (reverse sl)))]
            [(null? (cdr fl)) (loop (cdr fl) (cons (symbol->string (car fl)) sl))]
            [else (loop (cdr fl) (cons ":" (cons (symbol->string (car fl)) sl)))]))) 
   
@@ -743,7 +743,7 @@
   (string->symbol (string-foldcase s)))
 
 (define (symbol-append . syms) ; +
-  (string->symbol (apply-to-list %string-append (%map1 symbol->string syms))))
+  (string->symbol (apply-to-list string-append (%map1 symbol->string syms))))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -792,7 +792,7 @@
 ; (string-set! x i v)
 ; (list->string l)
 ; (%string->list1 s) + 
-; (string-cat s1 s2) +
+; (string-append s ...)
 ; (substring s from to)
 ; (string-position s c) +
 ; (string-cmp s1 s2) +
@@ -873,29 +873,6 @@
      [(str start) (substring->vector str start (string-length str))]
      [(str start end) (substring->vector str start end)]))
 
-(define (strings-sum-length strs)
-  (let loop ([strs strs] [l 0])
-    (if (null? strs) l (loop (cdr strs) (fx+ l (string-length (car strs)))))))
-
-(define (strings-copy-into! to strs)
-  (let loop ([strs strs] [i 0])
-    (if (null? strs)
-        to
-        (let ([str (car strs)] [strs (cdr strs)])
-          (let ([len (string-length str)])
-            (substring-copy! to i str 0 len)
-            (loop strs (fx+ i len)))))))  
-
-(define (%string-append . strs)
-  (strings-copy-into! (make-string (strings-sum-length strs)) strs))
-
-(define-syntax string-append
-  (syntax-rules ()
-    [(_) ""] [(_ x) (%cks x)]
-    [(_ x y) (string-cat x y)]
-    [(_ . r) (%string-append . r)]
-    [_ %string-append]))
-
 (define (string-trim-whitespace s) ; +
   (let floop ([from 0] [len (string-length s)])
     (if (and (< from len) (char-whitespace? (string-ref s from)))
@@ -922,7 +899,7 @@
 ; (vector-set! v i x)
 ; (%vector->list1 v) +
 ; (list->vector l)
-; (vector-cat v1 v2) +
+; (vector-append v ...)
 
 (define (subvector->list vec start end)
   (let loop ([i (fx- end 1)] [l '()])
@@ -991,29 +968,6 @@
      [(vec start) (subvector->string vec start (vector-length vec))]
      [(vec start end) (subvector->string vec start end)]))
 
-(define (vectors-sum-length vecs)
-  (let loop ([vecs vecs] [l 0])
-    (if (null? vecs) l (loop (cdr vecs) (fx+ l (vector-length (car vecs)))))))
-
-(define (vectors-copy-into! to vecs)
-  (let loop ([vecs vecs] [i 0])
-    (if (null? vecs)
-        to
-        (let ([vec (car vecs)] [vecs (cdr vecs)])
-          (let ([len (vector-length vec)])
-            (subvector-copy! to i vec 0 len)
-            (loop vecs (fx+ i len)))))))  
-
-(define (%vector-append . vecs)
-  (vectors-copy-into! (make-vector (vectors-sum-length vecs)) vecs))
-
-(define-syntax vector-append
-  (syntax-rules ()
-    [(_) '#()] [(_ x) (%ckv x)]
-    [(_ x y) (vector-cat x y)]
-    [(_ . r) (%vector-append . r)]
-    [_ %vector-append]))
-
 
 ;---------------------------------------------------------------------------------------------
 ; Bytevectors
@@ -1027,6 +981,7 @@
 ; (bytevector-length b)
 ; (bytevector-u8-ref b i)
 ; (bytevector-u8-set! b i u8)
+; (bytevector-append b ...)
 ; (list->bytevector l) +
 ; (subbytevector b from to) +
 ; (bytevector=? b1 b2 b ...)
@@ -1071,21 +1026,6 @@
      [(bvec b) (subbytevector-fill! bvec b 0 (bytevector-length bvec))]
      [(bvec b start) (subbytevector-fill! bvec b start (bytevector-length bvec))]
      [(bvec b start end) (subbytevector-fill! bvec b start end)]))
-
-(define (%bytevectors-sum-length bvecs)
-  (let loop ([bvecs bvecs] [l 0])
-    (if (null? bvecs) l (loop (cdr bvecs) (fx+ l (bytevector-length (car bvecs)))))))
-
-(define (%bytevectors-copy-into! to bvecs)
-  (let loop ([bvecs bvecs] [i 0])
-    (if (null? bvecs) to
-        (let ([bvec (car bvecs)] [bvecs (cdr bvecs)])
-          (let ([len (bytevector-length bvec)])
-            (subbytevector-copy! to i bvec 0 len)
-            (loop bvecs (fx+ i len)))))))  
-
-(define (bytevector-append . bvecs)
-  (%bytevectors-copy-into! (make-bytevector (%bytevectors-sum-length bvecs)) bvecs))
 
 (define (subutf8->string vec start end)
   (let ([p (open-output-string)])
@@ -1526,22 +1466,9 @@
 ; (read-u8 (p (current-input-port)))
 ; (peek-u8 (p (current-input-port)))
 ; (u8-ready? (p (current-input-port)))
+; (read-line (p (current-input-port)))
 ; (eof-object? x)
 ; (eof-object)
-
-(define (read-line . ?p)
-  (let ([p (if (null? ?p) (current-input-port) (car ?p))]
-        [op (open-output-string)])
-    (let loop ([read-nothing? #t])
-      (let ([c (read-char p)])
-        (cond [(or (eof-object? c) (char=? c #\newline))
-               (if (and (eof-object? c) read-nothing?) 
-                   c
-                   (let ([s (get-output-string op)]) 
-                     (close-output-port op) 
-                     s))]
-              [(char=? c #\return) (loop #f)]
-              [else (write-char c op) (loop #f)]))))) 
 
 (define (read-substring! str start end p)
   (let loop ([i start])
@@ -1593,352 +1520,121 @@
     [(k) (read-subbytevector k (current-input-port))]
     [(k p) (read-subbytevector k p)]))
 
-(define (%read port simple? ci?)
-  (define-syntax r-error
-    (syntax-rules () [(_ p msg a ...) (read-error msg a ... 'port: p)]))
-  (define fold-case? (or ci? (port-fold-case? port)))
-  (define shared '())
-  (define (make-shared-ref loc) (lambda () (unbox loc)))
-  (define (shared-ref? form) (procedure? form))
-  (define (patch-ref! form) (if (procedure? form) (patch-ref! (form)) form))
-  (define (patch-shared! form)
-    (cond [(pair? form)
-           (if (procedure? (car form)) 
-               (set-car! form (patch-ref! (car form)))
-               (patch-shared! (car form)))
-           (if (procedure? (cdr form)) 
-               (set-cdr! form (patch-ref! (cdr form)))
-               (patch-shared! (cdr form)))]
-          [(vector? form)
-           (let loop ([i 0])
-             (when (fx<? i (vector-length form))
-               (let ([fi (vector-ref form i)])
-                 (if (procedure? fi) 
-                     (vector-set! form i (patch-ref! fi))
-                     (patch-shared! fi)))
-               (loop (fx+ i 1))))]
-          [(box? form)
-           (if (procedure? (unbox form))
-               (set-box! form (patch-shared! (unbox form)))
-               (patch-shared! (unbox form)))]))
-  (define (patch-shared form) (patch-shared! form) form)           
-
-  (define reader-token-marker #f)
-  (define close-paren #f)
-  (define close-bracket #f)
-  (define dot #f)
-  (define () ; idless
-    (let ([rtm (list 'reader-token)])
-          (set! reader-token-marker rtm)
-          (set! close-paren (cons rtm "right parenthesis"))
-          (set! close-bracket (cons rtm "right bracket"))
-          (set! dot (cons rtm "\" . \""))))
-
-  (define (reader-token? form)
-    (and (pair? form) (eq? (car form) reader-token-marker)))
-
-  (define (char-symbolic? c)
-    (string-position c
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!$%&*/:<=>?^_~0123456789+-.@"))
-
-  (define (char-hex-digit? c)
-    (let ([scalar-value (char->integer c)])
-      (or (and (>= scalar-value 48) (<= scalar-value 57))
-          (and (>= scalar-value 65) (<= scalar-value 70))
-          (and (>= scalar-value 97) (<= scalar-value 102)))))
-
-  (define (char-delimiter? c)
-    (or (char-whitespace? c)
-        (char=? c #\)) (char=? c #\()
-        (char=? c #\]) (char=? c #\[)
-        (char=? c #\") (char=? c #\;)))
-
-  (define (sub-read-carefully p)
-    (let ([form (sub-read p)])
-      (cond [(eof-object? form)
-             (r-error p "unexpected end of file")]
-            [(reader-token? form) 
-             (r-error p "unexpected token:" (cdr form))]
-            [else form])))
-
-  (define (sub-read-shebang p)
-    (if (eqv? (peek-char p) #\space)
-        (string->symbol (string-trim-whitespace (read-line p)))
-        (sub-read-carefully p)))
-
-  (define (sub-read p)
-    (let ([c (read-char p)])
-      (cond [(eof-object? c) c]
-            [(char-whitespace? c) (sub-read p)]
-            [(char=? c #\() (sub-read-list c p close-paren #t)]
-            [(char=? c #\)) close-paren]
-            [(char=? c #\[) (sub-read-list c p close-bracket #t)]
-            [(char=? c #\]) close-bracket]
-            [(char=? c #\') (list 'quote (sub-read-carefully p))]
-            [(char=? c #\`) (list 'quasiquote (sub-read-carefully p))]
-            [(char-symbolic? c) (sub-read-number-or-symbol c p)]
-            [(char=? c #\;)
-             (let loop ([c (read-char p)])
-               (or (eof-object? c) (char=? c #\newline)
-                   (loop (read-char p))))
-             (sub-read p)]
-            [(char=? c #\,)
-             (let ([next (peek-char p)])
-               (cond [(eof-object? next)
-                      (r-error p "end of file after ,")]
-                     [(char=? next #\@)
-                      (read-char p)
-                      (list 'unquote-splicing (sub-read-carefully p))]
-                     [else (list 'unquote (sub-read-carefully p))]))]
-            [(char=? c #\")
-             (let loop ([l '()])
-               (let ([c (read-char p)])
-                 (cond [(eof-object? c)
-                        (r-error p "end of file within a string")]
-                       [(char=? c #\\)
-                        (let ([e (sub-read-strsym-char-escape p 'string)])
-                          (loop (if e (cons e l) l)))]
-                       [(char=? c #\") (list->string (reverse! l))]
-                       [else (loop (cons c l))])))]
-            [(char=? c #\|)
-             (let loop ([l '()])
-               (let ([c (read-char p)])
-                 (cond [(eof-object? c)
-                        (r-error p "end of file within a |symbol|")]
-                       [(char=? c #\\)
-                        (let ([e (sub-read-strsym-char-escape p 'symbol)])
-                          (loop (if e (cons e l) l)))]
-                       [(char=? c #\|) (string->symbol (list->string (reverse! l)))]
-                       [else (loop (cons c l))])))]
-            [(char=? c #\#)
-             (let ([c (peek-char p)])
-               (cond [(eof-object? c) (r-error p "end of file after #")]
-                     [(char=? c #\!)
-                      (read-char p)
-                      (let ([name (sub-read-shebang p)])
-                        (case name
-                          [(fold-case no-fold-case) 
-                           (set! fold-case? (eq? name 'fold-case)) 
-                           (set-port-fold-case! p fold-case?)
-                           (sub-read p)]
-                          [else (if (symbol? name) 
-                                    (symbol->shebang name)
-                                    (r-error p "unexpected name after #!" name))]))]
-                     [(or (char-ci=? c #\t) (char-ci=? c #\f))
-                      (let ([name (sub-read-carefully p)])
-                        (case name [(t true) #t] [(f false) #f]
-                          [else (r-error p "unexpected name after #" name)]))]
-                     [(or (char-ci=? c #\b) (char-ci=? c #\o)
-                          (char-ci=? c #\d) (char-ci=? c #\x)
-                          (char-ci=? c #\i) (char-ci=? c #\e))
-                      (sub-read-number-or-symbol #\# p)]
-                     [(char=? c #\&)
-                      (read-char p)
-                      (box (sub-read-carefully p))]
-                     [(char=? c #\;)
-                      (read-char p)
-                      (sub-read-carefully p) 
-                      (sub-read p)]
-                     [(char=? c #\|)
-                      (read-char p)
-                      (let recur () ;starts right after opening #|
-                        (let ([next (read-char p)])
-                          (cond
-                            [(eof-object? next)
-                             (r-error p "end of file in #| comment")]
-                            [(char=? next #\|)
-                             (let ([next (peek-char p)])
-                               (cond
-                                 [(eof-object? next)
-                                  (r-error p "end of file in #| comment")]
-                                 [(char=? next #\#) (read-char p)]
-                                 [else (recur)]))]
-                            [(char=? next #\#)
-                             (let ([next (peek-char p)])
-                               (cond
-                                 [(eof-object? next)
-                                  (r-error p "end of file in #| comment")]
-                                 [(char=? next #\|) (read-char p) (recur) (recur)]
-                                 [else (recur)]))]
-                            [else (recur)])))
-                      (sub-read p)]
-                     [(char=? c #\() ;)
-                      (read-char p)
-                      (list->vector (sub-read-list c p close-paren #f))]
-                     [(char=? c #\u)
-                      (read-char p)
-                      (if (and (eq? (read-char p) #\8) (eq? (read-char p) #\())
-                          (list->bytevector (sub-read-byte-list p))
-                          (r-error p "invalid bytevector syntax"))]
-                     [(char=? c #\\)
-                      (read-char p)
-                      (let ([c (peek-char p)])
-                        (cond
-                          [(eof-object? c)
-                           (r-error p "end of file after #\\")]
-                          [(char=? #\x c)
-                           (read-char p)
-                           (if (char-delimiter? (peek-char p))
-                               c
-                               (sub-read-x-char-escape p #f))]
-                          [(char-alphabetic? c)
-                           (let ([name (sub-read-carefully p)])
-                             (if (= (string-length (symbol->string name)) 1)
-                                 c
-                                 (case name
-                                   [(null) (integer->char #x00)]
-                                   [(space) #\space]
-                                   [(alarm) #\alarm]
-                                   [(backspace) #\backspace]
-                                   [(delete) (integer->char #x7F)] ; todo: support by SFC
-                                   [(escape) (integer->char #x1B)]
-                                   [(tab) #\tab]
-                                   [(newline linefeed) #\newline]
-                                   [(vtab) #\vtab]
-                                   [(page) #\page]
-                                   [(return) #\return]
-                                   [else (r-error p "unknown #\\ name" name)])))]
-                          [else (read-char p) c]))]
-                     [(char-numeric? c)
-                      (when simple? (r-error p "#N=/#N# notation is not allowed in this mode")) 
-                      (let loop ([l '()])
-                        (let ([c (read-char p)])
-                          (cond [(eof-object? c)
-                                 (r-error p "end of file within a #N notation")]
-                                [(char-numeric? c)
-                                 (loop (cons c l))]
-                                [(char=? c #\#) 
-                                 (let* ([s (list->string (reverse! l))] [n (string->number s)])
-                                   (cond [(and (fixnum? n) (assq n shared)) => cdr]
-                                         [else (r-error "unknown #n# reference:" s)]))]   
-                                [(char=? c #\=) 
-                                 (let* ([s (list->string (reverse! l))] [n (string->number s)])
-                                   (cond [(not (fixnum? n)) (r-error "invalid #n= reference:" s)]
-                                         [(assq n shared) (r-error "duplicate #n= tag:" n)])
-                                   (let ([loc (box #f)])
-                                     (set! shared (cons (cons n (make-shared-ref loc)) shared))
-                                     (let ([form (sub-read-carefully p)])
-                                       (cond [(shared-ref? form) (r-error "#n= has another label as target" s)]
-                                             [else (set-box! loc form) form]))))]
-                                [else (r-error p "invalid terminator for #N notation")])))]
-                     [else (r-error p "unknown # syntax" c)]))]
-            [else (r-error p "illegal character read" c)])))
-
-  (define (sub-read-list c p close-token dot?)
-    (let ([form (sub-read p)])
-      (if (eq? form dot)
-          (r-error p "missing car -- ( immediately followed by .") ;)
-          (let recur ([form form])
-            (cond [(eof-object? form)
-                   (r-error p "eof inside list -- unbalanced parentheses")]
-                  [(eq? form close-token) '()]
-                  [(eq? form dot)
-                   (if dot?
-                       (let* ([last-form (sub-read-carefully p)]
-                              [another-form (sub-read p)])
-                         (if (eq? another-form close-token)
-                             last-form
-                             (r-error p "randomness after form after dot" another-form)))
-                       (r-error p "dot in #(...)"))]
-                  [(reader-token? form)
-                   (r-error p "error inside list --" (cdr form))]
-                  [else (cons form (recur (sub-read p)))])))))
-
-  (define (sub-read-byte-list p)
-    (let recur ([form (sub-read p)])
-      (cond [(eof-object? form)
-              (r-error p "eof inside bytevector")]
-            [(eq? form close-paren) '()]
-            [(reader-token? form)
-              (r-error p "error inside bytevector --" (cdr form))]
-            [(or (not (fixnum? form)) (fx<? form 0) (fx>? form 255))
-              (r-error p "invalid byte inside bytevector --" form)]
-            [else (cons form (recur (sub-read p)))])))
-
-  (define (sub-read-strsym-char-escape p what)
-    (let ([c (read-char p)])
-      (if (eof-object? c)
-          (r-error p "end of file within a" what))
-      (cond [(or (char=? c #\\) (char=? c #\") (char=? c #\|)) c]
-            [(char=? c #\a) #\alarm]
-            [(char=? c #\b) #\backspace]
-            [(char=? c #\t) #\tab]
-            [(char=? c #\n) #\newline]
-            [(char=? c #\v) #\vtab]
-            [(char=? c #\f) #\page]
-            [(char=? c #\r) #\return]
-            [(char=? c #\x) (sub-read-x-char-escape p #t)]
-            [(and (eq? what 'string) (char-whitespace? c))
-             (let loop ([gotnl (char=? c #\newline)] [nc (peek-char p)])
-               (cond [(or (eof-object? nc) (not (char-whitespace? nc)))
-                      (if gotnl #f (r-error p "no newline in line ending escape"))]
-                     [(and gotnl (char=? nc #\newline)) #f]
-                     [else (read-char p) (loop (or gotnl (char=? nc #\newline)) (peek-char p))]))]
-            [else (r-error p "invalid char escape in" what ': c)])))
-
-  (define (sub-read-x-char-escape p in-string?)
-    (define (rev-digits->char l)
-      (if (null? l)
-          (r-error p "\\x escape sequence is too short")
-          (integer->char (string->fixnum (list->string (reverse! l)) 16))))
-    (let loop ([c (peek-char p)] [l '()] [cc 0])
-      (cond [(eof-object? c)
-             (if in-string?
-               (r-error p "end of file within a string")
-               (rev-digits->char l))]
-            [(and in-string? (char=? c #\;))
-             (read-char p)
-             (rev-digits->char l)]
-            [(and (not in-string?) (char-delimiter? c))
-             (rev-digits->char l)]
-            [(not (char-hex-digit? c))
-             (r-error p "unexpected char in \\x escape sequence" c)]
-            [(> cc 2)
-             (r-error p "\\x escape sequence is too long")]
-            [else
-             (read-char p)
-             (loop (peek-char p) (cons c l) (+ cc 1))])))
-
-  (define (suspect-number-or-symbol-peculiar? hash? c l s)
-    (cond [(or hash? (char-numeric? c)) #f]
-          [(or (string-ci=? s "+i") (string-ci=? s "-i")) #f]
-          [(or (string-ci=? s "+nan.0") (string-ci=? s "-nan.0")) #f]
-          [(or (string-ci=? s "+inf.0") (string-ci=? s "-inf.0")) #f]
-          [(or (char=? c #\+) (char=? c #\-))
-           (cond [(null? (cdr l)) #t]
-                 [(char=? (cadr l) #\.) (and (pair? (cddr l)) (not (char-numeric? (caddr l))))]
-                 [else (not (char-numeric? (cadr l)))])]
-          [else (and (char=? c #\.) (pair? (cdr l)) (not (char-numeric? (cadr l))))]))
-
-  (define (sub-read-number-or-symbol c p)
-    (let loop ([c (peek-char p)] [l (list c)] [hash? (char=? c #\#)])
-      (cond [(or (eof-object? c) (char-delimiter? c))
-             (let* ([l (reverse! l)] [c (car l)] [s (list->string l)])
-               (if (or hash? (char-numeric? c) 
-                     (char=? c #\+) (char=? c #\-) (char=? c #\.))   
-                   (cond [(string=? s ".") dot]
-                         [(suspect-number-or-symbol-peculiar? hash? c l s)
-                          (if fold-case? 
-                              (string->symbol (string-foldcase s))
-                              (string->symbol s))]
-                         [(string->number s)]
-                         [else (r-error p "unsupported number syntax (implementation restriction)" s)])
-                   (if fold-case? 
-                       (string->symbol (string-foldcase s))
-                       (string->symbol s))))]
-            [(char=? c #\#)
-             (read-char p) 
-             (loop (peek-char p) (cons c l) #t)]
-            [(char-symbolic? c)
-             (read-char p) 
-             (loop (peek-char p) (cons c l) hash?)]
-            [else (r-error p "unexpected number/symbol char" c)])))
-            
-  ; body of %read
-  (let ([form (sub-read port)])
-    (if (not (reader-token? form))
-        (if (null? shared) form (patch-shared form))
-        (r-error port "unexpected token:" (cdr form)))))
+(define %read
+  (body
+    ; support for sharing (use procedures that can't be read)
+    (define (make-shared-ref loc) (lambda () (unbox loc)))
+    (define (shared-ref? form) (procedure? form))
+    (define (patch-ref! form) (if (procedure? form) (patch-ref! (form)) form))
+    (define (patch-shared! form)
+      (cond [(pair? form)
+             (if (procedure? (car form)) 
+                 (set-car! form (patch-ref! (car form)))
+                 (patch-shared! (car form)))
+             (if (procedure? (cdr form)) 
+                 (set-cdr! form (patch-ref! (cdr form)))
+                 (patch-shared! (cdr form)))]
+            [(vector? form)
+             (let loop ([i 0])
+               (when (fx<? i (vector-length form))
+                 (let ([fi (vector-ref form i)])
+                   (if (procedure? fi) 
+                       (vector-set! form i (patch-ref! fi))
+                       (patch-shared! fi)))
+                 (loop (fx+ i 1))))]
+            [(box? form)
+             (if (procedure? (unbox form))
+                 (set-box! form (patch-shared! (unbox form)))
+                 (patch-shared! (unbox form)))]))
+    (define (patch-shared form) (patch-shared! form) form)
+    ; special tokens (can't be read, but different from procedures)            
+    (define close-paren (make-record 'token 1 "right parenthesis"))
+    (define close-bracket (make-record 'token 1 "right bracket"))  
+    (define dot (make-record 'token 1 "\" . \""))  
+    (define-syntax reader-token? record?)
+    (define-syntax reader-token-name (syntax-lambda (x) (record-ref x 0)))
+    ; main entry point
+    (lambda (port simple? ci?)
+      (define fold-case? (or ci? (port-fold-case? port)))
+      (define buf (open-output-string))
+      (define-syntax r-error
+        (syntax-rules () [(_ msg a ...) (read-error msg a ... 'port: port)]))
+      (define shared '())
+      (define (sub-read)
+        (let ([tk (%read-token port buf)])
+          (cond [(eq? tk #t) (eof-object)]
+                [(eq? tk #f) (r-error "invalid token")]
+                [(char=? tk #\f) #f]
+                [(char=? tk #\t) #t]
+                [(char=? tk #\n) 
+                 (or (%get-output-value buf #\n)
+                     (read-error "unsupported number syntax (implementation restriction)" 
+                       (get-output-string buf)))]
+                [(char=? tk #\y)
+                 (if fold-case? 
+                     (string-ci->symbol (get-output-string buf)) 
+                     (%get-output-value buf #\y))]
+                [(or (char=? tk #\c) (char=? tk #\s) (char=? tk #\!)) (%get-output-value buf tk)]
+                [(char=? tk #\;) (sub-read-carefully) (sub-read)]
+                [(char=? tk #\l) (sub-read-list close-paren #t #f)]
+                [(char=? tk #\v) (list->vector (sub-read-list close-paren #f #f))]
+                [(char=? tk #\u) (list->bytevector (sub-read-list close-paren #f #t))]
+                [(char=? tk #\r) close-paren]
+                [(char=? tk #\b) (sub-read-list close-bracket #t #f)]
+                [(char=? tk #\k) close-bracket]
+                [(char=? tk #\.) dot]
+                [(char=? tk #\') (list 'quote (sub-read-carefully))]
+                [(char=? tk #\`) (list 'quasiquote (sub-read-carefully))]
+                [(char=? tk #\,) (list 'unquote (sub-read-carefully))]
+                [(char=? tk #\@) (list 'unquote-splicing (sub-read-carefully))]
+                [(char=? tk #\&) (box (sub-read-carefully))]
+                [(or (char=? tk #\F) (char=? tk #\N))
+                 (set! fold-case? (char=? tk #\F))
+                 (set-port-fold-case! port fold-case?)
+                 (sub-read)]
+                [(or (char=? tk #\#) (char=? tk #\=))
+                 (when simple? (r-error "#N=/#N# notation is not allowed in this mode")) 
+                 (let ([n (%get-output-value buf #\n)])
+                   (if (char=? tk #\#)
+                       (cond [(and (fixnum? n) (assq n shared)) => cdr]
+                             [else (r-error "unknown #n# reference" n)])
+                       (cond [(not (fixnum? n)) (r-error "invalid #n= reference" n)]
+                             [(assq n shared) (r-error "duplicate #n= tag:" n)]
+                             [else
+                              (let ([loc (box #f)])
+                                (set! shared (cons (cons n (make-shared-ref loc)) shared))
+                                (let ([form (sub-read-carefully)])
+                                  (cond [(shared-ref? form) (r-error "#n= has a label as target" n)]
+                                        [else (set-box! loc form) form])))])))]
+                [else (r-error "invalid token" tk (get-output-string buf))])))
+      (define (sub-read-carefully)
+        (let ([form (sub-read)])
+          (cond [(eof-object? form)
+                 (r-error "unexpected end of file")]
+                [(reader-token? form) ; special reader token
+                 (r-error (string-append "unexpected token: " (reader-token-name form)))]
+                [else form])))
+      (define (sub-read-list close-token dot? byte?)
+        (let loop ([form (sub-read)] [l #f] [lp #f])
+          (cond [(eof-object? form) (r-error "eof inside list -- unbalanced parentheses")]
+                [(eq? form close-token) (if lp l '())]
+                [(and dot? (eq? form dot))
+                 (let* ([form (sub-read-carefully)] [another-form (sub-read)])
+                   (if (eq? another-form close-token) 
+                       (cond [lp (set-cdr! lp form) l] [else (r-error "unexpected dot")])
+                       (r-error "too many forms after dot" another-form)))]
+                [(eq? form dot) (r-error "unexpected dot notation")]
+                [(reader-token? form) ; other special reader token
+                 (r-error (string-append "unexpected token: " (reader-token-name form)))]
+                [(and byte? (or (not (fixnum? form)) (fx<? form 0) (fx>? form 255)))
+                 (r-error "invalid byte inside bytevector" form)]
+                [(not lp) (let ([l (list form)]) (loop (sub-read) l l))]
+                [else (let ([nlp (list form)]) (set-cdr! lp nlp) (loop (sub-read) l nlp))])))
+      ; body of %read
+      (let ([form (sub-read)])
+        (if (not (reader-token? form))
+            (if (null? shared) form (patch-shared form))
+            (r-error (string-append "unexpected token: " (reader-token-name form))))))))
 
 (define read
   (case-lambda
