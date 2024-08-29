@@ -969,7 +969,7 @@ unsigned char* bytevectorref(obj o, int i) {
     pd = va_arg(args, int **);
     if (*(fp->p) == 0) *pd = NULL;
     else {
-      char *s = strchr(fp->p, '\n');
+      char *s = strchr(fp->p, '\\n');
       if (s) { *pd = newstringn(fp->p, s-fp->p); fp->p = s+1; }
       else { *pd = newstring(fp->p); fp->p += strlen(fp->p); }
     }  
@@ -1080,7 +1080,7 @@ unsigned char* bytevectorref(obj o, int i) {
 (%localdef "char* cbdata(cbuf_t* pcb) {
   if (pcb->fill == pcb->end) cbgrow(pcb, 1); *(pcb->fill) = 0; return pcb->buf; 
 }")
-(%definition "extern cbuf_t* cbclear(cbuf_t* pcb);")
+(%definition "extern cbuf_t* cbclear(cbuf_t *pcb);")
 (%localdef "cbuf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }")
 (%definition "#define mkoport_string(l, fp) hpushptr(fp, OPORT_STRING_NTAG, l)")
 
@@ -1091,9 +1091,7 @@ unsigned char* bytevectorref(obj o, int i) {
 
 ; text input port (uses cbuf)
 
-(%localdef "buf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }
-
-typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
+(%localdef "typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
 struct tifile_tag { cbuf_t cb; char *next; FILE *fp; int lno; tiflags_t flags; };
 
 tifile_t *tialloc(FILE *fp) {
@@ -1121,8 +1119,8 @@ static int tigetch(tifile_t *tp) {
     if (!line) { cbclear(pcb); tp->flags |= TIF_EOF; }
     else { /* manually add the rest of the line */
       size_t len = strlen(line); pcb->fill = pcb->buf + len;
-      if (len > 0 && line[len-1] != '\n') {
-        do { c = getc(fp); if (c == EOF) break; cbputc(c, pcb); } while (c != '\n');
+      if (len > 0 && line[len-1] != '\\n') {
+        do { c = getc(fp); if (c == EOF) break; cbputc(c, pcb); } while (c != '\\n');
         if (c == EOF) tp->flags |= TIF_EOF;
       }
     }
@@ -1148,7 +1146,7 @@ static int tictl(ctlop_t op, tifile_t *tp, ...) {
     } else {
       char *s; tiungetch(c, tp);
       s = tp->next; n = tp->cb.fill - s;
-      if (n > 0 && s[n-1] == '\n') --n;
+      if (n > 0 && s[n-1] == '\\n') --n;
       *pd = newstringn(s, n);
       tp->next = tp->cb.fill;
     }  
@@ -1735,7 +1733,7 @@ extern int set_cwd(char *cwd)
   return chdir(cwd);
 }
 
-define TT_FALSE      'f'
+#define TT_FALSE      'f'
 #define TT_TRUE       't'
 #define TT_NUMBER     'n'
 #define TT_CHAR       'c'
@@ -2054,5 +2052,4 @@ int slex(int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, cbuf_t *
   err:
   eoferr:
     return TT_ERR;
-}
-")
+}")

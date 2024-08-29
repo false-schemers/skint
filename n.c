@@ -499,15 +499,12 @@ static int sigetch(sifile_t *fp) {
 static int siungetch(int c, sifile_t *fp) {
   assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
 
-static int sictl(ctlop_t op, sifile_t *fp, ...)
-{
+static int sictl(ctlop_t op, sifile_t *fp, ...) {
   if (op == CTLOP_RDLN) {
-    va_list args; int **pd;
-    va_start(args, fp); 
+    va_list args; int **pd; va_start(args, fp); 
     pd = va_arg(args, int **);
-    if (*(fp->p) == 0) {
-      *pd = NULL;
-    } else {
+    if (*(fp->p) == 0) *pd = NULL;
+    else {
       char *s = strchr(fp->p, '\n');
       if (s) { *pd = newstringn(fp->p, s-fp->p); fp->p = s+1; }
       else { *pd = newstring(fp->p); fp->p += strlen(fp->p); }
@@ -517,8 +514,6 @@ static int sictl(ctlop_t op, sifile_t *fp, ...)
   }
   return -1;
 }
-
-
 
 bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
   bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), "malloc(bvifile)");
@@ -582,7 +577,7 @@ char* cbdata(cbuf_t* pcb) {
 cbuf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }
 
 typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
-typedef struct tifile_tag { cbuf_t cb; char *next; FILE *fp; int lno; tiflags_t flags; } tifile_t;
+struct tifile_tag { cbuf_t cb; char *next; FILE *fp; int lno; tiflags_t flags; };
 
 tifile_t *tialloc(FILE *fp) {
   tifile_t *tp = cxm_cknull(malloc(sizeof(tifile_t)), "malloc(tifile)");
@@ -605,7 +600,6 @@ static int tigetch(tifile_t *tp) {
   else if (tp->flags & TIF_EOF || !tp->fp) return EOF;
   else { /* refill with next line from fp */
     cbuf_t *pcb = cbclear(&tp->cb); FILE *fp = tp->fp; 
-#if 1
     char *line = fgets(cballoc(pcb, 256), 256, fp);
     if (!line) { cbclear(pcb); tp->flags |= TIF_EOF; }
     else { /* manually add the rest of the line */
@@ -615,10 +609,6 @@ static int tigetch(tifile_t *tp) {
         if (c == EOF) tp->flags |= TIF_EOF;
       }
     }
-#else
-    do { c = getc(fp); if (c == EOF) break; cbputc(c, pcb); } while (c != '\n');
-    if (c == EOF) tp->flags |= TIF_EOF;
-#endif
     tp->lno += 1; tp->next = cbdata(pcb); /* 0-term */
     goto retry;
   }
@@ -630,8 +620,7 @@ static int tiungetch(int c, tifile_t *tp) {
   return c;
 }
 
-static int tictl(ctlop_t op, tifile_t *tp, ...)
-{
+static int tictl(ctlop_t op, tifile_t *tp, ...) {
   if (op == CTLOP_RDLN) {
     va_list args; int c, n, **pd;
     va_start(args, tp); 
@@ -970,8 +959,7 @@ static void wrs(char *s, wenv_t *e) {
   assert(vt); while (*s) vt->putch(*s++, pp);
 }
 static int cleansymname(char *s) {
-#if 1
-  static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-]  */
+  static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
@@ -983,11 +971,6 @@ static int cleansymname(char *s) {
   };
   char *p = s; while (*p) if (inisub_map[*p++ & 0xFF] == 0) return 0; if (!s[0]) return 0;
   if (inisub_map[s[0] & 0xFF] == 1) return 1;
-#else
-  char *inits = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*/:<=>?@^_~";
-  char *subss = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*/:<=>?@^_~0123456789.@+-";
-  if (s[0] == 0 || s[strspn(s, subss)] != 0) return 0; else if (strchr(inits, s[0])) return 1;
-#endif
   if (s[0] == '+' || s[0] == '-') {
     if (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0) return 0;
     if ((s[1] == 'i' || s[1] == 'I') && s[2] == 0) return 0;

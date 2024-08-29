@@ -400,7 +400,7 @@ extern obj* procedureref(obj o, int i);
 #define mkshebang(i) mkimm(i, SHEBANG_ITAG)
 #define getshebang(o) getimmu(o, SHEBANG_ITAG)
 /* input/output ports */
-typedef enum { CTLOP_RDLN } ctlop_t; 
+typedef enum { CTLOP_RDLN } ctlop_t;
 typedef struct { /* extends cxtype_t */
   const char *tname;
   void (*free)(void*);
@@ -488,9 +488,8 @@ static void oportflush(obj o) {
 typedef struct cbuf_tag { char *buf; char *fill; char *end; } cbuf_t;
 extern cbuf_t* newcb(void);
 extern void freecb(cbuf_t* pcb);
+extern char* cballoc(cbuf_t* pcb, size_t n);
 extern int cbputc(int c, cbuf_t* pcb);
-extern int cbgetc(cbuf_t* pcb);
-extern int cbungetc(cbuf_t* pcb, int c);
 extern size_t cblen(cbuf_t* pcb);
 extern char* cbdata(cbuf_t* pcb);
 extern cbuf_t* cbclear(cbuf_t *pcb);
