@@ -96,7 +96,7 @@ extern void cxm_check(int x, char *msg);
 extern void *cxm_cknull(void *p, char *msg);
 extern int cxg_rc;
 extern char **cxg_argv;
-
+    
 /* extra definitions */
 /* basic object representation */
 #ifdef NAN_BOXING
@@ -328,6 +328,11 @@ extern int *stringcat(int *d0, int *d1);
 extern int *dupstring(int *d);
 extern void stringfill(int *d, int c);
 extern int strcmp_ci(char *s1, char *s2);
+/* tuples */
+#define TUPLE_BTAG 0
+#define istuple(o) istagged(o, TUPLE_BTAG)
+#define tupleref(v, i) *taggedref(v, TUPLE_BTAG, i)
+#define tuplelen(v) taggedlen(v, TUPLE_BTAG)
 /* vectors */
 #define VECTOR_BTAG 1
 #define isvector(o) istagged(o, VECTOR_BTAG)
@@ -508,4 +513,30 @@ extern void oportputsimple(obj x, obj p, int disp);
 extern void oportputcircular(obj x, obj p, int disp);
 extern void oportputshared(obj x, obj p, int disp);
 /* S-expression tokenizer */
+#define TT_FALSE      'f'
+#define TT_TRUE       't'
+#define TT_NUMBER     'n'
+#define TT_CHAR       'c'
+#define TT_STRING     's'
+#define TT_SYMBOL     'y'
+#define TT_OPENLIST   'l'
+#define TT_OPENVEC    'v'
+#define TT_OPENU8VEC  'u'
+#define TT_CLOSE      'r'
+#define TT_OPENLIST2  'b'
+#define TT_CLOSE2     'k'
+#define TT_QUOTE      '\''
+#define TT_QQUOTE     '`'
+#define TT_UNQUOTE    ','
+#define TT_UNQSPL     '@'
+#define TT_DOT        '.'
+#define TT_BOX        '&'
+#define TT_HDEF       '='
+#define TT_HREF       '#'
+#define TT_HSEMI      ';'
+#define TT_SHEBANG    '!'
+#define TT_SHEBANG_FC 'F'
+#define TT_SHEBANG_NF 'N'
+#define TT_ERR         0
+#define TT_EOF        -1
 extern int slex(int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, cbuf_t *pcb);

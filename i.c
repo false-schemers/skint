@@ -26,6 +26,11 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp);
 static obj *rds_stox(obj *r, obj *sp, obj *hp);
 static obj *rds_stoc(obj *r, obj *sp, obj *hp);
 static obj *init_modules(obj *r, obj *sp, obj *hp);
+#if 1 // READ
+typedef struct { int ci; cxtype_iport_t *vt; void *pp; cbuf_t *pcb; } renv_t;
+static obj *rddatum(obj *r, obj *sp, obj *hp, renv_t *e);
+static const char *rdiserr(obj x);
+#endif
 
 /* platform-dependent optimizations */
 #if defined(__clang__)
@@ -159,9 +164,6 @@ static int istagged_inline(obj o, int t) { return isobjptr(o) && hblkref(o, 0) =
 #endif
 
 /* vm tuple representation (c != 1) */
-#define istuple(x)    istagged(x, 0)
-#define tupleref(x,i) *taggedref(x, 0, i)
-#define tuplelen(x)   taggedlen(x, 0)
 #define tuplebsz(c)   hbsz((c)+1)
 #define hend_tuple(c) (*--hp = obj_from_size(0), hendblk((c)+1))
 
@@ -282,7 +284,7 @@ static void _sck(obj *s) {
 #define is_proc(o) isvmclo(o)
 #define proc_len(o) vmclolen(o)
 #define proc_ref(o, i) vmcloref(o, i)
-#define is_tuple(o) (isrecord(o) && recordrtd(o) == 0)
+#define is_tuple(o) istuple(o)
 #define tuple_len(o) tuplelen(o)
 #define tuple_ref(o, i) tupleref(o, i)
 #define is_record(o) (isrecord(o) && recordrtd(o) != 0)
@@ -580,6 +582,8 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"procedure"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckz(x) do { obj _x = (x); if (unlikely(!is_box(_x))) \
   { ac = _x; spush((obj)"box, cell, or promise"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckt(x) do { obj _x = (x); if (unlikely(!is_tuple(_x))) \
+  { ac = _x; spush((obj)"tuple"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckg(x) do { obj _x = (x); if (unlikely(!isintegrable(_x))) \
   { ac = _x; spush((obj)"integrable entry"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cksb(x) do { obj _x = (x); if (unlikely(!is_shebang(_x))) \
@@ -1550,6 +1554,36 @@ define_instruction(rrtd) {
   gonexti();
 }
 
+define_instruction(tupp) {
+  obj x = ac, y = spop();
+  if (is_void(y)) {
+    ac = bool_obj(is_tuple(ac));
+  } else {
+    ckk(y);
+    ac = bool_obj(is_tuple(ac) && tuple_len(ac) == get_fixnum(y));
+  }
+  gonexti();
+}
+
+define_instruction(tup) {
+  int i, n; obj o = *ip++;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; n = get_fixnum(o);
+  hp_reserve(tuplebsz(n));
+  for (i = n-1; i >= 0; --i) *--hp = sref(i);
+  ac = hend_tuple(n);
+  sdrop(n);
+  gonexti();
+}
+
+define_instruction(tget) {
+  obj x = spop(); int i; 
+  ckt(ac); ckk(x); 
+  i = get_fixnum(x);
+  if (i >= tuple_len(ac)) failtype(x, "valid tuple index");
+  ac = tuple_ref(ac, i);
+  gonexti();
+}
 
 define_instruction(vecp) {
   ac = bool_obj(is_vector(ac));
@@ -3492,6 +3526,34 @@ define_instruction(rdtk) {
   gonexti(); 
 }
 
+#if 1 // READ
+define_instruction(rdsd) {
+  cxtype_iport_t *vt = iportvt(ac); renv_t e;
+  if (!vt || (vt->spt & SPT_BINARY)) failactype("text input port");
+  ckz(sref(0)); /* 2nd arg is a box for shared alist */
+  e.ci = 0; e.vt = vt; e.pp = iportdata(ac); e.pcb = newcb();
+  spush(ac); /* make sure port is not garbage-collected */
+  spush(rk); rk = box_ref(sref(2)); /* shared alist or #f */
+  unload_ip(); /* ip->rx */
+  hp = rddatum(r, sp, hp, &e); /* result in ra */
+  reload_ac(); /* ra->ac, read result */
+  reload_ip(); /* rx->ip */
+  box_ref(sref(2)) = rk; /* shared alist */
+  rk = spop(); /* restrore saved rk */
+  sdrop(2); /* drop box and port */
+  freecb(e.pcb);
+  gonexti(); 
+}
+
+define_instruction(rders) {
+  const char *es = rdiserr(ac);
+  if (!es) ac = bool_obj(0);
+  else ac = string_obj(newstring((char *)es));
+  gonexti();
+}
+
+#endif
+
 define_instruction(eofp) {
   ac = bool_obj(is_eof(ac));
   gonexti();
@@ -3501,7 +3563,6 @@ define_instruction(eof) {
   ac = eof_obj();
   gonexti();
 }
-
 
 define_instruction(wrc) {
   obj x = ac, y = spop(); ckc(x); ckw(y);
@@ -4346,7 +4407,7 @@ static obj *rds_elt(obj *r, obj *sp, obj *hp)
 }
 
 /* protects registers from r to sp, in: ra=port, out: ra=sexp/eof */
-static obj *rds_sexp(obj *r, obj *sp, obj *hp)
+static obj *rds_sexp(obj *r, obj *sp, obj *hp) /* returns new hp */
 {
   obj port = ra;
   int c = iportgetc(port);
@@ -4790,7 +4851,6 @@ static obj *rds_stoc(obj *r, obj *sp, obj *hp)
   return hp;
 }
 
-
 /* protects registers from r to sp */
 static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
 {
@@ -5113,3 +5173,196 @@ static obj *init_modules(obj *r, obj *sp, obj *hp)
   hp = init_module(r, sp, hp, (const char **)t_code);
   return hp;
 }
+
+
+
+#if 1 // READ
+/* internal recursive read procedure */
+
+/* local non-readable objects: tokens, errors */
+#define RDTOK_RPAR    mkimm(1, EOF_ITAG)
+#define RDTOK_RBRK    mkimm(2, EOF_ITAG)
+#define RDTOK_DOT     mkimm(3, EOF_ITAG)
+#define RDERR_UNXEOF  mkimm(4, EOF_ITAG)
+#define RDERR_UNXTOK  mkimm(5, EOF_ITAG)
+#define RDERR_UNXDOT  mkimm(6, EOF_ITAG)
+#define RDERR_UNXCLO  mkimm(7, EOF_ITAG)
+#define RDERR_DOTLOC  mkimm(8, EOF_ITAG)
+#define RDERR_INVTK   mkimm(9, EOF_ITAG)
+#define RDERR_INVNUM  mkimm(10, EOF_ITAG)
+#define RDERR_INVBYTE mkimm(11, EOF_ITAG)
+#define RDERR_INVREF  mkimm(12, EOF_ITAG)
+#define RDERR_INVDEF  mkimm(13, EOF_ITAG)
+#define RDERR_SIMPLE  mkimm(14, EOF_ITAG)
+
+/* protects registers from r to sp; in: rk=shared, out: ra=sexp/eof/err */
+static obj *rddatum(obj *r, obj *sp, obj *hp, renv_t *e) /* returns new hp */
+{
+  /* ra is gc-protected, can be used freely; so is sp, but should be restored */
+  int tk; char *s; 
+nexttk:
+  tk = slex(e->vt->getch, e->vt->ungetch, e->pp, e->pcb); s = cbdata(e->pcb);
+  switch (tk) {
+    case TT_EOF:    ra = mkeof(); break;
+    case TT_ERR:    ra = RDERR_INVTK; break;
+    case TT_CLOSE:  ra = RDTOK_RPAR; break;
+    case TT_CLOSE2: ra = RDTOK_RBRK; break;
+    case TT_DOT:    ra = RDTOK_DOT; break;
+    case TT_FALSE:  ra = obj_from_bool(0); break;
+    case TT_TRUE:   ra = obj_from_bool(1); break;
+    case TT_NUMBER: {
+      int radix = 10; long l; double d;
+      switch (strtofxfl(s, radix, &l, &d)) {
+        case 'e': ra = obj_from_fixnum(l); break;
+        case 'i': ra = obj_from_flonum(sp-r, d); break;
+        default : ra = RDERR_INVNUM; break;
+      }
+    } break;
+    case TT_SYMBOL: {
+      char *p; if (e->ci) for (p = s; *p; ++p) *p = tolower(*p); // todo: utf8
+      ra = mksymbol(internsym(s));
+    } break;
+    case TT_CHAR: ra = obj_from_char(*s); break; // todo: utf8
+    case TT_STRING: ra = hpushstr(sp-r, newstring(s)); break;
+    case TT_SHEBANG: ra = mkshebang(internsym(s)); break;
+    case TT_SHEBANG_FC: case TT_SHEBANG_NF: { 
+      e->ci = (tk == TT_SHEBANG_FC); // todo: e->vt->ctl(CTLOP_SETFC, e->pp, e->ci);
+      goto nexttk;
+    } break;
+    case TT_HSEMI: {
+      hp = rddatum(r, sp, hp, e); /* result in ra */
+      if (ra == mkeof()) ra = RDERR_UNXEOF;
+      else if (ra == RDTOK_RPAR || ra == RDTOK_RBRK || ra == RDTOK_DOT) ra = RDERR_UNXTOK;
+      else if (isimm(ra, EOF_ITAG)) /* error: keep it */ ;
+      else goto nexttk;
+    } break;
+    case TT_QUOTE:   s = "quote"; goto abbrev;
+    case TT_QQUOTE:  s = "quasiquote"; goto abbrev;
+    case TT_UNQUOTE: s = "unquote"; goto abbrev;
+    case TT_UNQSPL:  s = "unquote-splicing"; abbrev: {
+      hp = rddatum(r, sp, hp, e); /* result in ra */
+      if (ra == mkeof()) ra = RDERR_UNXEOF;
+      else if (ra == RDTOK_RPAR || ra == RDTOK_RBRK || ra == RDTOK_DOT) ra = RDERR_UNXTOK;
+      else if (isimm(ra, EOF_ITAG)) /* error in ra: keep it */ ;
+      else { /* normal element */
+        hreserve(pairbsz()*2, sp-r);
+        *--hp = mknull(); *--hp = ra; ra = hend_pair();
+        *--hp = ra; *--hp = mksymbol(internsym(s)); ra = hend_pair();
+      }
+    } break;
+    case TT_HREF: {
+      obj k = fixnum_obj(atoi(s)), p;
+      if (!rk) ra = RDERR_SIMPLE;
+      else if (p = isassv(k, rk), is_pair(p)) ra = pair_cdr(p);
+      else ra = RDERR_INVREF;
+    } break;
+    case TT_HDEF: {
+      obj k = fixnum_obj(atoi(s)), p, t;
+      if (!rk) ra = RDERR_SIMPLE;
+      else if (p = isassv(k, rk), is_pair(p)) ra = RDERR_INVDEF;
+      else { /* add empty loc (as tuple) to shared */
+        hreserve(tuplebsz(1)+pairbsz()*2, sp-r);
+        *--hp = bool_obj(0); t = hend_tuple(1);
+        *--hp = t; *--hp = k; p = hend_pair();
+        *--hp = rk; *--hp = p; rk = hend_pair();
+        /* push tuple and read next exp carefully */
+        spush(t); hp = rddatum(r, sp, hp, e); /* result in ra */
+        if (ra == mkeof()) ra = RDERR_UNXEOF;
+        else if (isimm(ra, EOF_ITAG)) /* error in ra: keep it */ ;
+        else if (is_tuple(ra)) ra = RDERR_INVDEF;
+        else tuple_ref(sref(0), 0) = ra; /* store sexp in loc */
+        sdrop(1); /* pop tuple */
+      }
+    } break;   
+    case TT_BOX: {
+      hp = rddatum(r, sp, hp, e); /* result in ra */
+      if (ra == mkeof()) ra = RDERR_UNXEOF;
+      else if (ra == RDTOK_RPAR || ra == RDTOK_RBRK || ra == RDTOK_DOT) ra = RDERR_UNXTOK;
+      else if (isimm(ra, EOF_ITAG)) /* error in ra: keep it */ ;
+      else { /* normal element */
+        hreserve(boxbsz(), sp-r);
+        *--hp = ra; ra = hend_box();
+      }      
+    } break;
+    case TT_OPENLIST: case TT_OPENLIST2: {
+      obj cob = (tk == TT_OPENLIST) ? RDTOK_RPAR : RDTOK_RBRK;
+      spush(bool_obj(0)); spush(bool_obj(0)); /* l: sref(1) lp: sref(0) */
+    morel: hp = rddatum(r, sp, hp, e); /* result in ra */
+      if (ra == mkeof()) ra = RDERR_UNXEOF;
+      else if (ra == RDTOK_DOT) {
+        hp = rddatum(r, sp, hp, e); /* result in ra */
+        if (ra == mkeof()) ra = RDERR_UNXEOF;
+        else if (ra == RDTOK_RPAR || ra == RDTOK_RBRK || ra == RDTOK_DOT) ra = RDERR_UNXTOK;
+        else if (isimm(ra, EOF_ITAG)) /* error: keep it */ ;
+        else if (sref(0) == bool_obj(0)) ra = RDERR_DOTLOC;
+        else { pair_cdr(sref(0)) = ra; ra = sref(1); }
+        if (!isimm(ra, EOF_ITAG)) { /* normal val: get close tk */
+          sref(1) = ra; /* save, rddatum overrides it */
+          hp = rddatum(r, sp, hp, e); /* result in ra */
+          ra = (ra == cob) ? sref(1) : RDERR_DOTLOC; 
+        }
+      } 
+      else if (ra == cob) ra = (sref(0) == bool_obj(0)) ? mknull() : sref(1);
+      else if (ra == RDTOK_RPAR || ra == RDTOK_RBRK) ra = RDERR_UNXCLO;
+      else if (isimm(ra, EOF_ITAG)) /* error: keep it */ ;
+      else { /* normal element */
+        hreserve(pairbsz(), sp-r);
+        *--hp = mknull(); *--hp = ra;
+        ra = hend_pair();
+        if (sref(0) == bool_obj(0)) sref(0) = sref(1) = ra;
+        else sref(0) = pair_cdr(sref(0)) = ra; 
+        goto morel;
+      }
+      sdrop(2);  
+    } break; 
+    case TT_OPENVEC: {
+      size_t n = 0, i;
+    morev: hp = rddatum(r, sp, hp, e); /* result in ra */
+      if (ra == mkeof()) { ra = RDERR_UNXEOF; sdrop(n); }
+      else if (ra == RDTOK_RBRK || ra == RDTOK_DOT) { ra = RDERR_UNXTOK; sdrop(n); }
+      else if (ra == RDTOK_RPAR) { 
+        hreserve(vecbsz(n), sp-r);  for (i = n; i > 0; --i) *--hp = spop(); ra = hend_vec(n);
+      }
+      else if (isimm(ra, EOF_ITAG)) /* error: keep it */ sdrop(n);
+      else { /* normal element */ spush(ra); ++n; goto morev; }
+    } break; 
+    case TT_OPENU8VEC: {
+      cbuf_t *pcb = newcb();
+    moreu: hp = rddatum(r, sp, hp, e); /* result in ra */
+      if (ra == mkeof()) ra = RDERR_UNXEOF;
+      else if (ra == RDTOK_RBRK || ra == RDTOK_DOT) ra = RDERR_UNXTOK;
+      else if (ra == RDTOK_RPAR) ra = hpushu8v(sp-r, newbytevector((unsigned char *)cbdata(pcb), (int)cblen(pcb)));
+      else if (isimm(ra, EOF_ITAG)) /* error: keep it */ ;
+      else if (!is_byte(ra)) ra = RDERR_INVBYTE;
+      else { /* normal byte */ cbputc(get_byte(ra), pcb); goto moreu; }
+      freecb(pcb);
+    } break; 
+    /* TT_HDEF/TT_HREF are not yet implemented */
+    default: ra = RDERR_UNXTOK; break;
+  }
+  return hp;
+}
+
+static const char *rdiserr(obj x)
+{
+  switch (x) {
+    case RDTOK_RPAR:    return "unmatched )";
+    case RDTOK_RBRK:    return "unmatched ]";
+    case RDTOK_DOT:     return "dot . outside of list syntax";
+    case RDERR_UNXEOF:  return "unexpected end-of-file";
+    case RDERR_UNXTOK:  return "unexpected token";
+    case RDERR_UNXDOT:  return "unexpected dot syntax";
+    case RDERR_UNXCLO:  return "unexpected closing paren";
+    case RDERR_DOTLOC:  return "invalid dot syntax location";
+    case RDERR_INVTK:   return "invalid token";
+    case RDERR_INVNUM:  return "invalid or unsupported number syntax";
+    case RDERR_INVBYTE: return "invalid byte constant";
+    case RDERR_INVREF:  return "invalid #N# shared reference";
+    case RDERR_INVDEF:  return "invalid #N= shared definition";
+    case RDERR_SIMPLE:  return "unexpected #N=/#N# in simple read";
+  }
+  return NULL;
+}
+
+#endif
+

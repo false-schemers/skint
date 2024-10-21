@@ -1520,121 +1520,36 @@
     [(k) (read-subbytevector k (current-input-port))]
     [(k p) (read-subbytevector k p)]))
 
-(define %read
+(define %read ; uses %read-datum / %read-datum-error-string instructions
   (body
-    ; support for sharing (use procedures that can't be read)
-    (define (make-shared-ref loc) (lambda () (unbox loc)))
-    (define (shared-ref? form) (procedure? form))
-    (define (patch-ref! form) (if (procedure? form) (patch-ref! (form)) form))
+    (define (shared-ref? form) (tuple? form 1))
+    (define (patch-ref! form) (if (tuple? form 1) (patch-ref! (tuple-ref form 0)) form))
     (define (patch-shared! form)
       (cond [(pair? form)
-             (if (procedure? (car form)) 
+             (if (shared-ref? (car form)) 
                  (set-car! form (patch-ref! (car form)))
                  (patch-shared! (car form)))
-             (if (procedure? (cdr form)) 
+             (if (shared-ref? (cdr form)) 
                  (set-cdr! form (patch-ref! (cdr form)))
                  (patch-shared! (cdr form)))]
             [(vector? form)
              (let loop ([i 0])
                (when (fx<? i (vector-length form))
                  (let ([fi (vector-ref form i)])
-                   (if (procedure? fi) 
+                   (if (shared-ref? fi) 
                        (vector-set! form i (patch-ref! fi))
                        (patch-shared! fi)))
                  (loop (fx+ i 1))))]
             [(box? form)
-             (if (procedure? (unbox form))
+             (if (shared-ref? (unbox form))
                  (set-box! form (patch-shared! (unbox form)))
                  (patch-shared! (unbox form)))]))
-    (define (patch-shared form) (patch-shared! form) form)
-    ; special tokens (can't be read, but different from procedures)            
-    (define close-paren (make-record 'token 1 "right parenthesis"))
-    (define close-bracket (make-record 'token 1 "right bracket"))  
-    (define dot (make-record 'token 1 "\" . \""))  
-    (define-syntax reader-token? record?)
-    (define-syntax reader-token-name (syntax-lambda (x) (record-ref x 0)))
-    ; main entry point
     (lambda (port simple? ci?)
-      (define fold-case? (or ci? (port-fold-case? port)))
-      (define buf (open-output-string))
-      (define-syntax r-error
-        (syntax-rules () [(_ msg a ...) (read-error msg a ... 'port: port)]))
-      (define shared '())
-      (define (sub-read)
-        (let ([tk (%read-token port buf)])
-          (cond [(eq? tk #t) (eof-object)]
-                [(eq? tk #f) (r-error "invalid token")]
-                [(char=? tk #\f) #f]
-                [(char=? tk #\t) #t]
-                [(char=? tk #\n) 
-                 (or (%get-output-value buf #\n)
-                     (read-error "unsupported number syntax (implementation restriction)" 
-                       (get-output-string buf)))]
-                [(char=? tk #\y)
-                 (if fold-case? 
-                     (string-ci->symbol (get-output-string buf)) 
-                     (%get-output-value buf #\y))]
-                [(or (char=? tk #\c) (char=? tk #\s) (char=? tk #\!)) (%get-output-value buf tk)]
-                [(char=? tk #\;) (sub-read-carefully) (sub-read)]
-                [(char=? tk #\l) (sub-read-list close-paren #t #f)]
-                [(char=? tk #\v) (list->vector (sub-read-list close-paren #f #f))]
-                [(char=? tk #\u) (list->bytevector (sub-read-list close-paren #f #t))]
-                [(char=? tk #\r) close-paren]
-                [(char=? tk #\b) (sub-read-list close-bracket #t #f)]
-                [(char=? tk #\k) close-bracket]
-                [(char=? tk #\.) dot]
-                [(char=? tk #\') (list 'quote (sub-read-carefully))]
-                [(char=? tk #\`) (list 'quasiquote (sub-read-carefully))]
-                [(char=? tk #\,) (list 'unquote (sub-read-carefully))]
-                [(char=? tk #\@) (list 'unquote-splicing (sub-read-carefully))]
-                [(char=? tk #\&) (box (sub-read-carefully))]
-                [(or (char=? tk #\F) (char=? tk #\N))
-                 (set! fold-case? (char=? tk #\F))
-                 (set-port-fold-case! port fold-case?)
-                 (sub-read)]
-                [(or (char=? tk #\#) (char=? tk #\=))
-                 (when simple? (r-error "#N=/#N# notation is not allowed in this mode")) 
-                 (let ([n (%get-output-value buf #\n)])
-                   (if (char=? tk #\#)
-                       (cond [(and (fixnum? n) (assq n shared)) => cdr]
-                             [else (r-error "unknown #n# reference" n)])
-                       (cond [(not (fixnum? n)) (r-error "invalid #n= reference" n)]
-                             [(assq n shared) (r-error "duplicate #n= tag:" n)]
-                             [else
-                              (let ([loc (box #f)])
-                                (set! shared (cons (cons n (make-shared-ref loc)) shared))
-                                (let ([form (sub-read-carefully)])
-                                  (cond [(shared-ref? form) (r-error "#n= has a label as target" n)]
-                                        [else (set-box! loc form) form])))])))]
-                [else (r-error "invalid token" tk (get-output-string buf))])))
-      (define (sub-read-carefully)
-        (let ([form (sub-read)])
-          (cond [(eof-object? form)
-                 (r-error "unexpected end of file")]
-                [(reader-token? form) ; special reader token
-                 (r-error (string-append "unexpected token: " (reader-token-name form)))]
-                [else form])))
-      (define (sub-read-list close-token dot? byte?)
-        (let loop ([form (sub-read)] [l #f] [lp #f])
-          (cond [(eof-object? form) (r-error "eof inside list -- unbalanced parentheses")]
-                [(eq? form close-token) (if lp l '())]
-                [(and dot? (eq? form dot))
-                 (let* ([form (sub-read-carefully)] [another-form (sub-read)])
-                   (if (eq? another-form close-token) 
-                       (cond [lp (set-cdr! lp form) l] [else (r-error "unexpected dot")])
-                       (r-error "too many forms after dot" another-form)))]
-                [(eq? form dot) (r-error "unexpected dot notation")]
-                [(reader-token? form) ; other special reader token
-                 (r-error (string-append "unexpected token: " (reader-token-name form)))]
-                [(and byte? (or (not (fixnum? form)) (fx<? form 0) (fx>? form 255)))
-                 (r-error "invalid byte inside bytevector" form)]
-                [(not lp) (let ([l (list form)]) (loop (sub-read) l l))]
-                [else (let ([nlp (list form)]) (set-cdr! lp nlp) (loop (sub-read) l nlp))])))
-      ; body of %read
-      (let ([form (sub-read)])
-        (if (not (reader-token? form))
-            (if (null? shared) form (patch-shared form))
-            (r-error (string-append "unexpected token: " (reader-token-name form))))))))
+      (define shared (if simple? #f '()))
+      (let* ([x (%read-datum port (set& shared))] [es (%read-datum-error-string x)])
+        (cond [es (read-error es port)]
+              [(pair? shared) (patch-shared! x) x]
+              [else x])))))
 
 (define read
   (case-lambda

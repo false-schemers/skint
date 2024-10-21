@@ -1736,7 +1736,7 @@ char *t_code[] = {
   "kint-options*)",
 
   "C", 0,
-  "'(s5:0.6.2)@!(y15:*skint-version*)",
+  "'(s5:0.6.3)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",

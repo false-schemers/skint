@@ -443,6 +443,9 @@ declare_instruction(rlen,       "O3",           0,  "record-length",            
 declare_instruction(rget,       "O4",           0,  "record-ref",               '2', AUTOGL)
 declare_instruction(rput,       "O5",           0,  "record-set!",              '3', AUTOGL)
 declare_instruction(rrtd,       "O6",           0,  "record-type-descriptor",   '1', AUTOGL)
+declare_instruction(tupp,       "O7\0Y9",       0,  "tuple?",                   'b', AUTOGL)
+declare_instruction(tup,        "O8",           1,  "tuple",                    '#', "O8(f)]0")
+declare_instruction(tget,       "O9",           0,  "tuple-ref",                '2', AUTOGL)
 declare_instruction(vtol,       "X0",           0,  "%vector->list1",           '1', AUTOGL)
 declare_instruction(ltov,       "X1",           0,  "list->vector",             '1', AUTOGL)
 declare_instruction(stol,       "X2",           0,  "%string->list1",           '1', AUTOGL)
@@ -505,6 +508,10 @@ declare_instruction(rda8,       "R4\0Pi",       0,  "peek-u8",                  
 declare_instruction(rd8r,       "R5\0Pi",       0,  "u8-ready?",                'u', AUTOGL)
 declare_instruction(rdln,       "R6\0Pi",       0,  "read-line",                'u', AUTOGL)
 declare_instruction(rdtk,       "R7",           0,  "%read-token",              '2', AUTOGL)
+#if 1 // READ
+declare_instruction(rdsd,       "Rd",           0,  "%read-datum",              '2', AUTOGL)
+declare_instruction(rders,      "Re",           0,  "%read-datum-error-string", '1', AUTOGL)
+#endif
 declare_instruction(eofp,       "R8",           0,  "eof-object?",              '1', AUTOGL)
 declare_instruction(eof,        "R9",           0,  "eof-object",               '0', AUTOGL)
 declare_instruction(wrc,        "W0\0Po",       0,  "write-char",               'b', AUTOGL)

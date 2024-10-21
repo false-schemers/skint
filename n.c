@@ -1119,108 +1119,7 @@ void oportputshared(obj x, obj p, int disp) {
   stabfree(e.pst);
 }
 
-/* system-dependent extensions */
-
-
-extern int is_tty_port(obj o)
-{
-  FILE *fp = NULL;
-  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = ((tifile_t*)iportdata(o))->fp;
-  else if ((cxtype_t*)oportvt(o) == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
-  if (!fp) return 0;
-  return isatty(fileno(fp));
-}
-
-#ifdef WIN32
-int dirsep = '\\';
-int pathsep = ';';
-#else
-int dirsep = '/';
-int pathsep = ':';
-#endif
-
-#ifdef LIBPATH
-char *lib_path = ##LIBPATH;
-#elif defined(WIN32)
-char *lib_path = ".\\";
-#else
-char *lib_path = "./";
-#endif
-
-extern char *argv_ref(int idx)
-{
-  char **pv = cxg_argv;
-  /* be careful with indexing! */
-  if (idx < 0) return NULL;
-  while (idx-- > 0) if (*pv++ == NULL) return NULL;
-  return *pv;
-}
-
-#if defined(WIN32)
-#define cxg_envv _environ
-#elif defined(__linux) 
-#define cxg_envv environ
-#elif defined(__APPLE__)
-extern char **environ;
-#define cxg_envv environ
-#else /* add more systems? */
-char **cxg_envv = { NULL };
-#endif
-
-extern char *envv_ref(int idx)
-{
-  char **pv = cxg_envv;
-  /* be careful with indexing! */
-  if (idx < 0) return NULL;
-  while (idx-- > 0) if (*pv++ == NULL) return NULL;
-  return *pv;
-}
-
-extern char *get_cwd(void)
-{
-  static char buf[FILENAME_MAX]; size_t len;
-  if (getcwd(buf, FILENAME_MAX) == NULL) return NULL;
-  len = strlen(buf);
-  /* if this is a regular path that has internal separators but not at the end, add it */ 
-  if (len > 0 && len < FILENAME_MAX-1 && strchr(buf, dirsep) && buf[len-1] != dirsep) {
-    buf[len++] = dirsep; buf[len] = 0;
-  }  
-  return buf;
-}
-
-extern int set_cwd(char *cwd)
-{
-  return chdir(cwd);
-}
-
-#define TT_FALSE      'f'
-#define TT_TRUE       't'
-#define TT_NUMBER     'n'
-#define TT_CHAR       'c'
-#define TT_STRING     's'
-#define TT_SYMBOL     'y'
-#define TT_OPENLIST   'l'
-#define TT_OPENVEC    'v'
-#define TT_OPENU8VEC  'u'
-#define TT_CLOSE      'r'
-#define TT_OPENLIST2  'b'
-#define TT_CLOSE2     'k'
-#define TT_QUOTE      '\''
-#define TT_QQUOTE     '`'
-#define TT_UNQUOTE    ','
-#define TT_UNQSPL     '@'
-#define TT_DOT        '.'
-#define TT_BOX        '&'
-#define TT_HDEF       '='
-#define TT_HREF       '#'
-#define TT_HSEMI      ';'
-#define TT_SHEBANG    '!'
-#define TT_SHEBANG_FC 'F'
-#define TT_SHEBANG_NF 'N'
-#define TT_ERR         0
-#define TT_EOF        -1
-
-#if 1
+/* S-expression tokenizer */
 static char num_map[256] = { /* [#A-Za-z/0123456789.@+-] */
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
    0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
@@ -1232,15 +1131,7 @@ static char num_map[256] = { /* [#A-Za-z/0123456789.@+-] */
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 #define is_num(c) (num_map[(c) & 0xFF]) /* NB: eof at num_map[255] */   
-#else
-static int is_num(int c)
-{ /* this covers all initials and constituents of prefixed numbers */
-  char *s = "#ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/0123456789+-.@";
-  return c != EOF && strchr(s, c) != NULL;
-}
-#endif
 
-#if 1
 static char numsym_map[256] = { /* [A-Za-z!$%&*:/<=>?^_~0123456789.@+-] */
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
    0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1,
@@ -1252,13 +1143,6 @@ static char numsym_map[256] = { /* [A-Za-z!$%&*:/<=>?^_~0123456789.@+-] */
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 #define is_numsym(c) (numsym_map[(c) & 0xFF]) /* NB: eof at numsym_map[255] */   
-#else
-static int is_numsym(int c)
-{ /* this covers all initials and constituents of plain symbols and nonprefixed decimals */
-  char *s = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!$%&*/:<=>?^_~0123456789+-.@";
-  return c != EOF && strchr(s, c) != NULL;
-}
-#endif
 
 static int is_delimiter(int c)
 {
@@ -1514,3 +1398,75 @@ int slex(int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, cbuf_t *
     return TT_ERR;
 }
 
+/* system-dependent extensions */
+
+extern int is_tty_port(obj o)
+{
+  FILE *fp = NULL;
+  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = ((tifile_t*)iportdata(o))->fp;
+  else if ((cxtype_t*)oportvt(o) == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
+  if (!fp) return 0;
+  return isatty(fileno(fp));
+}
+
+#ifdef WIN32
+int dirsep = '\\';
+int pathsep = ';';
+#else
+int dirsep = '/';
+int pathsep = ':';
+#endif
+
+#ifdef LIBPATH
+char *lib_path = ##LIBPATH;
+#elif defined(WIN32)
+char *lib_path = ".\\";
+#else
+char *lib_path = "./";
+#endif
+
+extern char *argv_ref(int idx)
+{
+  char **pv = cxg_argv;
+  /* be careful with indexing! */
+  if (idx < 0) return NULL;
+  while (idx-- > 0) if (*pv++ == NULL) return NULL;
+  return *pv;
+}
+
+#if defined(WIN32)
+#define cxg_envv _environ
+#elif defined(__linux) 
+#define cxg_envv environ
+#elif defined(__APPLE__)
+extern char **environ;
+#define cxg_envv environ
+#else /* add more systems? */
+char **cxg_envv = { NULL };
+#endif
+
+extern char *envv_ref(int idx)
+{
+  char **pv = cxg_envv;
+  /* be careful with indexing! */
+  if (idx < 0) return NULL;
+  while (idx-- > 0) if (*pv++ == NULL) return NULL;
+  return *pv;
+}
+
+extern char *get_cwd(void)
+{
+  static char buf[FILENAME_MAX]; size_t len;
+  if (getcwd(buf, FILENAME_MAX) == NULL) return NULL;
+  len = strlen(buf);
+  /* if this is a regular path that has internal separators but not at the end, add it */ 
+  if (len > 0 && len < FILENAME_MAX-1 && strchr(buf, dirsep) && buf[len-1] != dirsep) {
+    buf[len++] = dirsep; buf[len] = 0;
+  }  
+  return buf;
+}
+
+extern int set_cwd(char *cwd)
+{
+  return chdir(cwd);
+}
