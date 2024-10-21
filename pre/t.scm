@@ -783,20 +783,22 @@
   ; nb: 'real' ... is a builtin, at this time possibly registered in rnr
   (define ellipsis-den ; we may need to be first to alloc ... binding!
     (name-lookup *root-name-registry* '... (lambda (n) '...)))
-  ; now we need just peek x in maro env to compare with the above
+  ; now we need just peek x in macro env to compare with the above
   (define (ellipsis? x)
-    (if ellipsis (eq? x ellipsis) ; custom one is given
-        (and (id? x) (eq? (mac-env x 'peek) ellipsis-den))))
+    (and (id? x) (not (pat-literal? x))
+         (if ellipsis (eq? x ellipsis) ; custom one is given
+             (and (id? x) (eq? (mac-env x 'peek) ellipsis-den)))))
 
   ; ditto for underscore
   (define underscore-den ; we may need to be first to alloc _ binding!
     (name-lookup *root-name-registry* '_ (lambda (n) '_)))
   (define (underscore? x)
-    (and (id? x) (eq? (mac-env x 'peek) underscore-den)))
+    (and (id? x) (not (pat-literal? x))
+         (eq? (mac-env x 'peek) underscore-den)))
 
   ; slow version of the above for escape keywords
   (define (id-escape=? x s)  
-    (and (id? x) 
+    (and (id? x) (not (pat-literal? x))
          (eq? (mac-env x 'peek) 
               (name-lookup *root-name-registry* s (lambda (n) (list 'ref s))))))
 
@@ -2758,7 +2760,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.6.3")
+(define *skint-version* "0.6.4")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
