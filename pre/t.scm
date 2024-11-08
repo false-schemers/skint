@@ -386,7 +386,7 @@
   (let ([p1 (env1 id1 'peek)] [p2 (env2 id2 'peek)])
     (and p1 p2 ; both envs should be supported by name registries
       (if (and (name-registry? p1) (name-registry? p2))
-          (and (eq? p1 p2) (eq? id1 id2)) ; would end w/same loc if alloced
+          (and (eq? p1 p2) (eq? (id->sym id1) (id->sym id2))) ; would end w/same loc if alloced
           (eq? p1 p2))))) ; nrs and locs are distinct, so this means "same loc" 
 
 ; xpand receives Scheme s-expressions and returns either Core Scheme <core> form
