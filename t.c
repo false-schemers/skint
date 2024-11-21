@@ -279,6 +279,12 @@ char *t_code[] = {
   ":x-error)[73}.1p~?{.1,'(s27:improper use of syntax form),@(y7:x-error)"
   "[72}.6,.3,.3,@(y10:xpand-call)[73",
 
+  "P", "prexpand",
+  "%2${.2,@(y3:id?)[01}?{.1,.1,@(y9:xpand-ref)[22}.0p~?{f]2}.0a,.1d,${.5,"
+  ".4,@(y8:prexpand)[02},.0,'(y13:syntax-lambda),.1v?{t,.6,.4,@(y19:xpand"
+  "-syntax-lambda)[63}'(y12:syntax-rules),.1v?{.5,.3,@(y18:xpand-syntax-r"
+  "ules)[62}.1K0?{.5,${.8,.8,.6[02},@(y8:prexpand)[62}f]6",
+
   "P", "xpand-quote",
   "%2${.2,@(y6:list1?)[01}?{${.2a,@(y17:xpand-sexp->datum)[01},'(y5:quote"
   "),l2]2}.0,'(y5:quote)c,'(s19:improper quote form),@(y7:x-error)[22",
@@ -364,29 +370,29 @@ char *t_code[] = {
   "P", "xpand-body",
   "%3.0u?{'(y5:begin),l1]3}${.2,@(y6:list1?)[01}?{.1,.1a,.4,@(y5:xpand)[3"
   "3}.0L0~?{.0,'(y4:body)c,'(s18:improper body form),@(y7:x-error)[32}.0,"
-  "n,n,n,.5,,#0.8,.1,&2{%5.4p?{.4ap}{f}?{.4d,.5a,.0a,.1d,${.6,.4,t,@(y5:x"
-  "pand)[03},.0,'(y5:begin),.1v?{.2L0?{.5,.3L6,.(i10),.(i10),.(i10),.(i10"
-  "),:0^[(i11)5}.4,'(s19:improper begin form),@(y7:x-error)[(i11)2}'(y6:d"
-  "efine),.1v?{${.4,.6,@(y17:preprocess-define)[02},${.2,@(y6:list1?)[01}"
-  "?{.0a,.7,.(i12),fc,.(i12),.3c,.(i12),fc,.(i12),:0^[(i13)5}.0a,.1da,${$"
-  "{.5,@(y7:id->sym)[01},@(y6:gensym)[01},${.(i12),.3,.6,@(y13:add-local-"
-  "var)[03},.(i10),.(i15),.3c,.(i15),.5c,.(i15),.7c,.4,:0^[(i16)5}'(y13:d"
-  "efine-syntax),.1v?{${.4,.6,@(y24:preprocess-define-syntax)[02},.0a,.1d"
-  "a,${.(i11),'(l1:y9:undefined;),.5,@(y17:extend-xenv-local)[03},.9,.(i1"
-  "4),tc,.(i14),.4c,.(i14),.6c,.4,:0^[(i15)5}'(y14:define-library),.1v?{$"
-  "{.4,@(y7:list2+?)[01}?{${.4a,@(y9:listname?)[01}}{f}?{${f,.9,.6,.8,@(y"
-  "20:xpand-define-library)[04},.0da,.1dda,${.(i11),.3,.5,@(y17:extend-xe"
-  "nv-local)[03},.9,.(i14),.(i14),.(i14),.4,:0^[(i15)5}.4,'(s28:improper "
-  "define-library form),@(y7:x-error)[(i11)2}'(y6:import),.1v?{.2L0?{${f,"
-  ".9,.6,.8,@(y12:xpand-import)[04},.0da,'0,.1V4,'1,.2V4,.(i10),.1,,#0.(i"
-  "10),.1,.(i14),.(i19),.(i19),.(i19),:0,.(i11),&8{%2.0u?{:0,@(y15:syntax"
-  "-quote-id),l2,:5,:4,fc,:3,.3c,:2,fc,.6,:1^[35}.0ad,${.3aa,:7,@(y12:id-"
-  "rename-as)[02},.3,.2,.2,&3{%2:0,.1q?{'(l2:y3:ref;y4:peek;),.2A0?{:1]2}"
-  "f]2}.1,.1,:2[22},.3d,:6^[42}.!0.0^_1[(i15)2}.4,'(s20:improper import f"
-  "orm),@(y7:x-error)[(i11)2}.1K0?{.5,${.9,.8,.6[02}c,.(i10),.(i10),.(i10"
-  "),.(i10),:0^[(i11)5}:1,.7,.(i12),.(i12)A8,.(i12)A8,.(i12)A8,@(y12:xpan"
-  "d-labels)[(i11)6}:1,.1,.6,.6A8,.6A8,.6A8,@(y12:xpand-labels)[56}.!0.0^"
-  "_1[35",
+  "n,n,n,.5,,#0.8,.1,&2{%5.4p?{.4ap}{f}?{.4d,.5a,.0a,.1d,${.6,.4,@(y8:pre"
+  "xpand)[02},.0,'(y5:begin),.1v?{.2L0?{.5,.3L6,.(i10),.(i10),.(i10),.(i1"
+  "0),:0^[(i11)5}.4,'(s19:improper begin form),@(y7:x-error)[(i11)2}'(y6:"
+  "define),.1v?{${.4,.6,@(y17:preprocess-define)[02},${.2,@(y6:list1?)[01"
+  "}?{.0a,.7,.(i12),fc,.(i12),.3c,.(i12),fc,.(i12),:0^[(i13)5}.0a,.1da,${"
+  "${.5,@(y7:id->sym)[01},@(y6:gensym)[01},${.(i12),.3,.6,@(y13:add-local"
+  "-var)[03},.(i10),.(i15),.3c,.(i15),.5c,.(i15),.7c,.4,:0^[(i16)5}'(y13:"
+  "define-syntax),.1v?{${.4,.6,@(y24:preprocess-define-syntax)[02},.0a,.1"
+  "da,${.(i11),'(l1:y9:undefined;),.5,@(y17:extend-xenv-local)[03},.9,.(i"
+  "14),tc,.(i14),.4c,.(i14),.6c,.4,:0^[(i15)5}'(y14:define-library),.1v?{"
+  "${.4,@(y7:list2+?)[01}?{${.4a,@(y9:listname?)[01}}{f}?{${f,.9,.6,.8,@("
+  "y20:xpand-define-library)[04},.0da,.1dda,${.(i11),.3,.5,@(y17:extend-x"
+  "env-local)[03},.9,.(i14),.(i14),.(i14),.4,:0^[(i15)5}.4,'(s28:improper"
+  " define-library form),@(y7:x-error)[(i11)2}'(y6:import),.1v?{.2L0?{${f"
+  ",.9,.6,.8,@(y12:xpand-import)[04},.0da,'0,.1V4,'1,.2V4,.(i10),.1,,#0.("
+  "i10),.1,.(i14),.(i19),.(i19),.(i19),:0,.(i11),&8{%2.0u?{:0,@(y15:synta"
+  "x-quote-id),l2,:5,:4,fc,:3,.3c,:2,fc,.6,:1^[35}.0ad,${.3aa,:7,@(y12:id"
+  "-rename-as)[02},.3,.2,.2,&3{%2:0,.1q?{'(l2:y3:ref;y4:peek;),.2A0?{:1]2"
+  "}f]2}.1,.1,:2[22},.3d,:6^[42}.!0.0^_1[(i15)2}.4,'(s20:improper import "
+  "form),@(y7:x-error)[(i11)2}.1K0?{.5,${.9,.8,.6[02}c,.(i10),.(i10),.(i1"
+  "0),.(i10),:0^[(i11)5}:1,.7,.(i12),.(i12)A8,.(i12)A8,.(i12)A8,@(y12:xpa"
+  "nd-labels)[(i11)6}:1,.1,.6,.6A8,.6A8,.6A8,@(y12:xpand-labels)[56}.!0.0"
+  "^_1[35",
 
   "P", "xpand-labels",
   "%6,#0${.5,&0{%1t,.1q]1},@(y6:andmap)[02}.!0n,n,.5,.5,.5,,#0.0,.(i12),."
@@ -1737,7 +1743,7 @@ char *t_code[] = {
   "kint-options*)",
 
   "C", 0,
-  "'(s5:0.6.4)@!(y15:*skint-version*)",
+  "'(s5:0.6.5)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",

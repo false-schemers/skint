@@ -436,6 +436,19 @@
                          [(not (val-core? hval))  (x-error "improper use of syntax form" hval)]
                          [else                    (xpand-call hval tail env)])]))]))
 
+; prexpand check if sexp expands to a transformer or a definition primitive (a symbol)
+
+(define (prexpand sexp env) ; also may return any core, it won't be used
+  (cond [(id? sexp) (xpand-ref sexp env)]
+        [(not (pair? sexp)) '#f] ; any core
+        [else ; note: these transformations are made in 'expression' context
+         (let* ([head (car sexp)] [tail (cdr sexp)] [hval (prexpand head env)])
+           (case hval
+             [(syntax-lambda)  (xpand-syntax-lambda  tail env #t)]
+             [(syntax-rules)   (xpand-syntax-rules   tail env)]
+             [else (cond [(val-transformer? hval) (prexpand (hval sexp env) env)]
+                         [else '#f])]))]))
+
 (define (xpand-quote tail env)
   (if (list1? tail)
       (list 'quote (xpand-sexp->datum (car tail)))
@@ -564,7 +577,7 @@
      (let loop ([env env] [ids '()] [inits '()] [nids '()] [body tail])
        (if (and (pair? body) (pair? (car body)))
            (let ([first (car body)] [rest (cdr body)])
-             (let* ([head (car first)] [tail (cdr first)] [hval (xpand #t head env)])
+             (let* ([head (car first)] [tail (cdr first)] [hval (prexpand head env)])
                (case hval
                  [(begin) ; internal
                   (if (list? tail) 
@@ -2760,7 +2773,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.6.4")
+(define *skint-version* "0.6.5")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
