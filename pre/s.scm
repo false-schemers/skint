@@ -180,6 +180,7 @@
     [(_ ,@x  d) (cons 'unquote-splicing (quasiquote (x) . d))]
     [(_ (x . y) . d) (cons (quasiquote x . d) (quasiquote y . d))]
     [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
+    [(_ #&x . d) (box (quasiquote x . d))]
     [(_ x . d) 'x]))
 
 (define-syntax when ; + body support

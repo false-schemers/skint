@@ -3076,4 +3076,12 @@
 (test (write-data write-simple '(#() #(a) #(19 21 c)))
      '("#()" "#(a)" "#(19 21 c)"))
 
+;; Skint extras
+
+; _ and ... as literals:
+(define-syntax test-specials (syntax-rules (_ ...) ((_ _ ...) '(_ ...)) ((_ x y) (vector x y))))
+(test (list (test-specials _ ...) (test-specials 1 2))
+     '((_ ...) #(1 2)))
+
+
 (test-end)

@@ -378,7 +378,7 @@
   (let ([p1 (env1 id1 'peek)] [p2 (env2 id2 'peek)])
     (and p1 p2 ; both envs should be supported by name registries
       (if (and (name-registry? p1) (name-registry? p2))
-          (and (eq? p1 p2) (eq? id1 id2)) ; would end w/same loc if alloced
+          (and (eq? p1 p2) (eq? (id->sym id1) (id->sym id2))) ; would end w/same loc if alloced
           (eq? p1 p2))))) ; nrs and locs are distinct, so this means "same loc" 
 
 ; xpand receives Scheme s-expressions and returns either Core Scheme <core> form
@@ -428,6 +428,19 @@
                          [(val-void? hval)        (x-error "use of uninitialized val" hval sexp)]
                          [(not (val-core? hval))  (x-error "improper use of syntax form" hval)]
                          [else                    (xpand-call hval tail env)])]))]))
+
+; prexpand check if sexp expands to a transformer or a definition primitive (a symbol)
+
+(define (prexpand sexp env) ; also may return any core, it won't be used
+  (cond [(id? sexp) (xpand-ref sexp env)]
+        [(not (pair? sexp)) '#f] ; any core
+        [else ; note: these transformations are made in 'expression' context
+         (let* ([head (car sexp)] [tail (cdr sexp)] [hval (prexpand head env)])
+           (case hval
+             [(syntax-lambda)  (xpand-syntax-lambda  tail env #t)]
+             [(syntax-rules)   (xpand-syntax-rules   tail env)]
+             [else (cond [(val-transformer? hval) (prexpand (hval sexp env) env)]
+                         [else '#f])]))]))
 
 (define (xpand-quote tail env)
   (if (list1? tail)
@@ -557,7 +570,7 @@
      (let loop ([env env] [ids '()] [inits '()] [nids '()] [body tail])
        (if (and (pair? body) (pair? (car body)))
            (let ([first (car body)] [rest (cdr body)])
-             (let* ([head (car first)] [tail (cdr first)] [hval (xpand #t head env)])
+             (let* ([head (car first)] [tail (cdr first)] [hval (prexpand head env)])
                (case hval
                  [(begin) ; internal
                   (if (list? tail) 
@@ -781,20 +794,22 @@
   ; nb: 'real' ... is a builtin, at this time possibly registered in rnr
   (define ellipsis-den ; we may need to be first to alloc ... binding!
     (name-lookup *root-name-registry* '... (lambda (n) '...)))
-  ; now we need just peek x in maro env to compare with the above
+  ; now we need just peek x in macro env to compare with the above
   (define (ellipsis? x)
-    (if ellipsis (eq? x ellipsis) ; custom one is given
-        (and (id? x) (eq? (mac-env x 'peek) ellipsis-den))))
+    (and (id? x) (not (pat-literal? x))
+         (if ellipsis (eq? x ellipsis) ; custom one is given
+             (and (id? x) (eq? (mac-env x 'peek) ellipsis-den)))))
 
   ; ditto for underscore
   (define underscore-den ; we may need to be first to alloc _ binding!
     (name-lookup *root-name-registry* '_ (lambda (n) '_)))
   (define (underscore? x)
-    (and (id? x) (eq? (mac-env x 'peek) underscore-den)))
+    (and (id? x) (not (pat-literal? x))
+         (eq? (mac-env x 'peek) underscore-den)))
 
   ; slow version of the above for escape keywords
   (define (id-escape=? x s)  
-    (and (id? x) 
+    (and (id? x) (not (pat-literal? x))
          (eq? (mac-env x 'peek) 
               (name-lookup *root-name-registry* s (lambda (n) (list 'ref s))))))
 
@@ -2688,6 +2703,7 @@
    [prepend-libdir "-I" "--prepend-libdir" "DIR"  "Prepend a library search directory"] 
    [define-feature "-D" "--define-feature" "NAME" "Add name to the list of features"] 
    [eval           "-e" "--eval" "SEXP"           "Evaluate and print an expression"] 
+   [load           "-l" "--load" "FILE"           "Load file and continue processing"] 
    [script         "-s" "--script" "FILE"         "Run file as a Scheme script"]
    [program        "-p" "--program" "FILE"        "Run file as a Scheme program"]
    ;[benchmark       #f  "--benchmark" "FILE"     "Run .sf benchmark file (internal)"]
@@ -2695,7 +2711,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.4.9")
+(define *skint-version* "0.5.0")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
@@ -2730,6 +2746,7 @@
           [(append-libdir *) (append-library-path! optarg) (loop restargs #t)]
           [(prepend-libdir *) (prepend-library-path! optarg) (loop restargs #t)]
           [(define-feature *) (add-feature! optarg) (loop restargs #t)]
+          [(load *) (load optarg) (loop restargs #t)]
           [(eval *) (eval! optarg #t) (loop restargs #f)]
           [(script *) (set! *quiet* #t) (exit (run-script optarg restargs))]
           [(program *) (set! *quiet* #t) (exit (run-program optarg restargs))]
