@@ -576,9 +576,9 @@ char *t_code[] = {
   "1,&2{%0:1d,:0^[01},.1,&1{%0:0ad]0},.2aa,:0^[13}.!0.0^_1[41",
 
   "P", "make-cond-expand-transformer",
-  "%0&0{%2,#0.2,&1{%2${.2,@(y3:id?)[01}?{.1,@(y16:root-environment),.3,:0"
-  ",.4,@(y9:free-id=?)[25}f]2}.!0${.4,.4,.4^,@(y22:preprocess-cond-expand"
-  ")[03},@(y8:begin-id)c]3}]0",
+  "%0&0{%2,#0.2,&1{%2${.2,@(y3:id?)[01}?{@(y16:root-environment),.2,:0,.3"
+  ",@(y9:free-id=?)[24}f]2}.!0${.4,.4,.4^,@(y22:preprocess-cond-expand)[0"
+  "3},@(y8:begin-id)c]3}]0",
 
   "P", "adjoin-code",
   "%2'(l1:y5:begin;),.1e?{.1]2}'(l1:y5:begin;),.2e?{.0]2}${.2,'(l3:y5:beg"

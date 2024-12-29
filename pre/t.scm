@@ -997,7 +997,7 @@
 (define (make-cond-expand-transformer)
   (lambda (sexp env)
     (define (lit=? id sym) ; match literal as free identifier
-      (and (id? id) (free-id=? id env sym root-environment sym)))
+      (and (id? id) (free-id=? id env sym root-environment)))
     (cons begin-id (preprocess-cond-expand lit=? sexp env))))
 
 

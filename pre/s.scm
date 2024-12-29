@@ -174,6 +174,7 @@
 (define-syntax quasiquote
   (syntax-rules (unquote unquote-splicing quasiquote)
     [(_ ,x) x]
+    [(_ (,@x)) x] ; popular extension/optimization
     [(_ (,@x . y)) (append x `y)]
     [(_ `x . d) (cons 'quasiquote (quasiquote (x) d))]
     [(_ ,x   d) (cons 'unquote (quasiquote (x) . d))]

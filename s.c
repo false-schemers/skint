@@ -125,19 +125,19 @@ char *s_code[] = {
   ";y4:step;y3:...;;y3:...;;;;;;",
 
   "S", "quasiquote",
-  "l11:y12:syntax-rules;l3:y7:unquote;y16:unquote-splicing;y10:quasiquote"
-  ";;l2:l2:y1:_;l2:y7:unquote;y1:x;;;y1:x;;l2:l2:y1:_;pl2:y16:unquote-spl"
-  "icing;y1:x;;y1:y;;;l3:y6:append;y1:x;l2:y10:quasiquote;y1:y;;;;l2:py1:"
-  "_;pl2:y10:quasiquote;y1:x;;y1:d;;;l3:y4:cons;l2:y5:quote;y10:quasiquot"
-  "e;;l3:y10:quasiquote;l1:y1:x;;y1:d;;;;l2:l3:y1:_;l2:y7:unquote;y1:x;;y"
-  "1:d;;l3:y4:cons;l2:y5:quote;y7:unquote;;py10:quasiquote;pl1:y1:x;;y1:d"
-  ";;;;;l2:l3:y1:_;l2:y16:unquote-splicing;y1:x;;y1:d;;l3:y4:cons;l2:y5:q"
-  "uote;y16:unquote-splicing;;py10:quasiquote;pl1:y1:x;;y1:d;;;;;l2:py1:_"
-  ";ppy1:x;y1:y;;y1:d;;;l3:y4:cons;py10:quasiquote;py1:x;y1:d;;;py10:quas"
-  "iquote;py1:y;y1:d;;;;;l2:py1:_;pv2:y1:x;y3:...;;y1:d;;;l2:y12:list->ve"
-  "ctor;py10:quasiquote;pl2:y1:x;y3:...;;y1:d;;;;;l2:py1:_;pzy1:x;;y1:d;;"
-  ";l2:y3:box;py10:quasiquote;py1:x;y1:d;;;;;l2:py1:_;py1:x;y1:d;;;l2:y5:"
-  "quote;y1:x;;;",
+  "l12:y12:syntax-rules;l3:y7:unquote;y16:unquote-splicing;y10:quasiquote"
+  ";;l2:l2:y1:_;l2:y7:unquote;y1:x;;;y1:x;;l2:l2:y1:_;l1:l2:y16:unquote-s"
+  "plicing;y1:x;;;;y1:x;;l2:l2:y1:_;pl2:y16:unquote-splicing;y1:x;;y1:y;;"
+  ";l3:y6:append;y1:x;l2:y10:quasiquote;y1:y;;;;l2:py1:_;pl2:y10:quasiquo"
+  "te;y1:x;;y1:d;;;l3:y4:cons;l2:y5:quote;y10:quasiquote;;l3:y10:quasiquo"
+  "te;l1:y1:x;;y1:d;;;;l2:l3:y1:_;l2:y7:unquote;y1:x;;y1:d;;l3:y4:cons;l2"
+  ":y5:quote;y7:unquote;;py10:quasiquote;pl1:y1:x;;y1:d;;;;;l2:l3:y1:_;l2"
+  ":y16:unquote-splicing;y1:x;;y1:d;;l3:y4:cons;l2:y5:quote;y16:unquote-s"
+  "plicing;;py10:quasiquote;pl1:y1:x;;y1:d;;;;;l2:py1:_;ppy1:x;y1:y;;y1:d"
+  ";;;l3:y4:cons;py10:quasiquote;py1:x;y1:d;;;py10:quasiquote;py1:y;y1:d;"
+  ";;;;l2:py1:_;pv2:y1:x;y3:...;;y1:d;;;l2:y12:list->vector;py10:quasiquo"
+  "te;pl2:y1:x;y3:...;;y1:d;;;;;l2:py1:_;pzy1:x;;y1:d;;;l2:y3:box;py10:qu"
+  "asiquote;py1:x;y1:d;;;;;l2:py1:_;py1:x;y1:d;;;l2:y5:quote;y1:x;;;",
 
   "S", "when",
   "l3:y12:syntax-rules;n;l2:py1:_;py4:test;y4:rest;;;l3:y2:if;y4:test;py4"
