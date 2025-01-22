@@ -2546,7 +2546,8 @@
   (define modname (string->symbol (path-strip-extension (path-strip-directory filename))))
   (define global (lambda (n) (symbol-append 'prog:// modname '? n)))
   (define ial (list (cons 'import (make-location 'import))))
-  (define env (make-controlled-environment ial global root-environment))
+  (define pre (make-sld-environment *root-name-registry*))
+  (define env (make-controlled-environment ial global pre))
   (define ci? #f) ; normal load-like behavior is the default
   (define main-args (cons filename args))
   (call-with-current-input-file filename ;=>

@@ -3,7 +3,7 @@
 # Cheap and fast R7RS Scheme Interpreter
                          
 SKINT is a portable interpreter for the R7RS Scheme programming language. 
-It can be built from five C source files (10K lines of code) with a single command. There is no distributives or packages; 
+It can be built from five C source files (10K lines of code) with a single command. There are no distributives or packages; 
 just compile the source files with your favorite C compiler, link them with the standard C runtime libraries, 
 and you're done. For some platforms, precompiled binaries are available (please see [releases](https://github.com/false-schemers/skint/releases)).
 

@@ -1587,14 +1587,14 @@ char *t_code[] = {
   "current-input-file)[62",
 
   "P", "run-program",
-  "%2,,,,,,#0#1#2#3#4#5${${.(i10),@(y20:path-strip-directory)[01},@(y20:p"
-  "ath-strip-extension)[01}X5.!0.0,&1{%1.0,'(y1:?),:0^,'(y7:prog://),@(y1"
-  "3:symbol-append)[14}.!1'(y6:import)b,'(y6:import)c,l1.!2${@(y16:root-e"
-  "nvironment),.4^,.6^,@(y27:make-controlled-environment)[03}.!3f.!4.7,.7"
-  "c.!5${.5,.8,&2{%1${:0^,@(y12:command-line)[01}${.2,@(y14:read-code-sex"
-  "p)[01},,#0:1,.3,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-"
-  "code-sexp)[01},:0^[11}]1}.!0.0^_1[11},.9,@(y28:call-with-current-input"
-  "-file)[02}t]8",
+  "%2,,,,,,,#0#1#2#3#4#5#6${${.(i11),@(y20:path-strip-directory)[01},@(y2"
+  "0:path-strip-extension)[01}X5.!0.0,&1{%1.0,'(y1:?),:0^,'(y7:prog://),@"
+  "(y13:symbol-append)[14}.!1'(y6:import)b,'(y6:import)c,l1.!2${@(y20:*ro"
+  "ot-name-registry*),@(y20:make-sld-environment)[01}.!3${.5^,.4^,.6^,@(y"
+  "27:make-controlled-environment)[03}.!4f.!5.8,.8c.!6${.6,.9,&2{%1${:0^,"
+  "@(y12:command-line)[01}${.2,@(y14:read-code-sexp)[01},,#0:1,.3,.2,&3{%"
+  "1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]"
+  "1}.!0.0^_1[11},.(i10),@(y28:call-with-current-input-file)[02}t]9",
 
   "P", "repl-evaluate-top-form",
   "%3,,#0#1.!0${.2,&1{%!0.0:!0]1},.6,.6,&2{%0:1,:0,@(y17:evaluate-top-for"
