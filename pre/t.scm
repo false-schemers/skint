@@ -2135,7 +2135,7 @@
     ; these are special forms in skint!
     (define-library) (import)
     ; selected extracts from r7rs-large and srfis
-    (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format 28 48) 
+    (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format 28) 
     (fprintf) (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
     ; skint extras go into repl and (skint) library; the rest goes to (skint hidden)
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
@@ -2712,7 +2712,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.5.0")
+(define *skint-version* "0.5.1")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

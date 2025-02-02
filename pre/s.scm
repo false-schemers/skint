@@ -893,7 +893,8 @@
 
 (define-syntax string-append
   (syntax-rules ()
-    [(_) ""] [(_ x) (%cks x)]
+    [(_) ""] 
+    [(_ x) (string-cat x "")]
     [(_ x y) (string-cat x y)]
     [(_ . r) (%string-append . r)]
     [_ %string-append]))
@@ -1011,7 +1012,8 @@
 
 (define-syntax vector-append
   (syntax-rules ()
-    [(_) '#()] [(_ x) (%ckv x)]
+    [(_) '#()] 
+    [(_ x) (vector-cat x '#())]
     [(_ x y) (vector-cat x y)]
     [(_ . r) (%vector-append . r)]
     [_ %vector-append]))
@@ -2085,10 +2087,12 @@
 (define (fprintf p fs . args)
   (define (hd args)
     (if (pair? args) (car args) (error "format: no argument for ~ directive")))
+  (define (tl args)
+    (if (pair? args) (cdr args) (error "format: not enough arguments for ~ directive")))
   (define (fhd fl)
     (if (pair? fl) (car fl) (error "format: incomplete ~ directive")))
   (define (write-num rx arg p)
-    (if (number? arg) (display (number->string arg rx) p) (write arg p)))
+    (if (number? arg) (display (number->string arg rx) p) (display arg p)))
   (define (memd fl &w &d)
     (let loop ([fl fl] [c (fhd fl)] [&n &w])
       (cond [(char-numeric? c) 
@@ -2104,25 +2108,25 @@
            (when (null? (cdr fl)) (error "format: incomplete escape sequence"))
            (let* ([w -1] [d -1] [fl (memd (cdr fl) (set& w) (set& d))])
              (case (char-downcase (car fl))
-               [(#\*) (lp (cdr fl) (cddr args))] ;+ CL, skips 1 arg
+               [(#\*) (lp (cdr fl) (tl args))] ;+ CL, skips 1 arg
                [(#\~) (write-char #\~ p) (lp (cdr fl) args)]
                [(#\%) (newline p) (lp (cdr fl) args)]
                [(#\t) (write-char #\tab p) (lp (cdr fl) args)]
                [(#\_) (write-char #\space p) (lp (cdr fl) args)]
                [(#\&) ((format-fresh-line) p) (lp (cdr fl) args)]
                [(#\!) (flush-output-port p) (lp (cdr fl) args)] ;+ common
-               [(#\s) (write (hd args) p) (lp (cdr fl) (cdr args))]
-               [(#\a) (display (hd args) p) (lp (cdr fl) (cdr args))]
-               [(#\w) (write-shared (hd args) p) (lp (cdr fl) (cdr args))]
-               [(#\c) (write-char (hd args) p) (lp (cdr fl) (cdr args))]
-               [(#\b) (write-num 2 (hd args) p) (lp (cdr fl) (cdr args))]
-               [(#\o) (write-num 8 (hd args) p) (lp (cdr fl) (cdr args))]
-               [(#\d) (write-num 10 (hd args) p) (lp (cdr fl) (cdr args))]
-               [(#\x) (write-num 16 (hd args) p) (lp (cdr fl) (cdr args))]
+               [(#\s) (write (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\a) (display (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\w) (write-shared (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\c) (write-char (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\b) (write-num 2 (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\o) (write-num 8 (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\d) (write-num 10 (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\x) (write-num 16 (hd args) p) (lp (cdr fl) (tl args))]
                [(#\h) (display (format-help-string) p) (lp (cdr fl) args)]
-               [(#\y) ((format-pretty-print) (hd args) p) (lp (cdr fl) (cdr args))]
-               [(#\f) ((format-fixed-print) (hd args) w d p) (lp (cdr fl) (cdr args))]
-               [(#\? #\k) (lp (string->list (hd args)) (hd (hd args))) (lp (cdr fl) (cddr args))]
+               [(#\y) ((format-pretty-print) (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\f) ((format-fixed-print) (hd args) w d p) (lp (cdr fl) (tl args))]
+               [(#\? #\k) (lp (string->list (hd args)) (hd (tl args))) (lp (cdr fl) (tl (tl args)))]
                [else  (error "format: unrecognized ~ directive" (car fl))]))]
           [else (write-char (car fl) p) (lp (cdr fl) args)])))
 

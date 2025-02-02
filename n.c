@@ -96,129 +96,129 @@ obj* typedref(obj o, int i) {
 
 #ifndef NDEBUG
 long fxneg(long x) { 
-  assert(x != FIXNUM_MIN); 
+  ASSERT(x != FIXNUM_MIN);
   return -x; 
 }
 long fxabs(long x) { 
-  assert(x != FIXNUM_MIN); 
+  ASSERT(x != FIXNUM_MIN);
   return labs(x); 
 }
 long fxadd(long x, long y) { 
   long z = x + y; 
-  assert(z >= FIXNUM_MIN && z <= FIXNUM_MAX); 
+  ASSERT(z >= FIXNUM_MIN && z <= FIXNUM_MAX);
   return z; 
 }
 long fxsub(long x, long y) { 
   long z = x - y; 
-  assert(z >= FIXNUM_MIN && z <= FIXNUM_MAX); 
+  ASSERT(z >= FIXNUM_MIN && z <= FIXNUM_MAX); 
   return z; 
 }
 long fxmul(long x, long y) { 
   double z = (double)x * (double)y;
-  assert(z >= FIXNUM_MIN && z <= FIXNUM_MAX);
+  ASSERT(z >= FIXNUM_MIN && z <= FIXNUM_MAX);
   return x * y; 
 }
 /* exact integer division */
 long fxdiv(long x, long y) { 
-  assert(y); 
-  assert(x != FIXNUM_MIN || y != -1);
-  assert(x % y == 0);
+  ASSERT(y); 
+  ASSERT(x != FIXNUM_MIN || y != -1);
+  ASSERT(x % y == 0);
   return x / y; 
 }
 /* truncated division (common/C99) */
 long fxquo(long x, long y) { 
-  assert(y); assert(x != FIXNUM_MIN || y != -1);
+  ASSERT(y); ASSERT(x != FIXNUM_MIN || y != -1);
   return x / y; 
 }
 long fxrem(long x, long y) { 
-  assert(y);
+  ASSERT(y);
   return x % y; 
 }
 /* floor division */
 long fxmqu(long x, long y) {
-  long q; assert(y); assert(x != FIXNUM_MIN || y != -1);
-  q = x / y;
-  return ((x < 0 && y > 0) || (x > 0 && y < 0)) ? q - 1 : q;
+  long q, r; ASSERT(y); ASSERT(x != FIXNUM_MIN || y != -1);
+  q = x / y, r = x % y;
+  return ((r < 0 && y > 0) || (r > 0 && y < 0)) ? q - 1 : q;
 }
 long fxmlo(long x, long y) {
-  long r; assert(y); r = x % y;
+  long r; ASSERT(y); r = x % y;
   return ((r < 0 && y > 0) || (r > 0 && y < 0)) ? r + y : r;
 }
 /* euclidean division */
 long fxeuq(long x, long y) { 
-  long q, r; assert(y); assert(x != FIXNUM_MIN || y != -1);
+  long q, r; ASSERT(y); ASSERT(x != FIXNUM_MIN || y != -1);
   q = x / y, r = x % y; 
   return (r < 0) ? ((y > 0) ? q - 1 : q + 1) : q;
 }
 long fxeur(long x, long y) {
-  long r; assert(y); r = x % y; 
+  long r; ASSERT(y); r = x % y; 
   return (r < 0) ? ((y > 0) ? r + y : r - y) : r;
 } 
 long fxgcd(long x, long y) {
   long a = labs(x), b = labs(y), c; 
   while (b) c = a%b, a = b, b = c; 
-  assert(a <= FIXNUM_MAX);
+  ASSERT(a <= FIXNUM_MAX);
   return a;
 } 
 long fxasl(long x, long y) {
-  assert(y >= 0 && y < FIXNUM_BIT); 
+  ASSERT(y >= 0 && y < FIXNUM_BIT); 
   return x << y;
 } 
 long fxasr(long x, long y) {
-  assert(y >= 0 && y < FIXNUM_BIT);
-  assert(!y || x >= 0); /* >> of negative x is undefined */ 
+  ASSERT(y >= 0 && y < FIXNUM_BIT);
+  ASSERT(!y || x >= 0); /* >> of negative x is undefined */ 
   return x >> y;
 } 
 long fxflo(double f) {
-  long l = (long)f; assert((double)l == f);
-  assert(l >= FIXNUM_MIN && l <= FIXNUM_MAX);
+  long l = (long)f; ASSERT((double)l == f);
+  ASSERT(l >= FIXNUM_MIN && l <= FIXNUM_MAX);
   return l;
 }
 #endif
 
 long fxpow(long x, long y) { 
-  assert(y >= 0);
+  if (y < 0 || x == 0) return 0;
   retry: if (y == 0) return 1; if (y == 1) return x;
-  if (y % 2 == 1) x *= fxpow(x, y-1); 
-  else { x *= x; y /= 2; assert(FIXNUM_MIN <= x && x <= FIXNUM_MAX); goto retry; }
-  assert(FIXNUM_MIN <= x && x <= FIXNUM_MAX); return x;
+  if (y % 2 == 1) { x *= fxpow(x, y-1); if (!(FIXNUM_MIN <= x && x <= FIXNUM_MAX)) return 0; }
+  else { x *= x; y /= 2; if (!(FIXNUM_MIN <= x && x <= FIXNUM_MAX)) return 0; goto retry; }
+  return (FIXNUM_MIN <= x && x <= FIXNUM_MAX) ? x : 0;
 }
 
 long fxsqrt(long x) { 
-  assert(x >= 0); if (x < 2) return x;
+  if (x < 0) return 0; if (x < 2) return x;
   else { long s = fxsqrt(x >> 2) << 1, l = s + 1; return l*l > x ? s : l; }
 }
 
 int fxifdv(long x, long y, long *pi, double *pd) { 
-  assert(y); assert(x != FIXNUM_MIN || y != -1);
+  ASSERT(y); ASSERT(x != FIXNUM_MIN || y != -1);
   if (x % y == 0) { *pi = x / y; return 1; }
   else { *pd = (double)x / (double)y; return 0; }  
 }
 
 double flquo(double x, double y) {
-  double z; assert(y != 0.0 && flisint(x) && flisint(y));
+  double z; ASSERT(y != 0.0 && flisint(x) && flisint(y));
   modf(x / y,  &z);
   return z;
 }
 
 double flrem(double x, double y) {
-  assert(y != 0.0 && flisint(x) && flisint(y));
+  ASSERT(y != 0.0 && flisint(x) && flisint(y));
   return fmod(x, y);
 }
 
 double flmqu(double x, double y) {
-  assert(y != 0.0 && flisint(x) && flisint(y));
+  ASSERT(y != 0.0 && flisint(x) && flisint(y));
   return floor(x / y);
 }
 
 double flmlo(double x, double y) {
-  assert(y != 0.0 && flisint(x) && flisint(y));
+  ASSERT(y != 0.0 && flisint(x) && flisint(y));
   return x - y * floor(x / y);
 }
 
 double flgcd(double x, double y) {
   double a = fabs(x), b = fabs(y), c; 
-  assert(flisint(a) && flisint(b));
+  ASSERT(flisint(a) && flisint(b));
   while (b > 0.0) c = fmod(a, b), a = b, b = c; 
   return a;
 }
@@ -866,12 +866,22 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (is_fixnum_obj(o)) {
     char buf[30]; sprintf(buf, "%ld", fixnum_from_obj(o)); wrs(buf, e);
   } else if (is_flonum_obj(o)) {
-    char buf[30], *s; double d = flonum_from_obj(o); sprintf(buf, "%.15g", d);
-    for (s = buf; *s != 0; s++) if (strchr(".eE", *s)) break;
-    if (d != d) strcpy(buf, "+nan.0"); else if (d <= -HUGE_VAL) strcpy(buf, "-inf.0");
-    else if (d >= HUGE_VAL) strcpy(buf, "+inf.0"); else if (*s == 'E') *s = 'e'; 
-    else if (*s == 0) { *s++ = '.'; *s++ = '0'; *s = 0; }
-    wrs(buf, e);
+    char buf[30], *s; double d = flonum_from_obj(o); 
+    if (d != d) wrs("+nan.0", e); 
+    else if (d <= -HUGE_VAL) wrs("-inf.0", e);
+    else if (d >= HUGE_VAL) wrs("+inf.0", e);
+    else { sprintf(buf, "%.16g", d);
+      for (s = buf; *s != 0; ++s) { if (strchr(".e", *s)) break; }
+      if (*s == '.' || *s == 'e') {
+        if (*s == '.') s = strchr(s+1, 'e'); 
+        if (s) { /* remove + and leading 0s from expt */
+          char *t = ++s; if (*s == '-') ++s, ++t; 
+          while (*s == '+' || (*s == '0' && s[1])) ++s;
+          while (*s) *t++ = *s++; *t = 0; 
+        }
+      } else if (*s == 0) { *s++ = '.'; *s++ = '0'; *s = 0; }
+      wrs(buf, e);
+    }
   } else if (iseof(o)) {
     wrs("#<eof>", e);
   } else if (isvoid(o)) {

@@ -174,6 +174,7 @@ typedef int bool_t;
 #define FIXNUM_BIT 30
 #define FIXNUM_MIN -536870912
 #define FIXNUM_MAX 536870911
+#define ASSERT(x) (void)(0)
 #ifdef NDEBUG
 #define fxneg(x) (-(x))
 #define fxabs(x) (labs(x))
@@ -187,7 +188,7 @@ typedef int bool_t;
 #define fxrem(x, y) ((x) % (y))
 /* floor division */
 static long fxmqu(long x, long y) {
-  long q = x / y; return ((x < 0 && y > 0) || (x > 0 && y < 0)) ? q - 1 : q;
+  long q = x / y, r = x % y; return ((r < 0 && y > 0) || (r > 0 && y < 0)) ? q - 1 : q;
 }
 static long fxmlo(long x, long y) {
   long r = x % y; return ((r < 0 && y > 0) || (r > 0 && y < 0)) ? r + y : r;
@@ -225,7 +226,9 @@ extern long fxasr(long x, long y);
 extern long fxflo(double f);
 #endif
 static int flisint(double f) { return f > -HUGE_VAL && f < HUGE_VAL && f == floor(f); }
+/* returns 0 if result is not representable as a fixnum */
 extern long fxpow(long x, long y);
+/* returns 0 if result is not representable as a fixnum */
 extern long fxsqrt(long x);
 extern int fxifdv(long x, long y, long *pi, double *pd);
 extern double flquo(double x, double y);

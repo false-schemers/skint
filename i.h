@@ -452,7 +452,7 @@ declare_instruction(stoi,       "X7\0'(i10)",   0,  "string->fixnum",           
 declare_instruction(ctoi,       "X8",           0,  "char->integer",            '1', AUTOGL)
 declare_instruction(itoc,       "X9",           0,  "integer->char",            '1', AUTOGL)
 declare_instruction(ltob,       "E1",           0,  "list->bytevector",         '1', AUTOGL)
-declare_instruction(jtos,       "E6",           0,  "flonum->string",           '1', AUTOGL)
+declare_instruction(jtos,       "E6\0f",        0,  "flonum->string",           'b', AUTOGL)
 declare_instruction(stoj,       "E7",           0,  "string->flonum",           '1', AUTOGL)
 declare_instruction(ntos,       "E8\0'(i10)",   0,  "number->string",           'b', AUTOGL)
 declare_instruction(ston,       "E9\0'(i10)",   0,  "string->number",           'b', AUTOGL)

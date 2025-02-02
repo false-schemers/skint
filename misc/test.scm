@@ -58,7 +58,7 @@
   (display " out of ")
   (write *tests-run*)
   (display " passed (")
-  (write (* (/ *tests-passed* *tests-run*) 100))
+  (write (/ (floor (* (/ *tests-passed* *tests-run*) 10000)) 100))
   (display "%)")
   (newline))
 
@@ -1482,7 +1482,7 @@
 ;(test #i1/3 (rationalize .3 1/10))
 
 (test 1.0 (inexact (exp 0))) ;; may return exact number
-(test~= 20.0855369231877 (exp 3))
+(test~= 20.08553692318767 (exp 3))
 
 (test 0.0 (inexact (log 1))) ;; may return exact number
 (test 1.0 (log (exp 1)))
@@ -1495,33 +1495,33 @@
 (test 1.0 (inexact (cos 0))) ;; may return exact number
 (test -1.0 (cos 3.14159265358979))
 (test 0.0 (inexact (tan 0))) ;; may return exact number
-(test~= 1.5574077246549 (tan 1))
+(test~= 1.557407724654902 (tan 1))
 
 (test 0.0 (inexact (asin 0))) ;; may return exact number
-(test~= 1.5707963267949 (asin 1))
+(test~= 1.570796326794897 (asin 1))
 (test 0.0 (inexact (acos 1))) ;; may return exact number
-(test~= 3.14159265358979 (acos -1))
+(test~= 3.141592653589793 (acos -1))
 
 ;; (test 0.0-0.0i (asin 0+0.0i))
 ;; (test 1.5707963267948966+0.0i (acos 0+0.0i))
 
 (test 0.0 (atan 0.0 1.0))
 (test -0.0 (atan -0.0 1.0))
-(test~= 0.785398163397448 (atan 1.0 1.0))
-(test~= 1.5707963267949 (atan 1.0 0.0))
-(test~= 2.35619449019234 (atan 1.0 -1.0))
-(test~= 3.14159265358979 (atan 0.0 -1.0))
-(test~= -3.14159265358979 (atan -0.0 -1.0)) ;
-(test~= -2.35619449019234 (atan -1.0 -1.0))
-(test~= -1.5707963267949 (atan -1.0 0.0))
-(test~= -0.785398163397448 (atan -1.0 1.0))
+(test~= 0.7853981633974483 (atan 1.0 1.0))
+(test~= 1.570796326794897 (atan 1.0 0.0))
+(test~= 2.356194490192345 (atan 1.0 -1.0))
+(test~= 3.141592653589793 (atan 0.0 -1.0))
+(test~= -3.141592653589793 (atan -0.0 -1.0)) ;
+(test~= -2.356194490192345 (atan -1.0 -1.0))
+(test~= -1.570796326794897 (atan -1.0 0.0))
+(test~= -0.7853981633974483 (atan -1.0 1.0))
 ;; (test undefined (atan 0.0 0.0))
 
 (test 1764 (square 42))
 (test 4 (square 2))
 
 (test 3.0 (inexact (sqrt 9)))
-(test~= 1.4142135623731 (sqrt 2))
+(test~= 1.414213562373095 (sqrt 2))
 ;(test 0.0+1.0i (inexact (sqrt -1)))
 
 (test '(0 0) (call-with-values (lambda () (exact-integer-sqrt 0)) list))
@@ -3077,6 +3077,28 @@
      '("#()" "#(a)" "#(19 21 c)"))
 
 ;; Skint extras
+
+(define s "foo")
+(define v #(foo))
+(test #f (eq? (string-append s) s))
+(test #f (eq? (vector-append v) v))
+
+; expt should overflow
+(test 1 (expt 0 0))
+(test 0.1 (expt 10 -1))
+(test 0.0009765625 (expt 2 -10))
+(test -32768 (expt -2 15))
+(test -536870912 (expt -2 29))
+(test 536870912.0 (expt 2 29))
+(test 6.80564733841877e+038 (expt 2 129))
+
+; fixnum ops shouldn't fail on overflow, but may return whatever
+(test #t (fixnum? (fx- -536870912 1)))
+(test #t (fixnum? (fx* -536870912 -1)))
+(test #t (fixnum? (fx* 536870911 536870911)))
+
+; floor division
+
 
 ; _ and ... as literals:
 (define-syntax test-specials (syntax-rules (_ ...) ((_ _ ...) '(_ ...)) ((_ x y) (vector x y))))

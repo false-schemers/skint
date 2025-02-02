@@ -1681,12 +1681,25 @@ define_instruction(itoc) {
 }
 
 define_instruction(jtos) {
-  char buf[30], *s; double d; ckj(ac);
-  d = get_flonum(ac); sprintf(buf, "%.15g", d);
-  for (s = buf; *s != 0; s++) if (strchr(".eE", *s)) break;
-  if (d != d) strcpy(buf, "+nan.0"); else if (d <= -HUGE_VAL) strcpy(buf, "-inf.0");
-  else if (d >= HUGE_VAL) strcpy(buf, "+inf.0"); else if (*s == 'E') *s = 'e'; 
-  else if (*s == 0) {  *s++ = '.'; *s++ = '0'; *s = 0; }
+  char buf[50], *s; double d; long pr = -1; 
+  obj arg = spop(); ckj(ac); d = get_flonum(ac);
+  if (d != d) { ac = string_obj(newstring("+nan.0")); gonexti(); }
+  if (d <= -HUGE_VAL) { ac = string_obj(newstring("-inf.0")); gonexti(); }
+  if (d >= HUGE_VAL) { ac = string_obj(newstring("+inf.0")); gonexti(); }
+  /* since double can't hold more than 17 decimal digits, limit fixed representation length */
+  if (is_fixnum(arg) && fabs(d) <= 9007199254740992.0 && (pr = get_fixnum(arg)) >= 0 && pr < 18) 
+    sprintf(buf, "%.*f", (int)pr, d); else sprintf(buf, "%.16g", d);
+  for (s = buf; *s != 0; ++s) { if (strchr(".e", *s)) break; }
+  if (*s == '.' || *s == 'e') {
+    if (*s == '.') s = strchr(s+1, 'e'); 
+    if (s) { /* remove + and leading 0s from expt */
+      char *t = ++s; if (*s == '-') ++s, ++t; 
+      while (*s == '+' || (*s == '0' && s[1])) ++s;
+      while (*s) *t++ = *s++; *t = 0; 
+    }
+  } else if (*s == 0 && pr <= 0) { 
+    *s++ = '.'; if (pr < 0) *s++ = '0'; *s = 0; 
+  }
   ac = string_obj(newstring(buf));
   gonexti();
 }
@@ -1706,6 +1719,7 @@ define_instruction(stoj) {
 define_instruction(ntos) {
   if (is_fixnum(ac)) goi(itos);
   if (unlikely(spop() != fixnum_obj(10))) fail("non-10 radix in flonum conversion");
+  spush(0); /* #f: use default precision */
   goi(jtos);
 }
 
@@ -1861,13 +1875,15 @@ define_instruction(igcd) {
 }
 
 define_instruction(ipow) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ac = fixnum_obj(fxpow(get_fixnum(x), get_fixnum(y)));
+  obj x = ac, y = spop(); long ly; cki(x); cki(y);
+  ly = get_fixnum(y); if (ly < 0) fail("negative power");
+  ac = fixnum_obj(fxpow(get_fixnum(x), ly)); /* can overflow */
   gonexti();
 }
 
 define_instruction(isqrt) {
-  cki(ac); /* TODO: check for negative */
+  obj x = ac; cki(x); /* TODO: check for negative */
+  if (x < 0) fail("square root of a negative fixnum");
   ac = fixnum_obj(fxsqrt(get_fixnum(ac)));
   gonexti();
 }
@@ -2564,8 +2580,11 @@ define_instruction(gcd) {
 define_instruction(pow) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
-    /* fixme: this will either overflow, or fail on negative y */
-    ac = fixnum_obj(fxpow(get_fixnum(x), get_fixnum(y)));
+    /* if fxpow fails or overflows, it returns 0 */
+    long fx = get_fixnum(x), fy = get_fixnum(y), fz;
+    if (unlikely(fx == 0 && fy < 0)) fail("division by zero");
+    fz = ((fx | fy)) ? fxpow(fx, fy) : 1; /* 0^0 == 1! */
+    ac = (!fz && fx) ? flonum_obj(pow((double)fx, (double)fy)) : fixnum_obj(fz);
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -3519,8 +3538,16 @@ define_instruction(vmclo) {
 
 define_instruction(hshim) {
   unsigned long long v = (unsigned long long)ac, base = 0; obj b = spop(); 
-  if (v && isaptr(v)) { ac = fixnum_obj(0); gonexti(); }
   if (b) { ckk(b); base = get_fixnum(b); } 
+  if (ac && isaptr(ac)) {
+#ifdef FLONUMS_BOXED
+    if (is_flonum_obj(ac)) {
+      union { unsigned long long ull; double d; } u;
+      u.d = flonum_from_obj(ac); v = u.ull;
+    } else
+#endif
+    { ac = fixnum_obj(0); gonexti(); }
+  }
   if (!base) base = 1 + (unsigned long long)FIXNUM_MAX;
   ac = fixnum_obj((fixnum_t)(v % base));
   gonexti();
