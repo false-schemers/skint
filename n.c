@@ -161,11 +161,11 @@ long fxgcd(long x, long y) {
   return a;
 } 
 long fxasl(long x, long y) {
-  ASSERT(y >= 0 && y < FIXNUM_BIT); 
+  ASSERT(y >= 0 && y < FIXNUM_WIDTH); 
   return x << y;
 } 
 long fxasr(long x, long y) {
-  ASSERT(y >= 0 && y < FIXNUM_BIT);
+  ASSERT(y >= 0 && y < FIXNUM_WIDTH);
   ASSERT(!y || x >= 0); /* >> of negative x is undefined */ 
   return x >> y;
 } 
@@ -175,6 +175,27 @@ long fxflo(double f) {
   return l;
 }
 #endif
+
+long fxaddc(long x, long y, long *pc) { 
+  long long z = (long long)x + (long long)y + (long long)*pc;
+  long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
+  if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
+  return zq;
+}
+
+long fxsubc(long x, long y, long *pc) { 
+  long long z = (long long)x - (long long)y - (long long)*pc;
+  long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
+  if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
+  return zq;
+}
+
+long fxmulc(long x, long y, long *pc) { 
+  long long z = (long long)x * (long long)y + (long long)*pc;
+  long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
+  if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
+  return zq;
+}
 
 long fxpow(long x, long y) { 
   if (y < 0 || x == 0) return 0;

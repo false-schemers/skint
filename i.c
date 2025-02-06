@@ -1882,9 +1882,10 @@ define_instruction(ipow) {
 }
 
 define_instruction(isqrt) {
-  obj x = ac; cki(x); /* TODO: check for negative */
-  if (x < 0) fail("square root of a negative fixnum");
-  ac = fixnum_obj(fxsqrt(get_fixnum(ac)));
+  obj x = ac, b = spop(); long lx, lr; cki(x);
+  lx = get_fixnum(ac); if (lx < 0) fail("square root of a negative fixnum");
+  lr = fxsqrt(lx); ac = fixnum_obj(lr);
+  if (b) { ckz(b); box_ref(b) = fixnum_obj(lx-lr*lr); }
   gonexti();
 }
 
@@ -1921,6 +1922,36 @@ define_instruction(iasl) {
 define_instruction(iasr) {
   obj x = ac, y = spop(); cki(x); cki(y);
   ac = fixnum_obj(fxasr(get_fixnum(x), get_fixnum(y)));
+  gonexti();
+}
+
+define_instruction(ilsr) {
+  obj x = ac, y = spop(); unsigned long mask = FIXNUM_MASK; cki(x); cki(y);
+  ac = fixnum_obj((((unsigned long)get_fixnum(x)) & mask) >> (unsigned long)get_fixnum(y));
+  gonexti();
+}
+
+define_instruction(iaddc) {
+  obj x = ac, y = spop(), b = spop(), c; long quo, rem; 
+  cki(x); cki(y); ckz(b); c = box_ref(b); cki(c); 
+  rem = get_fixnum(c), quo = fxaddc(get_fixnum(x), get_fixnum(y), &rem);
+  ac = fixnum_obj(quo), box_ref(b) = fixnum_obj(rem);
+  gonexti();
+}
+
+define_instruction(isubc) {
+  obj x = ac, y = spop(), b = spop(), c; long quo, rem; 
+  cki(x); cki(y); ckz(b); c = box_ref(b); cki(c); 
+  rem = get_fixnum(c), quo = fxsubc(get_fixnum(x), get_fixnum(y), &rem);
+  ac = fixnum_obj(quo), box_ref(b) = fixnum_obj(rem);
+  gonexti();
+}
+
+define_instruction(imulc) {
+  obj x = ac, y = spop(), b = spop(), c; long quo, rem; 
+  cki(x); cki(y); ckz(b); c = box_ref(b); cki(c); 
+  rem = get_fixnum(c), quo = fxmulc(get_fixnum(x), get_fixnum(y), &rem);
+  ac = fixnum_obj(quo), box_ref(b) = fixnum_obj(rem);
   gonexti();
 }
 

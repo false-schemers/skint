@@ -268,15 +268,15 @@ char *s_code[] = {
   "%1.0,.1*]1",
 
   "P", "exact-integer-sqrt",
-  "%1.0It,.0,.1*,.2-,.1,@(y6:values)[22",
+  "%1'0,#0.0,.2It,.1^,.1,@(y6:values)[32",
 
   "P", "make-rectangular",
   "%2'0,.2=?{.0]2}.1,'(s49:make-rectangular: nonzero imag part not suppor"
   "ted),@(y5:error)[22",
 
   "P", "make-polar",
-  "%2'0,.2=?{.0]2}'(j3.14159265358979),.2=?{.0-!]2}.1,'(s31:make-polar: a"
-  "ngle not supported),@(y5:error)[22",
+  "%2'0,.2=?{.0]2}'(j3.141592653589793),.2=?{.0-!]2}.1,'(s31:make-polar: "
+  "angle not supported),@(y5:error)[22",
 
   "P", "real-part",
   "%1.0]1",
@@ -288,7 +288,7 @@ char *s_code[] = {
   "%1.0Na]1",
 
   "P", "angle",
-  "%1.0<0?{'(j3.14159265358979)]1}'0]1",
+  "%1.0<0?{'(j3.141592653589793)]1}'0]1",
 
   "P", "%append",
   "%!0.0,,#0.0,&1{%1.0u?{n]1}.0du?{.0a]1}${.2d,:0^[01},.1aL6]1}.!0.0^_1[1"

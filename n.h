@@ -171,7 +171,9 @@ typedef int bool_t;
 /* unit */
 #define obj_from_unit() (obj_from_size(0x6DF6F577))
 /* numbers */
-#define FIXNUM_BIT 30
+#define FIXNUM_WIDTH 30
+#define FIXNUM_MASK 0x3FFFFFFF
+#define FIXNUM_SIGN 0x20000000
 #define FIXNUM_MIN -536870912
 #define FIXNUM_MAX 536870911
 #define ASSERT(x) (void)(0)
@@ -225,6 +227,9 @@ extern long fxasl(long x, long y);
 extern long fxasr(long x, long y);
 extern long fxflo(double f);
 #endif
+extern long fxaddc(long x, long y, long *pc);
+extern long fxsubc(long x, long y, long *pc);
+extern long fxmulc(long x, long y, long *pc);
 static int flisint(double f) { return f > -HUGE_VAL && f < HUGE_VAL && f == floor(f); }
 /* returns 0 if result is not representable as a fixnum */
 extern long fxpow(long x, long y);

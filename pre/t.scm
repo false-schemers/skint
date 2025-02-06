@@ -2141,10 +2141,11 @@
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
     (record?) (make-record) (record-length) (record-ref) (record-set!) (expand)
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
-    (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg)
-    (fxabs) (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
-    (fxexpt) (fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsrl) (fixnum->flonum) (fixnum->string)
-    (string->fixnum) (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
+    (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg) (fxabs) 
+    (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
+    (fxexpt) (%fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsra) (fxsrl) 
+    (fxaddc) (fxsubc) (fxmulc) (fixnum->flonum) (fixnum->string) (string->fixnum) 
+    (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
     (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
     (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
@@ -2712,7 +2713,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.5.1")
+(define *skint-version* "0.5.2")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

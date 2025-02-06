@@ -224,7 +224,9 @@ obj* typedref(obj o, int i) {
 ; ASSERTs, but those are for documentation only 
 
 (%definition "/* numbers */")
-(%definition "#define FIXNUM_BIT 30")
+(%definition "#define FIXNUM_WIDTH 30")
+(%definition "#define FIXNUM_MASK 0x3FFFFFFF")
+(%definition "#define FIXNUM_SIGN 0x20000000")
 (%definition "#define FIXNUM_MIN -536870912")
 (%definition "#define FIXNUM_MAX 536870911")
 (%definition "#define ASSERT(x) (void)(0)")
@@ -346,11 +348,11 @@ long fxgcd(long x, long y) {
   return a;
 } 
 long fxasl(long x, long y) {
-  ASSERT(y >= 0 && y < FIXNUM_BIT); 
+  ASSERT(y >= 0 && y < FIXNUM_WIDTH); 
   return x << y;
 } 
 long fxasr(long x, long y) {
-  ASSERT(y >= 0 && y < FIXNUM_BIT);
+  ASSERT(y >= 0 && y < FIXNUM_WIDTH);
   ASSERT(!y || x >= 0); /* >> of negative x is undefined */ 
   return x >> y;
 } 
@@ -360,6 +362,30 @@ long fxflo(double f) {
   return l;
 }
 #endif")
+
+(%definition "extern long fxaddc(long x, long y, long *pc);")
+(%localdef "long fxaddc(long x, long y, long *pc) { 
+  long long z = (long long)x + (long long)y + (long long)*pc;
+  long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
+  if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
+  return zq;
+}")
+
+(%definition "extern long fxsubc(long x, long y, long *pc);")
+(%localdef "long fxsubc(long x, long y, long *pc) { 
+  long long z = (long long)x - (long long)y - (long long)*pc;
+  long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
+  if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
+  return zq;
+}")
+
+(%definition "extern long fxmulc(long x, long y, long *pc);")
+(%localdef "long fxmulc(long x, long y, long *pc) { 
+  long long z = (long long)x * (long long)y + (long long)*pc;
+  long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
+  if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
+  return zq;
+}")
 
 (%definition "static int flisint(double f) { return f > -HUGE_VAL && f < HUGE_VAL && f == floor(f); }")
 
