@@ -2149,13 +2149,14 @@
     (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
     (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
-    (flmax) (flremainder) (flmodulo) (flquotient) (flmodquo) (flonum->fixnum) (flonum->string) 
+    (flmax) (flremainder) (flmodulo) (flquotient) (flmodquo) (flonum->fixnum) (flonum->string)
+    (flldexp) (flmodf) (flfrexp) (flsinh) (flcosh) (fltanh) (fllog10) 
     (string->flonum) (list-cat) (last-pair) (list-head) (meme) (asse) (memp) (assp) (reverse!) 
     (circular?) (cons*) (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) 
     (string-cmp) (string-ci-cmp) (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) 
     (subbytevector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
-    (void) (void?) (implementation-name) (implementation-version)
+    (path-separator) (void) (void?) (implementation-name) (implementation-version)
     ; (repl hidden) library entries below the auto-adder need to be added explicitly 
     (*user-name-registry* . hidden) (make-readonly-environment . hidden) 
     (make-controlled-environment . hidden) (make-sld-environment . hidden) 
@@ -2713,10 +2714,12 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.5.2")
+(define *skint-version* "0.5.3")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
+
+(set! *features* (cons (string->symbol (string-append "skint-" *skint-version*)) *features*)) 
 
 (define (skint-main)
   ; see if command line asks for special processing

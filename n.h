@@ -504,3 +504,12 @@ extern obj isassoc(obj x, obj l);
 extern void oportputsimple(obj x, obj p, int disp);
 extern void oportputcircular(obj x, obj p, int disp);
 extern void oportputshared(obj x, obj p, int disp);
+/* detecting C99 math library */
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+#define C99_MATH_LIB
+#elif defined(_MSC_VER) && _MSC_VER >= 1900
+#define C99_MATH_LIB
+#endif
+#if defined(C99_MATH_LIB) && defined(NOC99MATH)
+#undef C99_MATH_LIB
+#endif

@@ -313,6 +313,15 @@ declare_instruction(jtan,       "J5",           0,  "fltan",                    
 declare_instruction(jasin,      "J6",           0,  "flasin",                   '1', AUTOGL)
 declare_instruction(jacos,      "J7",           0,  "flacos",                   '1', AUTOGL)
 declare_instruction(jatan,      "J8\0f",        0,  "flatan",                   'b', AUTOGL)
+declare_instruction(jldexp,     "M0",           0,  "flldexp",                  '2', AUTOGL)
+declare_instruction(jmodf,      "M1",           0,  "flmodf",                   '2', AUTOGL)
+declare_instruction(jfrexp,     "M2",           0,  "flfrexp",                  '2', AUTOGL)
+declare_instruction(jsinh,      "M3",           0,  "flsinh",                   '1', AUTOGL)
+declare_instruction(jcosh,      "M4",           0,  "flcosh",                   '1', AUTOGL)
+declare_instruction(jtanh,      "M5",           0,  "fltanh",                   '1', AUTOGL)
+declare_instruction(jlog10,     "M6",           0,  "fllog10",                  '1', AUTOGL)
+#ifdef C99_MATH_LIB
+#endif
 declare_instruction(zerop,      "=0",           0,  "zero?",                    '1', AUTOGL)
 declare_instruction(posp,       ">0",           0,  "positive?",                '1', AUTOGL)
 declare_instruction(negp,       "<0",           0,  "negative?",                '1', AUTOGL)
@@ -534,7 +543,7 @@ declare_instruction(gc,         "Zg",           0,  "%gc",                      
 declare_instruction(gccnt,      "Zc",           0,  "%gc-count",                '0', AUTOGL)
 declare_instruction(bumpcnt,    "Zb",           0,  "%bump-count",              '0', AUTOGL)
 declare_instruction(heapsz,     "Zh",           0,  "%heap-size",               '0', AUTOGL)
-declare_instruction(dirsep,     "Zs",           0,  "directory-separator",      '0', AUTOGL)
+declare_instruction(hostsig,    "Zs",           0,  "%host-sig",                '0', AUTOGL)
 
 /* serialization, deserialization, compilation-related instructions */             
 declare_instruction(igp,        "U0",           0,  "integrable?",              '1', AUTOGL)

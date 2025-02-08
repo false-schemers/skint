@@ -1042,6 +1042,27 @@ char *s_code[] = {
   "{|10|21|32|43%%}@!(y16:write-bytevector)",
 
   "C", 0,
+  "Zs@!(y10:*host-sig*)",
+
+  "P", "directory-separator",
+  "%0'6,@(y10:*host-sig*)S4]0",
+
+  "P", "path-separator",
+  "%0'7,@(y10:*host-sig*)S4]0",
+
+  "C", 0,
+  "'8,@(y10:*host-sig*)S4,'(c9),.1v?{'(y18:c99-math-available)}{f}_1@!(y1"
+  "8:c99-math-available)",
+
+  "C", 0,
+  "'0,@(y10:*host-sig*)S4,'(cw),.1v?{'(y7:windows)}{'(cm),.1v?{'(y6:macos"
+  "x)}{'(cu),.1v?{'(y4:unix)}{f}}}_1@!(y13:skint-host-os)",
+
+  "C", 0,
+  "'4,@(y10:*host-sig*)S4,'(cl),.1v?{'(y13:little-endian)}{'(cb),.1v?{'(y"
+  "10:big-endian)}{f}}_1@!(y21:skint-host-endianness)",
+
+  "C", 0,
   "&0{%2.1?{.0,@(y17:current-directory)[21}.0]2}%x,&0{%1.0F9,.0?{.0]2}.1,"
   "'(s26:cannot change directory to),@(y5:error)[22}%x,&0{%0F8]0}%x,&3{|0"
   "0|11|22%%}@!(y17:current-directory)",
@@ -1054,7 +1075,22 @@ char *s_code[] = {
   "-line)",
 
   "C", 0,
-  "@(y11:skint-1.0.0),@(y5:skint),@(y4:r7rs),l3@!(y10:*features*)",
+  "@(y5:skint),@(y4:r7rs),l2@!(y10:*features*)",
+
+  "C", 0,
+  "@(y13:skint-host-os)?{@(y10:*features*),@(y13:skint-host-os)c@!(y10:*f"
+  "eatures*)}",
+
+  "C", 0,
+  "@(y21:skint-host-endianness)?{@(y10:*features*),@(y21:skint-host-endia"
+  "nness)c@!(y10:*features*)}",
+
+  "C", 0,
+  "@(y18:c99-math-available)?{@(y10:*features*),@(y18:c99-math-available)"
+  "c@!(y10:*features*)}",
+
+  "C", 0,
+  "@(y10:*features*)A8@!(y10:*features*)",
 
   "C", 0,
   "&0{%2.1?{.0,@(y8:features)[21}.0]2}%x,&0{%1.0L0?{.0@!(y10:*features*)]"

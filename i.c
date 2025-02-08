@@ -2272,6 +2272,51 @@ define_instruction(jatan) {
   gonexti(); 
 }
 
+define_instruction(jldexp) {
+  obj x = ac, y = spop(); ckj(x); cki(y);
+  ac = flonum_obj(ldexp(get_flonum(x), (int)get_fixnum(y)));
+  gonexti(); 
+}
+
+define_instruction(jmodf) {
+  obj x = ac, b = spop(); double di = 0.0; ckj(x); ckz(b);  
+  ac = flonum_obj(modf(get_flonum(x), &di));
+  box_ref(b) = flonum_obj(di);
+  gonexti(); 
+}
+
+define_instruction(jfrexp) {
+  obj x = ac, b = spop(); int fi = 0; ckj(x); ckz(b);
+  ac = flonum_obj(frexp(get_flonum(ac), &fi));
+  box_ref(b) = fixnum_obj(fi);
+  gonexti(); 
+}
+
+
+define_instruction(jsinh) {
+  ckj(ac);
+  ac = flonum_obj(sinh(get_flonum(ac)));
+  gonexti(); 
+}
+
+define_instruction(jcosh) {
+  ckj(ac);
+  ac = flonum_obj(cosh(get_flonum(ac)));
+  gonexti(); 
+}
+
+define_instruction(jtanh) {
+  ckj(ac);
+  ac = flonum_obj(tanh(get_flonum(ac)));
+  gonexti(); 
+}
+
+define_instruction(jlog10) {
+  ckj(ac);
+  ac = flonum_obj(log10(get_flonum(ac)));
+  gonexti(); 
+}
+
 
 define_instruction(zerop) {
   obj x = ac;
@@ -2887,8 +2932,11 @@ define_instruction(oddp) {
 }
 
 define_instruction(ntoi) {
-  if (likely(is_flonum(ac))) ac = fixnum_obj(fxflo(get_flonum(ac)));
-  else if (likely(is_fixnum(ac))) /* keep ac as-is */ ;
+  if (likely(is_flonum(ac))) {
+    double d = get_flonum(ac); long l;
+    if (flisint(d) && (l = fxflo(d)) >= FIXNUM_MIN && l <= FIXNUM_MAX) ac = fixnum_obj(l);
+    else failactype("flonum integer in fixnum range");  
+  } else if (likely(is_fixnum(ac))) /* keep ac as-is */ ;
   else failactype("number");
   gonexti(); 
 }
@@ -4060,9 +4108,9 @@ define_instruction(heapsz) {
   gonexti();
 }
 
-define_instruction(dirsep) {
-  extern int dirsep;
-  ac = char_obj(dirsep); 
+define_instruction(hostsig) {
+  extern char* host_sig(void);
+  ac = string_obj(newstring(host_sig())); 
   gonexti();
 }
 

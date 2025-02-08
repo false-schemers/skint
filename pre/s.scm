@@ -2015,10 +2015,19 @@
 ; (current-jiffy)
 ; (jiffies-per-second)
 ; (%system s) +
+; (%host-sig) +
 
 ; defined in t.scm:
 ;
 ; (load s (env (interaction-environment))) 
+
+(define *host-sig* (%host-sig))
+
+(define (directory-separator) (string-ref *host-sig* 6))
+(define (path-separator) (string-ref *host-sig* 7))
+(define c99-math-available (case (string-ref *host-sig* 8) [(#\9) 'c99-math-available] [else #f]))
+(define skint-host-os (case (string-ref *host-sig* 0) [(#\w) 'windows] [(#\m) 'macosx] [(#\u) 'unix] [else #f]))
+(define skint-host-endianness (case (string-ref *host-sig* 4) [(#\l) 'little-endian] [(#\b) 'big-endian] [else #f]))
 
 (define current-directory
   (case-lambda 
@@ -2035,7 +2044,11 @@
 
 (define command-line (make-parameter (%command-line))) ; can be changed later in (main)
 
-(define *features* (list r7rs skint skint-1.0.0))
+(define *features* (list r7rs skint))
+(if skint-host-os (set! *features* (cons skint-host-os *features*)))
+(if skint-host-endianness (set! *features* (cons skint-host-endianness *features*)))
+(if c99-math-available (set! *features* (cons c99-math-available *features*)))
+(set! *features* (reverse *features*))
 
 (define features
   (case-lambda 

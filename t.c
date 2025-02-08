@@ -1186,7 +1186,7 @@ char *t_code[] = {
   "0:*root-name-registry*),@(y11:name-lookup)[03}",
 
   "C", 0,
-  "${'(l514:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
+  "${'(l522:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
   "3:...;y1:v;y1:u;y1:b;;l3:y1:/;y1:v;y1:b;;l3:y1:<;y1:v;y1:b;;l3:y2:<=;y"
   "1:v;y1:b;;l3:y1:=;y1:v;y1:b;;l4:y2:=>;y1:v;y1:u;y1:b;;l3:y1:>;y1:v;y1:"
   "b;;l3:y2:>=;y1:v;y1:b;;l2:y1:_;y1:b;;l3:y3:abs;y1:v;y1:b;;l4:y3:and;y1"
@@ -1341,47 +1341,49 @@ char *t_code[] = {
   ";;l1:y6:flatan;;l1:y4:fl<?;;l1:y5:fl<=?;;l1:y4:fl>?;;l1:y5:fl>=?;;l1:y"
   "4:fl=?;;l1:y5:fl!=?;;l1:y5:flmin;;l1:y5:flmax;;l1:y11:flremainder;;l1:"
   "y8:flmodulo;;l1:y10:flquotient;;l1:y8:flmodquo;;l1:y14:flonum->fixnum;"
-  ";l1:y14:flonum->string;;l1:y14:string->flonum;;l1:y8:list-cat;;l1:y9:l"
-  "ast-pair;;l1:y9:list-head;;l1:y4:meme;;l1:y4:asse;;l1:y4:memp;;l1:y4:a"
-  "ssp;;l1:y8:reverse!;;l1:y9:circular?;;l1:y5:cons*;;l1:y5:list*;;l1:y8:"
-  "char-cmp;;l1:y11:char-ci-cmp;;l1:y10:string-cat;;l1:y15:string-positio"
-  "n;;l1:y10:string-cmp;;l1:y13:string-ci-cmp;;l1:y10:vector-cat;;l1:y12:"
-  "bytevector=?;;l1:y16:bytevector->list;;l1:y16:list->bytevector;;l1:y13"
-  ":subbytevector;;l1:y19:standard-input-port;;l1:y20:standard-output-por"
-  "t;;l1:y19:standard-error-port;;l1:y9:tty-port?;;l1:y15:port-fold-case?"
-  ";;l1:y19:set-port-fold-case!;;l1:y11:rename-file;;l1:y17:current-direc"
-  "tory;;l1:y19:directory-separator;;l1:y4:void;;l1:y5:void?;;l1:y19:impl"
-  "ementation-name;;l1:y22:implementation-version;;py20:*user-name-regist"
-  "ry*;y6:hidden;;py25:make-readonly-environment;y6:hidden;;py27:make-con"
-  "trolled-environment;y6:hidden;;py20:make-sld-environment;y6:hidden;;py"
-  "21:make-repl-environment;y6:hidden;;py19:find-library-in-env;y6:hidden"
-  ";;py16:root-environment;y6:hidden;;py16:repl-environment;y6:hidden;;py"
-  "17:empty-environment;y6:hidden;;py32:make-historic-report-environment;"
-  "y6:hidden;;py16:r5rs-environment;y6:hidden;;py21:r5rs-null-environment"
-  ";y6:hidden;;py9:*verbose*;y6:hidden;;py7:*quiet*;y6:hidden;;py25:compi"
-  "le-and-run-core-expr;y6:hidden;;py17:evaluate-top-form;y6:hidden;;py10"
-  ":run-script;y6:hidden;;py11:run-program;y6:hidden;;py22:repl-evaluate-"
-  "top-form;y6:hidden;;py9:repl-read;y6:hidden;;py17:repl-exec-command;y6"
-  ":hidden;;py14:repl-from-port;y6:hidden;;py13:run-benchmark;y6:hidden;;"
-  "py4:repl;y6:hidden;;),&0{%1,,,,#0#1#2#3&0{%1.0,'(y1:w),.1v?{'(l2:y6:sc"
-  "heme;y5:write;)]2}'(y1:t),.1v?{'(l2:y6:scheme;y4:time;)]2}'(y1:p),.1v?"
-  "{'(l2:y6:scheme;y4:repl;)]2}'(y1:r),.1v?{'(l2:y6:scheme;y4:read;)]2}'("
-  "y1:v),.1v?{'(l2:y6:scheme;y4:r5rs;)]2}'(y1:u),.1v?{'(l2:y6:scheme;y9:r"
-  "5rs-null;)]2}'(y1:d),.1v?{'(l2:y6:scheme;y4:load;)]2}'(y1:z),.1v?{'(l2"
-  ":y6:scheme;y4:lazy;)]2}'(y1:s),.1v?{'(l2:y6:scheme;y15:process-context"
-  ";)]2}'(y1:i),.1v?{'(l2:y6:scheme;y7:inexact;)]2}'(y1:f),.1v?{'(l2:y6:s"
-  "cheme;y4:file;)]2}'(y1:e),.1v?{'(l2:y6:scheme;y4:eval;)]2}'(y1:o),.1v?"
-  "{'(l2:y6:scheme;y7:complex;)]2}'(y1:h),.1v?{'(l2:y6:scheme;y4:char;)]2"
-  "}'(y1:l),.1v?{'(l2:y6:scheme;y11:case-lambda;)]2}'(y1:a),.1v?{'(l2:y6:"
-  "scheme;y3:cxr;)]2}'(y1:b),.1v?{'(l2:y6:scheme;y4:base;)]2}'(y1:x),.1v?"
-  "{'(l2:y6:scheme;y3:box;)]2}.1I0?{.1,'(y4:srfi),l2]2}.1,l1]2}.!0&0{%1${"
-  "&0{%1n,'(l1:y5:begin;),V12]1},.3,@(y20:*root-name-registry*),@(y11:nam"
-  "e-lookup)[03}z]1}.!1&0{%3'1,.1V4,.0,.3A3,.0?{.4,.1sd]5}.1,.5,.5cc,'1,."
-  "4V5]5}.!2&0{%1&0{%1.0,'(y5:const),l2]1},.1,@(y20:*root-name-registry*)"
-  ",@(y11:name-lookup)[13}.!3.4d,.5a,,#0.0,.6,.5,.7,.(i10),&5{%2.1u?{${.2"
-  ",:0^[01},.1,${'(l1:y5:skint;),:1^[01},:3^[23}.1p~?{${.2,:0^[01},.1,${n"
-  ",.6c,'(y5:skint)c,:1^[01},:3^[23}${${.4,:0^[01},.3,${${.9a,:2^[01},:1^"
-  "[01},:3^[03}.1d,.1,:4^[22}.!0.0^_1[52},@(y10:%25for-each1)[02}",
+  ";l1:y14:flonum->string;;l1:y7:flldexp;;l1:y6:flmodf;;l1:y7:flfrexp;;l1"
+  ":y6:flsinh;;l1:y6:flcosh;;l1:y6:fltanh;;l1:y7:fllog10;;l1:y14:string->"
+  "flonum;;l1:y8:list-cat;;l1:y9:last-pair;;l1:y9:list-head;;l1:y4:meme;;"
+  "l1:y4:asse;;l1:y4:memp;;l1:y4:assp;;l1:y8:reverse!;;l1:y9:circular?;;l"
+  "1:y5:cons*;;l1:y5:list*;;l1:y8:char-cmp;;l1:y11:char-ci-cmp;;l1:y10:st"
+  "ring-cat;;l1:y15:string-position;;l1:y10:string-cmp;;l1:y13:string-ci-"
+  "cmp;;l1:y10:vector-cat;;l1:y12:bytevector=?;;l1:y16:bytevector->list;;"
+  "l1:y16:list->bytevector;;l1:y13:subbytevector;;l1:y19:standard-input-p"
+  "ort;;l1:y20:standard-output-port;;l1:y19:standard-error-port;;l1:y9:tt"
+  "y-port?;;l1:y15:port-fold-case?;;l1:y19:set-port-fold-case!;;l1:y11:re"
+  "name-file;;l1:y17:current-directory;;l1:y19:directory-separator;;l1:y1"
+  "4:path-separator;;l1:y4:void;;l1:y5:void?;;l1:y19:implementation-name;"
+  ";l1:y22:implementation-version;;py20:*user-name-registry*;y6:hidden;;p"
+  "y25:make-readonly-environment;y6:hidden;;py27:make-controlled-environm"
+  "ent;y6:hidden;;py20:make-sld-environment;y6:hidden;;py21:make-repl-env"
+  "ironment;y6:hidden;;py19:find-library-in-env;y6:hidden;;py16:root-envi"
+  "ronment;y6:hidden;;py16:repl-environment;y6:hidden;;py17:empty-environ"
+  "ment;y6:hidden;;py32:make-historic-report-environment;y6:hidden;;py16:"
+  "r5rs-environment;y6:hidden;;py21:r5rs-null-environment;y6:hidden;;py9:"
+  "*verbose*;y6:hidden;;py7:*quiet*;y6:hidden;;py25:compile-and-run-core-"
+  "expr;y6:hidden;;py17:evaluate-top-form;y6:hidden;;py10:run-script;y6:h"
+  "idden;;py11:run-program;y6:hidden;;py22:repl-evaluate-top-form;y6:hidd"
+  "en;;py9:repl-read;y6:hidden;;py17:repl-exec-command;y6:hidden;;py14:re"
+  "pl-from-port;y6:hidden;;py13:run-benchmark;y6:hidden;;py4:repl;y6:hidd"
+  "en;;),&0{%1,,,,#0#1#2#3&0{%1.0,'(y1:w),.1v?{'(l2:y6:scheme;y5:write;)]"
+  "2}'(y1:t),.1v?{'(l2:y6:scheme;y4:time;)]2}'(y1:p),.1v?{'(l2:y6:scheme;"
+  "y4:repl;)]2}'(y1:r),.1v?{'(l2:y6:scheme;y4:read;)]2}'(y1:v),.1v?{'(l2:"
+  "y6:scheme;y4:r5rs;)]2}'(y1:u),.1v?{'(l2:y6:scheme;y9:r5rs-null;)]2}'(y"
+  "1:d),.1v?{'(l2:y6:scheme;y4:load;)]2}'(y1:z),.1v?{'(l2:y6:scheme;y4:la"
+  "zy;)]2}'(y1:s),.1v?{'(l2:y6:scheme;y15:process-context;)]2}'(y1:i),.1v"
+  "?{'(l2:y6:scheme;y7:inexact;)]2}'(y1:f),.1v?{'(l2:y6:scheme;y4:file;)]"
+  "2}'(y1:e),.1v?{'(l2:y6:scheme;y4:eval;)]2}'(y1:o),.1v?{'(l2:y6:scheme;"
+  "y7:complex;)]2}'(y1:h),.1v?{'(l2:y6:scheme;y4:char;)]2}'(y1:l),.1v?{'("
+  "l2:y6:scheme;y11:case-lambda;)]2}'(y1:a),.1v?{'(l2:y6:scheme;y3:cxr;)]"
+  "2}'(y1:b),.1v?{'(l2:y6:scheme;y4:base;)]2}'(y1:x),.1v?{'(l2:y6:scheme;"
+  "y3:box;)]2}.1I0?{.1,'(y4:srfi),l2]2}.1,l1]2}.!0&0{%1${&0{%1n,'(l1:y5:b"
+  "egin;),V12]1},.3,@(y20:*root-name-registry*),@(y11:name-lookup)[03}z]1"
+  "}.!1&0{%3'1,.1V4,.0,.3A3,.0?{.4,.1sd]5}.1,.5,.5cc,'1,.4V5]5}.!2&0{%1&0"
+  "{%1.0,'(y5:const),l2]1},.1,@(y20:*root-name-registry*),@(y11:name-look"
+  "up)[13}.!3.4d,.5a,,#0.0,.6,.5,.7,.(i10),&5{%2.1u?{${.2,:0^[01},.1,${'("
+  "l1:y5:skint;),:1^[01},:3^[23}.1p~?{${.2,:0^[01},.1,${n,.6c,'(y5:skint)"
+  "c,:1^[01},:3^[23}${${.4,:0^[01},.3,${${.9a,:2^[01},:1^[01},:3^[03}.1d,"
+  ".1,:4^[22}.!0.0^_1[52},@(y10:%25for-each1)[02}",
 
   "C", 0,
   "@(y20:*root-name-registry*),${f,'(l1:y5:skint;),.4,@(y11:name-lookup)["
@@ -1720,13 +1722,17 @@ char *t_code[] = {
   "kint-options*)",
 
   "C", 0,
-  "'(s5:0.5.2)@!(y15:*skint-version*)",
+  "'(s5:0.5.3)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",
 
   "P", "implementation-name",
   "%0'(s5:SKINT)]0",
+
+  "C", 0,
+  "@(y10:*features*),@(y15:*skint-version*),'(s6:skint-)S6X5c@!(y10:*feat"
+  "ures*)",
 
   "P", "skint-main",
   "%0,,,,,#0#1#2#3#4&0{%2${.2,@(y16:read-from-string)[01},${@(y4:list),.3"

@@ -1040,12 +1040,6 @@ extern int is_tty_port(obj o)
   return isatty(fileno(fp));
 }
 
-#ifdef WIN32
-int dirsep = '\\';
-#else
-int dirsep = '/';
-#endif
-
 extern char *argv_ref(int idx)
 {
   char **pv = cxg_argv;
@@ -1075,6 +1069,12 @@ extern char *envv_ref(int idx)
   return *pv;
 }
 
+#ifdef WIN32
+int dirsep = '\\';
+#else
+int dirsep = '/';
+#endif
+
 extern char *get_cwd(void)
 {
   static char buf[FILENAME_MAX]; size_t len;
@@ -1091,5 +1091,33 @@ extern int set_cwd(char *cwd)
 {
   return chdir(cwd);
 }
+
+static char sig[33] = "????????????????????????????????";
+extern char* host_sig(void)
+{
+  union _u { char ca[4]; uint32_t ui; } u; u.ui = 1;
+  sig[4] = (u.ca[0] == 1) ? 'l' : (u.ca[3] == 1) ? 'b' : '?';
+  sig[5] = '0' + (sizeof(void*))/2;
+#if defined(WIN32)
+  sig[0] = 'w'; sig[7] = ';';
+#elif defined(__APPLE__)
+  sig[0] = 'm'; sig[7] = ':';
+#else /* assume Linux/Unix */
+  sig[0] = 'u'; sig[7] = ':';
+#endif
+  sig[6] = dirsep;
+#ifdef C99_MATH_LIB
+  sig[8] = '9';
+#else
+  sig[8] = '0';
+#endif
+#ifdef FLONUMS_BOXED
+  sig[9] = 'b';
+#else
+  sig[9] = 'i';
+#endif
+  return sig;
+}
+
 
 
