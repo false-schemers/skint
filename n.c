@@ -36,6 +36,9 @@ int isnative(obj o, cxtype_t *tp) {
   return isobjptr(o) && objptr_from_obj(o)[-1] == (obj)tp; 
 }
 void *getnative(obj o, cxtype_t *tp) {
+if (!isnative(o, tp)) {
+  obj x = o;
+}
   assert(isnative(o, tp));
   return (void*)(*objptr_from_obj(o));
 }

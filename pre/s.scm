@@ -2025,7 +2025,7 @@
 
 (define (directory-separator) (string-ref *host-sig* 6))
 (define (path-separator) (string-ref *host-sig* 7))
-(define c99-math-available (case (string-ref *host-sig* 8) [(#\9) 'c99-math-available] [else #f]))
+(define c99-math-available (case (string-ref *host-sig* 8) [(#\9) 'c99-math] [else #f]))
 (define skint-host-os (case (string-ref *host-sig* 0) [(#\w) 'windows] [(#\m) 'macosx] [(#\u) 'unix] [else #f]))
 (define skint-host-endianness (case (string-ref *host-sig* 4) [(#\l) 'little-endian] [(#\b) 'big-endian] [else #f]))
 

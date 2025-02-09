@@ -240,6 +240,7 @@ static void _sck(obj *s) {
 #define byte_obj(x) obj_from_fixnum((unsigned char)(x))
 #define get_byte(o) ((unsigned char)fixnum_from_obj(o))
 #ifdef FLONUMS_BOXED
+/* gc note: x should not refer to gc-unsafe objects! */
 #define flonum_obj(x) hp_pushptr(dupflonum(x), FLONUM_NTAG)
 #define is_flonum(o) is_flonum_obj(o)
 #define get_flonum(o) flonum_from_obj(o)
@@ -580,6 +581,9 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"integrable entry"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cksb(x) do { obj _x = (x); if (unlikely(!is_shebang(_x))) \
   { ac = _x; spush((obj)"directive"); musttail return cxi_failactype(IARGS); } } while (0)
+
+#define ac_flonum() (ckj(ac), get_flonum(ac))
+#define spop_flonum() (ckj(sref(0)), get_flonum(spop()))
 
 
 define_instruction(halt) { 
@@ -2052,34 +2056,18 @@ define_instruction(jinfp) {
   gonexti(); 
 }
 
-define_instruction(jadd) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(get_flonum(x) + get_flonum(y));
-  gonexti(); 
-}
+define_instruction(jadd) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) + get_flonum(spop())); gonexti(); }
 
-define_instruction(jsub) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(get_flonum(x) - get_flonum(y));
-  gonexti(); 
-}
+define_instruction(jsub) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) - get_flonum(spop())); gonexti(); }
 
-define_instruction(jmul) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(get_flonum(x) * get_flonum(y));
-  gonexti();
-}
+define_instruction(jmul) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) * get_flonum(spop())); gonexti(); }
 
-define_instruction(jdiv) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(get_flonum(x) / get_flonum(y));
-  gonexti();
-}
+define_instruction(jdiv) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) / get_flonum(spop())); gonexti(); }
 
 define_instruction(jlt) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
+  obj x = ac, y = sref(0); ckj(x); ckj(y);
   ac = bool_obj(get_flonum(x) < get_flonum(y));
-  gonexti(); 
+  spop(); gonexti(); 
 }
 
 define_instruction(jgt) {
@@ -2124,103 +2112,43 @@ define_instruction(jmax) {
   gonexti(); 
 }
 
-define_instruction(jneg) {
-  ckj(ac);
-  ac = flonum_obj(-get_flonum(ac));
-  gonexti(); 
-}
+define_instruction(jneg)  { ckj(ac); ac = flonum_obj(-get_flonum(ac)); gonexti(); }
+                         
+define_instruction(jabs)  { ckj(ac); ac = flonum_obj(fabs(get_flonum(ac))); gonexti(); }
 
-define_instruction(jabs) {
-  ckj(ac);
-  ac = flonum_obj(fabs(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jgcd)  { ckj(ac); ckj(sref(0)); ac = flonum_obj(flgcd(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jgcd) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flgcd(get_flonum(x), get_flonum(y)));
-  gonexti(); 
-}
+define_instruction(jpow)  { ckj(ac); ckj(sref(0)); ac = flonum_obj(pow(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jpow) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(pow(get_flonum(x), get_flonum(y)));
-  gonexti(); 
-}
+define_instruction(jsqrt) { ckj(ac); ac = flonum_obj(sqrt(get_flonum(ac))); gonexti(); }
 
-define_instruction(jsqrt) {
-  ckj(ac);
-  ac = flonum_obj(sqrt(get_flonum(ac)));
-  gonexti(); 
-}
-
-define_instruction(jtoi) {
-  ckj(ac);
-  ac = fixnum_obj(fxflo(get_flonum(ac)));
-  gonexti();
-}
+define_instruction(jtoi)  { ckj(ac); ac = fixnum_obj(fxflo(get_flonum(ac))); gonexti(); }
 
 define_instruction(jquo) {
-  obj x = ac, y = spop(); double n, d, i; 
-  ckj(x); ckj(y);
+  obj x = ac, y = spop(); double n, d, i; ckj(x); ckj(y);
   n = get_flonum(x), d = get_flonum(y); modf(n/d,  &i);
   ac = flonum_obj(i);
   gonexti(); 
 }
 
-define_instruction(jrem) {
-  /* NB: we keep sign: (flremainder -10.0 2.0) => -0.0 */
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(fmod(get_flonum(x), get_flonum(y)));
-  gonexti();
-}
+define_instruction(jrem) { ckj(ac); ckj(sref(0)); ac = flonum_obj(fmod(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
+define_instruction(jmqu) { ckj(ac); ckj(sref(0)); ac = flonum_obj(flmqu(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jmqu) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flmqu(get_flonum(x), get_flonum(y)));
-  gonexti(); 
-}
+define_instruction(jmlo) { ckj(ac); ckj(sref(0)); ac = flonum_obj(flmlo(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jmlo) {
-  obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = flonum_obj(flmlo(get_flonum(x), get_flonum(y)));
-  gonexti(); 
-}
+define_instruction(jfloor) { ckj(ac); ac = flonum_obj(floor(get_flonum(ac))); gonexti(); }
 
-define_instruction(jfloor) {
-  ckj(ac);
-  ac = flonum_obj(floor(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jceil)  { ckj(ac); ac = flonum_obj(ceil(get_flonum(ac))); gonexti(); }
 
-define_instruction(jceil) {
-  ckj(ac);
-  ac = flonum_obj(ceil(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jtrunc) { double i; ckj(ac); modf(get_flonum(ac), &i); ac = flonum_obj(i); gonexti(); }
 
-define_instruction(jtrunc) {
-  double i; ckj(ac);
-  modf(get_flonum(ac), &i);
-  ac = flonum_obj(i);
-  gonexti(); 
-}
+define_instruction(jround) { ckj(ac); ac = flonum_obj(flround(get_flonum(ac))); gonexti(); }
 
-define_instruction(jround) {
-  ckj(ac);
-  ac = flonum_obj(flround(get_flonum(ac)));
-  gonexti(); 
-}
-
-define_instruction(jexp) {
-  ckj(ac);
-  ac = flonum_obj(exp(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jexp) { ckj(ac); ac = flonum_obj(exp(get_flonum(ac))); gonexti(); }
 
 define_instruction(jlog) {
-  obj x = ac, y = spop(); ckj(ac);
+  obj y = spop(); ckj(ac);
   if (likely(!y)) {
     ac = flonum_obj(log(get_flonum(ac)));
   } else {
@@ -2231,92 +2159,109 @@ define_instruction(jlog) {
   gonexti(); 
 }
 
-define_instruction(jsin) {
-  ckj(ac);
-  ac = flonum_obj(sin(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jsin) { ckj(ac); ac = flonum_obj(sin(get_flonum(ac))); gonexti(); }
 
-define_instruction(jcos) {
-  ckj(ac);
-  ac = flonum_obj(cos(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jcos) { ckj(ac); ac = flonum_obj(cos(get_flonum(ac))); gonexti(); }
 
-define_instruction(jtan) {
-  ckj(ac);
-  ac = flonum_obj(tan(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jtan) { ckj(ac); ac = flonum_obj(tan(get_flonum(ac))); gonexti(); }
 
-define_instruction(jasin) {
-  ckj(ac);
-  ac = flonum_obj(asin(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jasin) { ckj(ac); ac = flonum_obj(asin(get_flonum(ac))); gonexti(); }
 
-define_instruction(jacos) {
-  ckj(ac);
-  ac = flonum_obj(acos(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jacos) { ckj(ac); ac = flonum_obj(acos(get_flonum(ac))); gonexti(); }
 
 define_instruction(jatan) {
-  obj x = ac, y = spop(); ckj(ac);
-  if (likely(!y)) {
-    ac = flonum_obj(atan(get_flonum(x)));
+  ckj(ac);
+  if (likely(!sref(0))) {
+    ac = flonum_obj(atan(get_flonum(ac)));
   } else {
-    ckj(y); 
-    ac = flonum_obj(atan2(get_flonum(x), get_flonum(y)));
+    ckj(sref(0)); 
+    ac = flonum_obj(atan2(get_flonum(ac), get_flonum(spop())));
   }
   gonexti(); 
 }
 
-define_instruction(jldexp) {
-  obj x = ac, y = spop(); ckj(x); cki(y);
-  ac = flonum_obj(ldexp(get_flonum(x), (int)get_fixnum(y)));
-  gonexti(); 
-}
+define_instruction(jldexp)  { ckj(ac); cki(sref(0)); ac = flonum_obj(ldexp(get_flonum(ac), get_fixnum(spop()))); gonexti(); }
 
 define_instruction(jmodf) {
-  obj x = ac, b = spop(); double di = 0.0; ckj(x); ckz(b);  
-  ac = flonum_obj(modf(get_flonum(x), &di));
-  box_ref(b) = flonum_obj(di);
+  double di = 0.0; obj z; ckj(ac); ckz(sref(0));  
+  ac = flonum_obj(modf(get_flonum(ac), &di));
+  z = flonum_obj(di); box_ref(spop()) = z;
   gonexti(); 
 }
 
 define_instruction(jfrexp) {
-  obj x = ac, b = spop(); int fi = 0; ckj(x); ckz(b);
+  int fi = 0; ckj(ac); ckz(sref(0));
   ac = flonum_obj(frexp(get_flonum(ac), &fi));
-  box_ref(b) = fixnum_obj(fi);
+  box_ref(spop()) = fixnum_obj(fi);
   gonexti(); 
 }
 
+define_instruction(jsinh) { ckj(ac); ac = flonum_obj(sinh(get_flonum(ac))); gonexti(); }
 
-define_instruction(jsinh) {
-  ckj(ac);
-  ac = flonum_obj(sinh(get_flonum(ac)));
-  gonexti(); 
+define_instruction(jcosh) { ckj(ac); ac = flonum_obj(cosh(get_flonum(ac))); gonexti(); }
+
+define_instruction(jtanh) { ckj(ac); ac = flonum_obj(tanh(get_flonum(ac))); gonexti(); }
+
+define_instruction(jlog10) { ckj(ac); ac = flonum_obj(log10(get_flonum(ac))); gonexti(); }
+
+#ifdef C99_MATH_LIB
+
+define_instruction(jcopysign) { ckj(ac); ckj(sref(0)); ac = flonum_obj(copysign(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+
+define_instruction(jsignbit) { ckj(ac); ac = fixnum_obj(signbit(get_flonum(ac))); gonexti(); }
+
+define_instruction(jnextafter) { ckj(ac); ckj(sref(0)); ac = flonum_obj(nextafter(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+
+define_instruction(jnormalp) { ckj(ac); ac = bool_obj(fpclassify(get_flonum(ac)) == FP_NORMAL); gonexti(); }
+
+define_instruction(jsubnormp) { ckj(ac); ac = bool_obj(fpclassify(get_flonum(ac)) == FP_SUBNORMAL); gonexti(); }
+
+define_instruction(jlogb) { ckj(ac); ac = flonum_obj(logb(get_flonum(ac))); gonexti(); }
+
+define_instruction(jilogb) { ckj(ac); ac = fixnum_obj(ilogb(get_flonum(ac))); gonexti(); }
+
+define_instruction(jfma) { 
+  ckj(ac); ckj(sref(0)); ckj(sref(1));  
+  ac = flonum_obj(fma(get_flonum(ac), get_flonum(sref(0)), get_flonum(sref(1)))); 
+  sdrop(2); gonexti(); 
 }
 
-define_instruction(jcosh) {
-  ckj(ac);
-  ac = flonum_obj(cosh(get_flonum(ac)));
-  gonexti(); 
+define_instruction(jfdim) { ckj(ac); ckj(sref(0)); ac = flonum_obj(fdim(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+
+define_instruction(jexp2) { ckj(ac); ac = flonum_obj(exp2(get_flonum(ac))); gonexti(); }
+
+define_instruction(jexpm1) { ckj(ac); ac = flonum_obj(expm1(get_flonum(ac))); gonexti(); }
+
+define_instruction(jcbrt) { ckj(ac); ac = flonum_obj(cbrt(get_flonum(ac))); gonexti(); }
+
+define_instruction(jhypot) { ckj(ac); ckj(sref(0)); ac = flonum_obj(hypot(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+
+define_instruction(jlog1p) { ckj(ac); ac = flonum_obj(log1p(get_flonum(ac))); gonexti(); }
+
+define_instruction(jlog2) { ckj(ac); ac = flonum_obj(log2(get_flonum(ac))); gonexti(); }
+
+define_instruction(jasinh) { ckj(ac); ac = flonum_obj(asinh(get_flonum(ac))); gonexti(); }
+
+define_instruction(jacosh) { ckj(ac); ac = flonum_obj(acosh(get_flonum(ac))); gonexti(); }
+
+define_instruction(jatanh) { ckj(ac); ac = flonum_obj(atanh(get_flonum(ac))); gonexti(); }
+
+define_instruction(jremquo) {
+  int fi = 0; ckj(ac); ckj(sref(0)); ckz(sref(1));
+  ac = flonum_obj(remquo(get_flonum(ac), get_flonum(sref(0)), &fi));
+  box_ref(sref(1)) = fixnum_obj(fi);
+  sdrop(2); gonexti(); 
 }
 
-define_instruction(jtanh) {
-  ckj(ac);
-  ac = flonum_obj(tanh(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jtgamma) { ckj(ac); ac = flonum_obj(tgamma(get_flonum(ac))); gonexti(); }
 
-define_instruction(jlog10) {
-  ckj(ac);
-  ac = flonum_obj(log10(get_flonum(ac)));
-  gonexti(); 
-}
+define_instruction(jlgamma) { ckj(ac); ac = flonum_obj(lgamma(get_flonum(ac))); gonexti(); }
 
+define_instruction(jerf) { ckj(ac); ac = flonum_obj(erf(get_flonum(ac))); gonexti(); }
+
+define_instruction(jerfc) { ckj(ac); ac = flonum_obj(erfc(get_flonum(ac))); gonexti(); }
+
+#endif
 
 define_instruction(zerop) {
   obj x = ac;

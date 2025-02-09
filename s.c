@@ -1051,8 +1051,8 @@ char *s_code[] = {
   "%0'7,@(y10:*host-sig*)S4]0",
 
   "C", 0,
-  "'8,@(y10:*host-sig*)S4,'(c9),.1v?{'(y18:c99-math-available)}{f}_1@!(y1"
-  "8:c99-math-available)",
+  "'8,@(y10:*host-sig*)S4,'(c9),.1v?{'(y8:c99-math)}{f}_1@!(y18:c99-math-"
+  "available)",
 
   "C", 0,
   "'0,@(y10:*host-sig*)S4,'(cw),.1v?{'(y7:windows)}{'(cm),.1v?{'(y6:macos"

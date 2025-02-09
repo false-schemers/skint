@@ -2070,6 +2070,7 @@
       (name-lookup *root-name-registry* name (lambda (name) (list 'const name))))
     (let loop ([name (car r)] [keys (cdr r)])
       (cond [(null? keys) (put-loc! (get-library! '(skint)) name (get-loc name))]
+            [(and (eq? keys 'c99-math) (not (memq 'c99-math *features*)))] ; ignore
             [(not (pair? keys)) (put-loc! (get-library! `(skint ,keys)) name (get-loc name))] 
             [else (put-loc! (get-library! (key->listname (car keys))) name (get-loc name))
                   (loop name (cdr keys))])))
@@ -2150,14 +2151,21 @@
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
     (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
     (flmax) (flremainder) (flmodulo) (flquotient) (flmodquo) (flonum->fixnum) (flonum->string)
-    (flldexp) (flmodf) (flfrexp) (flsinh) (flcosh) (fltanh) (fllog10) 
+    (flldexp) (flmodf) (flfrexp) (flsinh) (flcosh) (fltanh) (fllog10)
     (string->flonum) (list-cat) (last-pair) (list-head) (meme) (asse) (memp) (assp) (reverse!) 
     (circular?) (cons*) (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) 
     (string-cmp) (string-ci-cmp) (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) 
     (subbytevector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
     (path-separator) (void) (void?) (implementation-name) (implementation-version)
-    ; (repl hidden) library entries below the auto-adder need to be added explicitly 
+    ; (skint c99-math) library is defined if host provides the corresponding functions
+    (flcopysign . c99-math) (flsign-bit . c99-math) (fladjacent . c99-math) (flnormalized? . c99-math) 
+    (fldenormalized? . c99-math) (flexponent . c99-math) (flilogb . c99-math) (fl+* . c99-math) 
+    (flposdiff . c99-math) (flexp2 . c99-math) (flexp-1 . c99-math) (flcbrt . c99-math) 
+    (flhypot . c99-math) (fllog1+ . c99-math) (fllog2 . c99-math) (flasinh . c99-math) 
+    (flacosh . c99-math) (flatanh . c99-math) (%flremquo . c99-math) (flgamma . c99-math)
+    (flloggamma . c99-math) (flerf . c99-math) (flerfc . c99-math) ;todo: add jn yn if available  
+    ; (skint hidden) library entries below the auto-adder need to be added explicitly 
     (*user-name-registry* . hidden) (make-readonly-environment . hidden) 
     (make-controlled-environment . hidden) (make-sld-environment . hidden) 
     (make-repl-environment . hidden) (find-library-in-env . hidden) (root-environment . hidden)
