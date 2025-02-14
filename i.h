@@ -290,8 +290,8 @@ declare_instruction(jle,        "J>!",          0,  "fl<=?",                    
 declare_instruction(jge,        "J<!",          0,  "fl>=?",                    'c', AUTOGL)
 declare_instruction(jeq,        "J=",           0,  "fl=?",                     'c', AUTOGL)
 declare_instruction(jne,        "J=!",          0,  "fl!=?",                    '2', AUTOGL)
-declare_instruction(jmin,       "Jn",           0,  "flmin",                    'x', AUTOGL)
-declare_instruction(jmax,       "Jx",           0,  "flmax",                    'x', AUTOGL)
+declare_instruction(jmin,       "Jn\0'(j+inf.0)", 0,"flmin",                    'p', AUTOGL)
+declare_instruction(jmax,       "Jx\0'(j-inf.0)", 0,"flmax",                    'p', AUTOGL)
 declare_instruction(jneg,       "J-!",          0,  "flneg",                    '1', AUTOGL)
 declare_instruction(jabs,       "Ja",           0,  "flabs",                    '1', AUTOGL)
 declare_instruction(jgcd,       "Jg\0'(j0)",    0,  "flgcd",                    'p', AUTOGL)
@@ -343,9 +343,13 @@ declare_instruction(jacosh,     "M26",          0,  "flacosh",                  
 declare_instruction(jatanh,     "M27",          0,  "flatanh",                  '1', AUTOGL)
 declare_instruction(jremquo,    "M28",          0,  "%flremquo",                '3', AUTOGL)
 declare_instruction(jtgamma,    "M29",          0,  "flgamma",                  '1', AUTOGL)
-declare_instruction(jlgamma,    "M30",          0,  "flloggamma",               '1', AUTOGL)
+declare_instruction(jlgamma,    "M30",          0,  "fllgamma",                 '1', AUTOGL)
 declare_instruction(jerf,       "M31",          0,  "flerf",                    '1', AUTOGL)
-declare_instruction(jerfc,      "M32",          0,  "flerefc",                  '1', AUTOGL)
+declare_instruction(jerfc,      "M32",          0,  "flerfc",                   '1', AUTOGL)
+#endif
+#ifdef XSI_MATH_LIB
+declare_instruction(jjn,        "M50",          0,  "flfirst-bessel",           '2', AUTOGL)
+declare_instruction(jyn,        "M51",          0,  "flsecond-bessel",          '2', AUTOGL)
 #endif
 
 declare_instruction(zerop,      "=0",           0,  "zero?",                    '1', AUTOGL)

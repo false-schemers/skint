@@ -1055,6 +1055,10 @@ char *s_code[] = {
   "available)",
 
   "C", 0,
+  "'9,@(y10:*host-sig*)S4,'(cx),.1v?{'(y8:xsi-math)}{f}_1@!(y18:xsi-math-"
+  "available)",
+
+  "C", 0,
   "'0,@(y10:*host-sig*)S4,'(cw),.1v?{'(y7:windows)}{'(cm),.1v?{'(y6:macos"
   "x)}{'(cu),.1v?{'(y4:unix)}{f}}}_1@!(y13:skint-host-os)",
 
@@ -1087,6 +1091,10 @@ char *s_code[] = {
 
   "C", 0,
   "@(y18:c99-math-available)?{@(y10:*features*),@(y18:c99-math-available)"
+  "c@!(y10:*features*)}",
+
+  "C", 0,
+  "@(y18:xsi-math-available)?{@(y10:*features*),@(y18:xsi-math-available)"
   "c@!(y10:*features*)}",
 
   "C", 0,

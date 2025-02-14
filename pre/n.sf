@@ -509,6 +509,7 @@ long fxflo(double f) {
 (%definition "/* flonums */")
 (%definition "#ifndef FLONUMS_BOXED")
 (%definition "typedef double flonum_t;")
+(%definition "typedef cxoint_t flobits_t;")
 (%definition "#define is_flonum_obj(o) (((o) & 0xffff000000000000ULL) != 0ULL)")
 (%definition "#define is_flonum_flonum(f) ((void)(f), 1)")
 (%definition "#define is_flonum_bool(f) ((void)(f), 0)")
@@ -519,6 +520,7 @@ long fxflo(double f) {
 (%definition "#define flonum_from_fixnum(x) ((flonum_t)(x))")
 (%definition "#define bool_from_flonum(f) ((void)(f), 0)")
 (%definition "#define void_from_flonum(l, f) (void)(f)")
+(%definition "#define flobits_from_obj(o) (~(o))")
 (%definition "union iod { cxoint_t i; double d; };")
 (%definition "static double flonum_from_obj(obj o) { 
   union iod u; 
@@ -537,6 +539,7 @@ long fxflo(double f) {
 (%localdef "cxtype_t *FLONUM_NTAG = &cxt_flonum;")
 (%definition "extern cxtype_t *FLONUM_NTAG;")
 (%definition "typedef double flonum_t;")
+(%definition "typedef long long flobits_t; /* has to be the same size as flonum_t! */")
 (%definition "#define is_flonum_obj(o) (isnative(o, FLONUM_NTAG))")
 (%definition "#define is_flonum_flonum(f) ((void)(f), 1)")
 (%definition "#define is_flonum_bool(f) ((void)(f), 0)")
@@ -544,6 +547,7 @@ long fxflo(double f) {
 (%definition "#define is_fixnum_flonum(i) ((void)(i), 0)")
 (%definition "#define is_flonum_fixnum(i) ((void)(i), 0)")
 (%definition "#define flonum_from_obj(o) (*(flonum_t*)getnative(o, FLONUM_NTAG))")
+(%definition "#define flobits_from_obj(o) (*(flobits_t*)getnative(o, FLONUM_NTAG))")
 (%definition "#define flonum_from_flonum(l, f) (f)")
 (%definition "#define flonum_from_fixnum(x) ((flonum_t)(x))")
 (%definition "#define bool_from_flonum(f) ((void)(f), 0)")
@@ -1264,7 +1268,7 @@ static int stabequal(obj x, obj y, stab_t *p) {
   if (!x || !y || notaptr(x) || notaptr(y) || notobjptr(x) || notobjptr(y)) return 0;
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return 0;
 #ifdef FLONUMS_BOXED
-  if (h == (obj)FLONUM_NTAG) return flonum_from_obj(x) == flonum_from_obj(y); 
+  if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y); 
 #endif
   if (h == (obj)STRING_NTAG) return strcmp(stringchars(x), stringchars(y)) == 0;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)); 
@@ -1278,7 +1282,7 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
   if (!x || !y || notaptr(x) || notaptr(y) || notobjptr(x) || notobjptr(y)) return -1;
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return -1;
 #ifdef FLONUMS_BOXED
-  if (h == (obj)FLONUM_NTAG) return flonum_from_obj(x) == flonum_from_obj(y) ? fuel-1 : -1; 
+  if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y) ? fuel-1 : -1; 
 #endif
   if (h == (obj)STRING_NTAG) return strcmp(stringchars(x), stringchars(y)) == 0 ? fuel-1 : -1;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)) ? fuel-1 : -1;
@@ -1304,8 +1308,8 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
   obj h; if (x == y) return 1;
   if (!x || !y || notaptr(x) || notaptr(y) || notobjptr(x) || notobjptr(y)) return 0;
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return 0;
-#ifdef FLONUMS_BOXED
-  if (h == (obj)FLONUM_NTAG) return *(flonum_t*)objptr_from_obj(x)[0] == *(flonum_t*)objptr_from_obj(y)[0]; 
+#ifdef FLONUMS_BOXED /* NB: compare as bits to make sure two nans are eqv */
+  if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y); 
 #endif
   return 0;
 }")
@@ -1316,9 +1320,9 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
     for (; l != mknull(); l = cdr(l)) 
       { if (car(l) == x) return l; }
   } else if (is_flonum_obj(x)) {
-    flonum_t fx = flonum_from_obj(x); 
+    flobits_t fx = flobits_from_obj(x); 
     for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (is_flonum_obj(y) && fx == flonum_from_obj(y)) return l; }
+      { obj y = car(l); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return l; }
   } else { /* for others, memv == memq */
     for (; l != mknull(); l = cdr(l)) 
       { if (car(l) == x) return l; }
@@ -1331,9 +1335,9 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l); if (car(p) == x) return p; }
   } else if (is_flonum_obj(x)) {
-    flonum_t fx = flonum_from_obj(x); 
+    flobits_t fx = flobits_from_obj(x); 
     for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flonum_from_obj(y)) return p; }
+      { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return p; }
   } else { /* for others, assv == assq */
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l); if (car(p) == x) return p; }
@@ -1356,9 +1360,9 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
     for (; l != mknull(); l = cdr(l)) 
       { if (car(l) == x) return l; }
   } else if (is_flonum_obj(x)) {
-    flonum_t fx = flonum_from_obj(x); 
+    flobits_t fx = flobits_from_obj(x); 
     for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (is_flonum_obj(y) && fx == flonum_from_obj(y)) return l; }
+      { obj y = car(l); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return l; }
   } else if (isstring(x)) {
     char *xs = stringchars(x);
     for (; l != mknull(); l = cdr(l)) 
@@ -1375,9 +1379,9 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l); if (car(p) == x) return p; }
   } else if (is_flonum_obj(x)) {
-    flonum_t fx = flonum_from_obj(x); 
+    flobits_t fx = flobits_from_obj(x); 
     for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flonum_from_obj(y)) return p; }
+      { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return p; }
   } else if (isstring(x)) {
     char *xs = stringchars(x);
     for (; l != mknull(); l = cdr(l)) 
@@ -1570,14 +1574,24 @@ void oportputshared(obj x, obj p, int disp) {
 
 (%localdef "/* system-dependent extensions */")
 
-(%definition "/* detecting C99 math library */
+(%definition "/* detecting math libraries */
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
 #define C99_MATH_LIB
 #elif defined(_MSC_VER) && _MSC_VER >= 1900
 #define C99_MATH_LIB
 #endif
-#if defined(C99_MATH_LIB) && defined(NOC99MATH)
+#if defined(C99_MATH_LIB) && defined(NOXMATH)
 #undef C99_MATH_LIB
+#endif
+#if defined(_XOPEN_SOURCE) || defined(_BSD_SOURCE)
+#define XSI_MATH_LIB
+#elif defined(_MSC_VER) && _MSC_VER >= 1500
+#define XSI_MATH_LIB
+#define jn(x, y) _jn(x, y)
+#define yn(x, y) _yn(x, y)
+#endif
+#if defined(XSI_MATH_LIB) && defined(NOXMATH)
+#undef XSI_MATH_LIB
 #endif")
 
 (%localdef "
@@ -1661,12 +1675,16 @@ extern char* host_sig(void)
 #else
   sig[8] = '0';
 #endif
-#ifdef FLONUMS_BOXED
-  sig[9] = 'b';
+#ifdef XSI_MATH_LIB
+  sig[9] = 'x';
 #else
-  sig[9] = 'i';
+  sig[9] = '0';
+#endif
+#ifdef FLONUMS_BOXED
+  sig[10] = 'b';
+#else
+  sig[10] = 'i';
 #endif
   return sig;
 }
-
 ")

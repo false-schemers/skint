@@ -1,5 +1,6 @@
 /* i.c -- instructions */
 
+#include "s.h"
 #include "n.h"
 #include "i.h"
 
@@ -2173,6 +2174,7 @@ define_instruction(jatan) {
   ckj(ac);
   if (likely(!sref(0))) {
     ac = flonum_obj(atan(get_flonum(ac)));
+    spop();
   } else {
     ckj(sref(0)); 
     ac = flonum_obj(atan2(get_flonum(ac), get_flonum(spop())));
@@ -2208,7 +2210,7 @@ define_instruction(jlog10) { ckj(ac); ac = flonum_obj(log10(get_flonum(ac))); go
 
 define_instruction(jcopysign) { ckj(ac); ckj(sref(0)); ac = flonum_obj(copysign(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jsignbit) { ckj(ac); ac = fixnum_obj(signbit(get_flonum(ac))); gonexti(); }
+define_instruction(jsignbit) { ckj(ac); ac = fixnum_obj(!!signbit(get_flonum(ac))); gonexti(); }
 
 define_instruction(jnextafter) { ckj(ac); ckj(sref(0)); ac = flonum_obj(nextafter(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
@@ -2260,6 +2262,14 @@ define_instruction(jlgamma) { ckj(ac); ac = flonum_obj(lgamma(get_flonum(ac))); 
 define_instruction(jerf) { ckj(ac); ac = flonum_obj(erf(get_flonum(ac))); gonexti(); }
 
 define_instruction(jerfc) { ckj(ac); ac = flonum_obj(erfc(get_flonum(ac))); gonexti(); }
+
+#endif
+
+#ifdef XSI_MATH_LIB
+
+define_instruction(jjn) { cki(ac); ckj(sref(0)); ac = flonum_obj(jn(get_fixnum(ac), get_flonum(spop()))); gonexti(); }
+
+define_instruction(jyn) { cki(ac); ckj(sref(0)); ac = flonum_obj(yn(get_fixnum(ac), get_flonum(spop()))); gonexti(); }
 
 #endif
 

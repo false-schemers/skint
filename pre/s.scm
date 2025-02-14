@@ -2026,6 +2026,7 @@
 (define (directory-separator) (string-ref *host-sig* 6))
 (define (path-separator) (string-ref *host-sig* 7))
 (define c99-math-available (case (string-ref *host-sig* 8) [(#\9) 'c99-math] [else #f]))
+(define xsi-math-available (case (string-ref *host-sig* 9) [(#\x) 'xsi-math] [else #f]))
 (define skint-host-os (case (string-ref *host-sig* 0) [(#\w) 'windows] [(#\m) 'macosx] [(#\u) 'unix] [else #f]))
 (define skint-host-endianness (case (string-ref *host-sig* 4) [(#\l) 'little-endian] [(#\b) 'big-endian] [else #f]))
 
@@ -2048,6 +2049,7 @@
 (if skint-host-os (set! *features* (cons skint-host-os *features*)))
 (if skint-host-endianness (set! *features* (cons skint-host-endianness *features*)))
 (if c99-math-available (set! *features* (cons c99-math-available *features*)))
+(if xsi-math-available (set! *features* (cons xsi-math-available *features*)))
 (set! *features* (reverse *features*))
 
 (define features

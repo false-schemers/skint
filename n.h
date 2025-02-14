@@ -258,6 +258,7 @@ typedef long fixnum_t;
 /* flonums */
 #ifndef FLONUMS_BOXED
 typedef double flonum_t;
+typedef cxoint_t flobits_t;
 #define is_flonum_obj(o) (((o) & 0xffff000000000000ULL) != 0ULL)
 #define is_flonum_flonum(f) ((void)(f), 1)
 #define is_flonum_bool(f) ((void)(f), 0)
@@ -268,6 +269,7 @@ typedef double flonum_t;
 #define flonum_from_fixnum(x) ((flonum_t)(x))
 #define bool_from_flonum(f) ((void)(f), 0)
 #define void_from_flonum(l, f) (void)(f)
+#define flobits_from_obj(o) (~(o))
 union iod { cxoint_t i; double d; };
 static double flonum_from_obj(obj o) { 
   union iod u; 
@@ -284,6 +286,7 @@ static obj obj_from_flonum(int rc, double d) {
 #else
 extern cxtype_t *FLONUM_NTAG;
 typedef double flonum_t;
+typedef long long flobits_t; /* has to be the same size as flonum_t! */
 #define is_flonum_obj(o) (isnative(o, FLONUM_NTAG))
 #define is_flonum_flonum(f) ((void)(f), 1)
 #define is_flonum_bool(f) ((void)(f), 0)
@@ -291,6 +294,7 @@ typedef double flonum_t;
 #define is_fixnum_flonum(i) ((void)(i), 0)
 #define is_flonum_fixnum(i) ((void)(i), 0)
 #define flonum_from_obj(o) (*(flonum_t*)getnative(o, FLONUM_NTAG))
+#define flobits_from_obj(o) (*(flobits_t*)getnative(o, FLONUM_NTAG))
 #define flonum_from_flonum(l, f) (f)
 #define flonum_from_fixnum(x) ((flonum_t)(x))
 #define bool_from_flonum(f) ((void)(f), 0)
@@ -504,12 +508,22 @@ extern obj isassoc(obj x, obj l);
 extern void oportputsimple(obj x, obj p, int disp);
 extern void oportputcircular(obj x, obj p, int disp);
 extern void oportputshared(obj x, obj p, int disp);
-/* detecting C99 math library */
+/* detecting math libraries */
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
 #define C99_MATH_LIB
 #elif defined(_MSC_VER) && _MSC_VER >= 1900
 #define C99_MATH_LIB
 #endif
-#if defined(C99_MATH_LIB) && defined(NOC99MATH)
+#if defined(C99_MATH_LIB) && defined(NOXMATH)
 #undef C99_MATH_LIB
+#endif
+#if defined(_XOPEN_SOURCE) || defined(_BSD_SOURCE)
+#define XSI_MATH_LIB
+#elif defined(_MSC_VER) && _MSC_VER >= 1500
+#define XSI_MATH_LIB
+#define jn(x, y) _jn(x, y)
+#define yn(x, y) _yn(x, y)
+#endif
+#if defined(XSI_MATH_LIB) && defined(NOXMATH)
+#undef XSI_MATH_LIB
 #endif

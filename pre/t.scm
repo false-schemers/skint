@@ -2071,6 +2071,7 @@
     (let loop ([name (car r)] [keys (cdr r)])
       (cond [(null? keys) (put-loc! (get-library! '(skint)) name (get-loc name))]
             [(and (eq? keys 'c99-math) (not (memq 'c99-math *features*)))] ; ignore
+            [(and (eq? keys 'xsi-math) (not (memq 'xsi-math *features*)))] ; ignore
             [(not (pair? keys)) (put-loc! (get-library! `(skint ,keys)) name (get-loc name))] 
             [else (put-loc! (get-library! (key->listname (car keys))) name (get-loc name))
                   (loop name (cdr keys))])))
@@ -2164,7 +2165,9 @@
     (flposdiff . c99-math) (flexp2 . c99-math) (flexp-1 . c99-math) (flcbrt . c99-math) 
     (flhypot . c99-math) (fllog1+ . c99-math) (fllog2 . c99-math) (flasinh . c99-math) 
     (flacosh . c99-math) (flatanh . c99-math) (%flremquo . c99-math) (flgamma . c99-math)
-    (flloggamma . c99-math) (flerf . c99-math) (flerfc . c99-math) ;todo: add jn yn if available  
+    (fllgamma . c99-math) (flerf . c99-math) (flerfc . c99-math) 
+    ; (skint xsi-math) library is defined if host provides the corresponding functions
+    (flfirst-bessel . xsi-math) (flsecond-bessel . xsi-math)
     ; (skint hidden) library entries below the auto-adder need to be added explicitly 
     (*user-name-registry* . hidden) (make-readonly-environment . hidden) 
     (make-controlled-environment . hidden) (make-sld-environment . hidden) 
@@ -2717,12 +2720,11 @@
    [load           "-l" "--load" "FILE"           "Load file and continue processing"] 
    [script         "-s" "--script" "FILE"         "Run file as a Scheme script"]
    [program        "-p" "--program" "FILE"        "Run file as a Scheme program"]
-   ;[benchmark       #f  "--benchmark" "FILE"     "Run .sf benchmark file (internal)"]
    [version        "-V" "--version" #f            "Display version info"]
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.5.3")
+(define *skint-version* "0.5.4")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
@@ -2773,5 +2775,5 @@
   (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
     ; quick check for non-interactive use failed, greet
     (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
-    (format #t "Copyright (c) 2024 False Schemers~%"))
+    (format #t "Copyright (c) 2024-2025 False Schemers~%"))
   #t) ; exited normally

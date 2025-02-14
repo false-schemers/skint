@@ -3097,8 +3097,26 @@
 (test #t (fixnum? (fx* -536870912 -1)))
 (test #t (fixnum? (fx* 536870911 536870911)))
 
-; floor division
-
+; eqv? / equal? on doubles
+(test #t (eqv? -inf.0 -inf.0))
+(test #f (eqv? -inf.0 +inf.0))
+(test #t (eqv? +inf.0 +inf.0))
+(test #f (eqv? -inf.0 +inf.0))
+(test #t (eqv? +nan.0 +nan.0))
+(test #f (eqv? -0.0 0.0))
+(test #t (equal? -inf.0 -inf.0))
+(test #f (equal? -inf.0 +inf.0))
+(test #t (equal? +inf.0 +inf.0))
+(test #f (equal? -inf.0 +inf.0))
+(test #t (equal? +nan.0 +nan.0))
+(test #f (equal? -0.0 0.0))
+; memv/assv
+(test '(+nan.0 bar) (memv +nan.0 '(foo +nan.0 bar)))
+(test '(+nan.0 . bar) (assv +nan.0 '((foo . foo) (+nan.0 . bar) (baz . baz))))
+(test '(+nan.0 bar) (member +nan.0 '(foo +nan.0 bar)))
+(test '(+nan.0 . bar) (assoc +nan.0 '((foo . foo) (+nan.0 . bar) (baz . baz))))
+; = on nans
+(test #f (= +nan.0 +nan.0))
 
 ; _ and ... as literals:
 (define-syntax test-specials (syntax-rules (_ ...) ((_ _ ...) '(_ ...)) ((_ x y) (vector x y))))
