@@ -150,6 +150,15 @@
   ; for now, we will just use read with no support for circular structures
   (read-simple port))
 
+(define (lookup-global k . ?alloc) ;=> box | #f if !defined and !alloc
+  (let* ([v (global-store)] [i (immediate-hash k (vector-length v))])
+    (cond [(assq k (vector-ref v i)) => cdr]
+          [(and (pair? ?alloc) (car ?alloc))
+           (let ([b (box k)]) ; default value is k itself
+             (vector-set! v i (cons (cons k b) (vector-ref v i)))
+             b)]
+          [else #f])))   
+
 (define (error* msg args)
   (raise (error-object #f msg args)))
 
@@ -1769,8 +1778,10 @@
           [else #t])))
 
 (define (file-resolve-relative-to-base-path filename basepath)
-  (if (and (path-relative? filename) (base-path-separator basepath))
-      (string-append basepath filename) ; leading . and .. to be resolved by OS
+  (if (path-relative? filename) ; leading . and .. to be resolved by OS
+      (if (base-path-separator basepath)
+          (string-append basepath filename) 
+          (string-append basepath (string (directory-separator)) filename))
       filename))
 
 ; hacks for relative file name resolution
@@ -1855,9 +1866,7 @@
         [else (c-error "invalid library name name element" s)]))
 
 (define (listname->path listname basepath ext)
-  (define sep 
-    (let ([sc (base-path-separator basepath)])
-      (if sc (string sc) (c-error "library path does not end in separator" basepath))))
+  (define sep (string (or (base-path-separator basepath) (directory-separator))))
   (let loop ([l listname] [r '()])
     (if (pair? l)
         (loop (cdr l) 
@@ -1868,17 +1877,17 @@
 
 ; hacks for locating library files
 
-(define *library-path-list* '("./")) ; will do for now; FIXME: get access to real separator!
+(define *library-path-list* (list (base-library-directory)))
 
 (define (append-library-path! path)
-  (if (base-path-separator path)
-      (set! *library-path-list* (append *library-path-list* (list path)))
-      (c-error "library path should end in directory separator" path))) 
+  (unless (base-path-separator path)
+    (set! path (string-append path (string (directory-separator)))))
+  (set! *library-path-list* (append *library-path-list* (list path))))
 
 (define (prepend-library-path! path)
-  (if (base-path-separator path)
-      (set! *library-path-list* (append (list path) *library-path-list*))
-      (c-error "library path should end in directory separator" path))) 
+  (unless (base-path-separator path)
+    (set! path (string-append path (string (directory-separator)))))
+  (set! *library-path-list* (append (list path) *library-path-list*)))
 
 (define (find-library-path listname) ;=> name of existing .sld file or #f
   (let loop ([l *library-path-list*])
@@ -2145,7 +2154,7 @@
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg) (fxabs) 
     (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
-    (fxexpt) (%fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsra) (fxsrl) 
+    (fxexpt) (%fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsra) (fxsrl) (fxeqv)
     (fxaddc) (fxsubc) (fxmulc) (fixnum->flonum) (fixnum->string) (string->fixnum) 
     (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
     (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
@@ -2158,7 +2167,7 @@
     (string-cmp) (string-ci-cmp) (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) 
     (subbytevector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
-    (path-separator) (void) (void?) (implementation-name) (implementation-version)
+    (path-separator) (void) (void?) (implementation-name) (implementation-version) (version-alist)
     ; (skint c99-math) library is defined if host provides the corresponding functions
     (flcopysign . c99-math) (flsign-bit . c99-math) (fladjacent . c99-math) (flnormalized? . c99-math) 
     (fldenormalized? . c99-math) (flexponent . c99-math) (flilogb . c99-math) (fl+* . c99-math) 
@@ -2624,8 +2633,9 @@
       [(pwd) (display (current-directory) op) (newline op)]
       [(cd <string>) (current-directory (car args))]
       [(sh <string>) (%system (car args))]
-      [(si) (format #t "~d collections, ~d reallocs, heap size ~d words~%" 
-               (%gc-count) (%bump-count) (%heap-size))]
+      [(si) (print-version!)
+       (format #t "~d collections, ~d reallocs, heap size ~d words~%" 
+         (%gc-count) (%bump-count) (%heap-size))]
       [(gc) (%gc) (retry '(si))]
       [(help)
        (display "\nREPL commands (,load ,cd ,sh arguments need no quotes):\n" op)
@@ -2724,12 +2734,16 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.5.4")
+(define *skint-version* "0.5.5")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
 
-(set! *features* (cons (string->symbol (string-append "skint-" *skint-version*)) *features*)) 
+(set! *features* (cons (string->symbol (string-append "skint-" *skint-version*)) *features*))
+(set! *version-alist*
+ `((version ,*skint-version*) (scheme.id skint)
+   (scheme.features . ,*features*) (scheme.path . ,*library-path-list*))) 
+(define (print-version!) (for-each (lambda (l) (write l) (newline)) *version-alist*))
 
 (define (skint-main)
   ; see if command line asks for special processing
@@ -2739,8 +2753,6 @@
         (call-with-values (lambda () (eval obj)) list))))
   (define (add-feature! f)
     (features (set-cons (string->symbol f) (features))))
-  (define (print-version!)
-    (format #t "(version ~s)~%(scheme.id skint)~%" *skint-version*))
   (define (print-help!)
     (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
     (format #t "usage: skint [OPTION]... [FILE] [ARG]...~%")

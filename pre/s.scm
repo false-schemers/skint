@@ -2060,6 +2060,10 @@
 
 (define (feature-available? f) (and (symbol? f) (memq f (features))))
 
+(define *version-alist* '()) ; set in t.scm
+
+(define (version-alist) *version-alist*) 
+
 (define get-environment-variables
   (let ([evl #f])
     (lambda ()

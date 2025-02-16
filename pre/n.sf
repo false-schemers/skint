@@ -1639,6 +1639,12 @@ int dirsep = '\\\\';
 int dirsep = '/';
 #endif
 
+#ifdef LIBPATH
+char *lib_path = ##LIBPATH;
+#else
+char *lib_path = \".\";
+#endif
+ 
 extern char *get_cwd(void)
 {
   static char buf[FILENAME_MAX]; size_t len;

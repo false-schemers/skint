@@ -266,6 +266,7 @@ declare_instruction(ixor,       "D3\0'0",       0,  "fxxor",                    
 declare_instruction(iasl,       "D4",           0,  "fxsll",                    '2', AUTOGL)
 declare_instruction(iasr,       "D5",           0,  "fxsra",                    '2', AUTOGL)
 declare_instruction(ilsr,       "D6",           0,  "fxsrl",                    '2', AUTOGL)
+declare_instruction(ieqv,       "D7\0'(i-1)",   0,  "fxeqv",                    'p', AUTOGL)
 declare_instruction(iaddc,      "D+",           0,  "fxaddc",                   '3', AUTOGL)
 declare_instruction(isubc,      "D-",           0,  "fxsubc",                   '3', AUTOGL)
 declare_instruction(imulc,      "D*",           0,  "fxmulc",                   '3', AUTOGL)
@@ -574,6 +575,7 @@ declare_instruction(gccnt,      "Zc",           0,  "%gc-count",                
 declare_instruction(bumpcnt,    "Zb",           0,  "%bump-count",              '0', AUTOGL)
 declare_instruction(heapsz,     "Zh",           0,  "%heap-size",               '0', AUTOGL)
 declare_instruction(hostsig,    "Zs",           0,  "%host-sig",                '0', AUTOGL)
+declare_instruction(libdir,     "Zd",           0,  "base-library-directory",   '0', AUTOGL)
 
 /* serialization, deserialization, compilation-related instructions */             
 declare_instruction(igp,        "U0",           0,  "integrable?",              '1', AUTOGL)

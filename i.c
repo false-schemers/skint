@@ -1936,6 +1936,12 @@ define_instruction(ilsr) {
   gonexti();
 }
 
+define_instruction(ieqv) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ac = fixnum_obj(~(get_fixnum(x) ^ get_fixnum(y)));
+  gonexti();
+}
+
 define_instruction(iaddc) {
   obj x = ac, y = spop(), b = spop(), c; long quo, rem; 
   cki(x); cki(y); ckz(b); c = box_ref(b); cki(c); 
@@ -4069,6 +4075,11 @@ define_instruction(hostsig) {
   gonexti();
 }
 
+define_instruction(libdir) {
+  extern char *lib_path;
+  ac = string_obj(newstring(lib_path));
+  gonexti();
+}
 
 #define VM_GEN_DEFGLOBAL
 #include "i.h"
