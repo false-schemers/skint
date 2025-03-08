@@ -36,7 +36,16 @@
           [(string=? l "static int cxg_gccount = 0, cxg_bumpcount = 0;")
            (display "int cxg_gccount = 0, cxg_bumpcount = 0;" oport) (newline oport)
            (loop (read-line iport) #f)]
+          [(string=? l "  if (((char*)(o) - (char*)h1) & m1) return hp;")
+           (display "  if (((cxoint_t)(o) - (cxoint_t)h1) & m1) return hp;" oport) (newline oport)
+           (loop (read-line iport) #f)]
+          [(string=? l "  } else if (((char*)(fo) - (char*)h2) & m2) {")
+           (display "  } else if (((cxoint_t)(fo) - (cxoint_t)h2) & m2) {" oport) (newline oport)
+           (loop (read-line iport) #f)]
           [(string=? l "  /* fprintf(stderr, \"%d collections, %d reallocs\\n\", cxg_gccount, cxg_bumpcount); */")
+           (loop (read-line iport) #f)]
+          [(string=? l "    m2 = 1 | ~(s*sizeof(obj)-1);")
+           (display "    m2 = 1 | ~((cxoint_t)s*sizeof(obj)-1);" oport) (newline oport)
            (loop (read-line iport) #f)]
           [else
            (display l oport) (newline oport)

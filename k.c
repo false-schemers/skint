@@ -328,12 +328,12 @@ int cxg_gccount = 0, cxg_bumpcount = 0;
 static obj *toheap2(obj* p, obj *hp, obj *h1, cxoint_t m1, obj *h2, cxoint_t m2)
 {
   obj o = *p, *op, fo, *fop;
-  if (((char*)(o) - (char*)h1) & m1) return hp;
+  if (((cxoint_t)(o) - (cxoint_t)h1) & m1) return hp;
   fo = (op = objptr_from_obj(o))[-1]; assert(fo);
   if (notaptr(fo)) {
     fop = op + size_from_obj(fo); while (fop >= op) *--hp = *--fop;
     *p = *fop = obj_from_objptr(hp+1);
-  } else if (((char*)(fo) - (char*)h2) & m2) {
+  } else if (((cxoint_t)(fo) - (cxoint_t)h2) & m2) {
     *--hp = *op--; *--hp = *op;
     *p = *op = obj_from_objptr(hp+1);
   } else *p = fo;
@@ -377,7 +377,7 @@ obj *cxm_hgc(obj *regs, obj *regp, obj *hp, size_t needs)
   else hp = h2 + hs;
   if (hs < needs) {
     size_t s = HEAP_SIZE; while (s < needs) s *= 2;
-    m2 = 1 | ~(s*sizeof(obj)-1);
+    m2 = 1 | ~((cxoint_t)s*sizeof(obj)-1);
     if (!(h = realloc(h1, s*sizeof(obj)))) { perror("alloc[h]"); exit(2); }
     h1 = h2; h2 = h; he2 = h2 + s; he1 = 0; /* no finalize flag */
     if (h1) hp = relocate(pr, regs, regp, he2, he1, hp, h1, m1, h2, m2);
