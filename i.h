@@ -479,6 +479,11 @@ declare_instruction(bget,       "B4",           0,  "bytevector-u8-ref",        
 declare_instruction(bput,       "B5",           0,  "bytevector-u8-set!",       '3', AUTOGL)
 declare_instruction(bsub,       "B7",           0,  "subbytevector",            '3', AUTOGL)
 declare_instruction(beq,        "B=",           0,  "bytevector=?",             'c', AUTOGL)
+declare_instruction(nvecp,      "H0\0f",        0,  "numvector?",               'b', AUTOGL)
+declare_instruction(nmk,        "H2",           0,  "make-numvector",           '2', AUTOGL)
+declare_instruction(nlen,       "H3",           0,  "numvector-length",         '1', AUTOGL)
+declare_instruction(nget,       "H4",           0,  "numvector-ref",            '2', AUTOGL)
+declare_instruction(nput,       "H5",           0,  "numvector-set!",           '3', AUTOGL)
 declare_instruction(recp,       "O0\0Y9",       0,  "record?",                  'b', AUTOGL)
 declare_instruction(rmk,        "O2\0f",        0,  "make-record",              't', AUTOGL)
 declare_instruction(rlen,       "O3",           0,  "record-length",            '1', AUTOGL)
@@ -496,6 +501,7 @@ declare_instruction(stoi,       "X7\0'(i10)",   0,  "string->fixnum",           
 declare_instruction(ctoi,       "X8",           0,  "char->integer",            '1', AUTOGL)
 declare_instruction(itoc,       "X9",           0,  "integer->char",            '1', AUTOGL)
 declare_instruction(ltob,       "E1",           0,  "list->bytevector",         '1', AUTOGL)
+declare_instruction(lton,       "E2\0'0",       0,  "list->numvector",          'b', AUTOGL)
 declare_instruction(jtos,       "E6\0f",        0,  "flonum->string",           'b', AUTOGL)
 declare_instruction(stoj,       "E7",           0,  "string->flonum",           '1', AUTOGL)
 declare_instruction(ntos,       "E8\0'(i10)",   0,  "number->string",           'b', AUTOGL)
@@ -576,6 +582,7 @@ declare_instruction(bumpcnt,    "Zb",           0,  "%bump-count",              
 declare_instruction(heapsz,     "Zh",           0,  "%heap-size",               '0', AUTOGL)
 declare_instruction(hostsig,    "Zs",           0,  "%host-sig",                '0', AUTOGL)
 declare_instruction(libdir,     "Zd",           0,  "base-library-directory",   '0', AUTOGL)
+declare_instruction(hshim,      "Zi\0f",        0,  "immediate-hash",           'b', AUTOGL)
 
 /* serialization, deserialization, compilation-related instructions */             
 declare_instruction(igp,        "U0",           0,  "integrable?",              '1', AUTOGL)
@@ -588,7 +595,6 @@ declare_instruction(igty,       "U6",           0,  "integrable-type",          
 declare_instruction(iggl,       "U7",           0,  "integrable-global",        '1', AUTOGL)
 declare_instruction(igco,       "U8",           0,  "integrable-code",          '2', AUTOGL)
 declare_instruction(vmclo,      "U9",           1,  "closure",                  '#', INLINED)
-declare_instruction(hshim,      "H2\0f",        0,  "immediate-hash",           'b', AUTOGL)
 
 /* inlined integrables (no custom instructions) */               
 declare_integrable(NULL,        "N0",           0,  "complex?",                 '1', AUTOGL)

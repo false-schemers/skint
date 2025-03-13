@@ -693,11 +693,13 @@ char* stringref(obj o, int i) {
 (%definition "extern cxtype_t *BYTEVECTOR_NTAG;")
 (%definition "#define isbytevector(o) (isnative(o, BYTEVECTOR_NTAG))")
 (%definition "#define bytevectordata(o) ((int*)getnative(o, BYTEVECTOR_NTAG))")
-(%definition "#define bvdatabytes(d) ((unsigned char*)((d)+1))")
-(%definition "#define bytevectorlen(o) (*bytevectordata(o))")
+(%definition "#define bvdatabytes(d) ((unsigned char*)((d)+2))")
+(%definition "#define bvdatatype(d) ((d)[1])")
+(%definition "#define bytevectorlen(o) (bytevectordata(o)[0])")
 (%definition "#define bytevectorbytes(o) (bvdatabytes(bytevectordata(o)))")
+(%definition "#define bytevectortype(o) (bvdatatype(bytevectordata(o)))")
 (%definition "#define hpushu8v(l, s) hpushptr(s, BYTEVECTOR_NTAG, l)")
-(%localdef "#define mallocbvdata(n) cxm_cknull(malloc(sizeof(int)+(n)), \"malloc(bytevector)\")")
+(%localdef "#define mallocbvdata(n) cxm_cknull(malloc(2*sizeof(int)+(n)), \"malloc(bytevector)\")")
 
 (%definition "static int is_byte_obj(obj o) { return (obj_from_fixnum(0) <= o && o <= obj_from_fixnum(255)); } ")
 (%definition "#define byte_from_obj(o) byte_from_fixnum(fixnum_from_obj(o))")
@@ -710,7 +712,7 @@ char* stringref(obj o, int i) {
 
 (%localdef "#ifndef NDEBUG
 unsigned char* bytevectorref(obj o, int i) {
-  int *d = bytevectordata(o); assert(i >= 0 && i < *d); return (bvdatabytes(d))+i;
+  int *d = bytevectordata(o); assert(i >= -2 && i < d[0]); return (bvdatabytes(d))+i;
 }
 #endif")
 (%definition "#ifdef NDEBUG
@@ -722,39 +724,40 @@ unsigned char* bytevectorref(obj o, int i) {
 (%definition "extern int *newbytevector(unsigned char *s, int n);")
 (%localdef "int *newbytevector(unsigned char *s, int n) {
   int *d; assert(s); assert(n >= 0); 
-  d = mallocbvdata(n); *d = n; memcpy(bvdatabytes(d), s, n); return d;
+  d = mallocbvdata(n); d[0] = n; d[1] = 0; memcpy(bvdatabytes(d), s, n); return d;
 }")
 
 (%definition "extern int *makebytevector(int n, int c);")
 (%localdef "int *makebytevector(int n, int c) {
   int *d; assert(n >= 0); 
-  d = mallocbvdata(n); *d = n; memset(bvdatabytes(d), c, n);
+  d = mallocbvdata(n); d[0] = n; d[1] = 0; memset(bvdatabytes(d), c, n);
   return d;
 }")
 
 (%definition "extern int *allocbytevector(int n);")
 (%localdef "int *allocbytevector(int n) {
-  int *d = mallocbvdata(n); *d = n; return d;
+  int *d = mallocbvdata(n); d[0] = n; d[1] = 0; return d;
 }")
 
 (%definition "extern int *dupbytevector(int *d);")
 (%localdef "int *dupbytevector(int *d0) {
-  int *d1 = mallocbvdata(*d0); *d1 = *d0; 
-  memcpy(bvdatabytes(d1), bvdatabytes(d0), *d0); 
+  int *d1 = mallocbvdata(d0[0]); d1[0] = d0[0]; d1[1] = d0[1]; 
+  memcpy(bvdatabytes(d1), bvdatabytes(d0), d0[0]); 
   return d1;
 }")
 
 (%definition "extern int bytevectoreq(int *d0, int *d1);")
 (%localdef "int bytevectoreq(int *d0, int *d1) {
-  int l0 = *d0, l1 = *d1;
-  return (l0 != l1) ? 0 : memcmp(bvdatabytes(d0), bvdatabytes(d1), l0) == 0; 
+  int l0 = d0[0], l1 = d1[0], t0 = d0[1], t1 = d1[1];
+  return (l0 != l1 || t0 != t1) ? 0 : memcmp(bvdatabytes(d0), bvdatabytes(d1), l0) == 0; 
 }")
 
 (%definition "extern int *subbytevector(int *d, int from, int to);")
 (%localdef "int *subbytevector(int *d0, int from, int to) {
   int n = to-from, *d1; unsigned char *s0, *s1; assert(d0);
-  assert(0 <= from && from <= to && to <= *d0); 
-  d1 = mallocbvdata(n); *d1 = n; s0 = bvdatabytes(d0); s1 = bvdatabytes(d1); 
+  assert(0 <= from && from <= to && to <= d0[0]); 
+  d1 = mallocbvdata(n); d1[0] = n; d1[1] = d0[1]; 
+  s0 = bvdatabytes(d0); s1 = bvdatabytes(d1); 
   memcpy(s1, s0+from, n); return d1;
 }")
 
@@ -1408,6 +1411,24 @@ static int cleansymname(char *s) {
   else if (s[0] == '+' || s[0] == '-') return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || !isdigit(s[1]);
   else return s[0] == '.' && s[1] && !isdigit(s[1]); 
 }
+static void wrd(double d, int prc, wenv_t *e) {
+  char buf[50], *s;
+  if (d != d) wrs(\"+nan.0\", e); 
+  else if (d <= -HUGE_VAL) wrs(\"-inf.0\", e);
+  else if (d >= HUGE_VAL) wrs(\"+inf.0\", e);
+  else { sprintf(buf, \"%.*g\", prc, d);
+    for (s = buf; *s != 0; ++s) { if (strchr(\".e\", *s)) break; }
+    if (*s == '.' || *s == 'e') {
+      if (*s == '.') s = strchr(s+1, 'e'); 
+      if (s) { /* remove + and leading 0s from expt */
+        char *t = ++s; if (*s == '-') ++s, ++t; 
+        while (*s == '+' || (*s == '0' && s[1])) ++s;
+        while (*s) *t++ = *s++; *t = 0; 
+      }
+    } else if (*s == 0) { *s++ = '.'; *s++ = '0'; *s = 0; }
+    wrs(buf, e);
+  }
+}
 static void wrdatum(obj o, wenv_t *e) {
   long ref;
   tail: ref = stabref(o, e->pst, 1); /* update ref after access */
@@ -1418,22 +1439,7 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (is_fixnum_obj(o)) {
     char buf[30]; sprintf(buf, \"%ld\", fixnum_from_obj(o)); wrs(buf, e);
   } else if (is_flonum_obj(o)) {
-    char buf[30], *s; double d = flonum_from_obj(o); 
-    if (d != d) wrs(\"+nan.0\", e); 
-    else if (d <= -HUGE_VAL) wrs(\"-inf.0\", e);
-    else if (d >= HUGE_VAL) wrs(\"+inf.0\", e);
-    else { sprintf(buf, \"%.16g\", d);
-      for (s = buf; *s != 0; ++s) { if (strchr(\".e\", *s)) break; }
-      if (*s == '.' || *s == 'e') {
-        if (*s == '.') s = strchr(s+1, 'e'); 
-        if (s) { /* remove + and leading 0s from expt */
-          char *t = ++s; if (*s == '-') ++s, ++t; 
-          while (*s == '+' || (*s == '0' && s[1])) ++s;
-          while (*s) *t++ = *s++; *t = 0; 
-        }
-      } else if (*s == 0) { *s++ = '.'; *s++ = '0'; *s = 0; }
-      wrs(buf, e);
-    }
+    wrd(flonum_from_obj(o), 16, e);
   } else if (iseof(o)) {
     wrs(\"#<eof>\", e);
   } else if (isvoid(o)) {
@@ -1508,11 +1514,27 @@ static void wrdatum(obj o, wenv_t *e) {
     }
     wrc(')', e);
   } else if (isbytevector(o)) {
-    int i, n = bytevectorlen(o);
-    wrs(\"#u8(\", e);
-    for (i = 0; i < n; ++i) { 
-      char buf[30]; sprintf(buf, \"%d\", *bytevectorref(o, i));
-      if (i) wrc(' ', e); wrs(buf, e); 
+    int i, n = bytevectorlen(o), t = bytevectortype(o), sz = 1;
+    char buf[50]; 
+    switch (t) {
+      default: case 0:  wrs(\"#u8(\", e); break;
+      case 1:  wrs(\"#s8(\", e); break;
+      case 2:  wrs(\"#u16(\", e); sz = 2; break;
+      case 3:  wrs(\"#s16(\", e); sz = 2; break;
+      case 10: wrs(\"#f32(\", e); sz = sizeof(float); break;
+      case 11: wrs(\"#f64(\", e); sz = sizeof(double); break;
+    }
+    for (i = 0; i < n; i += sz) {
+      unsigned char *p = bytevectorref(o, i); 
+      if (i) wrc(' ', e);
+      switch (t) {
+        default: case 0: sprintf(buf, \"%d\", (int)*p);           wrs(buf, e); break; 
+        case 1:  sprintf(buf, \"%d\", (int)*(signed char *)p);    wrs(buf, e); break; 
+        case 2:  sprintf(buf, \"%d\", (int)*(unsigned short *)p); wrs(buf, e); break; 
+        case 3:  sprintf(buf, \"%d\", (int)*(signed short *)p);   wrs(buf, e); break; 
+        case 10: wrd((double)*(float *)p, 8, e); break; 
+        case 11: wrd((double)*(double *)p, 16, e); break; 
+      }
     }
     wrc(')', e);
   } else if (isbox(o)) {

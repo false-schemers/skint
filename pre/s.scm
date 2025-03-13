@@ -1729,9 +1729,17 @@
                           [else (if (symbol? name) 
                                     (symbol->shebang name)
                                     (r-error p "unexpected name after #!" name))]))]
-                     [(or (char-ci=? c #\t) (char-ci=? c #\f))
+                     [(or (char-ci=? c #\t) (char-ci=? c #\f) (char-ci=? c #\s) (char-ci=? c #\u))
                       (let ([name (sub-read-carefully p)])
-                        (case name [(t true) #t] [(f false) #f]
+                        (case name 
+                          [(t true) #t] 
+                          [(f false) #f]
+                          [(u8)  (list->numvector (sub-read-numerical-list p name) 0)]
+                          [(s8)  (list->numvector (sub-read-numerical-list p name) 1)]
+                          [(u16) (list->numvector (sub-read-numerical-list p name) 2)]
+                          [(s16) (list->numvector (sub-read-numerical-list p name) 3)]
+                          [(f32) (list->numvector (sub-read-numerical-list p name) 10)]
+                          [(f64) (list->numvector (sub-read-numerical-list p name) 11)]
                           [else (r-error p "unexpected name after #" name)]))]
                      [(or (char-ci=? c #\b) (char-ci=? c #\o)
                           (char-ci=? c #\d) (char-ci=? c #\x)
@@ -1770,11 +1778,6 @@
                      [(char=? c #\() ;)
                       (read-char p)
                       (list->vector (sub-read-list c p close-paren #f))]
-                     [(char=? c #\u)
-                      (read-char p)
-                      (if (and (eq? (read-char p) #\8) (eq? (read-char p) #\())
-                          (list->bytevector (sub-read-byte-list p))
-                          (r-error p "invalid bytevector syntax"))]
                      [(char=? c #\\)
                       (read-char p)
                       (let ([c (peek-char p)])
@@ -1849,16 +1852,23 @@
                    (r-error p "error inside list --" (cdr form))]
                   [else (cons form (recur (sub-read p)))])))))
 
-  (define (sub-read-byte-list p)
+  (define (sub-read-numerical-list p ts)
+    (unless (eq? (read-char p) #\()
+      (r-error p (format "invalid ~avector syntax" ts)))
     (let recur ([form (sub-read p)])
       (cond [(eof-object? form)
-              (r-error p "eof inside bytevector")]
+             (r-error p (format "eof inside ~avector" ts))]
             [(eq? form close-paren) '()]
             [(reader-token? form)
-              (r-error p "error inside bytevector --" (cdr form))]
-            [(or (not (fixnum? form)) (fx<? form 0) (fx>? form 255))
-              (r-error p "invalid byte inside bytevector --" form)]
-            [else (cons form (recur (sub-read p)))])))
+             (r-error p (format "error inside ~avector --" ts) (cdr form))]
+            [(or (and (eq? ts 'u8)  (fixnum? form) (fx<=? 0 form 255))
+                 (and (eq? ts 's8)  (fixnum? form) (fx<=? -128 form 127))
+                 (and (eq? ts 'u16) (fixnum? form) (fx<=? 0 form 65535))
+                 (and (eq? ts 's16) (fixnum? form) (fx<=? -32768 form 32767))
+                 (and (eq? ts 'f32) (flonum? form))
+                 (and (eq? ts 'f64) (flonum? form)))
+             (cons form (recur (sub-read p)))]
+            [else (r-error p (format "invalid ~a inside ~avector --" ts ts) form)])))
 
   (define (sub-read-strsym-char-escape p what)
     (let ([c (read-char p)])
@@ -2059,10 +2069,6 @@
     [(f s) (if s (features f) f)]))
 
 (define (feature-available? f) (and (symbol? f) (memq f (features))))
-
-(define *version-alist* '()) ; set in t.scm
-
-(define (version-alist) *version-alist*) 
 
 (define get-environment-variables
   (let ([evl #f])

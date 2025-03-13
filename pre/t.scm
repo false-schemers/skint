@@ -1309,6 +1309,11 @@
   (write-serialized-sexp x port)
   (write-char #\; port))
 
+(define (write-serialized-numvector-element x t port)  
+  (case t 
+    [(0) (write-serialized-byte x port)]
+    [(1 2 3 10 11) (write-string (number->string x 10) port) (write-char #\; port)]))
+
 (define (write-serialized-sexp x port)
   (cond [(eq? x #f) 
          (write-char #\f port)]
@@ -1341,11 +1346,13 @@
          (write-serialized-size (string-length x) port)
          (do ([i 0 (fx+ i 1)]) [(fx=? i (string-length x))]
            (write-serialized-char (string-ref x i) port))]
-        [(bytevector? x)
-         (write-char #\b port)
-         (write-serialized-size (bytevector-length x) port)
-         (do ([i 0 (fx+ i 1)]) [(fx=? i (bytevector-length x))]
-           (write-serialized-byte (bytevector-u8-ref x i) port))]
+        [(numvector? x) => (lambda (t)
+           (define n (numvector-length x)) 
+           (write-char (if (fxzero? t) #\b #\h) port) 
+           (write-serialized-size n port) 
+           (unless (fxzero? t) (write-serialized-size t port))
+           (do ([i 0 (fx+ i 1)]) [(fx=? i n)]
+             (write-serialized-numvector-element (numvector-ref x i) t port)))]
         [(symbol? x)
          (write-char #\y port)
          (let ([x (symbol->string x)])
@@ -2165,7 +2172,8 @@
     (string->flonum) (list-cat) (last-pair) (list-head) (meme) (asse) (memp) (assp) (reverse!) 
     (circular?) (cons*) (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) 
     (string-cmp) (string-ci-cmp) (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) 
-    (subbytevector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
+    (subbytevector) (numvector?) (make-numvector) (numvector-length) (numvector-ref) (numvector-set!)
+    (list->numvector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
     (path-separator) (void) (void?) (implementation-name) (implementation-version) (version-alist)
     ; (skint c99-math) library is defined if host provides the corresponding functions
@@ -2726,6 +2734,7 @@
    [append-libdir  "-A" "--append-libdir" "DIR"   "Append a library search directory"] 
    [prepend-libdir "-I" "--prepend-libdir" "DIR"  "Prepend a library search directory"] 
    [define-feature "-D" "--define-feature" "NAME" "Add name to the list of features"] 
+   [undef-feature  "-U" "--undef-feature" "NAME"  "Remove name from the list of features"] 
    [eval           "-e" "--eval" "SEXP"           "Evaluate and print an expression"] 
    [load           "-l" "--load" "FILE"           "Load file and continue processing"] 
    [script         "-s" "--script" "FILE"         "Run file as a Scheme script"]
@@ -2734,16 +2743,17 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.5.5")
+(define *skint-version* "0.5.6")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
 
 (set! *features* (cons (string->symbol (string-append "skint-" *skint-version*)) *features*))
-(set! *version-alist*
- `((version ,*skint-version*) (scheme.id skint)
-   (scheme.features . ,*features*) (scheme.path . ,*library-path-list*))) 
-(define (print-version!) (for-each (lambda (l) (write l) (newline)) *version-alist*))
+(define (version-alist)
+  `((version ,*skint-version*) (scheme.id skint)
+    (scheme.features . ,*features*) (scheme.path . ,*library-path-list*)))
+(define (print-version!)
+  (for-each (lambda (l) (write l) (newline)) (version-alist)))
 
 (define (skint-main)
   ; see if command line asks for special processing
@@ -2753,6 +2763,8 @@
         (call-with-values (lambda () (eval obj)) list))))
   (define (add-feature! f)
     (features (set-cons (string->symbol f) (features))))
+  (define (del-feature! f)
+    (features (set-minus (features) (list (string->symbol f)))))
   (define (print-help!)
     (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
     (format #t "usage: skint [OPTION]... [FILE] [ARG]...~%")
@@ -2773,6 +2785,7 @@
           [(append-libdir *) (append-library-path! optarg) (loop restargs #t)]
           [(prepend-libdir *) (prepend-library-path! optarg) (loop restargs #t)]
           [(define-feature *) (add-feature! optarg) (loop restargs #t)]
+          [(undef-feature *) (del-feature! optarg) (loop restargs #t)]
           [(load *) (load optarg) (loop restargs #t)]
           [(eval *) (eval! optarg #t) (loop restargs #f)]
           [(script *) (set! *quiet* #t) (exit (run-script optarg restargs))]

@@ -269,6 +269,7 @@ static void _sck(obj *s) {
 #define bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
 #define is_bytevector(o) isbytevector(o)
 #define bytevector_len(o) bytevectorlen(o)
+#define bytevector_type(o) bytevectortype(o)
 #define bytevector_ref(o, i) (*bytevectorref(o, i))
 #define iport_file_obj(fp) hp_pushptr((fp), IPORT_FILE_NTAG)
 #define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
@@ -1394,7 +1395,8 @@ define_instruction(sflc) {
 
 
 define_instruction(bvecp) {
-  ac = bool_obj(is_bytevector(ac));
+  /* NB: bytvector? recognizes only type 0 numvecs, but other bv ops don't care */
+  ac = bool_obj(is_bytevector(ac) && bytevector_type(ac) == 0);
   gonexti();
 }
 
@@ -1418,24 +1420,22 @@ define_instruction(bmk) {
 }
 
 define_instruction(blen) {
-  ckb(ac);
+  ckb(ac); /* any nv treated as bv */
   ac = fixnum_obj(bytevector_len(ac));
   gonexti();
 }
 
 define_instruction(bget) {
-  obj x = spop(); int i; 
-  ckb(ac); ckk(x); 
-  i = get_fixnum(x); 
+  obj x = spop(); int i; ckb(ac); /* any nv treated as bv */
+  ckk(x); i = get_fixnum(x);
   if (i >= bytevector_len(ac)) failtype(x, "valid bytevector index");
   ac = fixnum_obj(bytevector_ref(ac, i));
   gonexti();
 }
 
 define_instruction(bput) {
-  obj x = spop(), y = spop(); int i; 
-  ckb(ac); ckk(x); ck8(y); 
-  i = get_fixnum(x); 
+  obj x = spop(), y = spop(); int i; ckb(ac); /* any nv treated as bv */
+  ckk(x); ck8(y); i = get_fixnum(x); 
   if (i >= bytevector_len(ac)) failtype(x, "valid bytevector index");
   bytevector_ref(ac, i) = byte_from_obj(y);
   gonexti();
@@ -1456,6 +1456,175 @@ define_instruction(beq) {
   obj x = ac, y = spop(); ckb(x); ckb(y);
   ac = bool_obj(bytevectoreq(bytevectordata(x), bytevectordata(y)));
   gonexti(); 
+}
+
+define_instruction(nvecp) {
+  obj y = spop();
+  if (!y) {
+    ac = is_bytevector(ac) ? fixnum_obj(bytevector_type(ac)) : bool_obj(0);
+  } else {
+    int t; cki(y); t = get_fixnum(y);
+    ac = bool_obj(is_bytevector(ac) && bytevector_type(ac) == t);
+  }
+  gonexti();
+}
+
+define_instruction(nmk) {
+  int t, n, *v; obj x = spop(); cki(ac); ckk(x);
+  t = get_fixnum(ac), n = get_fixnum(x);
+  switch (t) {
+    case 0:  /* u8 */
+    case 1:  break; /* s8 */
+    case 2:  /* u16 */
+    case 3:  n *= 2; break; /* s16 */
+    case 10: n *= sizeof(float); break; /* f32 */
+    case 11: n *= sizeof(double); break; /* f64 */
+    default: failtype(ac, "numerical vector type");
+  }
+  v = makebytevector(n, 0); bvdatatype(v) = t;
+  ac = bytevector_obj(v); 
+  gonexti();
+}
+
+define_instruction(nlen) {
+  int l; ckb(ac); l = bytevector_len(ac);
+  switch (bytevector_type(ac)) {
+    case 0:  /* u8 */
+    case 1:  break; /* s8 */
+    case 2:  /* u16 */
+    case 3:  l /= 2; break; /* s16 */
+    case 10: l /= sizeof(float); break; /* f32 */
+    case 11: l /= sizeof(double); break; /* f64 */
+    default: failtype(ac, "numerical vector type");
+  }
+  ac = fixnum_obj(l);
+  gonexti();
+}
+
+define_instruction(nget) {
+  obj x = spop(); int i, l; ckb(ac); ckk(x); 
+  i = get_fixnum(x); l = bytevector_len(ac);
+  switch (bytevector_type(ac)) {
+    case 0: { /* u8 */
+      if (i >= l) failtype(x, "valid u8vector index");
+      ac = fixnum_obj(bytevector_ref(ac, i));
+    } break;
+    case 1: { /* s8 */
+      if (i >= l) failtype(x, "valid s8vector index");
+      ac = fixnum_obj(*(int8_t*)&bytevector_ref(ac, i));
+    } break;
+    case 2: { /* u16 */
+      if (i*2 >= l) failtype(x, "valid u16vector index");
+      ac = fixnum_obj(*(uint16_t*)&bytevector_ref(ac, i*2));
+    } break;
+    case 3: { /* s16 */
+      if (i*2 >= l) failtype(x, "valid s16vector index");
+      ac = fixnum_obj(*(int16_t*)&bytevector_ref(ac, i*2));
+    } break;
+    case 10: { /* f32 */
+      double f;
+      if (i*(int)sizeof(float) >= l) failtype(x, "valid f32vector index");
+      f = *(float*)&bytevector_ref(ac, i*sizeof(float));
+      if (f != f) f = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
+      ac = flonum_obj(f); /* may trigger gc */
+    } break;
+    case 11: { /* f64 */
+      double f;
+      if (i*(int)sizeof(double) >= l) failtype(x, "valid f64vector index");
+      f = *(double*)&bytevector_ref(ac, i*sizeof(double));
+      if (f != f) f = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
+      ac = flonum_obj(f); /* may trigger gc */
+    } break;
+    default: failtype(ac, "numerical vector type");
+  }
+  gonexti();
+}
+
+define_instruction(nput) {
+  obj x = spop(), y = spop(); int i, l; ckb(ac); ckk(x); 
+  i = get_fixnum(x); l = bytevector_len(ac);
+  switch (bytevector_type(ac)) {
+    case 0: { long v; cki(y); v = get_fixnum(y);
+      if (v < 0 || v > 255) failtype(y, "valid u8 value");
+      if (i >= l) failtype(x, "valid u8vector index");
+      *(uint8_t*)&bytevector_ref(ac, i) = (uint8_t)v;
+    } break;
+    case 1: { long v; cki(y); v = get_fixnum(y);
+      if (v < -128 || v > 127) failtype(y, "valid s8 value");
+      if (i >= l) failtype(x, "valid s8vector index");
+      *(int8_t*)&bytevector_ref(ac, i) = (int8_t)v;
+    } break;
+    case 2: { long v; cki(y); v = get_fixnum(y);
+      if (v < 0 || v > 65535) failtype(y, "valid u16 value");
+      if (i*2 >= l) failtype(x, "valid u16vector index");
+      *(uint16_t*)&bytevector_ref(ac, i*2) = (uint16_t)v;
+    } break;
+    case 3: { long v; cki(y); v = get_fixnum(y);
+      if (v < -32768 || v > 32767) failtype(y, "valid s16 value");
+      if (i*2 >= l) failtype(x, "valid s16vector index");
+      *(int16_t*)&bytevector_ref(ac, i*2) = (int16_t)v;
+    } break;
+    case 10: { double f; ckj(y); f = get_flonum(y); 
+      if (i*(int)sizeof(float) >= l) failtype(x, "valid f32vector index");
+      *(float*)&bytevector_ref(ac, i*sizeof(float)) = (float)f;
+    } break;
+    case 11: { double d; ckj(y); d = get_flonum(y);
+      if (i*(int)sizeof(double) >= l) failtype(x, "valid f64vector index");
+      *(double*)&bytevector_ref(ac, i*sizeof(double)) = d;
+    } break;
+    default: failtype(ac, "numerical vector type");
+  }
+  ac = y;
+  gonexti();
+}
+
+define_instruction(lton) {
+  obj l = ac, x = spop(); int t, sz;
+  int n = 0, i; cki(x); t = get_fixnum(x);
+  while (is_pair(l)) { l = pair_cdr(l); ++n; } cku(l);
+  switch (t) {
+    case 0: case 1: sz = 1; break; /* u8/s8 */
+    case 2: case 3: sz = 2; break; /* u16/s16 */
+    case 10: sz = sizeof(float); break; /* f32 */
+    case 11: sz = sizeof(double); break; /* f64 */
+    default: failtype(x, "numerical vector type");
+  }
+  l = ac; ac = bytevector_obj(allocbytevector(n*sz));
+  bytevector_type(ac) = t;
+  for (i = 0; i < n; ++i, l = pair_cdr(l)) {
+    obj y = pair_car(l);
+    switch (t) { 
+      case 0: { long v; cki(y); v = get_fixnum(y);
+        if (v < 0 || v > 255) failtype(y, "valid u8 value");
+        if (i >= l) failtype(x, "valid u8vector index");
+        *(uint8_t*)&bytevector_ref(ac, i) = (uint8_t)v;
+      } break;
+      case 1: { long v; cki(y); v = get_fixnum(y);
+        if (v < -128 || v > 127) failtype(y, "valid s8 value");
+        if (i >= l) failtype(x, "valid s8vector index");
+        *(int8_t*)&bytevector_ref(ac, i) = (int8_t)v;
+      } break;
+      case 2: { long v; cki(y); v = get_fixnum(y);
+        if (v < 0 || v > 65535) failtype(y, "valid u16 value");
+        if (i*2 >= l) failtype(x, "valid u16vector index");
+        *(uint16_t*)&bytevector_ref(ac, i*2) = (uint16_t)v;
+      } break;
+      case 3: { long v; cki(y); v = get_fixnum(y);
+        if (v < -32768 || v > 32767) failtype(y, "valid s16 value");
+        if (i*2 >= l) failtype(x, "valid s16vector index");
+        *(int16_t*)&bytevector_ref(ac, i*2) = (int16_t)v;
+      } break;
+      case 10: { double f; ckj(y); f = get_flonum(y); 
+        if (i*(int)sizeof(float) >= l) failtype(x, "valid f32vector index");
+        *(float*)&bytevector_ref(ac, i*sizeof(float)) = (float)f;
+      } break;
+      case 11: { double d; ckj(y); d = get_flonum(y);
+        if (i*(int)sizeof(double) >= l) failtype(x, "valid f64vector index");
+        *(double*)&bytevector_ref(ac, i*sizeof(double)) = d;
+      } break;
+    }
+  } 
+  gonexti();
 }
 
 
@@ -3593,6 +3762,7 @@ define_instruction(hshim) {
   gonexti();
 }
 
+
 define_instruction(rdsx) {
   cks(ac); 
   unload_ac(); /* ac->ra (string) */
@@ -4342,6 +4512,30 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
       }
       ra = hpushu8v(sp-r, newbytevector((unsigned char *)cbdata(pcb), (int)cblen(pcb)));
       freecb(pcb);
+    } break;
+    case 'h': {
+      size_t n = rds_size(port), t = rds_size(port), esz = 0, i; 
+      int *d; unsigned char *p;
+      switch (t) {
+        case 0: case 1: esz = 1; break; /* u8/s8 */
+        case 2: case 3: esz = 2; break; /* u16/s16 */
+        case 10: esz = sizeof(float); break; /* f32 */
+        case 11: esz = sizeof(double); break; /* f64 */
+        default: ra = mkeof(); return hp; 
+      }
+      d = allocbytevector(n*esz); bvdatatype(d) = t;
+      for (i = 0, p = bvdatabytes(d); i < n; i += 1, p += esz) {
+        switch (t) {
+          case 0:  *(uint8_t*)p  = (uint8_t) rds_byte(port); break;
+          case 1:  *(int8_t*)p   = (int8_t)  rds_int(port);  break;
+          case 2:  *(uint16_t*)p = (uint16_t)rds_int(port);  break;
+          case 3:  *(int16_t*)p  = (int16_t) rds_int(port);  break;
+          case 10: *(float*)p    = (float)   rds_real(port); break;
+          case 11: *(double*)p   = (double)  rds_real(port); break;
+        }
+        if (t && iportgetc(port) != ';') { ra = mkeof(); return hp; }
+      }
+      ra = hpushu8v(sp-r, d);
     } break;
     case 'z': {
       spush(port);

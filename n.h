@@ -349,9 +349,11 @@ extern int strcmp_ci(char *s1, char *s2);
 extern cxtype_t *BYTEVECTOR_NTAG;
 #define isbytevector(o) (isnative(o, BYTEVECTOR_NTAG))
 #define bytevectordata(o) ((int*)getnative(o, BYTEVECTOR_NTAG))
-#define bvdatabytes(d) ((unsigned char*)((d)+1))
-#define bytevectorlen(o) (*bytevectordata(o))
+#define bvdatabytes(d) ((unsigned char*)((d)+2))
+#define bvdatatype(d) ((d)[1])
+#define bytevectorlen(o) (bytevectordata(o)[0])
 #define bytevectorbytes(o) (bvdatabytes(bytevectordata(o)))
+#define bytevectortype(o) (bvdatatype(bytevectordata(o)))
 #define hpushu8v(l, s) hpushptr(s, BYTEVECTOR_NTAG, l)
 static int is_byte_obj(obj o) { return (obj_from_fixnum(0) <= o && o <= obj_from_fixnum(255)); } 
 #define byte_from_obj(o) byte_from_fixnum(fixnum_from_obj(o))
