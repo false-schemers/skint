@@ -252,7 +252,7 @@
 ; Special forms are either a symbol naming a builtin, or a transformer procedure 
 ; that takes two arguments: a macro use and the environment of the macro use.
 
-; <identifier>  ->  <symbol> | <thunk returning (sym . den)>
+; <identifier>  ->  <symbol> | <thunk returning (sym peek getlits)>
 ; <denotation>  ->  <location>
 ; <location>    ->  #&<value>
 ; <value>       ->  <special> | <core>
@@ -1169,15 +1169,38 @@
               [(eq? (car decl) ld-begin-id)
                (loop decls code eal esps (append forms (xpand-sexp->datum (cdr decl))))]))))))
 
-; scan forms and return reversed list of core forms, interspersed with (define gs exp)
-; forms that need further processing (each one will become (set! gs core) form
-(define (preprocess-top-forms-scan forms cenv env) ;=> code* in reverse order
-  (define (scan body code*) ;=> code* extended, with side-effect on cenv
-    (if (null? body) 
-        code*
+; two-pass algorithm to expand top-level-like list of forms with arbitrary mix of expressions and definitions,
+; a-la r^7rs programs; uses 'stretch' environment that can be expanded via in-place modification after rules 
+; close over it, subject to the r^6rs-like constraint: downstream-defined ids can't have any effect on the 
+; scan pass, so it can take into account (and bind) only the upstream definitions. On input, cenv is a current 
+; env, lenv is an env for library list names lookup
+(define (preprocess-mixed-forms forms cenv lenv) ;=> core code for forms
+  (define new-bindings '()) ; a-list of discovered bindings of colored ids
+  (define (env id at) ; 'stretch' environment, expanded via in-place modification
+    (cond [(new-id? id) ; colored ids have to be treated as if they were bound lexically
+           (cond [(memq at '(define define-syntax))
+                  (let* ([val (if (eq? at 'define-syntax) '(undefined) (list 'ref (gensym (id->sym id))))] 
+                         [loc (make-location val)])
+                    (if (assq id new-bindings)
+                        (x-error "duplicate definition after macroexpansion" (id->sym id))
+                        (set! new-bindings (cons (cons id loc) new-bindings)))
+                    loc)] 
+                 [(assq id new-bindings) => cdr]
+                 [else (new-id-lookup id at)])]
+          [else ; non-colored ids and imports go into cenv
+           (cenv id at)]))
+  (define (fix! code) ;=> core
+    (if (and (pair? code) (eq? (car code) 'define) (list3? code))
+        (let* ([gs (cadr code)] [exp (caddr code)] [core (xpand #f exp env)])
+          (if (null? gs) core (list 'set! gs core)))
+        code))
+  (let scan ([body forms] [code* '()])
+    (if (null? body)
+        (let ([fcode* (map fix! (reverse! code*))]) 
+          (if (list1? fcode*) (car fcode*) (cons 'begin fcode*)))
         (let ([first (car body)] [rest (cdr body)])
           (if (pair? first)
-              (let* ([head (car first)] [tail (cdr first)] [hval (xpand #t head cenv)])
+              (let* ([head (car first)] [tail (cdr first)] [hval (xpand #t head env)])
                 (cond
                   [(eq? hval 'begin)
                    (unless (list? tail) (x-error "improper begin form" first))
@@ -1186,48 +1209,40 @@
                    (let ([tail (preprocess-define head tail)])
                      (if (list1? tail) ; tail is either (sexp) or (id sexp)
                          (scan (append tail rest) code*) ; idless, splice
-                         (let ([loc (top-defined-id-lookup cenv (car tail) 'define)])
+                         (let ([loc (xenv-lookup env (car tail) 'define)])
                            (unless (and (location? loc) (sexp-match? '(ref *) (location-val loc)))
                              (x-error "unexpected define for id" (car tail) first))
                            (let ([gs (cadr (location-val loc))] [exp (cadr tail)])
-                             ; exp expansiom is delayed until all defined ids are ready
+                             ; exp expansion is delayed until all defined ids are ready
                              (scan rest (cons (list 'define gs exp) code*))))))] 
                   [(eq? hval 'define-syntax)
                    (let* ([tail (preprocess-define-syntax head tail)]
-                          [loc (top-defined-id-lookup cenv (car tail) 'define-syntax)])
+                          [loc (xenv-lookup env (car tail) 'define-syntax)])
                      (unless (location? loc) 
                        (x-error "unexpected define-syntax for id" (car tail) first))
-                     (location-set-val! loc (xpand #t (cadr tail) cenv))
+                     (location-set-val! loc (xpand #t (cadr tail) env))
                      (scan rest code*))]
                   [(eq? hval 'define-library)
-                   (let* ([core (xpand-define-library head tail env #f)]
+                   (let* ([core (xpand-define-library head tail lenv #f)]
                           ; core is (define-library <listname> <library>)
-                          [loc (xenv-lookup env (cadr core) 'define-syntax)])
+                          [loc (xenv-lookup lenv (cadr core) 'define-syntax)])
                      (unless (location? loc) 
                        (x-error "unexpected define-library for id" (cadr core) first))
                      (location-set-val! loc (caddr core))
                      (scan rest code*))]
                   [(eq? hval 'import) ; support, in case there is an internal import
-                   (let* ([core (xpand-import head tail cenv #f)] 
+                   (let* ([core (xpand-import head tail env #f)] 
                           ; core is (import <library>)
                           [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
-                     (unless (cenv eal 'import) ; adjoins eal to cenv's imports
+                     (unless (env eal 'import) ; adjoins eal to env's imports
                        (x-error "broken import inside library code" first))
                      (scan rest (cons code code*)))] ; adds library init code 
                   [(val-transformer? hval) ; apply transformer and loop
-                   (scan (cons (hval first cenv) rest) code*)]
+                   (scan (cons (hval first env) rest) code*)]
                   [else ; form expansion may need to be delayed
                    (scan rest (cons (list 'define '() first) code*))]))
               ; form expansion may need to be delayed
-              (scan rest (cons (list 'define '() first) code*)))))) 
-  (scan forms '()))
-
-; scan returns underprocessed defines; this fn fixes that
-(define (preprocess-top-form-fix! code cenv) ;=> core
-  (if (and (pair? code) (eq? (car code) 'define) (list3? code))
-      (let* ([gs (cadr code)] [exp (caddr code)] [core (xpand #f exp cenv)])
-        (if (null? gs) core (list 'set! gs core)))
-      code))
+              (scan rest (cons (list 'define '() first) code*)))))))
 
 (define (preprocess-library sexp env) ;=> (init-core . exports-eal)
   ; generator of globals: use prefix or temporary if no prefix is given 
@@ -1242,9 +1257,7 @@
          [icimesfs (preprocess-library-declarations (cons (car sexp) decls) env)])
     (let* ([code (car icimesfs)] [ial (cadr icimesfs)] [esps (caddr icimesfs)] [forms (cadddr icimesfs)] 
            [cenv (make-controlled-environment ial make-nid env)] [eal '()]) ; m-c-e is defined below
-      (let* ([code* (preprocess-top-forms-scan forms cenv env)]
-             [fix! (lambda (code) (preprocess-top-form-fix! code cenv))] 
-             [forms-code (cons 'begin (map fix! (reverse! code*)))] 
+      (let* ([forms-code (preprocess-mixed-forms forms cenv env)] 
              [combined-code (adjoin-code code (if lid (list 'once lid forms-code) forms-code))])
         ; walk through esps, fetching locations from cenv
         (let loop ([esps esps] [eal eal])
@@ -2494,15 +2507,16 @@
                  (write (caddr res)) (display " added\n")))
              (compile-and-run-core-expr code))]
           [(val-transformer? hval) ; apply transformer and loop
-           ; NOTE: if transformer output is a begin, it needs to be scanned for defines 
-           ; in case some of them use generated names that need to be gensym'd via pp pass
+           ; NOTE: if transformer output is a definition, it needs to be processed differently 
+           ; in case some definitions define colored names that need to be gensym'd throughout
            (let* ([x (hval x env)] [hv (and (pair? x) (xpand #t (car x) env))])
-             (if (and (eq? hv 'begin) (list2+? x))
-                 (let* ([code* (preprocess-top-forms-scan (cdr x) env env)]
-                        [fix! (lambda (code) (preprocess-top-form-fix! code env))]
-                        [code (cons 'begin (map fix! (reverse! code*)))])
-                   (compile-and-run-core-expr code)) ; tail
-                 (evaluate-top-form x env)))] ; tail
+             (cond [(and (eq? hv 'begin) (list2+? x))
+                    (let ([code (preprocess-mixed-forms (cdr x) env env)])
+                       (compile-and-run-core-expr code))] ; tail
+                   [(memq hv '(define define-syntax))
+                    (let ([code (preprocess-mixed-forms (list x) env env)])
+                       (compile-and-run-core-expr code))] ; tail
+                   [else (evaluate-top-form x env)]))] ; tail
           [(val-integrable? hval) ; integrable application
            (compile-and-run-core-expr (xpand-integrable hval (cdr x) env))]
           [(val-builtin? hval) ; other builtins
@@ -2743,7 +2757,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.5.6")
+(define *skint-version* "0.5.7")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
