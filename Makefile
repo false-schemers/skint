@@ -20,31 +20,43 @@ ifeq ($(OS),Windows_NT)
         ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
             ARCH = AMD64
         endif
-        ifeq ($(PROCESSOR_ARCHITECTURE),x86)
-            ARCH = IA32
-        endif
     endif
-else
-    UNAME := $(shell uname -p)
-    ifeq ($(UNAME),unknown)
+else 
+    ifeq ($(shell uname),Darwin)
         UNAME := $(shell uname -m)
-    endif
-    ifeq ($(UNAME),x86_64)
-        ARCH = AMD64
-    endif
-    ifneq ($(filter %86,$(UNAME)),)
-        ARCH = IA32
-    endif
-    ifneq ($(filter arm%,$(UNAME)),)
-        ARCH = ARM
-    endif
-    ifeq ($(UNAME),riscv64)
-        ARCH = RV64
+        ifeq ($(UNAME),x86_64)
+            ARCH = AMD64
+        endif
+        ifeq ($(UNAME),arm64)
+            ARCH = ARM64
+        endif
+    else
+        UNAME := $(shell uname -p)
+        ifeq ($(UNAME),unknown)
+            UNAME := $(shell uname -m)
+        endif
+        ifeq ($(UNAME),x86_64)
+            ARCH = AMD64
+        endif
+        ifeq ($(UNAME),ppc64le)
+            ARCH = POWER64
+        endif
+        ifeq ($(UNAME),riscv64)
+            ARCH = RV64
+        endif
     endif
 endif
 
 ifeq ($(ARCH),AMD64)
-  $(info x86_64 architecture is detected)
+  $(info X86_64 architecture is detected)
+  CFLAGS += -D NAN_BOXING
+endif
+ifeq ($(ARCH),ARM64)
+  $(info ARM_64 architecture is detected)
+  CFLAGS += -D NAN_BOXING
+endif
+ifeq ($(ARCH),POWER64)
+  $(info POWER_64 architecture is detected)
   CFLAGS += -D NAN_BOXING
 endif
 ifeq ($(ARCH),RV64)
