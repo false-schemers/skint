@@ -1295,9 +1295,11 @@ define_instruction(strp) {
 }
 
 define_instruction(str) {
-  int i, n = get_fixnum(*ip++);
-  obj o = string_obj(allocstring(n, ' '));
-  unsigned char *s = (unsigned char *)stringchars(o);
+  int i, n; obj o = *ip++; unsigned char *s;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; n = get_fixnum(o);
+  o = string_obj(allocstring(n, ' '));
+  s = (unsigned char *)stringchars(o);
   for (i = 0; i < n; ++i) {
     obj x = sref(i); ckc(x); s[i] = get_char(x);
   }
@@ -1401,9 +1403,11 @@ define_instruction(bvecp) {
 }
 
 define_instruction(bvec) {
-  int i, n = get_fixnum(*ip++);
-  obj o = bytevector_obj(allocbytevector(n));
-  unsigned char *s = (unsigned char *)bytevectorbytes(o);
+  int i, n; obj o = *ip++; unsigned char *s;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; n = get_fixnum(o);
+  o = bytevector_obj(allocbytevector(n));
+  s = (unsigned char *)bytevectorbytes(o);
   for (i = 0; i < n; ++i) {
     obj x = sref(i); ck8(x); s[i] = byte_from_obj(x);
   }
@@ -1685,7 +1689,9 @@ define_instruction(vecp) {
 }
 
 define_instruction(vec) {
-  int i, n = get_fixnum(*ip++);
+  int i, n; obj o = *ip++;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; n = get_fixnum(o);
   hp_reserve(vecbsz(n));
   for (i = n-1; i >= 0; --i) *--hp = sref(i);
   ac = hend_vec(n);
@@ -4523,7 +4529,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
         case 11: esz = sizeof(double); break; /* f64 */
         default: ra = mkeof(); return hp; 
       }
-      d = allocbytevector(n*esz); bvdatatype(d) = t;
+      d = allocbytevector((int)(n*esz)); bvdatatype(d) = (int)t;
       for (i = 0, p = bvdatabytes(d); i < n; i += 1, p += esz) {
         switch (t) {
           case 0:  *(uint8_t*)p  = (uint8_t) rds_byte(port); break;
