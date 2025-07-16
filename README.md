@@ -9,7 +9,7 @@ and you're done. For some platforms, precompiled binaries are available (please 
 
 ## Installation
 
-Here's how you can compile SKINT on a unix box using GCC:
+Here's how you can compile SKINT on a unix box using GCC (\* see Windows command line below):
 
 ```
 gcc -o skint [skint].c -lm
@@ -40,6 +40,12 @@ cd skint
 make
 make test
 sudo make install
+```
+
+\* Similar command line works on Windows/MSVC:
+
+```
+cl -O2 -DNDEBUG -DNAN_BOXING -Fe"skint.exe" s.c k.c i.c n.c t.c
 ```
 
 ## Scheme Compatibility
