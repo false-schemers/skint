@@ -194,9 +194,9 @@ char *s_code[] = {
   ":body;;;",
 
   "P", "new-record-type",
-  "%2'(l1:s6:rtd://;),.2,.2c,,#0.0,&1{%2.0u?{${.3A8,@(y14:%25string-appen"
-  "d),@(y13:apply-to-list)[02}X5]2}.0du?{.1,.1aX4c,.1d,:0^[22}.1,.1aX4c,'"
-  "(s1::)c,.1d,:0^[22}.!0.0^_1[22",
+  "%2'(l1:s6:rtd://;),.2,.2c,,#0.0,&1{%2.0u?{${.3A8,@(y13:string-append),"
+  "@(y13:apply-to-list)[02}X5]2}.0du?{.1,.1aX4c,.1d,:0^[22}.1,.1aX4c,'(s1"
+  "::)c,.1d,:0^[22}.!0.0^_1[22",
 
   "S", "%id-eq??",
   "l3:y12:syntax-rules;n;l2:l5:y1:_;y2:id;y1:b;y2:kt;y2:kf;;l3:l3:y13:syn"
@@ -359,8 +359,8 @@ char *s_code[] = {
   "%1.0SfX5]1",
 
   "P", "symbol-append",
-  "%!0${${.4,@(y14:symbol->string),@(y5:%25map1)[02},@(y14:%25string-appe"
-  "nd),@(y13:apply-to-list)[02}X5]1",
+  "%!0${${.4,@(y14:symbol->string),@(y5:%25map1)[02},@(y13:string-append)"
+  ",@(y13:apply-to-list)[02}X5]1",
 
   "P", "substring->list",
   "%3n,'1,.4I-,,#0.3,.1,.6,&3{%2:0,.1I<?{.1]2}.1,.1,:2S4c,'1,.2I-,:1^[22}"
@@ -411,23 +411,6 @@ char *s_code[] = {
   "&0{%3.2,.2,.2,@(y17:substring->vector)[33}%x,&0{%2.0S3,.2,.2,@(y17:sub"
   "string->vector)[23}%x,&0{%1.0S3,'0,.2,@(y17:substring->vector)[13}%x,&"
   "3{|10|21|32%%}@!(y14:string->vector)",
-
-  "P", "strings-sum-length",
-  "%1'0,.1,,#0.0,&1{%2.0u?{.1]2}.0aS3,.2I+,.1d,:0^[22}.!0.0^_1[12",
-
-  "P", "strings-copy-into!",
-  "%2'0,.2,,#0.0,.4,&2{%2.0u?{:0]2}.0d,.1a,.0S3,${.2,'0,.5,.9,:0,@(y15:su"
-  "bstring-copy!)[05}.0,.5I+,.3,:1^[52}.!0.0^_1[22",
-
-  "P", "%string-append",
-  "%!0.0,'(c ),${.4,@(y18:strings-sum-length)[01}S2,@(y18:strings-copy-in"
-  "to!)[12",
-
-  "S", "string-append",
-  "l7:y12:syntax-rules;n;l2:l1:y1:_;;s0:;;l2:l2:y1:_;y1:x;;l3:y10:string-"
-  "cat;y1:x;s0:;;;l2:l3:y1:_;y1:x;y1:y;;l3:y10:string-cat;y1:x;y1:y;;;l2:"
-  "py1:_;y1:r;;py14:%25string-append;y1:r;;;l2:y1:_;y14:%25string-append;"
-  ";",
 
   "P", "string-trim-whitespace",
   "%1.0S3,'0,,#0.3,.1,&2{%2.1,.1<?{.0,:1S4C1}{f}?{.1,'1,.2+,:0^[22}.1,,#0"
@@ -488,23 +471,6 @@ char *s_code[] = {
   "vector->string)[23}%x,&0{%1.0V3,'0,.2,@(y17:subvector->string)[13}%x,&"
   "3{|10|21|32%%}@!(y14:vector->string)",
 
-  "P", "vectors-sum-length",
-  "%1'0,.1,,#0.0,&1{%2.0u?{.1]2}.0aV3,.2I+,.1d,:0^[22}.!0.0^_1[12",
-
-  "P", "vectors-copy-into!",
-  "%2'0,.2,,#0.0,.4,&2{%2.0u?{:0]2}.0d,.1a,.0V3,${.2,'0,.5,.9,:0,@(y15:su"
-  "bvector-copy!)[05}.0,.5I+,.3,:1^[52}.!0.0^_1[22",
-
-  "P", "%vector-append",
-  "%!0.0,f,${.4,@(y18:vectors-sum-length)[01}V2,@(y18:vectors-copy-into!)"
-  "[12",
-
-  "S", "vector-append",
-  "l7:y12:syntax-rules;n;l2:l1:y1:_;;l2:y5:quote;v0:;;;l2:l2:y1:_;y1:x;;l"
-  "3:y10:vector-cat;y1:x;l2:y5:quote;v0:;;;;l2:l3:y1:_;y1:x;y1:y;;l3:y10:"
-  "vector-cat;y1:x;y1:y;;;l2:py1:_;y1:r;;py14:%25vector-append;y1:r;;;l2:"
-  "y1:_;y14:%25vector-append;;",
-
   "P", "subbytevector->list",
   "%3n,'1,.4I-,,#0.3,.1,.6,&3{%2:0,.1I<?{.1]2}.1,.1,:2B4c,'1,.2I-,:1^[22}"
   ".!0.0^_1[32",
@@ -537,17 +503,6 @@ char *s_code[] = {
   "&0{%4.3,.3,.3,.3,@(y19:subbytevector-fill!)[44}%x,&0{%3.0B3,.3,.3,.3,@"
   "(y19:subbytevector-fill!)[34}%x,&0{%2.0B3,'0,.3,.3,@(y19:subbytevector"
   "-fill!)[24}%x,&3{|20|31|42%%}@!(y16:bytevector-fill!)",
-
-  "P", "%bytevectors-sum-length",
-  "%1'0,.1,,#0.0,&1{%2.0u?{.1]2}.0aB3,.2I+,.1d,:0^[22}.!0.0^_1[12",
-
-  "P", "%bytevectors-copy-into!",
-  "%2'0,.2,,#0.0,.4,&2{%2.0u?{:0]2}.0d,.1a,.0B3,${.2,'0,.5,.9,:0,@(y19:su"
-  "bbytevector-copy!)[05}.0,.5I+,.3,:1^[52}.!0.0^_1[22",
-
-  "P", "bytevector-append",
-  "%!0.0,'0,${.4,@(y23:%25bytevectors-sum-length)[01}B2,@(y23:%25bytevect"
-  "ors-copy-into!)[12",
 
   "P", "subutf8->string",
   "%3P51,${.2,.6,.6,.6,@(y19:write-subbytevector)[04}.0P90,.1P61.0]5",
@@ -1210,9 +1165,9 @@ char *s_code[] = {
   "?{.7d,${'2,.7,@(y11:string-copy)[02},.3^d,.(i12)[(i10)3}.1^?{.1^a?{'2,"
   ".3=?{.7dp}{f}}{f}}{f}?{.7dd,.8da,.3^d,.(i12)[(i10)3}.1^?{.1^a}{f}?{.0^"
   ",'(s23:missing option argument),.6^[(i10)2}.1^?{.1^a~?{'2,.3>}{f}}{f}?"
-  "{.7d,${'2,.7,@(y11:string-copy)[02},'(s1:-)S6c,f,.3^d,.(i12)[(i10)3}.1"
-  "^?{.1^a~}{f}?{.7d,f,.3^d,.(i12)[(i10)3}.0^,'(s14:unknown option),.6^[("
-  "i10)2",
+  "{.7d,${'2,.7,@(y11:string-copy)[02},'(s1:-),Sa2c,f,.3^d,.(i12)[(i10)3}"
+  ".1^?{.1^a~}{f}?{.7d,f,.3^d,.(i12)[(i10)3}.0^,'(s14:unknown option),.6^"
+  "[(i10)2",
 
   "P", "print-command-line-options",
   "%!1,,,,#0#1#2#3.4p?{.4a}{P11}.!0&0{%1.0ddda,.1dda,.2da,,,,#0#1#2.3?{.3"

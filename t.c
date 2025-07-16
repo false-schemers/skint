@@ -62,8 +62,8 @@ char *t_code[] = {
   "sexp-case;y3:key;y6:clause;y7:clauses;y3:...;;;;",
 
   "C", 0,
-  "'0,#0.0,&1{%!0'1,:0^I+:!0.0u,.0?{.0}{.1aY0~}_1?{'(i10),:0^X6,'(s1:#)S6"
-  "X5]1}'(i10),:0^X6,'(s1:#)S6,.1aX4S6X5]1}_1@!(y6:gensym)",
+  "'0,#0.0,&1{%!0'1,:0^I+:!0.0u,.0?{.0}{.1aY0~}_1?{'(i10),:0^X6,'(s1:#),S"
+  "a2X5]1}'(i10),:0^X6,'(s1:#),Sa2,.1aX4,Sa2X5]1}_1@!(y6:gensym)",
 
   "P", "remove!",
   "%3.1,f,f,,#0.0,.7,.6,&3{%3.2p~?{.1?{.2,.2sd.0]3}.2]3}${.4a,:0,:1[02}?{"
@@ -77,7 +77,7 @@ char *t_code[] = {
   "%1.0u?{n]1}.0du?{.0a]1}${.2d,@(y7:append*)[01},.1aL6]1",
 
   "P", "string-append*",
-  "%1.0,@(y14:%25string-append),@(y13:apply-to-list)[12",
+  "%1.0,@(y13:string-append),@(y13:apply-to-list)[12",
 
   "P", "list1?",
   "%1.0p?{.0du]1}f]1",
@@ -108,7 +108,7 @@ char *t_code[] = {
   "%2${.3,.3,f,@(y12:error-object)[03},@(y5:raise)[21",
 
   "P", "warning*",
-  "%2Pe,.2,.2,'(s9:Warning: )S6,@(y19:print-error-message)[23",
+  "%2Pe,.2,.2,'(s9:Warning: ),Sa2,@(y19:print-error-message)[23",
 
   "P", "idslist?",
   "%1.0u?{t]1}.0p?{${.2a,@(y3:id?)[01}?{.0d,@(y8:idslist?)[11}f]1}.0,@(y3"
@@ -225,7 +225,7 @@ char *t_code[] = {
   "0^_1[11",
 
   "P", "x-error",
-  "%!1.0,.2,'(s13:transformer: )S6,@(y6:error*)[22",
+  "%!1.0,.2,'(s13:transformer: ),Sa2,@(y6:error*)[22",
 
   "P", "check-syntax",
   "%3${.2,.4,@(y11:sexp-match?)[02}~?{.0,.3,@(y7:x-error)[32}]3",
@@ -476,23 +476,23 @@ char *t_code[] = {
   "ake-list),.3,.5[02}?{&0{%1${'(s31:invalid make-list template args),'(l"
   "2:y8:<number>;y1:*;),.4,@(y12:check-syntax)[03}.0da,.1aL2]1}]2}${'(y13"
   ":string-append),.3,.5[02}?{&0{%1${'(s35:invalid string-append template"
-  " args),'(l2:y8:<string>;y3:...;),.4,@(y12:check-syntax)[03}.0,@(y14:%2"
-  "5string-append),@(y13:apply-to-list)[12}]2}${'(y7:char<=?),.3,.5[02}?{"
-  "&0{%1${'(s29:invalid char<=? template args),'(l2:y6:<char>;y3:...;),.4"
-  ",@(y12:check-syntax)[03}.0,@(y1:<),@(y13:apply-to-list)[12}]2}${'(y2:<"
-  "=),.3,.5[02}?{&0{%1${'(s24:invalid <= template args),'(l2:y8:<number>;"
-  "y3:...;),.4,@(y12:check-syntax)[03}.0,@(y1:<),@(y13:apply-to-list)[12}"
-  "]2}${'(y1:+),.3,.5[02}?{&0{%1${'(s23:invalid + template args),'(l2:y8:"
-  "<number>;y3:...;),.4,@(y12:check-syntax)[03}.0,@(y1:+),@(y13:apply-to-"
-  "list)[12}]2}${'(y1:-),.3,.5[02}?{&0{%1${'(s23:invalid - template args)"
-  ",'(l2:y8:<number>;y3:...;),.4,@(y12:check-syntax)[03}.0,@(y1:-),@(y13:"
-  "apply-to-list)[12}]2}${'(y10:id->string),.3,.5[02}?{&0{%1${'(s32:inval"
-  "id id->string template args),'(l1:y4:<id>;),.4,@(y12:check-syntax)[03}"
-  "${.2a,@(y7:id->sym)[01}X4]1}]2}${'(y10:string->id),.3,.5[02}?{.0,&1{%1"
-  "${.2,'(l1:y8:<string>;),@(y11:sexp-match?)[02}?{.0aX5,:0,@(y12:id-rena"
-  "me-as)[12}${.2,'(l2:y8:<string>;y4:<id>;),@(y11:sexp-match?)[02}?{.0aX"
-  "5,.1da,@(y12:id-rename-as)[12}'(s32:invalid string->id template args),"
-  "@(y7:x-error)[11}]2}f]2",
+  " args),'(l2:y8:<string>;y3:...;),.4,@(y12:check-syntax)[03}.0,@(y13:st"
+  "ring-append),@(y13:apply-to-list)[12}]2}${'(y7:char<=?),.3,.5[02}?{&0{"
+  "%1${'(s29:invalid char<=? template args),'(l2:y6:<char>;y3:...;),.4,@("
+  "y12:check-syntax)[03}.0,@(y1:<),@(y13:apply-to-list)[12}]2}${'(y2:<=),"
+  ".3,.5[02}?{&0{%1${'(s24:invalid <= template args),'(l2:y8:<number>;y3:"
+  "...;),.4,@(y12:check-syntax)[03}.0,@(y1:<),@(y13:apply-to-list)[12}]2}"
+  "${'(y1:+),.3,.5[02}?{&0{%1${'(s23:invalid + template args),'(l2:y8:<nu"
+  "mber>;y3:...;),.4,@(y12:check-syntax)[03}.0,@(y1:+),@(y13:apply-to-lis"
+  "t)[12}]2}${'(y1:-),.3,.5[02}?{&0{%1${'(s23:invalid - template args),'("
+  "l2:y8:<number>;y3:...;),.4,@(y12:check-syntax)[03}.0,@(y1:-),@(y13:app"
+  "ly-to-list)[12}]2}${'(y10:id->string),.3,.5[02}?{&0{%1${'(s32:invalid "
+  "id->string template args),'(l1:y4:<id>;),.4,@(y12:check-syntax)[03}${."
+  "2a,@(y7:id->sym)[01}X4]1}]2}${'(y10:string->id),.3,.5[02}?{.0,&1{%1${."
+  "2,'(l1:y8:<string>;),@(y11:sexp-match?)[02}?{.0aX5,:0,@(y12:id-rename-"
+  "as)[12}${.2,'(l2:y8:<string>;y4:<id>;),@(y11:sexp-match?)[02}?{.0aX5,."
+  "1da,@(y12:id-rename-as)[12}'(s32:invalid string->id template args),@(y"
+  "7:x-error)[11}]2}f]2",
 
   "P", "syntax-rules*",
   "%4,,,,,,,,,,,,#0#1#2#3#4#5#6#7#8#9#(i10)#(i11).(i14),&1{%1:0,.1A0]1}.!"
@@ -780,10 +780,10 @@ char *t_code[] = {
   ")S4W0]2}.1,'(c()W0${.3,.3,@(y21:write-serialized-sexp)[02}.1,'(c))W0]2",
 
   "P", "c-error",
-  "%!1.0,.2,'(s10:compiler: )S6,@(y6:error*)[22",
+  "%!1.0,.2,'(s10:compiler: ),Sa2,@(y6:error*)[22",
 
   "P", "c-warning",
-  "%!1.0,.2,'(s10:compiler: )S6,@(y8:warning*)[22",
+  "%!1.0,.2,'(s10:compiler: ),Sa2,@(y8:warning*)[22",
 
   "P", "find-free*",
   "%2.0u?{n]2}${.3,.3d,@(y10:find-free*)[02},${.4,.4a,@(y9:find-free)[02}"
@@ -1008,8 +1008,7 @@ char *t_code[] = {
 
   "P", "file-resolve-relative-to-base-path",
   "%2${.2,@(y14:path-relative?)[01}?{${.3,@(y19:base-path-separator)[01}?"
-  "{.0,.2S6]2}.0,${@(y19:directory-separator)[00},S11,.3,@(y14:%25string-"
-  "append)[23}.0]2",
+  "{.0,.2,Sa2]2}.0,${@(y19:directory-separator)[00},S11,.3,Sa3]2}.0]2",
 
   "C", 0,
   "n@!(y20:*current-file-stack*)",
@@ -1055,16 +1054,16 @@ char *t_code[] = {
   "P", "mangle-symbol->string",
   "%1,#0'(l5:c!;c$;c-;c_;c=;).!0n,.2X4X2,,#0.0,.4,&2{%2.0u?{.1A8X3]2}.0aC"
   "2,.0?{.0}{.1aC5}_1?{.1,.1ac,.1d,:1^[22}:0^,.1aA1?{.1,.1ac,.1d,:1^[22}'"
-  "(i16),.1aX8E8,'2,.1S3<?{.0,'(s1:0)S6}{.0},.0SdX2,'(c%25)c,.4,.1A8L6,.4"
-  "d,:1^[52}.!0.0^_1[22",
+  "(i16),.1aX8E8,'2,.1S3<?{.0,'(s1:0),Sa2}{.0},.0SdX2,'(c%25)c,.4,.1A8L6,"
+  ".4d,:1^[52}.!0.0^_1[22",
 
   "P", "listname->symbol",
   "%1,,,,#0#1#2#3'(s0:).!0'(s5:lib:/).!1'(s1:/).!2'(s1:/).!3.4L0~?{${.6,'"
   "(s20:invalid library name),@(y7:x-error)[02}}.1^,l1,.5,,#0.7,.1,.8,.8,"
-  ".7,&5{%2.0u?{${.3,:0^cA8,@(y14:%25string-append),@(y13:apply-to-list)["
-  "02}X5]2}.0aY0?{.1,:1^c,${.3a,@(y21:mangle-symbol->string)[01}c,.1d,:3^"
-  "[22}.0aI0?{.1,:2^c,'(i10),.2aE8c,.1d,:3^[22}:4,'(s20:invalid library n"
-  "ame),@(y7:x-error)[22}.!0.0^_1[52",
+  ".7,&5{%2.0u?{${.3,:0^cA8,@(y13:string-append),@(y13:apply-to-list)[02}"
+  "X5]2}.0aY0?{.1,:1^c,${.3a,@(y21:mangle-symbol->string)[01}c,.1d,:3^[22"
+  "}.0aI0?{.1,:2^c,'(i10),.2aE8c,.1d,:3^[22}:4,'(s20:invalid library name"
+  "),@(y7:x-error)[22}.!0.0^_1[52",
 
   "P", "listname-segment->string",
   "%1.0Y0?{.0,@(y21:mangle-symbol->string)[11}.0I0?{'(i10),.1E8]1}.0,'(s3"
@@ -1082,13 +1081,13 @@ char *t_code[] = {
 
   "P", "append-library-path!",
   "%1#0${.2^,@(y19:base-path-separator)[01}~?{${@(y19:directory-separator"
-  ")[00},S11,.1^S6.!0}.0^,l1,@(y19:*library-path-list*)L6@!(y19:*library-"
-  "path-list*)]1",
+  ")[00},S11,.1^,Sa2.!0}.0^,l1,@(y19:*library-path-list*)L6@!(y19:*librar"
+  "y-path-list*)]1",
 
   "P", "prepend-library-path!",
   "%1#0${.2^,@(y19:base-path-separator)[01}~?{${@(y19:directory-separator"
-  ")[00},S11,.1^S6.!0}@(y19:*library-path-list*),.1^,l1L6@!(y19:*library-"
-  "path-list*)]1",
+  ")[00},S11,.1^,Sa2.!0}@(y19:*library-path-list*),.1^,l1L6@!(y19:*librar"
+  "y-path-list*)]1",
 
   "P", "find-library-path",
   "%1@(y19:*library-path-list*),,#0.0,.3,&2{%1.0p?{${'(s4:.sld),.3a,:0,@("
@@ -1750,7 +1749,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.5.7)@!(y15:*skint-version*)",
+  "'(s5:0.5.8)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",
@@ -1759,8 +1758,8 @@ char *t_code[] = {
   "%0'(s5:SKINT)]0",
 
   "C", 0,
-  "@(y10:*features*),@(y15:*skint-version*),'(s6:skint-)S6X5c@!(y10:*feat"
-  "ures*)",
+  "@(y10:*features*),@(y15:*skint-version*),'(s6:skint-),Sa2X5c@!(y10:*fe"
+  "atures*)",
 
   "P", "version-alist",
   "%0n,@(y19:*library-path-list*),'(y11:scheme.path)cc,@(y10:*features*),"

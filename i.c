@@ -1339,14 +1339,6 @@ define_instruction(sput) {
   gonexti();
 }
 
-define_instruction(scat) {
-  obj x = ac, y = spop(); int *d; 
-  cks(x); cks(y);
-  d = stringcat(stringdata(x), stringdata(y));
-  ac = string_obj(d);
-  gonexti();
-}
-
 define_instruction(ssub) {
   obj x = spop(), y = spop(); int is, ie, *d; 
   cks(ac); ckk(x); ckk(y); 
@@ -1391,6 +1383,33 @@ define_instruction(sflc) {
   int *d; char *s; cks(ac);
   d = dupstring(stringdata(ac)); 
   for (s = sdatachars(d); *s; ++s) *s = tolower(*s); /* stub */
+  ac = string_obj(d);
+  gonexti();
+}
+
+define_instruction(sapp) {
+  int a, c, i, n, *d; obj o = *ip++;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; c = get_fixnum(o);
+  for (n = 0, a = 0; a < c; ++a) {
+    obj s = sref(a); cks(s);
+    n += string_len(s);
+  }
+  d = allocstring(n, ' ');
+  for (i = 0, a = 0; a < c; ++a) {
+    obj s = sref(a); n = string_len(s);
+    memcpy(sdatachars(d)+i, stringchars(s), n);
+    i += n;
+  }
+  sdrop(c); ac = string_obj(d);
+  gonexti();
+}
+
+define_instruction(sapp2) {
+  /* specialized version of sapp; both args on stack */
+  obj x = spop(), y = spop(); int *d; 
+  cks(x); cks(y);
+  d = stringcat(stringdata(x), stringdata(y));
   ac = string_obj(d);
   gonexti();
 }
@@ -1453,6 +1472,24 @@ define_instruction(bsub) {
   if (ie > bytevector_len(ac)) failtype(y, "valid end bytevector index");
   d = subbytevector(bytevectordata(ac), is, ie);
   ac = bytevector_obj(d);
+  gonexti();
+}
+
+define_instruction(bapp) {
+  int a, c, i, n, *d; obj o = *ip++;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; c = get_fixnum(o);
+  for (n = 0, a = 0; a < c; ++a) {
+    obj b = sref(a); ckb(b);
+    n += bytevector_len(b);
+  }
+  d = allocbytevector(n);
+  for (i = 0, a = 0; a < c; ++a) {
+    obj b = sref(a); n = bytevector_len(b);
+    memcpy(bvdatabytes(d)+i, bytevectorbytes(b), n);
+    i += n;
+  }
+  sdrop(c); ac = bytevector_obj(d);
   gonexti();
 }
 
@@ -1733,8 +1770,27 @@ define_instruction(vput) {
   gonexti();
 }
 
-define_instruction(vcat) {
-  obj x = ac, y = sref(0); int n1, n2, n;
+define_instruction(vapp) {
+  int a, c, n, i; obj o = *ip++;
+  /* special arrangement for handcoded proc */
+  if (!o) o = ac; c = get_fixnum(o);
+  for (n = 0, a = 0; a < c; ++a) {
+    obj v = sref(a); ckv(v);
+    n += vector_len(v);
+  }
+  hp_reserve(vecbsz(n));
+  for (a = c; a > 0; --a) {
+    obj v = sref(a-1); i = vector_len(v);
+    /* NB: vector_ref fails to return pointer to empty vector's start */
+    hp -= i; if (i) objcpy(hp, &vector_ref(v, 0), i);
+  }
+  sdrop(c); ac = hend_vec(n);
+  gonexti();
+}
+
+define_instruction(vapp2) {
+  /* specialized version of vapp; both args on stack */
+  obj x = sref(0), y = sref(1); int n1, n2, n;
   ckv(x); ckv(y);
   n1 = vector_len(x), n2 = vector_len(y), n = n1 + n2;
   hp_reserve(vecbsz(n));
@@ -1742,9 +1798,10 @@ define_instruction(vcat) {
   hp -= n2; if (n2) objcpy(hp, &vector_ref(y, 0), n2);
   hp -= n1; if (n1) objcpy(hp, &vector_ref(x, 0), n1);
   ac = hend_vec(n);
-  sdrop(1);
+  sdrop(2);
   gonexti();
 }
+
 
 define_instruction(vtol) {
   obj l = null_obj(); int n;
@@ -1795,16 +1852,20 @@ define_instruction(stol) {
 }
 
 define_instruction(ltos) {
-  obj l = ac; int n = 0, i, *d;
-  while (is_pair(l)) { l = pair_cdr(l); ++n; }
+  obj l; int n, i, *d;
+  for (n = 0, l = ac; is_pair(l); l = pair_cdr(l)) {
+    obj x = pair_car(ac); ckc(x);
+    ++n; 
+  }
   d = allocstring(n, ' ');
   for (i = 0; i < n; ac = pair_cdr(ac), ++i) {
-    obj x = pair_car(ac); ckc(x);
+    obj x = pair_car(ac);
     sdatachars(d)[i] = get_char(x);
   }
   ac = string_obj(d);
   gonexti();
 }
+
 
 define_instruction(ytos) {
   cky(ac);

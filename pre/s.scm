@@ -276,8 +276,7 @@
   ; check that now relies on block tag being a non-immediate object, so we'll better put 
   ; some pseudo-unique immediate object here -- and we don't have to be fast doing that
   (let loop ([fl (cons name fields)] [sl '("rtd://")]) 
-     ; NB: can't do (apply string-append ..) -- they are defined w/cover syntax below!
-     (cond [(null? fl) (string->symbol (apply-to-list %string-append (reverse sl)))]
+     (cond [(null? fl) (string->symbol (apply-to-list string-append (reverse sl)))]
            [(null? (cdr fl)) (loop (cdr fl) (cons (symbol->string (car fl)) sl))]
            [else (loop (cdr fl) (cons ":" (cons (symbol->string (car fl)) sl)))]))) 
   
@@ -746,7 +745,7 @@
   (string->symbol (string-foldcase s)))
 
 (define (symbol-append . syms) ; +
-  (string->symbol (apply-to-list %string-append (%map1 symbol->string syms))))
+  (string->symbol (apply-to-list string-append (%map1 symbol->string syms))))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -796,6 +795,7 @@
 ; (list->string l)
 ; (%string->list1 s) + 
 ; (string-cat s1 s2) +
+; (string-append s ...)
 ; (substring s from to)
 ; (string-position s c) +
 ; (string-cmp s1 s2) +
@@ -876,30 +876,6 @@
      [(str start) (substring->vector str start (string-length str))]
      [(str start end) (substring->vector str start end)]))
 
-(define (strings-sum-length strs)
-  (let loop ([strs strs] [l 0])
-    (if (null? strs) l (loop (cdr strs) (fx+ l (string-length (car strs)))))))
-
-(define (strings-copy-into! to strs)
-  (let loop ([strs strs] [i 0])
-    (if (null? strs)
-        to
-        (let ([str (car strs)] [strs (cdr strs)])
-          (let ([len (string-length str)])
-            (substring-copy! to i str 0 len)
-            (loop strs (fx+ i len)))))))  
-
-(define (%string-append . strs)
-  (strings-copy-into! (make-string (strings-sum-length strs)) strs))
-
-(define-syntax string-append
-  (syntax-rules ()
-    [(_) ""] 
-    [(_ x) (string-cat x "")]
-    [(_ x y) (string-cat x y)]
-    [(_ . r) (%string-append . r)]
-    [_ %string-append]))
-
 (define (string-trim-whitespace s) ; +
   (let floop ([from 0] [len (string-length s)])
     (if (and (< from len) (char-whitespace? (string-ref s from)))
@@ -921,6 +897,7 @@
 ; (vector? x)
 ; (vector x ...)
 ; (make-vector n (i #f))
+; (vector-append v ...)
 ; (vector-length v)
 ; (vector-ref v i)
 ; (vector-set! v i x)
@@ -995,30 +972,6 @@
      [(vec start) (subvector->string vec start (vector-length vec))]
      [(vec start end) (subvector->string vec start end)]))
 
-(define (vectors-sum-length vecs)
-  (let loop ([vecs vecs] [l 0])
-    (if (null? vecs) l (loop (cdr vecs) (fx+ l (vector-length (car vecs)))))))
-
-(define (vectors-copy-into! to vecs)
-  (let loop ([vecs vecs] [i 0])
-    (if (null? vecs)
-        to
-        (let ([vec (car vecs)] [vecs (cdr vecs)])
-          (let ([len (vector-length vec)])
-            (subvector-copy! to i vec 0 len)
-            (loop vecs (fx+ i len)))))))  
-
-(define (%vector-append . vecs)
-  (vectors-copy-into! (make-vector (vectors-sum-length vecs)) vecs))
-
-(define-syntax vector-append
-  (syntax-rules ()
-    [(_) '#()] 
-    [(_ x) (vector-cat x '#())]
-    [(_ x y) (vector-cat x y)]
-    [(_ . r) (%vector-append . r)]
-    [_ %vector-append]))
-
 
 ;---------------------------------------------------------------------------------------------
 ; Bytevectors
@@ -1028,6 +981,7 @@
 ;
 ; (bytevector? x)
 ; (make-bytevector n (u8 0))
+; (bytevector-append b ...)
 ; (bytevector u8 ...)
 ; (bytevector-length b)
 ; (bytevector-u8-ref b i)
@@ -1076,21 +1030,6 @@
      [(bvec b) (subbytevector-fill! bvec b 0 (bytevector-length bvec))]
      [(bvec b start) (subbytevector-fill! bvec b start (bytevector-length bvec))]
      [(bvec b start end) (subbytevector-fill! bvec b start end)]))
-
-(define (%bytevectors-sum-length bvecs)
-  (let loop ([bvecs bvecs] [l 0])
-    (if (null? bvecs) l (loop (cdr bvecs) (fx+ l (bytevector-length (car bvecs)))))))
-
-(define (%bytevectors-copy-into! to bvecs)
-  (let loop ([bvecs bvecs] [i 0])
-    (if (null? bvecs) to
-        (let ([bvec (car bvecs)] [bvecs (cdr bvecs)])
-          (let ([len (bytevector-length bvec)])
-            (subbytevector-copy! to i bvec 0 len)
-            (loop bvecs (fx+ i len)))))))  
-
-(define (bytevector-append . bvecs)
-  (%bytevectors-copy-into! (make-bytevector (%bytevectors-sum-length bvecs)) bvecs))
 
 (define (subutf8->string vec start end)
   (let ([p (open-output-string)])
