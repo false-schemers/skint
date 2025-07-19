@@ -1096,7 +1096,9 @@ int dirsep = '/';
 #endif
 
 #ifdef LIBPATH
-char *lib_path = ##LIBPATH;
+#define STR2(x) #x
+#define STR(x)  STR2(x)
+char *lib_path = STR(LIBPATH);
 #else
 char *lib_path = ".";
 #endif

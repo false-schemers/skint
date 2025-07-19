@@ -1,10 +1,18 @@
+-include  prefix.mk
+PREFIX    ?= /usr/local
+LIBROOT   = $(PREFIX)/share/skint
 CFLAGS    = -O3 -DNDEBUG
 LDFLAGS   = 
-PREFIX    = /usr/local
 INSTALL   = install -m 755 -s
 UNINSTALL = rm -f 
 RM        = rm -f
 ARCH      = unknown
+
+$(info prefix is set to $(PREFIX))
+
+ifneq ($(wildcard lib/.),)
+  CFLAGS += -DLIBPATH=$(LIBROOT)/lib
+endif
 
 ifneq ($(shell which clang),)
   $(info clang is detected) 
@@ -85,17 +93,31 @@ all: $(exe)
 test:
 	$(exe) misc/test.scm
 
+libtest:
+	$(exe) -I ./lib test/srfi/all.scm
+
 clean:
 	$(RM) $(objects)
+	$(RM) tmp1
 
 realclean:
 	$(RM) $(objects) $(exe)
+	$(RM) tmp1
 
 install:
 	$(INSTALL) $(exe) $(PREFIX)/bin
 
+libinstall:
+	install -d $(LIBROOT)/lib
+	cp -a lib/. $(LIBROOT)/lib/
+	find $(LIBROOT) -type f -exec chmod 644 {} +
+	find $(LIBROOT) -type d -exec chmod 755 {} +
+
 uninstall:
 	$(UNINSTALL) $(exe) $(PREFIX)/bin
+
+libuninstall:
+	rm -rf $(LIBROOT)
 
 $(exe): $(objects)
 	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objects) -lm
