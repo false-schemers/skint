@@ -58,6 +58,8 @@ make install
 ```
 cl -O2 -DNDEBUG -DNAN_BOXING -Fe"skint.exe" s.c k.c i.c n.c t.c
 ```
+The `misc` subdirectory contains a makefile for the NMAKE utility; to use it, please follow
+the instructions in `misc/README.md`.
 
 ## Scheme Compatibility
 
