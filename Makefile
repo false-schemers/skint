@@ -3,9 +3,12 @@ PREFIX    ?= /usr/local
 LIBROOT   = $(PREFIX)/share/skint
 CFLAGS    = -O3 -DNDEBUG
 LDFLAGS   = 
+MKPATH    = install -d
 INSTALL   = install -m 755 -s
+CPR       = cp -a
 UNINSTALL = rm -f 
 RM        = rm -f
+RMR       = rm -rf
 ARCH      = unknown
 
 $(info prefix is set to $(PREFIX))
@@ -105,11 +108,12 @@ realclean:
 	$(RM) tmp1
 
 install:
+	$(MKPATH) $(PREFIX)/bin
 	$(INSTALL) $(exe) $(PREFIX)/bin
 
 libinstall:
-	install -d $(LIBROOT)/lib
-	cp -a lib/. $(LIBROOT)/lib/
+	$(MKPATH) $(LIBROOT)/lib
+	$(CPR) lib/. $(LIBROOT)/lib/
 	find $(LIBROOT) -type f -exec chmod 644 {} +
 	find $(LIBROOT) -type d -exec chmod 755 {} +
 
@@ -117,7 +121,7 @@ uninstall:
 	$(UNINSTALL) $(exe) $(PREFIX)/bin
 
 libuninstall:
-	rm -rf $(LIBROOT)
+	$(RMR) $(LIBROOT)
 
 $(exe): $(objects)
 	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objects) -lm
