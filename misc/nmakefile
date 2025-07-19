@@ -1,0 +1,62 @@
+# makefile for MSVC NMAKE
+# Usage default: nmake /f nmakefile
+# with custom prefix: nmake /f nmakefile PREFIX=C:\tools
+
+!IFNDEF CC
+CC = cl
+!ENDIF
+
+# Default optimisation & debug flags
+CFLAGS = /O2 /DNDEBUG /nologo
+LDFLAGS = /nologo
+
+# Default prefix for Windows (change on command line with NMAKE PREFIX=...)
+!IFNDEF PREFIX
+PREFIX = $(USERPROFILE)\skint
+!ENDIF
+
+# Empty macro for install on Windows (expects existing destination directory)
+INSTALL   = copy /y
+UNINSTALL = del /f /q
+RM        = del /f /q
+
+# Detect 64-bit build via cl option or environment
+!IF "$(PROCESSOR_ARCHITECTURE)" == "AMD64" || "$(PROCESSOR_ARCHITEW6432)" == "AMD64"
+ARCH = AMD64
+CFLAGS = $(CFLAGS) /DNAN_BOXING
+!MESSAGE x86_64 architecture detected
+!ENDIF
+
+# Source lists
+SOURCES = s.c k.c i.c n.c t.c
+INCLUDES = i.h n.h s.h
+OBJECTS = $(SOURCES:.c=.obj)
+EXE     = skint.exe
+
+# Targets
+all: $(EXE)
+
+test: $(EXE)
+    $(EXE) misc\test.scm
+
+clean:
+    $(RM) $(OBJECTS)
+
+realclean:
+    $(RM) $(OBJECTS) $(EXE)
+
+install: $(EXE)
+    @if not exist "$(PREFIX)\bin" mkdir "$(PREFIX)\bin"
+    $(INSTALL) $(EXE) "$(PREFIX)\bin"
+
+uninstall:
+    $(UNINSTALL) "$(PREFIX)\bin\$(EXE)"
+
+# Rules
+$(EXE): $(OBJECTS)
+    $(CC) $(LDFLAGS) $(OBJECTS) /Fe$(EXE) /link /subsystem:console
+
+.c.obj:
+    $(CC) $(CFLAGS) /c $<
+
+$(OBJECTS): $(INCLUDES)
