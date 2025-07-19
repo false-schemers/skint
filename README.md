@@ -3,7 +3,7 @@
 # Cheap and fast R7RS Scheme Interpreter
                          
 SKINT is a portable interpreter for the R7RS Scheme programming language. 
-It can be built from five C source files (10K lines of code) with a single command. There are no distributives or packages; 
+It can be built from five C source files (~11K lines of code) with a single command. There are no distributives or packages; 
 just compile the source files with your favorite C compiler, link them with the standard C runtime libraries, 
 and you're done. For some platforms, precompiled binaries are available (please see [releases](https://github.com/false-schemers/skint/releases)).
 
@@ -32,7 +32,7 @@ The resulting interpreter has no dependencies (except for C runtime and standard
 If linked statically, it can be easily moved between systems with the same ABI.
 
 For a more traditional install, please follow the instructions below. Skint will be
-installed as `/usr/local/bin/skint` command.
+installed as `/usr/local/bin/skint` command (unless you set a different destination via `configure` as shown below).
 
 ```
 git clone https://github.com/false-schemers/skint.git
@@ -41,8 +41,19 @@ make
 make test
 sudo make install
 ```
+If you would like to use the traditional install, but prefer to install SKINT to a place other than `/usr/local`,
+you may insert the `configure` command between `cd skint` and the first call to `make`, e.g.
 
-\* Similar command line works on Windows/MSVC:
+```
+git clone https://github.com/false-schemers/skint.git
+cd skint
+./configure --prefix=/home/gwendolyn/tools/skint
+make
+make test
+make install
+```
+---
+\* Similar build command line works on Windows/MSVC:
 
 ```
 cl -O2 -DNDEBUG -DNAN_BOXING -Fe"skint.exe" s.c k.c i.c n.c t.c
