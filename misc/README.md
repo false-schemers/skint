@@ -3,9 +3,10 @@
 This directory contains miscellaneous SKINT files. 
 
 The `nmakefile` is a make file for Microsoft NMAKE. To use it, first open Visual Studio IDE
-and select the `Visual Stidio Command Prompt` tool from the `Tools` menu. A terminal window will
-open. Switch to it and enter the following commands (it is assumed that your SKINT distributive
-is located at `C:\Users\Gwendolyn\Documents\skint_dist` – change it before proceeding):
+and select the `Visual Stidio Command Prompt` tool from the `Tools` menu (for 64-bit tools,
+press Start and type `x64 Native Tools Command Prompt for VS 2022` or whichever version you have). 
+A terminal window will open. Switch to it and enter the following commands (it is assumed that your SKINT 
+distributive is located at `C:\Users\Gwendolyn\Documents\skint_dist` – change it before proceeding):
 
 ```
 pushd C:\Users\Gwendolyn\Documents\skint_dist
