@@ -414,28 +414,33 @@ extern obj* procedureref(obj o, int i);
 #define mkshebang(i) mkimm(i, SHEBANG_ITAG)
 #define getshebang(o) getimmu(o, SHEBANG_ITAG)
 /* input/output ports */
+typedef enum { CTLOP_RDLN } ctlop_t;
 typedef struct { /* extends cxtype_t */
   const char *tname;
   void (*free)(void*);
-  enum { SPT_CLOSED = 0, SPT_INPUT = 1, SPT_OUTPUT = 2, SPT_IO = 3 } spt;
+  enum { SPT_INPUT = 1, SPT_OUTPUT = 2, SPT_IO = 3, SPT_BINARY = 4 } spt;
   int  (*close)(void*);
   int  (*getch)(void*);
   int  (*ungetch)(int, void*);
   int  (*putch)(int, void*);
   int  (*flush)(void*);
-  int  (*ctl)(const char*, void*, ...);
+  int  (*ctl)(ctlop_t, void*, ...);
 } cxtype_port_t, cxtype_iport_t, cxtype_oport_t;
+#define PORTTYPES_MAX 10
+extern cxtype_port_t cxt_port_types[PORTTYPES_MAX];
 /* input ports */
 extern cxtype_t *IPORT_CLOSED_NTAG;
 extern cxtype_t *IPORT_FILE_NTAG;
+extern cxtype_t *IPORT_BYTEFILE_NTAG;
 extern cxtype_t *IPORT_STRING_NTAG;
 extern cxtype_t *IPORT_BYTEVECTOR_NTAG;
 static cxtype_iport_t *iportvt(obj o) { 
   cxtype_t *pt; if (!isobjptr(o)) return NULL;
   pt = (cxtype_t*)objptr_from_obj(o)[-1];
-  if (pt != IPORT_CLOSED_NTAG && pt != IPORT_FILE_NTAG &&
-      pt != IPORT_STRING_NTAG && pt != IPORT_BYTEVECTOR_NTAG) return NULL; 
-  else return (cxtype_iport_t*)pt; }
+  if (pt >= (cxtype_t*)&cxt_port_types[0] && 
+      pt < (cxtype_t*)&cxt_port_types[PORTTYPES_MAX] &&
+      (((cxtype_port_t*)pt)->spt & SPT_INPUT))
+  return (cxtype_iport_t*)pt; else return NULL; }
 #define ckiportvt(o) ((cxtype_iport_t*)cxm_cknull(iportvt(o), "iportvt"))
 #define isiport(o) (iportvt(o) != NULL)
 #define iportdata(o) ((void*)(*objptr_from_obj(o)))
@@ -448,6 +453,8 @@ static int iportpeekc(obj o) {
   assert(vt); c = vt->getch(pp); if (c != EOF) vt->ungetch(c, pp); return c;
 }
 /* file input ports */
+typedef struct tifile_tag tifile_t;
+extern tifile_t *tialloc(FILE *fp);
 #define mkiport_file(l, fp) hpushptr(fp, IPORT_FILE_NTAG, l)
 /* string input ports */
 typedef struct { char *p; void *base; } sifile_t;
@@ -460,14 +467,16 @@ extern bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base);
 /* output ports */
 extern cxtype_t *OPORT_CLOSED_NTAG;
 extern cxtype_t *OPORT_FILE_NTAG;
+extern cxtype_t *OPORT_BYTEFILE_NTAG;
 extern cxtype_t *OPORT_STRING_NTAG;
 extern cxtype_t *OPORT_BYTEVECTOR_NTAG;
 static cxtype_oport_t *oportvt(obj o) { 
   cxtype_t *pt; if (!isobjptr(o)) return NULL;
   pt = (cxtype_t*)objptr_from_obj(o)[-1];
-  if (pt != OPORT_CLOSED_NTAG && pt != OPORT_FILE_NTAG && 
-      pt != OPORT_STRING_NTAG && pt != OPORT_BYTEVECTOR_NTAG) return NULL; 
-  else return (cxtype_oport_t*)pt; }
+  if (pt >= (cxtype_t*)&cxt_port_types[0] && 
+      pt < (cxtype_t*)&cxt_port_types[PORTTYPES_MAX] &&
+    (((cxtype_port_t*)pt)->spt & SPT_OUTPUT))
+    return (cxtype_oport_t*)pt; else return NULL; }
 #define ckoportvt(o) ((cxtype_oport_t*)cxm_cknull(oportvt(o), "oportvt"))
 #define isoport(o) (oportvt(o) != NULL)
 #define oportdata(o) ((void*)(*objptr_from_obj(o)))
@@ -493,9 +502,11 @@ static void oportflush(obj o) {
 typedef struct cbuf_tag { char *buf; char *fill; char *end; } cbuf_t;
 extern cbuf_t* newcb(void);
 extern void freecb(cbuf_t* pcb);
+extern char* cballoc(cbuf_t* pcb, size_t n);
 extern int cbputc(int c, cbuf_t* pcb);
 extern size_t cblen(cbuf_t* pcb);
 extern char* cbdata(cbuf_t* pcb);
+extern cbuf_t* cbclear(cbuf_t *pcb);
 #define mkoport_string(l, fp) hpushptr(fp, OPORT_STRING_NTAG, l)
 /* bytevector output ports */
 #define mkoport_bytevector(l, fp) hpushptr(fp, OPORT_BYTEVECTOR_NTAG, l)

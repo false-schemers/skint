@@ -553,6 +553,7 @@ declare_instruction(rdcr,       "R2\0Pi",       0,  "char-ready?",              
 declare_instruction(rd8,        "R3\0Pi",       0,  "read-u8",                  'u', AUTOGL)
 declare_instruction(rda8,       "R4\0Pi",       0,  "peek-u8",                  'u', AUTOGL)
 declare_instruction(rd8r,       "R5\0Pi",       0,  "u8-ready?",                'u', AUTOGL)
+declare_instruction(rdln,       "R6\0Pi",       0,  "%read-line",               'u', AUTOGL)
 declare_instruction(eofp,       "R8",           0,  "eof-object?",              '1', AUTOGL)
 declare_instruction(eof,        "R9",           0,  "eof-object",               '0', AUTOGL)
 declare_instruction(wrc,        "W0\0Po",       0,  "write-char",               'b', AUTOGL)

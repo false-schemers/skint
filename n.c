@@ -500,7 +500,7 @@ static int noputch(int c, void *p) { return EOF; }
 
 static int noflush(void *p) { return EOF; }
 
-static int noctl(const char *cmd, void *p, ...) { return -1; }
+static int noctl(ctlop_t op, void *p, ...) { return -1; }
 
 static void ffree(void *vp) {
   /* FILE *fp = vp; assert(fp); cannot fclose(fp) here because of FILE reuse! */ }
@@ -520,6 +520,22 @@ static int sigetch(sifile_t *fp) {
 
 static int siungetch(int c, sifile_t *fp) {
   assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
+  
+static int sictl(ctlop_t op, sifile_t *fp, ...) {
+  if (op == CTLOP_RDLN) {
+    va_list args; int **pd; va_start(args, fp); 
+    pd = va_arg(args, int **);
+    if (*(fp->p) == 0) *pd = NULL;
+    else {
+      char *s = strchr(fp->p, '\n');
+      if (s) { *pd = newstringn(fp->p, s-fp->p); fp->p = s+1; }
+      else { *pd = newstring(fp->p); fp->p += strlen(fp->p); }
+    }  
+    va_end(args);
+    return 0;
+  }
+  return -1;
+}
 
 bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
   bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), "malloc(bvifile)");
@@ -538,10 +554,14 @@ static int bvigetch(bvifile_t *fp) {
 static int bviungetch(int c, bvifile_t *fp) {
   assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }
 
-cbuf_t* newcb(void) {
-  cbuf_t* pcb = cxm_cknull(malloc(sizeof(cbuf_t)), "malloc(cbuf)");
+cbuf_t* cbinit(cbuf_t* pcb) {
   pcb->fill = pcb->buf = cxm_cknull(malloc(64), "malloc(cbdata)");
   pcb->end = pcb->buf + 64; return pcb;
+}
+
+cbuf_t* newcb(void) {
+  cbuf_t* pcb = cxm_cknull(malloc(sizeof(cbuf_t)), "malloc(cbuf)");
+  return cbinit(pcb);
 }
 
 void freecb(cbuf_t* pcb) { if (pcb) { free(pcb->buf); free(pcb); } }
@@ -554,8 +574,16 @@ static void cbgrow(cbuf_t* pcb, size_t n) {
   pcb->fill = pcb->buf + cnt, pcb->end = pcb->buf + newsz;
 }
 
+char* cballoc(cbuf_t* pcb, size_t n) {
+  assert(pcb); /* allow for extra 1 char after n */
+  if (pcb->fill + n+1 > pcb->end) cbgrow(pcb, n+1);
+  pcb->fill += n;
+  return pcb->fill - n;
+}
+
 int cbputc(int c, cbuf_t* pcb) {
-  if ((pcb)->fill == (pcb)->end) cbgrow(pcb, 1); *((pcb)->fill)++ = c; return c;
+  if (pcb->fill == pcb->end) cbgrow(pcb, 1); 
+  *(pcb->fill)++ = c; return c;
 }
 
 static int cbflush(cbuf_t* pcb) { return 0; }
@@ -568,64 +596,143 @@ char* cbdata(cbuf_t* pcb) {
   if (pcb->fill == pcb->end) cbgrow(pcb, 1); *(pcb->fill) = 0; return pcb->buf; 
 }
 
+cbuf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }
+
+typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
+struct tifile_tag { cbuf_t cb; char *next; FILE *fp; int lno; tiflags_t flags; };
+
+tifile_t *tialloc(FILE *fp) {
+  tifile_t *tp = cxm_cknull(malloc(sizeof(tifile_t)), "malloc(tifile)");
+  cbinit(&tp->cb); tp->next = tp->cb.buf; *(tp->next) = 0;
+  tp->fp = fp; tp->lno = 0; tp->flags = TIF_NONE;
+  return tp; 
+}
+
+static void tifree(tifile_t *tp) { 
+  assert(tp); cbclose(&tp->cb); ffree(tp->fp); free(tp); }
+
+static int ticlose(tifile_t *tp) { 
+  assert(tp); cbclose(&tp->cb); fclose(tp->fp); return 0; }
+
+static int tigetch(tifile_t *tp) {
+  int c; retry: c = *(tp->next); 
+  if (c != 0) { ++(tp->next); return c; } 
+  /* see if we need to return actual 0 or refill the line */
+  if (tp->next < tp->cb.fill)  { ++(tp->next); return c; }
+  else if (tp->flags & TIF_EOF || !tp->fp) return EOF;
+  else { /* refill with next line from fp */
+    cbuf_t *pcb = cbclear(&tp->cb); FILE *fp = tp->fp; 
+    char *line = fgets(cballoc(pcb, 256), 256, fp);
+    if (!line) { cbclear(pcb); tp->flags |= TIF_EOF; }
+    else { /* manually add the rest of the line */
+      size_t len = strlen(line); pcb->fill = pcb->buf + len;
+      if (len > 0 && line[len-1] != '\n') {
+        do { c = getc(fp); if (c == EOF) break; cbputc(c, pcb); } while (c != '\n');
+        if (c == EOF) tp->flags |= TIF_EOF;
+      }
+    }
+    tp->lno += 1; tp->next = cbdata(pcb); /* 0-term */
+    goto retry;
+  }
+}
+
+static int tiungetch(int c, tifile_t *tp) { 
+  assert(tp->next > tp->cb.buf && tp->next <= tp->cb.fill);
+  tp->next -= 1; // todo: utf-8
+  return c;
+}
+
+static int tictl(ctlop_t op, tifile_t *tp, ...) {
+  if (op == CTLOP_RDLN) {
+    va_list args; int c, n, **pd;
+    va_start(args, tp); 
+    pd = va_arg(args, int **);
+    c = tigetch(tp);
+    if (c == EOF) {
+      *pd = NULL;
+    } else {
+      char *s; tiungetch(c, tp);
+      s = tp->next; n = tp->cb.fill - s;
+      if (n > 0 && s[n-1] == '\n') --n;
+      *pd = newstringn(s, n);
+      tp->next = tp->cb.fill;
+    }  
+    va_end(args);
+    return 0;
+  }
+  return -1;
+}
+
 /* port type array */
 
-#define PORTTYPES_MAX 8
-
-static cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
+cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_CLOSED_PTINDEX     0
   { "closed-input-port", (void (*)(void*))nofree, 
-    SPT_CLOSED, (int (*)(void*))noclose,
+    SPT_INPUT, (int (*)(void*))noclose,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush, 
-    (int (*)(const char *, void *, ...))noctl },
+    (int (*)(ctlop_t, void *, ...))noctl },
 #define IPORT_FILE_PTINDEX       1
   { "file-input-port", ffree, 
     SPT_INPUT, (int (*)(void*))fclose, 
     (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define IPORT_STRING_PTINDEX     2
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define IPORT_BYTEFILE_PTINDEX   2
+  { "binary-file-input-port", ffree, 
+    SPT_INPUT|SPT_BINARY, (int (*)(void*))fclose, 
+    (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define IPORT_STRING_PTINDEX     3
   { "string-input-port", (void (*)(void*))sifree, 
     SPT_INPUT, (int (*)(void*))siclose,
     (int (*)(void*))sigetch, (int (*)(int, void*))siungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define IPORT_BYTEVECTOR_PTINDEX 3
+    (int (*)(ctlop_t, void *, ...))sictl },
+#define IPORT_BYTEVECTOR_PTINDEX 4
   { "bytevector-input-port", (void (*)(void*))bvifree, 
-    SPT_INPUT, (int (*)(void*))bviclose,
+    SPT_INPUT|SPT_BINARY, (int (*)(void*))bviclose,
     (int (*)(void*))bvigetch, (int (*)(int, void*))bviungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define OPORT_CLOSED_PTINDEX     4
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_CLOSED_PTINDEX     5
   { "closed-output-port", (void (*)(void*))nofree, 
     SPT_OUTPUT, (int (*)(void*))noclose, 
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define OPORT_FILE_PTINDEX       5
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_FILE_PTINDEX       6
   { "file-output-port", ffree, 
     SPT_OUTPUT, (int (*)(void*))fclose, 
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define OPORT_STRING_PTINDEX     6
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_BYTEFILE_PTINDEX   7
+  { "binary-file-output-port", ffree, 
+    SPT_OUTPUT|SPT_BINARY, (int (*)(void*))fclose, 
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_STRING_PTINDEX     8
   { "string-output-port", (void (*)(void*))freecb, 
     SPT_OUTPUT, (int (*)(void*))cbclose,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
-    (int (*)(const char *, void *, ...))noctl },
-#define OPORT_BYTEVECTOR_PTINDEX 7
+    (int (*)(ctlop_t, void *, ...))noctl },
+#define OPORT_BYTEVECTOR_PTINDEX 9
   { "bytevector-output-port", (void (*)(void*))freecb, 
-    SPT_OUTPUT, (int (*)(void*))cbclose,
+    SPT_OUTPUT|SPT_BINARY, (int (*)(void*))cbclose,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
-    (int (*)(const char *, void *, ...))noctl }    
+    (int (*)(ctlop_t, void *, ...))noctl }    
 };
 
 cxtype_t *IPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[IPORT_CLOSED_PTINDEX];
 
 cxtype_t *IPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_FILE_PTINDEX];
+
+cxtype_t *IPORT_BYTEFILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_BYTEFILE_PTINDEX];
 
 cxtype_t *IPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[IPORT_STRING_PTINDEX];
 
@@ -634,6 +741,8 @@ cxtype_t *IPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_port_types[IPORT_BYTEVECTOR_P
 cxtype_t *OPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[OPORT_CLOSED_PTINDEX];
 
 cxtype_t *OPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[OPORT_FILE_PTINDEX];
+
+cxtype_t *OPORT_BYTEFILE_NTAG = (cxtype_t *)&cxt_port_types[OPORT_BYTEFILE_PTINDEX];
 
 cxtype_t *OPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[OPORT_STRING_PTINDEX];
 

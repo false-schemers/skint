@@ -272,7 +272,9 @@ static void _sck(obj *s) {
 #define bytevector_type(o) bytevectortype(o)
 #define bytevector_ref(o, i) (*bytevectorref(o, i))
 #define iport_file_obj(fp) hp_pushptr((fp), IPORT_FILE_NTAG)
+#define iport_bytefile_obj(fp) hp_pushptr((fp), IPORT_BYTEFILE_NTAG)
 #define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
+#define oport_bytefile_obj(fp) hp_pushptr((fp), OPORT_BYTEFILE_NTAG)
 #define iport_string_obj(fp) hp_pushptr((fp), IPORT_STRING_NTAG)
 #define oport_string_obj(fp) hp_pushptr((fp), OPORT_STRING_NTAG)
 #define iport_bytevector_obj(fp) hp_pushptr((fp), IPORT_BYTEVECTOR_NTAG)
@@ -3528,14 +3530,14 @@ define_instruction(oof) {
 define_instruction(obif) {
   FILE *fp; cks(ac);
   fp = fopen(stringchars(ac), "rb");
-  ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp);
+  ac = (fp == NULL) ? bool_obj(0) : iport_bytefile_obj(fp);
   gonexti();
 }
 
 define_instruction(obof) {
   FILE *fp; cks(ac);
   fp = fopen(stringchars(ac), "wb");
-  ac = (fp == NULL) ? bool_obj(0) : oport_file_obj(fp);
+  ac = (fp == NULL) ? bool_obj(0) : oport_bytefile_obj(fp);
   gonexti();
 }
 
@@ -3673,6 +3675,13 @@ define_instruction(rd8r) {
   gonexti();
 }
 
+define_instruction(rdln) {
+  int *d = NULL; cxtype_iport_t *vt = iportvt(ac); 
+  if (!vt || vt->ctl(CTLOP_RDLN, iportdata(ac), &d) < 0) failactype("text input port");
+  else if (d == NULL) ac = eof_obj();  
+  else ac = string_obj(d);
+  gonexti(); 
+}
 
 define_instruction(eofp) {
   ac = bool_obj(is_eof(ac));
