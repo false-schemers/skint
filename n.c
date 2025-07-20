@@ -612,18 +612,20 @@ char* cbdata(cbuf_t* pcb) {
 
 cbuf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }
 
-tifile_t *tialloc(FILE *fp) {
+tifile_t *tialloc(FILE *fp, int fns) {
   tifile_t *tp = cxm_cknull(malloc(sizeof(tifile_t)), "malloc(tifile)");
   cbinit(&tp->cb); tp->next = tp->cb.buf; *(tp->next) = 0;
-  tp->fp = fp; tp->lno = 0; tp->flags = TIF_NONE;
+  tp->fp = fp; tp->lno = 0; tp->fns = fns; tp->flags = TIF_NONE;
   return tp; 
 }
 
 static void tifree(tifile_t *tp) { 
-  assert(tp); cbclose(&tp->cb); ffree(tp->fp); free(tp); }
+  assert(tp); cbclose(&tp->cb); ffree(tp->fp); free(tp); 
+}
 
 static int ticlose(tifile_t *tp) { 
-  assert(tp); cbclose(&tp->cb); fclose(tp->fp); return 0; }
+  assert(tp); cbclose(&tp->cb); fclose(tp->fp); return 0; 
+}
 
 static int tigetch(tifile_t *tp) {
   int c; retry: c = *(tp->next); 

@@ -271,7 +271,7 @@ static void _sck(obj *s) {
 #define bytevector_len(o) bytevectorlen(o)
 #define bytevector_type(o) bytevectortype(o)
 #define bytevector_ref(o, i) (*bytevectorref(o, i))
-#define iport_file_obj(fp) hp_pushptr(tialloc(fp), IPORT_FILE_NTAG)
+#define iport_file_obj(fp, fns) hp_pushptr(tialloc(fp, fns), IPORT_FILE_NTAG)
 #define iport_bytefile_obj(fp) hp_pushptr((fp), IPORT_BYTEFILE_NTAG)
 #define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
 #define oport_bytefile_obj(fp) hp_pushptr((fp), OPORT_BYTEFILE_NTAG)
@@ -3485,7 +3485,7 @@ define_instruction(setcerr) {
 }
 
 define_instruction(sip) {
-  ac = iport_file_obj(stdin);
+  ac = iport_file_obj(stdin, internsym("-"));
   gonexti();
 }
 
@@ -3514,9 +3514,9 @@ define_instruction(opop) {
 }
 
 define_instruction(oif) {
-  FILE *fp; cks(ac);
-  fp = fopen(stringchars(ac), "r");
-  ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp);
+  FILE *fp; char *fn; cks(ac);
+  fn = stringchars(ac); fp = fopen(fn, "r");
+  ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp, internsym(fn));
   gonexti();
 }
 
@@ -3604,6 +3604,21 @@ define_instruction(spfc) {
   gonexti();
 }
 
+define_instruction(ploc) {
+  cxtype_iport_t *vt; obj fb = sref(0), lb = sref(1); 
+  ckr(ac); ckz(fb); ckz(lb);
+  vt = iportvt(ac); assert(vt);
+  if (vt == (cxtype_iport_t *)IPORT_FILE_NTAG) {
+    tifile_t *pf = iportdata(ac);
+    box_ref(fb) = symbol_obj(pf->fns);
+    box_ref(lb) = fixnum_obj(pf->lno);
+    ac = bool_obj(1);
+  } else {
+    ac = bool_obj(0);
+  }
+  sdrop(2);
+  gonexti();
+}
 
 define_instruction(gos) {
   cxtype_oport_t *vt; ckw(ac);

@@ -463,9 +463,11 @@ static int iportpeekc(obj o) {
 }
 /* file input ports */
 typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
-typedef struct { cbuf_t cb; char *next; FILE *fp; int lno; tiflags_t flags; } tifile_t;
-extern tifile_t *tialloc(FILE *fp);
+typedef struct { cbuf_t cb; char *next; FILE *fp; int lno, fns; tiflags_t flags; } tifile_t;
+extern tifile_t *tialloc(FILE *fp, int fns);
 #define mkiport_file(l, fp) hpushptr(fp, IPORT_FILE_NTAG, l)
+/* bytefile input ports */
+#define mkiport_bytefile(l, fp) hpushptr(fp, IPORT_BYTEFILE_NTAG, l)
 /* string input ports */
 typedef enum { SIF_NONE = 0, SIF_CI = 2 } siflags_t;
 typedef struct { char *p; void *base; siflags_t flags; } sifile_t;
