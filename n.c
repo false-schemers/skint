@@ -598,9 +598,6 @@ char* cbdata(cbuf_t* pcb) {
 
 cbuf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }
 
-typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
-struct tifile_tag { cbuf_t cb; char *next; FILE *fp; int lno; tiflags_t flags; };
-
 tifile_t *tialloc(FILE *fp) {
   tifile_t *tp = cxm_cknull(malloc(sizeof(tifile_t)), "malloc(tifile)");
   cbinit(&tp->cb); tp->next = tp->cb.buf; *(tp->next) = 0;
@@ -673,11 +670,11 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
     (int (*)(int, void*))noputch, (int (*)(void*))noflush, 
     (int (*)(ctlop_t, void *, ...))noctl },
 #define IPORT_FILE_PTINDEX       1
-  { "file-input-port", ffree, 
-    SPT_INPUT, (int (*)(void*))fclose, 
-    (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
+  { "file-input-port", (void (*)(void*))tifree, 
+    SPT_INPUT, (int (*)(void*))ticlose, 
+    (int (*)(void*))tigetch, (int (*)(int, void*))tiungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(ctlop_t, void *, ...))tictl },
 #define IPORT_BYTEFILE_PTINDEX   2
   { "binary-file-input-port", ffree, 
     SPT_INPUT|SPT_BINARY, (int (*)(void*))fclose, 
@@ -981,10 +978,23 @@ static void wrs(char *s, wenv_t *e) {
   assert(vt); while (*s) vt->putch(*s++, pp);
 }
 static int cleansymname(char *s) {
-  char *inits = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*/:<=>?@^_~";
-  char *subss = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*/:<=>?@^_~0123456789.@+-";
-  if (s[0] == 0 || s[strspn(s, subss)] != 0) return 0; else if (strchr(inits, s[0])) return 1;
-  else if (s[0] == '+' || s[0] == '-') return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || !isdigit(s[1]);
+  static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  };
+  char *p = s; while (*p) if (inisub_map[*p++ & 0xFF] == 0) return 0; if (!s[0]) return 0;
+  if (inisub_map[s[0] & 0xFF] == 1) return 1;
+  if (s[0] == '+' || s[0] == '-') {
+    if (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0) return 0;
+    if ((s[1] == 'i' || s[1] == 'I') && s[2] == 0) return 0;
+    return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || (s[1] != '.' && !isdigit(s[1]));
+  }
   else return s[0] == '.' && s[1] && !isdigit(s[1]); 
 }
 static void wrd(double d, int prc, wenv_t *e) {
@@ -1163,8 +1173,10 @@ void oportputshared(obj x, obj p, int disp) {
 extern int is_tty_port(obj o)
 {
   FILE *fp = NULL;
-  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = (FILE*)iportdata(o);
+  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = ((tifile_t*)iportdata(o))->fp;
+  else if ((cxtype_t*)iportvt(o) == IPORT_BYTEFILE_NTAG) fp = (FILE*)iportdata(o);
   else if ((cxtype_t*)oportvt(o) == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
+  else if ((cxtype_t*)oportvt(o) == OPORT_BYTEFILE_NTAG) fp = (FILE*)oportdata(o); 
   if (!fp) return 0;
   return isatty(fileno(fp));
 }

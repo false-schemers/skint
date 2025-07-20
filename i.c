@@ -271,7 +271,7 @@ static void _sck(obj *s) {
 #define bytevector_len(o) bytevectorlen(o)
 #define bytevector_type(o) bytevectortype(o)
 #define bytevector_ref(o, i) (*bytevectorref(o, i))
-#define iport_file_obj(fp) hp_pushptr((fp), IPORT_FILE_NTAG)
+#define iport_file_obj(fp) hp_pushptr(tialloc(fp), IPORT_FILE_NTAG)
 #define iport_bytefile_obj(fp) hp_pushptr((fp), IPORT_BYTEFILE_NTAG)
 #define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
 #define oport_bytefile_obj(fp) hp_pushptr((fp), OPORT_BYTEFILE_NTAG)

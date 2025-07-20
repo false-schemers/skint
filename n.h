@@ -428,6 +428,15 @@ typedef struct { /* extends cxtype_t */
 } cxtype_port_t, cxtype_iport_t, cxtype_oport_t;
 #define PORTTYPES_MAX 10
 extern cxtype_port_t cxt_port_types[PORTTYPES_MAX];
+/* common i/o utils */
+typedef struct { char *buf; char *fill; char *end; } cbuf_t;
+extern cbuf_t* newcb(void);
+extern void freecb(cbuf_t* pcb);
+extern char* cballoc(cbuf_t* pcb, size_t n);
+extern int cbputc(int c, cbuf_t* pcb);
+extern size_t cblen(cbuf_t* pcb);
+extern char* cbdata(cbuf_t* pcb);
+extern cbuf_t* cbclear(cbuf_t *pcb);
 /* input ports */
 extern cxtype_t *IPORT_CLOSED_NTAG;
 extern cxtype_t *IPORT_FILE_NTAG;
@@ -453,7 +462,8 @@ static int iportpeekc(obj o) {
   assert(vt); c = vt->getch(pp); if (c != EOF) vt->ungetch(c, pp); return c;
 }
 /* file input ports */
-typedef struct tifile_tag tifile_t;
+typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
+typedef struct { cbuf_t cb; char *next; FILE *fp; int lno; tiflags_t flags; } tifile_t;
 extern tifile_t *tialloc(FILE *fp);
 #define mkiport_file(l, fp) hpushptr(fp, IPORT_FILE_NTAG, l)
 /* string input ports */
@@ -499,14 +509,6 @@ static void oportflush(obj o) {
 /* file output ports */
 #define mkoport_file(l, fp) hpushptr(fp, OPORT_FILE_NTAG, l)
 /* string output ports */
-typedef struct cbuf_tag { char *buf; char *fill; char *end; } cbuf_t;
-extern cbuf_t* newcb(void);
-extern void freecb(cbuf_t* pcb);
-extern char* cballoc(cbuf_t* pcb, size_t n);
-extern int cbputc(int c, cbuf_t* pcb);
-extern size_t cblen(cbuf_t* pcb);
-extern char* cbdata(cbuf_t* pcb);
-extern cbuf_t* cbclear(cbuf_t *pcb);
 #define mkoport_string(l, fp) hpushptr(fp, OPORT_STRING_NTAG, l)
 /* bytevector output ports */
 #define mkoport_bytevector(l, fp) hpushptr(fp, OPORT_BYTEVECTOR_NTAG, l)
