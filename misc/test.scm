@@ -3123,5 +3123,6 @@
 (test (list (test-specials _ ...) (test-specials 1 2))
      '((_ ...) #(1 2)))
 
+(test '(hello abracadabra GOODBYE) (read (open-input-string "(hello #!fold-case AbraCADabRa #!no-fold-case GOODBYE)")))
 
 (test-end)

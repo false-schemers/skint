@@ -1471,6 +1471,8 @@
 ; (read-u8 (p (current-input-port)))
 ; (peek-u8 (p (current-input-port)))
 ; (u8-ready? (p (current-input-port)))
+; (set-port-fold-case! p fold?)
+; (port-fold-case? p)
 ; (eof-object? x)
 ; (eof-object)
 

@@ -414,7 +414,7 @@ extern obj* procedureref(obj o, int i);
 #define mkshebang(i) mkimm(i, SHEBANG_ITAG)
 #define getshebang(o) getimmu(o, SHEBANG_ITAG)
 /* input/output ports */
-typedef enum { CTLOP_RDLN } ctlop_t;
+typedef enum { CTLOP_RDLN, CTLOP_CI, CTLOP_SETCI } ctlop_t;
 typedef struct { /* extends cxtype_t */
   const char *tname;
   void (*free)(void*);
@@ -467,7 +467,8 @@ typedef struct { cbuf_t cb; char *next; FILE *fp; int lno; tiflags_t flags; } ti
 extern tifile_t *tialloc(FILE *fp);
 #define mkiport_file(l, fp) hpushptr(fp, IPORT_FILE_NTAG, l)
 /* string input ports */
-typedef struct { char *p; void *base; } sifile_t;
+typedef enum { SIF_NONE = 0, SIF_CI = 2 } siflags_t;
+typedef struct { char *p; void *base; siflags_t flags; } sifile_t;
 extern sifile_t *sialloc(char *p, void *base);
 #define mkiport_string(l, fp) hpushptr(fp, IPORT_STRING_NTAG, l)
 /* bytevector input ports */

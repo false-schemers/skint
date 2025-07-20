@@ -507,7 +507,7 @@ static void ffree(void *vp) {
 
 sifile_t *sialloc(char *p, void *base) { 
   sifile_t *fp = cxm_cknull(malloc(sizeof(sifile_t)), "malloc(sifile)");
-  fp->p = p; fp->base = base; return fp; }
+  fp->p = p; fp->base = base; fp->flags = SIF_NONE; return fp; }
 
 static void sifree(sifile_t *fp) { 
   assert(fp); if (fp->base) free(fp->base); free(fp); }
@@ -521,18 +521,32 @@ static int sigetch(sifile_t *fp) {
 static int siungetch(int c, sifile_t *fp) {
   assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
   
-static int sictl(ctlop_t op, sifile_t *fp, ...) {
-  if (op == CTLOP_RDLN) {
-    va_list args; int **pd; va_start(args, fp); 
-    pd = va_arg(args, int **);
-    if (*(fp->p) == 0) *pd = NULL;
-    else {
-      char *s = strchr(fp->p, '\n');
-      if (s) { *pd = newstringn(fp->p, s-fp->p); fp->p = s+1; }
-      else { *pd = newstring(fp->p); fp->p += strlen(fp->p); }
-    }  
-    va_end(args);
-    return 0;
+static int sictl(ctlop_t op, sifile_t *sp, ...) {
+  switch (op) {
+    case CTLOP_RDLN: {
+      va_list args; int **pd; va_start(args, sp); 
+      pd = va_arg(args, int **);
+      if (*(sp->p) == 0) *pd = NULL;
+      else {
+        char *s = strchr(sp->p, '\n');
+        if (s) { *pd = newstringn(sp->p, s-sp->p); sp->p = s+1; }
+        else { *pd = newstring(sp->p); sp->p += strlen(sp->p); }
+      }  
+      va_end(args);
+      return 0;
+    } break;
+    case CTLOP_CI: {
+      va_list args; va_start(args, sp);
+      va_end(args);
+      return (sp->flags & SIF_CI) != 0;
+    } break;
+    case CTLOP_SETCI: {
+      va_list args; int d; va_start(args, sp);
+      d = va_arg(args, int);
+      va_end(args);
+      if (d) sp->flags |= SIF_CI; else sp->flags &= ~SIF_CI;
+      return d != 0;
+    } break;
   }
   return -1;
 }
@@ -640,22 +654,36 @@ static int tiungetch(int c, tifile_t *tp) {
 }
 
 static int tictl(ctlop_t op, tifile_t *tp, ...) {
-  if (op == CTLOP_RDLN) {
-    va_list args; int c, n, **pd;
-    va_start(args, tp); 
-    pd = va_arg(args, int **);
-    c = tigetch(tp);
-    if (c == EOF) {
-      *pd = NULL;
-    } else {
-      char *s; tiungetch(c, tp);
-      s = tp->next; n = tp->cb.fill - s;
-      if (n > 0 && s[n-1] == '\n') --n;
-      *pd = newstringn(s, n);
-      tp->next = tp->cb.fill;
-    }  
-    va_end(args);
-    return 0;
+  switch (op) {
+    case CTLOP_RDLN: {
+      va_list args; int c, n, **pd;
+      va_start(args, tp); 
+      pd = va_arg(args, int **);
+      c = tigetch(tp);
+      if (c == EOF) {
+        *pd = NULL;
+      } else {
+        char *s; tiungetch(c, tp);
+        s = tp->next; n = tp->cb.fill - s;
+        if (n > 0 && s[n-1] == '\n') --n;
+        *pd = newstringn(s, n);
+        tp->next = tp->cb.fill;
+      }  
+      va_end(args);
+      return 0;
+    } break;
+    case CTLOP_CI: {
+      va_list args; va_start(args, tp);
+      va_end(args);
+      return (tp->flags & TIF_CI) != 0;
+    } break;
+    case CTLOP_SETCI: {
+      va_list args; int d; va_start(args, tp);
+      d = va_arg(args, int);
+      va_end(args);
+      if (d) tp->flags |= TIF_CI; else tp->flags &= ~TIF_CI;
+      return d != 0;
+    } break;
   }
   return -1;
 }

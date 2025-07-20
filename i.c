@@ -3589,17 +3589,18 @@ define_instruction(fop) {
 }
 
 define_instruction(pfc) {
-  ckr(ac);
-  /* port-fold-case NYI: return false for now */
-  ac = bool_obj(0);
+  cxtype_iport_t *vt; int d = 0; ckr(ac);
+  vt = iportvt(ac); assert(vt);
+  if (!vt || (d = vt->ctl(CTLOP_CI, iportdata(ac))) < 0) d = 0;
+  ac = bool_obj(d);
   gonexti();
 }
 
 define_instruction(spfc) {
-  ckr(ac); 
-  if (spop() != bool_obj(0)) {
-    /* set-port-fold-case! NYI: ignore for now */
-  }
+  cxtype_iport_t *vt; int d = 0; ckr(ac);
+  vt = iportvt(ac); assert(vt);
+  d = (spop() != bool_obj(0));
+  if (vt) vt->ctl(CTLOP_SETCI, iportdata(ac), d);
   gonexti();
 }
 
