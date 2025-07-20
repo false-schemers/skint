@@ -545,7 +545,7 @@ declare_instruction(cop,        "P61",          0,  "close-output-port",        
 declare_instruction(fop,        "P71",          0,  "flush-output-port",        '1', AUTOGL)
 declare_instruction(pfc,        "P78",          0,  "port-fold-case?",          '1', AUTOGL)
 declare_instruction(spfc,       "P79",          0,  "set-port-fold-case!",      '2', AUTOGL)
-declare_instruction(ploc,       "P80",          0,  "%port-location",           '3', AUTOGL)
+declare_instruction(ploc,       "P80",          0,  "%port-location",           '5', AUTOGL)
 declare_instruction(gos,        "P90",          0,  "get-output-string",        '1', AUTOGL)
 declare_instruction(gob,        "P91",          0,  "get-output-bytevector",    '1', AUTOGL)
 declare_instruction(rdc,        "R0\0Pi",       0,  "read-char",                'u', AUTOGL)

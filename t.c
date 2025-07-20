@@ -1703,17 +1703,16 @@ char *t_code[] = {
   "(i11),&5{%0:4,&1{%!0.0,&1{%0:0,@(y6:values),@(y13:apply-to-list)[02},:"
   "0[11},:0,:1,:2,:3,&4{%0${:1,:2,:3,@(y9:repl-read)[03},,#0:0,:3,:2,:1,."
   "4,&5{%1.0R8~?{:2?{${.2,'(l2:y7:unquote;y1:*;),@(y11:sexp-match?)[02}}{"
-  "f}?{${:1,${:3,@(y9:read-line)[01},.4da,@(y17:repl-exec-command)[03}}{$"
-  "{:1,:4,.4,@(y22:repl-evaluate-top-form)[03}}${:1,:2,:3,@(y9:repl-read)"
-  "[03},:0^[11}]1}.!0.0^_1[01},@(y16:call-with-values)[02},.(i11),.(i11),"
-  ".(i11),.(i11),.(i11),.8,&6{%1${k0,.0,${.6,:1,:2,:3,:4,:5,&6{%0:5,${.2,"
-  "@(y13:error-object?)[01}?{Pe,.0,${.4,@(y20:error-object-message)[01}W4"
-  ".0W6${${.5,@(y22:error-object-irritants)[01},.3,&1{%1:0,.1W5:0W6]1},@("
-  "y10:%25for-each1)[02}_1${:4^,@(y23:set-current-file-stack!)[01}:1?{:0,"
-  ":1,:2,:3,@(y14:repl-from-port)[14}]1}Pe,.0,'(s14:Unknown error:)W4.0W6"
-  ".0,.2W5.0W6_1${:4^,@(y23:set-current-file-stack!)[01}:1?{:0,:1,:2,:3,@"
-  "(y14:repl-from-port)[14}]1},:0[01}_1_3}[10},@(y22:with-exception-handl"
-  "er)[02}_1_3}[50",
+  "f}?{${:1,:3R6,.4da,@(y17:repl-exec-command)[03}}{${:1,:4,.4,@(y22:repl"
+  "-evaluate-top-form)[03}}${:1,:2,:3,@(y9:repl-read)[03},:0^[11}]1}.!0.0"
+  "^_1[01},@(y16:call-with-values)[02},.(i11),.(i11),.(i11),.(i11),.(i11)"
+  ",.8,&6{%1${k0,.0,${.6,:1,:2,:3,:4,:5,&6{%0:5,${.2,@(y13:error-object?)"
+  "[01}?{Pe,.0,${.4,@(y20:error-object-message)[01}W4.0W6${${.5,@(y22:err"
+  "or-object-irritants)[01},.3,&1{%1:0,.1W5:0W6]1},@(y10:%25for-each1)[02"
+  "}_1${:4^,@(y23:set-current-file-stack!)[01}:1?{:0,:1,:2,:3,@(y14:repl-"
+  "from-port)[14}]1}Pe,.0,'(s14:Unknown error:)W4.0W6.0,.2W5.0W6_1${:4^,@"
+  "(y23:set-current-file-stack!)[01}:1?{:0,:1,:2,:3,@(y14:repl-from-port)"
+  "[14}]1},:0[01}_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[50",
 
   "P", "run-benchmark",
   "%2,,#0#1${.4,@(y15:open-input-file)[01}.!0Po.!1${${.4^,@(y14:read-code"
@@ -1749,7 +1748,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.5.8)@!(y15:*skint-version*)",
+  "'(s5:0.5.9)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",

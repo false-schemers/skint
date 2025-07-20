@@ -3605,18 +3605,31 @@ define_instruction(spfc) {
 }
 
 define_instruction(ploc) {
-  cxtype_iport_t *vt; obj fb = sref(0), lb = sref(1); 
-  ckr(ac); ckz(fb); ckz(lb);
+  cxtype_iport_t *vt; obj fb = sref(0), nb = sref(1);
+  obj lb = sref(2), pb = sref(3); /* may be #f */
+  ckr(ac); ckz(fb); ckz(nb);
   vt = iportvt(ac); assert(vt);
   if (vt == (cxtype_iport_t *)IPORT_FILE_NTAG) {
     tifile_t *pf = iportdata(ac);
     box_ref(fb) = symbol_obj(pf->fns);
-    box_ref(lb) = fixnum_obj(pf->lno);
+    box_ref(nb) = fixnum_obj(pf->lno);
+    if (lb) { 
+      int *d, n = pf->cb.fill - pf->cb.buf; ckz(lb);
+      if (n > 0 && pf->cb.buf[n-1] == '\n') --n;
+      d = newstringn(pf->cb.buf, n);
+      box_ref(lb) = string_obj(d);
+    } 
+    if (pb) { 
+      char *s; int *d, n = pf->next - pf->cb.buf; ckz(pb);
+      d = newstringn(pf->cb.buf, n);
+      for (s = sdatachars(d); n > 0; --n, ++s) if (!isspace(*s)) *s = ' ';
+      box_ref(pb) = string_obj(d);
+    } 
     ac = bool_obj(1);
   } else {
     ac = bool_obj(0);
   }
-  sdrop(2);
+  sdrop(4);
   gonexti();
 }
 
@@ -5027,6 +5040,14 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
       case '3': {
         lcode = lbuf; assert(pe->enc); 
         sprintf(lbuf, "%%3_!%s]0", pe->enc);
+      } break;
+      case '4': {
+        lcode = lbuf; assert(pe->enc); 
+        sprintf(lbuf, "%%4_!%s]0", pe->enc);
+      } break;
+      case '5': {
+        lcode = lbuf; assert(pe->enc); 
+        sprintf(lbuf, "%%5_!%s]0", pe->enc);
       } break;
       case 'p': {
         lcode = lbuf; assert(pe->enc); 

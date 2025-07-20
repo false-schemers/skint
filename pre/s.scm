@@ -1313,7 +1313,11 @@
               (lambda args
                 (guard-k (lambda () (apply values args))))))))))]))
 
-(define (read-error msg . args)
+(define (read-error port msg . args)
+  (define fn #f) (define lno #f) 
+  (define line #f) (define pfx #f)
+  (when (%port-location port (set& fn) (set& lno) (set& line) (set& pfx))
+    (set! msg (format "~a:~a: ~a~%~a~%~a^" fn lno msg line pfx)))
   (raise (error-object 'read msg args)))
 
 (define (read-error? obj)
@@ -1528,7 +1532,7 @@
 
 (define (%read port simple? ci?)
   (define-syntax r-error
-    (syntax-rules () [(_ p msg a ...) (read-error msg a ... 'port: p)]))
+    (syntax-rules () [(_ p msg a ...) (read-error p msg a ...)]))
   (define fold-case? (or ci? (port-fold-case? port)))
   (define shared '())
   (define (make-shared-ref loc) (lambda () (unbox loc)))
@@ -1746,15 +1750,15 @@
                                 [(char=? c #\#) 
                                  (let* ([s (list->string (reverse! l))] [n (string->number s)])
                                    (cond [(and (fixnum? n) (assq n shared)) => cdr]
-                                         [else (r-error "unknown #n# reference:" s)]))]   
+                                         [else (r-error p "unknown #n# reference:" s)]))]   
                                 [(char=? c #\=) 
                                  (let* ([s (list->string (reverse! l))] [n (string->number s)])
-                                   (cond [(not (fixnum? n)) (r-error "invalid #n= reference:" s)]
-                                         [(assq n shared) (r-error "duplicate #n= tag:" n)])
+                                   (cond [(not (fixnum? n)) (r-error p "invalid #n= reference:" s)]
+                                         [(assq n shared) (r-error p "duplicate #n= tag:" n)])
                                    (let ([loc (box #f)])
                                      (set! shared (cons (cons n (make-shared-ref loc)) shared))
                                      (let ([form (sub-read-carefully p)])
-                                       (cond [(shared-ref? form) (r-error "#n= has another label as target" s)]
+                                       (cond [(shared-ref? form) (r-error p "#n= has another label as target" s)]
                                              [else (set-box! loc form) form]))))]
                                 [else (r-error p "invalid terminator for #N notation")])))]
                      [else (r-error p "unknown # syntax" c)]))]
