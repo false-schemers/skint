@@ -1465,6 +1465,7 @@
 ; integrables:
 ;
 ; (read-char (p (current-input-port)))
+; (read-line (p (current-input-port)))
 ; (peek-char (p (current-input-port)))
 ; (char-ready? (p (current-input-port)))
 ; (read-u8 (p (current-input-port)))
@@ -1472,20 +1473,6 @@
 ; (u8-ready? (p (current-input-port)))
 ; (eof-object? x)
 ; (eof-object)
-
-(define (read-line . ?p)
-  (let ([p (if (null? ?p) (current-input-port) (car ?p))]
-        [op (open-output-string)])
-    (let loop ([read-nothing? #t])
-      (let ([c (read-char p)])
-        (cond [(or (eof-object? c) (char=? c #\newline))
-               (if (and (eof-object? c) read-nothing?) 
-                   c
-                   (let ([s (get-output-string op)]) 
-                     (close-output-port op) 
-                     s))]
-              [(char=? c #\return) (loop #f)]
-              [else (write-char c op) (loop #f)]))))) 
 
 (define (read-substring! str start end p)
   (let loop ([i start])
