@@ -419,7 +419,6 @@ typedef struct { /* extends cxtype_t */
   const char *tname;
   void (*free)(void*);
   enum { SPT_INPUT = 1, SPT_OUTPUT = 2, SPT_IO = 3, SPT_BINARY = 4 } spt;
-  int  (*close)(void*);
   int  (*getch)(void*);
   int  (*ungetch)(int, void*);
   int  (*putch)(int, void*);

@@ -522,7 +522,7 @@ int cbputc(int c, cbuf_t* pcb) {
 
 static int cbflush(cbuf_t* pcb) { return 0; }
 
-static int cbclose(cbuf_t* pcb) { free(pcb->buf); pcb->buf = NULL; return 0; }
+static void cbfini(cbuf_t* pcb) { free(pcb->buf); pcb->buf = NULL; }
 
 size_t cblen(cbuf_t* pcb) { return pcb->fill - pcb->buf; }
 
@@ -548,8 +548,7 @@ static int noflush(void *p) { return EOF; }
 
 static int noctl(ctlop_t op, void *p, ...) { return -1; }
 
-static void ffree(void *vp) {
-  /* FILE *fp = vp; assert(fp); cannot fclose(fp) here because of FILE reuse! */ }
+static void ffree(void *vp) { FILE *fp = vp; assert(fp); fclose(fp); }
 
 /* file input ports */
 
@@ -561,11 +560,7 @@ tifile_t *tialloc(FILE *fp, int fns) {
 }
 
 static void tifree(tifile_t *tp) { 
-  assert(tp); cbclose(&tp->cb); ffree(tp->fp); free(tp); 
-}
-
-static int ticlose(tifile_t *tp) { 
-  assert(tp); cbclose(&tp->cb); fclose(tp->fp); return 0; 
+  assert(tp); cbfini(&tp->cb); ffree(tp->fp); free(tp); 
 }
 
 static int tigetch(tifile_t *tp) {
@@ -640,9 +635,6 @@ sifile_t *sialloc(char *p, void *base) {
 static void sifree(sifile_t *fp) { 
   assert(fp); if (fp->base) free(fp->base); free(fp); }
 
-static int siclose(sifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; fp->p = ""; return 0; }
-
 static int sigetch(sifile_t *fp) {
   int c; assert(fp && fp->p); if (!(c = *(fp->p))) return EOF; ++(fp->p); return c; }
 
@@ -688,10 +680,6 @@ bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) {
 static void bvifree(bvifile_t *fp) { 
   assert(fp); if (fp->base) free(fp->base); free(fp); }
 
-static int bviclose(bvifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; 
-  fp->p = fp->e = (unsigned char *)""; return 0; }
-
 static int bvigetch(bvifile_t *fp) {
   assert(fp && fp->p && fp->e); return (fp->p >= fp->e) ? EOF : (0xff & *(fp->p)++); }
 
@@ -702,62 +690,52 @@ static int bviungetch(int c, bvifile_t *fp) {
 
 cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_CLOSED_PTINDEX     0
-  { "closed-input-port", (void (*)(void*))nofree, 
-    SPT_INPUT, (int (*)(void*))noclose,
+  { "closed-input-port", (void (*)(void*))nofree, SPT_INPUT, 
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush, 
     (int (*)(ctlop_t, void *, ...))noctl },
 #define IPORT_FILE_PTINDEX       1
-  { "file-input-port", (void (*)(void*))tifree, 
-    SPT_INPUT, (int (*)(void*))ticlose, 
+  { "file-input-port", (void (*)(void*))tifree, SPT_INPUT,
     (int (*)(void*))tigetch, (int (*)(int, void*))tiungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
     (int (*)(ctlop_t, void *, ...))tictl },
 #define IPORT_BYTEFILE_PTINDEX   2
-  { "binary-file-input-port", ffree, 
-    SPT_INPUT|SPT_BINARY, (int (*)(void*))fclose, 
+  { "binary-file-input-port", ffree, SPT_INPUT|SPT_BINARY,
     (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define IPORT_STRING_PTINDEX     3
-  { "string-input-port", (void (*)(void*))sifree, 
-    SPT_INPUT, (int (*)(void*))siclose,
+  { "string-input-port", (void (*)(void*))sifree, SPT_INPUT,
     (int (*)(void*))sigetch, (int (*)(int, void*))siungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
     (int (*)(ctlop_t, void *, ...))sictl },
 #define IPORT_BYTEVECTOR_PTINDEX 4
-  { "bytevector-input-port", (void (*)(void*))bvifree, 
-    SPT_INPUT|SPT_BINARY, (int (*)(void*))bviclose,
+  { "bytevector-input-port", (void (*)(void*))bvifree, SPT_INPUT|SPT_BINARY,
     (int (*)(void*))bvigetch, (int (*)(int, void*))bviungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_CLOSED_PTINDEX     5
-  { "closed-output-port", (void (*)(void*))nofree, 
-    SPT_OUTPUT, (int (*)(void*))noclose, 
+  { "closed-output-port", (void (*)(void*))nofree, SPT_OUTPUT, 
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_FILE_PTINDEX       6
-  { "file-output-port", ffree, 
-    SPT_OUTPUT, (int (*)(void*))fclose, 
+  { "file-output-port", ffree, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEFILE_PTINDEX   7
-  { "binary-file-output-port", ffree, 
-    SPT_OUTPUT|SPT_BINARY, (int (*)(void*))fclose, 
+  { "binary-file-output-port", ffree, SPT_OUTPUT|SPT_BINARY, 
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_STRING_PTINDEX     8
-  { "string-output-port", (void (*)(void*))freecb, 
-    SPT_OUTPUT, (int (*)(void*))cbclose,
+  { "string-output-port", (void (*)(void*))freecb, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEVECTOR_PTINDEX 9
-  { "bytevector-output-port", (void (*)(void*))freecb, 
-    SPT_OUTPUT|SPT_BINARY, (int (*)(void*))cbclose,
+  { "bytevector-output-port", (void (*)(void*))freecb, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
     (int (*)(ctlop_t, void *, ...))noctl }    
@@ -1177,7 +1155,7 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (isrecord(o)) {
     int i, n = recordlen(o);
     wrs("#<record ", e);
-    wrdatum(recordrtd(o), e); // TODO: no need to show as shared!
+    wrdatum(recordrtd(o), e);
     for (i = 0; i < n; ++i) { 
       wrc(' ', e); wrdatum(recordref(o, i), e); 
     }

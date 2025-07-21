@@ -14,8 +14,6 @@ extern obj cx__2Acurrent_2Dinput_2A;
 extern obj cx__2Acurrent_2Doutput_2A;
 extern obj cx__2Acurrent_2Derror_2A;
 
-//#define istagged(o, t) istagged_inlined(o, t) 
-
 /* forwards */
 static struct intgtab_entry *lookup_integrable(int sym);
 static int intgtab_count(void);
@@ -3569,16 +3567,18 @@ define_instruction(oob) {
 define_instruction(cip) {
   cxtype_iport_t *vt; ckr(ac);
   vt = iportvt(ac); assert(vt);
-  vt->close(iportdata(ac)); vt->free(iportdata(ac));
+  vt->free(iportdata(ac));
   objptr_from_obj(ac)[-1] = (obj)IPORT_CLOSED_NTAG;
+  objptr_from_obj(ac)[0]  = (obj)NULL;
   gonexti();
 }
 
 define_instruction(cop) {
   cxtype_oport_t *vt; ckw(ac);
   vt = oportvt(ac); assert(vt);
-  vt->close(oportdata(ac)); vt->free(oportdata(ac));
+  vt->free(oportdata(ac));
   objptr_from_obj(ac)[-1] = (obj)OPORT_CLOSED_NTAG;
+  objptr_from_obj(ac)[0]  = (obj)NULL;
   gonexti();
 }
 
