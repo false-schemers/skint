@@ -520,7 +520,7 @@ static int sigetch(sifile_t *fp) {
 
 static int siungetch(int c, sifile_t *fp) {
   assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
-  
+
 static int sictl(ctlop_t op, sifile_t *sp, ...) {
   switch (op) {
     case CTLOP_RDLN: {
