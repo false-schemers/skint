@@ -690,7 +690,7 @@ static int bviungetch(int c, bvifile_t *fp) {
 
 cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_CLOSED_PTINDEX     0
-  { "closed-input-port", (void (*)(void*))nofree, SPT_INPUT, 
+  { "closed-input-port", (void (*)(void*))nofree, SPT_INPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush, 
     (int (*)(ctlop_t, void *, ...))noctl },
@@ -715,7 +715,7 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_CLOSED_PTINDEX     5
-  { "closed-output-port", (void (*)(void*))nofree, SPT_OUTPUT, 
+  { "closed-output-port", (void (*)(void*))nofree, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))noputch, (int (*)(void*))noflush,
     (int (*)(ctlop_t, void *, ...))noctl },
@@ -725,7 +725,7 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
     (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEFILE_PTINDEX   7
-  { "binary-file-output-port", ffree, SPT_OUTPUT|SPT_BINARY, 
+  { "binary-file-output-port", ffree, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
     (int (*)(ctlop_t, void *, ...))noctl },
