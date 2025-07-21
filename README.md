@@ -30,7 +30,7 @@ option on 64-bit systems that guarantee this.
 
 The resulting interpreter has no dependencies (except for C runtime and standard -lm math library) and can be run from any location.
 If linked statically, it can be easily moved between systems with the same ABI. Note that this interpreter is a complete R7RS-small
-system in the sense that it does not require any externa files to operate (all standard libraries are built in).
+system in the sense that it does not require any external files to operate (all standard libraries are built in).
 
 For a more traditional install, please follow the instructions below. Skint will be
 installed as `/usr/local/bin/skint` command (unless you set a different destination via `configure` as shown below).
