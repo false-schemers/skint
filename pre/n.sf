@@ -941,6 +941,7 @@ unsigned char* bytevectorref(obj o, int i) {
 } cxtype_port_t, cxtype_iport_t, cxtype_oport_t;")
 (%definition "#define PORTTYPES_MAX 10")
 (%definition "extern cxtype_port_t cxt_port_types[PORTTYPES_MAX];")
+
 (%definition "/* common i/o utils */")
 (%definition "typedef struct { char *buf; char *fill; char *end; } cbuf_t;")
 (%definition "extern cbuf_t* newcb(void);")
@@ -950,6 +951,40 @@ unsigned char* bytevectorref(obj o, int i) {
 (%definition "extern size_t cblen(cbuf_t* pcb);")
 (%definition "extern char* cbdata(cbuf_t* pcb);")
 (%definition "extern cbuf_t* cbclear(cbuf_t *pcb);")
+(%localdef "/* common i/o utils */")
+(%localdef "cbuf_t* cbinit(cbuf_t* pcb) {
+  pcb->fill = pcb->buf = cxm_cknull(malloc(64), \"malloc(cbdata)\");
+  pcb->end = pcb->buf + 64; return pcb;
+}")
+(%localdef "cbuf_t* newcb(void) {
+  cbuf_t* pcb = cxm_cknull(malloc(sizeof(cbuf_t)), \"malloc(cbuf)\");
+  return cbinit(pcb);
+}")
+(%localdef "void freecb(cbuf_t* pcb) { if (pcb) { free(pcb->buf); free(pcb); } }")
+(%localdef "static void cbgrow(cbuf_t* pcb, size_t n) {
+  size_t oldsz = pcb->end - pcb->buf, newsz = oldsz*2;
+  size_t cnt = pcb->fill - pcb->buf;
+  if (oldsz + n > newsz) newsz += n;
+  pcb->buf = cxm_cknull(realloc(pcb->buf, newsz), \"realloc(cbdata)\");
+  pcb->fill = pcb->buf + cnt, pcb->end = pcb->buf + newsz;
+}")
+(%localdef "char* cballoc(cbuf_t* pcb, size_t n) {
+  assert(pcb); /* allow for extra 1 char after n */
+  if (pcb->fill + n+1 > pcb->end) cbgrow(pcb, n+1);
+  pcb->fill += n;
+  return pcb->fill - n;
+}")
+(%localdef "int cbputc(int c, cbuf_t* pcb) {
+  if (pcb->fill == pcb->end) cbgrow(pcb, 1); 
+  *(pcb->fill)++ = c; return c;
+}")
+(%localdef "static int cbflush(cbuf_t* pcb) { return 0; }")
+(%localdef "static int cbclose(cbuf_t* pcb) { free(pcb->buf); pcb->buf = NULL; return 0; }")
+(%localdef "size_t cblen(cbuf_t* pcb) { return pcb->fill - pcb->buf; }")
+(%localdef "char* cbdata(cbuf_t* pcb) {
+  if (pcb->fill == pcb->end) cbgrow(pcb, 1); *(pcb->fill) = 0; return pcb->buf; 
+}")
+(%localdef "cbuf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }")
 
 (%localdef "/* shared generic methods */")
 (%localdef "static void nofree(void *p) {}")
@@ -998,155 +1033,7 @@ unsigned char* bytevectorref(obj o, int i) {
   /* FILE *fp = vp; assert(fp); cannot fclose(fp) here because of FILE reuse! */ }")
 (%definition "#define mkiport_file(l, fp) hpushptr(fp, IPORT_FILE_NTAG, l)")
 
-; bytefile input ports
-
-(%definition "/* bytefile input ports */")
-(%definition "#define mkiport_bytefile(l, fp) hpushptr(fp, IPORT_BYTEFILE_NTAG, l)")
-
-; string input ports 
-
-(%definition "/* string input ports */")
-(%definition "typedef enum { SIF_NONE = 0, SIF_CI = 2 } siflags_t;")
-(%definition "typedef struct { char *p; void *base; siflags_t flags; } sifile_t;")
-(%localdef "sifile_t *sialloc(char *p, void *base) { 
-  sifile_t *fp = cxm_cknull(malloc(sizeof(sifile_t)), \"malloc(sifile)\");
-  fp->p = p; fp->base = base; fp->flags = SIF_NONE; return fp; }")
-(%definition "extern sifile_t *sialloc(char *p, void *base);")
-(%localdef "static void sifree(sifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); free(fp); }")
-(%localdef "static int siclose(sifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; fp->p = \"\"; return 0; }")
-(%localdef "static int sigetch(sifile_t *fp) {
-  int c; assert(fp && fp->p); if (!(c = *(fp->p))) return EOF; ++(fp->p); return c; }")
-(%localdef "static int siungetch(int c, sifile_t *fp) {
-  assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }")
-(%localdef "static int sictl(ctlop_t op, sifile_t *sp, ...) {
-  switch (op) {
-    case CTLOP_RDLN: {
-      va_list args; int **pd; va_start(args, sp); 
-      pd = va_arg(args, int **);
-      if (*(sp->p) == 0) *pd = NULL;
-      else {
-        char *s = strchr(sp->p, '\\n');
-        if (s) { *pd = newstringn(sp->p, s-sp->p); sp->p = s+1; }
-        else { *pd = newstring(sp->p); sp->p += strlen(sp->p); }
-      }  
-      va_end(args);
-      return 0;
-    } break;
-    case CTLOP_CI: {
-      va_list args; va_start(args, sp);
-      va_end(args);
-      return (sp->flags & SIF_CI) != 0;
-    } break;
-    case CTLOP_SETCI: {
-      va_list args; int d; va_start(args, sp);
-      d = va_arg(args, int);
-      va_end(args);
-      if (d) sp->flags |= SIF_CI; else sp->flags &= ~SIF_CI;
-      return d != 0;
-    } break;
-  }
-  return -1;
-}")
-(%definition "#define mkiport_string(l, fp) hpushptr(fp, IPORT_STRING_NTAG, l)")
-
-; bytevector input ports 
-
-(%definition "/* bytevector input ports */")
-(%definition "typedef struct { unsigned char *p, *e; void *base; } bvifile_t;")
-(%localdef "bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
-  bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), \"malloc(bvifile)\");
-  fp->p = p; fp->e = e; fp->base = base; return fp; }")
-(%definition "extern bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base);")
-(%localdef "static void bvifree(bvifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); free(fp); }")
-(%localdef "static int bviclose(bvifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; 
-  fp->p = fp->e = (unsigned char *)\"\"; return 0; }")
-(%localdef "static int bvigetch(bvifile_t *fp) {
-  assert(fp && fp->p && fp->e); return (fp->p >= fp->e) ? EOF : (0xff & *(fp->p)++); }")
-(%localdef "static int bviungetch(int c, bvifile_t *fp) {
-  assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }")
-(%definition "#define mkiport_bytevector(l, fp) hpushptr(fp, IPORT_BYTEVECTOR_NTAG, l)")
-
-; generic output ports
-
-(%definition "/* output ports */")
-(%definition "extern cxtype_t *OPORT_CLOSED_NTAG;")
-(%definition "extern cxtype_t *OPORT_FILE_NTAG;")
-(%definition "extern cxtype_t *OPORT_BYTEFILE_NTAG;")
-(%definition "extern cxtype_t *OPORT_STRING_NTAG;")
-(%definition "extern cxtype_t *OPORT_BYTEVECTOR_NTAG;")
-(%definition "static cxtype_oport_t *oportvt(obj o) { 
-  cxtype_t *pt; if (!isobjptr(o)) return NULL;
-  pt = (cxtype_t*)objptr_from_obj(o)[-1];
-  if (pt >= (cxtype_t*)&cxt_port_types[0] && 
-      pt < (cxtype_t*)&cxt_port_types[PORTTYPES_MAX] &&
-    (((cxtype_port_t*)pt)->spt & SPT_OUTPUT))
-    return (cxtype_oport_t*)pt; else return NULL; }")
-(%definition "#define ckoportvt(o) ((cxtype_oport_t*)cxm_cknull(oportvt(o), \"oportvt\"))")  
-(%definition "#define isoport(o) (oportvt(o) != NULL)")
-(%definition "#define oportdata(o) ((void*)(*objptr_from_obj(o)))")
-
-(%definition "static void oportputc(int c, obj o) {
-  cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
-  assert(vt); vt->putch(c, pp);
-}")
-(%definition "static void oportputs(char *s, obj o) {
-  cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
-  assert(vt); while (*s) vt->putch(*s++, pp);
-}")
-(%definition "static void oportwrite(char *s, int n, obj o) {
-  cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
-  assert(vt); while (n-- > 0) vt->putch(*s++, pp);
-}")
-(%definition "static void oportflush(obj o) {
-  cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
-  assert(vt); vt->flush(pp);
-}")
-
-(%definition "/* file output ports */")
-(%definition "#define mkoport_file(l, fp) hpushptr(fp, OPORT_FILE_NTAG, l)")
-
-; string output ports 
-
-(%definition "/* string output ports */")
-(%localdef "cbuf_t* cbinit(cbuf_t* pcb) {
-  pcb->fill = pcb->buf = cxm_cknull(malloc(64), \"malloc(cbdata)\");
-  pcb->end = pcb->buf + 64; return pcb;
-}")
-(%localdef "cbuf_t* newcb(void) {
-  cbuf_t* pcb = cxm_cknull(malloc(sizeof(cbuf_t)), \"malloc(cbuf)\");
-  return cbinit(pcb);
-}")
-(%localdef "void freecb(cbuf_t* pcb) { if (pcb) { free(pcb->buf); free(pcb); } }")
-(%localdef "static void cbgrow(cbuf_t* pcb, size_t n) {
-  size_t oldsz = pcb->end - pcb->buf, newsz = oldsz*2;
-  size_t cnt = pcb->fill - pcb->buf;
-  if (oldsz + n > newsz) newsz += n;
-  pcb->buf = cxm_cknull(realloc(pcb->buf, newsz), \"realloc(cbdata)\");
-  pcb->fill = pcb->buf + cnt, pcb->end = pcb->buf + newsz;
-}")
-(%localdef "char* cballoc(cbuf_t* pcb, size_t n) {
-  assert(pcb); /* allow for extra 1 char after n */
-  if (pcb->fill + n+1 > pcb->end) cbgrow(pcb, n+1);
-  pcb->fill += n;
-  return pcb->fill - n;
-}")
-(%localdef "int cbputc(int c, cbuf_t* pcb) {
-  if (pcb->fill == pcb->end) cbgrow(pcb, 1); 
-  *(pcb->fill)++ = c; return c;
-}")
-(%localdef "static int cbflush(cbuf_t* pcb) { return 0; }")
-(%localdef "static int cbclose(cbuf_t* pcb) { free(pcb->buf); pcb->buf = NULL; return 0; }")
-(%localdef "size_t cblen(cbuf_t* pcb) { return pcb->fill - pcb->buf; }")
-(%localdef "char* cbdata(cbuf_t* pcb) {
-  if (pcb->fill == pcb->end) cbgrow(pcb, 1); *(pcb->fill) = 0; return pcb->buf; 
-}")
-(%localdef "cbuf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }")
-
-; misplaced!
+(%localdef "/* file input ports */")
 (%localdef "tifile_t *tialloc(FILE *fp, int fns) {
   tifile_t *tp = cxm_cknull(malloc(sizeof(tifile_t)), \"malloc(tifile)\");
   cbinit(&tp->cb); tp->next = tp->cb.buf; *(tp->next) = 0;
@@ -1220,6 +1107,124 @@ unsigned char* bytevectorref(obj o, int i) {
   return -1;
 }")
 
+; bytefile input ports
+
+(%definition "/* bytefile input ports */")
+(%definition "#define mkiport_bytefile(l, fp) hpushptr(fp, IPORT_BYTEFILE_NTAG, l)")
+
+; string input ports 
+
+(%definition "/* string input ports */")
+(%definition "typedef enum { SIF_NONE = 0, SIF_CI = 2 } siflags_t;")
+(%definition "typedef struct { char *p; void *base; siflags_t flags; } sifile_t;")
+
+(%localdef "/* string input ports */")
+(%localdef "sifile_t *sialloc(char *p, void *base) { 
+  sifile_t *fp = cxm_cknull(malloc(sizeof(sifile_t)), \"malloc(sifile)\");
+  fp->p = p; fp->base = base; fp->flags = SIF_NONE; return fp; }")
+(%definition "extern sifile_t *sialloc(char *p, void *base);")
+(%localdef "static void sifree(sifile_t *fp) { 
+  assert(fp); if (fp->base) free(fp->base); free(fp); }")
+(%localdef "static int siclose(sifile_t *fp) { 
+  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; fp->p = \"\"; return 0; }")
+(%localdef "static int sigetch(sifile_t *fp) {
+  int c; assert(fp && fp->p); if (!(c = *(fp->p))) return EOF; ++(fp->p); return c; }")
+(%localdef "static int siungetch(int c, sifile_t *fp) {
+  assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }")
+(%localdef "static int sictl(ctlop_t op, sifile_t *sp, ...) {
+  switch (op) {
+    case CTLOP_RDLN: {
+      va_list args; int **pd; va_start(args, sp); 
+      pd = va_arg(args, int **);
+      if (*(sp->p) == 0) *pd = NULL;
+      else {
+        char *s = strchr(sp->p, '\\n');
+        if (s) { *pd = newstringn(sp->p, s-sp->p); sp->p = s+1; }
+        else { *pd = newstring(sp->p); sp->p += strlen(sp->p); }
+      }  
+      va_end(args);
+      return 0;
+    } break;
+    case CTLOP_CI: {
+      va_list args; va_start(args, sp);
+      va_end(args);
+      return (sp->flags & SIF_CI) != 0;
+    } break;
+    case CTLOP_SETCI: {
+      va_list args; int d; va_start(args, sp);
+      d = va_arg(args, int);
+      va_end(args);
+      if (d) sp->flags |= SIF_CI; else sp->flags &= ~SIF_CI;
+      return d != 0;
+    } break;
+  }
+  return -1;
+}")
+(%definition "#define mkiport_string(l, fp) hpushptr(fp, IPORT_STRING_NTAG, l)")
+
+; bytevector input ports 
+
+(%definition "/* bytevector input ports */")
+(%definition "typedef struct { unsigned char *p, *e; void *base; } bvifile_t;")
+(%definition "extern bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base);")
+
+(%localdef "/* bytevector input ports */")
+(%localdef "bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
+  bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), \"malloc(bvifile)\");
+  fp->p = p; fp->e = e; fp->base = base; return fp; }")
+(%localdef "static void bvifree(bvifile_t *fp) { 
+  assert(fp); if (fp->base) free(fp->base); free(fp); }")
+(%localdef "static int bviclose(bvifile_t *fp) { 
+  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; 
+  fp->p = fp->e = (unsigned char *)\"\"; return 0; }")
+(%localdef "static int bvigetch(bvifile_t *fp) {
+  assert(fp && fp->p && fp->e); return (fp->p >= fp->e) ? EOF : (0xff & *(fp->p)++); }")
+(%localdef "static int bviungetch(int c, bvifile_t *fp) {
+  assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }")
+(%definition "#define mkiport_bytevector(l, fp) hpushptr(fp, IPORT_BYTEVECTOR_NTAG, l)")
+
+; generic output ports
+
+(%definition "/* output ports */")
+(%definition "extern cxtype_t *OPORT_CLOSED_NTAG;")
+(%definition "extern cxtype_t *OPORT_FILE_NTAG;")
+(%definition "extern cxtype_t *OPORT_BYTEFILE_NTAG;")
+(%definition "extern cxtype_t *OPORT_STRING_NTAG;")
+(%definition "extern cxtype_t *OPORT_BYTEVECTOR_NTAG;")
+(%definition "static cxtype_oport_t *oportvt(obj o) { 
+  cxtype_t *pt; if (!isobjptr(o)) return NULL;
+  pt = (cxtype_t*)objptr_from_obj(o)[-1];
+  if (pt >= (cxtype_t*)&cxt_port_types[0] && 
+      pt < (cxtype_t*)&cxt_port_types[PORTTYPES_MAX] &&
+    (((cxtype_port_t*)pt)->spt & SPT_OUTPUT))
+    return (cxtype_oport_t*)pt; else return NULL; }")
+(%definition "#define ckoportvt(o) ((cxtype_oport_t*)cxm_cknull(oportvt(o), \"oportvt\"))")  
+(%definition "#define isoport(o) (oportvt(o) != NULL)")
+(%definition "#define oportdata(o) ((void*)(*objptr_from_obj(o)))")
+
+(%definition "static void oportputc(int c, obj o) {
+  cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
+  assert(vt); vt->putch(c, pp);
+}")
+(%definition "static void oportputs(char *s, obj o) {
+  cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
+  assert(vt); while (*s) vt->putch(*s++, pp);
+}")
+(%definition "static void oportwrite(char *s, int n, obj o) {
+  cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
+  assert(vt); while (n-- > 0) vt->putch(*s++, pp);
+}")
+(%definition "static void oportflush(obj o) {
+  cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
+  assert(vt); vt->flush(pp);
+}")
+
+(%definition "/* file output ports */")
+(%definition "#define mkoport_file(l, fp) hpushptr(fp, OPORT_FILE_NTAG, l)")
+
+; string output ports 
+
+(%definition "/* string output ports */")
 (%definition "#define mkoport_string(l, fp) hpushptr(fp, OPORT_STRING_NTAG, l)")
 
 ; bytevector output ports 

@@ -679,7 +679,7 @@ static int sictl(ctlop_t op, sifile_t *sp, ...) {
   return -1;
 }
 
-/* bytefile input ports */
+/* bytevector input ports */
 
 bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
   bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), "malloc(bvifile)");
