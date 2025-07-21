@@ -29,7 +29,8 @@ The NAN_BOXING option assumes that the upper 16 bits of heap pointers are zero (
 option on 64-bit systems that guarantee this.
 
 The resulting interpreter has no dependencies (except for C runtime and standard -lm math library) and can be run from any location.
-If linked statically, it can be easily moved between systems with the same ABI.
+If linked statically, it can be easily moved between systems with the same ABI. Note that this interpreter is a complete R7RS-small
+system in the sense that it does not require any externa files to operate (all standard libraries are built in).
 
 For a more traditional install, please follow the instructions below. Skint will be
 installed as `/usr/local/bin/skint` command (unless you set a different destination via `configure` as shown below).
@@ -74,9 +75,6 @@ with R7RS-small, but has the following known limitations and deviations from the
   
 Some features of the R7RS-Small standard are not yet implemented or implemented in a simplified or non-conforming way:
 
-  *  `read` procedure is always case-sensitive (all ports operate in no-fold-case mode)
-  *  `#!fold-case` and `#!no-fold-case` directives have no effect 
-  *  `include` and `include-ci` forms work in case-sensitive mode
   *  `current-jiffy` and `jiffies-per-second` return inexact integers
   *  `current-second` is defined as C `difftime(time(0), 0)+37`
 
