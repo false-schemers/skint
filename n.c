@@ -486,87 +486,7 @@ obj* procedureref(obj o, int i) {
   return &hblkref(o, i);   
 }
 
-/* shared generic methods */
-
-static void nofree(void *p) {}
-
-static int noclose(void *p) { return 0; }
-
-static int nogetch(void *p) { return EOF; }
-
-static int noungetch(int c) { return c; }
-
-static int noputch(int c, void *p) { return EOF; }
-
-static int noflush(void *p) { return EOF; }
-
-static int noctl(ctlop_t op, void *p, ...) { return -1; }
-
-static void ffree(void *vp) {
-  /* FILE *fp = vp; assert(fp); cannot fclose(fp) here because of FILE reuse! */ }
-
-sifile_t *sialloc(char *p, void *base) { 
-  sifile_t *fp = cxm_cknull(malloc(sizeof(sifile_t)), "malloc(sifile)");
-  fp->p = p; fp->base = base; fp->flags = SIF_NONE; return fp; }
-
-static void sifree(sifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); free(fp); }
-
-static int siclose(sifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; fp->p = ""; return 0; }
-
-static int sigetch(sifile_t *fp) {
-  int c; assert(fp && fp->p); if (!(c = *(fp->p))) return EOF; ++(fp->p); return c; }
-
-static int siungetch(int c, sifile_t *fp) {
-  assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
-
-static int sictl(ctlop_t op, sifile_t *sp, ...) {
-  switch (op) {
-    case CTLOP_RDLN: {
-      va_list args; int **pd; va_start(args, sp); 
-      pd = va_arg(args, int **);
-      if (*(sp->p) == 0) *pd = NULL;
-      else {
-        char *s = strchr(sp->p, '\n');
-        if (s) { *pd = newstringn(sp->p, s-sp->p); sp->p = s+1; }
-        else { *pd = newstring(sp->p); sp->p += strlen(sp->p); }
-      }  
-      va_end(args);
-      return 0;
-    } break;
-    case CTLOP_CI: {
-      va_list args; va_start(args, sp);
-      va_end(args);
-      return (sp->flags & SIF_CI) != 0;
-    } break;
-    case CTLOP_SETCI: {
-      va_list args; int d; va_start(args, sp);
-      d = va_arg(args, int);
-      va_end(args);
-      if (d) sp->flags |= SIF_CI; else sp->flags &= ~SIF_CI;
-      return d != 0;
-    } break;
-  }
-  return -1;
-}
-
-bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
-  bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), "malloc(bvifile)");
-  fp->p = p; fp->e = e; fp->base = base; return fp; }
-
-static void bvifree(bvifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); free(fp); }
-
-static int bviclose(bvifile_t *fp) { 
-  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; 
-  fp->p = fp->e = (unsigned char *)""; return 0; }
-
-static int bvigetch(bvifile_t *fp) {
-  assert(fp && fp->p && fp->e); return (fp->p >= fp->e) ? EOF : (0xff & *(fp->p)++); }
-
-static int bviungetch(int c, bvifile_t *fp) {
-  assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }
+/* common i/o utils */
 
 cbuf_t* cbinit(cbuf_t* pcb) {
   pcb->fill = pcb->buf = cxm_cknull(malloc(64), "malloc(cbdata)");
@@ -611,6 +531,27 @@ char* cbdata(cbuf_t* pcb) {
 }
 
 cbuf_t *cbclear(cbuf_t *pcb) { pcb->fill = pcb->buf; return pcb; }
+
+/* shared generic methods */
+
+static void nofree(void *p) {}
+
+static int noclose(void *p) { return 0; }
+
+static int nogetch(void *p) { return EOF; }
+
+static int noungetch(int c) { return c; }
+
+static int noputch(int c, void *p) { return EOF; }
+
+static int noflush(void *p) { return EOF; }
+
+static int noctl(ctlop_t op, void *p, ...) { return -1; }
+
+static void ffree(void *vp) {
+  /* FILE *fp = vp; assert(fp); cannot fclose(fp) here because of FILE reuse! */ }
+
+/* file input ports */
 
 tifile_t *tialloc(FILE *fp, int fns) {
   tifile_t *tp = cxm_cknull(malloc(sizeof(tifile_t)), "malloc(tifile)");
@@ -689,6 +630,73 @@ static int tictl(ctlop_t op, tifile_t *tp, ...) {
   }
   return -1;
 }
+
+/* string input ports */
+
+sifile_t *sialloc(char *p, void *base) { 
+  sifile_t *fp = cxm_cknull(malloc(sizeof(sifile_t)), "malloc(sifile)");
+  fp->p = p; fp->base = base; fp->flags = SIF_NONE; return fp; }
+
+static void sifree(sifile_t *fp) { 
+  assert(fp); if (fp->base) free(fp->base); free(fp); }
+
+static int siclose(sifile_t *fp) { 
+  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; fp->p = ""; return 0; }
+
+static int sigetch(sifile_t *fp) {
+  int c; assert(fp && fp->p); if (!(c = *(fp->p))) return EOF; ++(fp->p); return c; }
+
+static int siungetch(int c, sifile_t *fp) {
+  assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
+
+static int sictl(ctlop_t op, sifile_t *sp, ...) {
+  switch (op) {
+    case CTLOP_RDLN: {
+      va_list args; int **pd; va_start(args, sp); 
+      pd = va_arg(args, int **);
+      if (*(sp->p) == 0) *pd = NULL;
+      else {
+        char *s = strchr(sp->p, '\n');
+        if (s) { *pd = newstringn(sp->p, s-sp->p); sp->p = s+1; }
+        else { *pd = newstring(sp->p); sp->p += strlen(sp->p); }
+      }  
+      va_end(args);
+      return 0;
+    } break;
+    case CTLOP_CI: {
+      va_list args; va_start(args, sp);
+      va_end(args);
+      return (sp->flags & SIF_CI) != 0;
+    } break;
+    case CTLOP_SETCI: {
+      va_list args; int d; va_start(args, sp);
+      d = va_arg(args, int);
+      va_end(args);
+      if (d) sp->flags |= SIF_CI; else sp->flags &= ~SIF_CI;
+      return d != 0;
+    } break;
+  }
+  return -1;
+}
+
+/* bytefile input ports */
+
+bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
+  bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), "malloc(bvifile)");
+  fp->p = p; fp->e = e; fp->base = base; return fp; }
+
+static void bvifree(bvifile_t *fp) { 
+  assert(fp); if (fp->base) free(fp->base); free(fp); }
+
+static int bviclose(bvifile_t *fp) { 
+  assert(fp); if (fp->base) free(fp->base); fp->base = NULL; 
+  fp->p = fp->e = (unsigned char *)""; return 0; }
+
+static int bvigetch(bvifile_t *fp) {
+  assert(fp && fp->p && fp->e); return (fp->p >= fp->e) ? EOF : (0xff & *(fp->p)++); }
+
+static int bviungetch(int c, bvifile_t *fp) {
+  assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }
 
 /* port type array */
 
