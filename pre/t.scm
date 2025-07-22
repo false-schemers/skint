@@ -1897,20 +1897,37 @@
 
 ; hacks for locating library files
 
-(define *library-path-list* (list (base-library-directory)))
+(define (dir-add-separator dir)
+  (if (base-path-separator dir) dir 
+      (string-append dir (string (directory-separator)))))
 
-(define (append-library-path! path)
-  (unless (base-path-separator path)
-    (set! path (string-append path (string (directory-separator)))))
-  (set! *library-path-list* (append *library-path-list* (list path))))
+(define (split-library-path-string path sepc)
+  (define (add-dir d l)
+    (cond [(or (not d) (string=? d "")) l]
+          [(string=? d "...") (add-dir (base-library-directory) l)]
+          [else (let ([dir (dir-add-separator d)])
+                  (if (member dir l) l (cons dir l)))]))
+  (let loop ([p path] [l '()])
+    (if (string=? p "") (reverse l)
+        (let ([pos (string-position sepc p)])
+          (if pos (loop (string-copy p (+ pos 1)) (add-dir (string-copy p 0 pos) l))
+              (reverse (add-dir p l)))))))
 
-(define (prepend-library-path! path)
-  (unless (base-path-separator path)
-    (set! path (string-append path (string (directory-separator)))))
-  (set! *library-path-list* (append (list path) *library-path-list*)))
+(define *library-directory-list* 
+  (cond [(get-environment-variable "SKINT_LIBDIRS") =>
+         (lambda (p) (split-library-path-string p (path-separator)))]
+        [else (split-library-path-string ".:lib:..." #\:)]))
+
+(define (append-library-path! dir)
+  (set! *library-directory-list* 
+    (append *library-directory-list* (list (dir-add-separator dir)))))
+
+(define (prepend-library-path! dir)
+  (set! *library-directory-list* 
+    (append (list (dir-add-separator dir)) *library-directory-list*)))
 
 (define (find-library-path listname) ;=> name of existing .sld file or #f
-  (let loop ([l *library-path-list*])
+  (let loop ([l *library-directory-list*])
     (and (pair? l)
          (let ([p (listname->path listname (car l) ".sld")]) 
            (if (and p (file-exists? p)) p (loop (cdr l)))))))
@@ -2695,13 +2712,15 @@
             (display (error-object-message err) p) (newline p)
             (for-each (lambda (arg) (write arg p) (newline p)) 
               (error-object-irritants err)))
-           (set-current-file-stack! cfs)
+           (set-current-file-stack! cfs) 
+           (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))]
           [else 
            (let ([p (current-error-port)])
              (display "Unknown error:" p) (newline p)
              (write err p) (newline p))
            (set-current-file-stack! cfs)
+           (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))])
     (let loop ([x (repl-read ip prompt op)])
       (unless (eof-object? x)
@@ -2757,7 +2776,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.5.9")
+(define *skint-version* "0.6.0")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
@@ -2765,7 +2784,7 @@
 (set! *features* (cons (string->symbol (string-append "skint-" *skint-version*)) *features*))
 (define (version-alist)
   `((version ,*skint-version*) (scheme.id skint)
-    (scheme.features . ,*features*) (scheme.path . ,*library-path-list*)))
+    (scheme.features . ,*features*) (scheme.path . ,*library-directory-list*)))
 (define (print-version!)
   (for-each (lambda (l) (write l) (newline)) (version-alist)))
 

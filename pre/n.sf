@@ -1809,12 +1809,12 @@ int dirsep = '\\\\';
 int dirsep = '/';
 #endif
 
-#ifdef LIBPATH
+#ifdef LIBDIR
 #define STR2(x) #x
 #define STR(x)  STR2(x)
-char *lib_path = STR(LIBPATH);
+char *lib_dir = STR(LIBDIR);
 #else
-char *lib_path = \".\";
+char *lib_dir = \"\";
 #endif
  
 extern char *get_cwd(void)

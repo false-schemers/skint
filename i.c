@@ -4351,8 +4351,8 @@ define_instruction(hostsig) {
 }
 
 define_instruction(libdir) {
-  extern char *lib_path;
-  ac = string_obj(newstring(lib_path));
+  extern char *lib_dir;
+  ac = string_obj(newstring(lib_dir));
   gonexti();
 }
 

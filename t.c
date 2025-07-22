@@ -1076,22 +1076,34 @@ char *t_code[] = {
   ">string)[01}c},.1d,:1^[22}:3,${.4,:2cA8,@(y14:string-append*)[01},@(y3"
   "4:file-resolve-relative-to-base-path)[22}.!0.0^_1[42",
 
+  "P", "dir-add-separator",
+  "%1${.2,@(y19:base-path-separator)[01}?{.0]1}${@(y19:directory-separato"
+  "r)[00},S11,.1,Sa2]1",
+
+  "P", "split-library-path-string",
+  "%2,#0.0,&1{%2.0~,.0?{.0}{'(s0:),.2S=}_1?{.1]2}'(s3:...),.1S=?{.1,Zd,:0"
+  "^[22}${.2,@(y17:dir-add-separator)[01},.2,.1A2?{.2]3}.2,.1c]3}.!0n,.2,"
+  ",#0.5,.1,.5,&3{%2'(s0:),.1S=?{.1A8]2}.0,:2S8,.0?{${.4,${.5,'0,.8,@(y11"
+  ":string-copy)[03},:0^[02},${'1,.4+,.5,@(y11:string-copy)[02},:1^[32}${"
+  ".4,.4,:0^[02}A8]3}.!0.0^_1[32",
+
   "C", 0,
-  "Zd,l1@!(y19:*library-path-list*)",
+  "'(s13:SKINT_LIBDIRS)Z1,.0?{.0,${${@(y14:path-separator)[00},.3,@(y25:s"
+  "plit-library-path-string)[02}_1}{${'(c:),'(s9:.:lib:...),@(y25:split-l"
+  "ibrary-path-string)[02}}_1@!(y24:*library-directory-list*)",
 
   "P", "append-library-path!",
-  "%1#0${.2^,@(y19:base-path-separator)[01}~?{${@(y19:directory-separator"
-  ")[00},S11,.1^,Sa2.!0}.0^,l1,@(y19:*library-path-list*)L6@!(y19:*librar"
-  "y-path-list*)]1",
+  "%1${.2,@(y17:dir-add-separator)[01},l1,@(y24:*library-directory-list*)"
+  "L6@!(y24:*library-directory-list*)]1",
 
   "P", "prepend-library-path!",
-  "%1#0${.2^,@(y19:base-path-separator)[01}~?{${@(y19:directory-separator"
-  ")[00},S11,.1^,Sa2.!0}@(y19:*library-path-list*),.1^,l1L6@!(y19:*librar"
-  "y-path-list*)]1",
+  "%1@(y24:*library-directory-list*),${.3,@(y17:dir-add-separator)[01},l1"
+  "L6@!(y24:*library-directory-list*)]1",
 
   "P", "find-library-path",
-  "%1@(y19:*library-path-list*),,#0.0,.3,&2{%1.0p?{${'(s4:.sld),.3a,:0,@("
-  "y14:listname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:1^[21}f]1}.!0.0^_1[11",
+  "%1@(y24:*library-directory-list*),,#0.0,.3,&2{%1.0p?{${'(s4:.sld),.3a,"
+  ":0,@(y14:listname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:1^[21}f]1}.!0.0^_"
+  "1[11",
 
   "P", "read-port-sexps",
   "%1n,,#0.2,.1,&2{%1${:1,@(y14:read-code-sexp)[01},.0R8?{.1A9]2}.1,.1c,:"
@@ -1709,10 +1721,10 @@ char *t_code[] = {
   ",.8,&6{%1${k0,.0,${.6,:1,:2,:3,:4,:5,&6{%0:5,${.2,@(y13:error-object?)"
   "[01}?{Pe,.0,${.4,@(y20:error-object-message)[01}W4.0W6${${.5,@(y22:err"
   "or-object-irritants)[01},.3,&1{%1:0,.1W5:0W6]1},@(y10:%25for-each1)[02"
-  "}_1${:4^,@(y23:set-current-file-stack!)[01}:1?{:0,:1,:2,:3,@(y14:repl-"
-  "from-port)[14}]1}Pe,.0,'(s14:Unknown error:)W4.0W6.0,.2W5.0W6_1${:4^,@"
-  "(y23:set-current-file-stack!)[01}:1?{:0,:1,:2,:3,@(y14:repl-from-port)"
-  "[14}]1},:0[01}_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[50",
+  "}_1${:4^,@(y23:set-current-file-stack!)[01}Zg:1?{:0,:1,:2,:3,@(y14:rep"
+  "l-from-port)[14}]1}Pe,.0,'(s14:Unknown error:)W4.0W6.0,.2W5.0W6_1${:4^"
+  ",@(y23:set-current-file-stack!)[01}Zg:1?{:0,:1,:2,:3,@(y14:repl-from-p"
+  "ort)[14}]1},:0[01}_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[50",
 
   "P", "run-benchmark",
   "%2,,#0#1${.4,@(y15:open-input-file)[01}.!0Po.!1${${.4^,@(y14:read-code"
@@ -1748,7 +1760,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.5.9)@!(y15:*skint-version*)",
+  "'(s5:0.6.0)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",
@@ -1761,9 +1773,9 @@ char *t_code[] = {
   "atures*)",
 
   "P", "version-alist",
-  "%0n,@(y19:*library-path-list*),'(y11:scheme.path)cc,@(y10:*features*),"
-  "'(y15:scheme.features)cc,n,'(y5:skint)c,'(y9:scheme.id)cc,n,@(y15:*ski"
-  "nt-version*)c,'(y7:version)cc]0",
+  "%0n,@(y24:*library-directory-list*),'(y11:scheme.path)cc,@(y10:*featur"
+  "es*),'(y15:scheme.features)cc,n,'(y5:skint)c,'(y9:scheme.id)cc,n,@(y15"
+  ":*skint-version*)c,'(y7:version)cc]0",
 
   "P", "print-version!",
   "%0${@(y13:version-alist)[00},&0{%1Po,.1W5PoW6]1},@(y10:%25for-each1)[0"

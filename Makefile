@@ -14,7 +14,7 @@ ARCH      = unknown
 $(info prefix is set to $(PREFIX))
 
 ifneq ($(wildcard lib/.),)
-  CFLAGS += -DLIBPATH=$(LIBROOT)/lib
+  CFLAGS += -DLIBDIR=$(LIBROOT)/lib
 endif
 
 ifneq ($(shell which clang),)
@@ -105,7 +105,7 @@ clean:
 
 realclean:
 	$(RM) $(objects) $(exe)
-	$(RM) tmp1
+	$(RM) tmp1 prefix.mk
 
 install:
 	$(MKPATH) $(PREFIX)/bin
