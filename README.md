@@ -82,7 +82,12 @@ Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and eva
 
   *  `read` supports R7RS notation for circular structures, but both `eval` and `load` reject them
   *  all R7RS-small forms are available in the built-in `(skint)` library and REPL environment
-  *  `-I` and `-A` command-line options extend library search path; initial path is `./`
+  *  `-I` and `-A` command-line options extend library search path (`-I` prepends, `-A` appends)
+  *  the initial path is specified via the `SKINT_LIBDIRS` environment var
+  *  if it is set, use the directories in the var, replacing the pseudo-directory named `...` with the hardwired
+     _libdir_ directory if one is built in via the `-D LIBDIR=dir` option during compilation
+  *  if `SKINT_LIBDIRS` environment var is not set, use the (`./` `lib/` _libdir_ ) list as the default
+  *  directories in the path are separated by colon `:` (semicolon `;` on Windows)
   *  `cond-expand` checks against `(features)` and available libraries
   *  `environment` may dynamically fetch external library definitions from `.sld` files
   *  both `eval` and `load` accept optional environment argument
