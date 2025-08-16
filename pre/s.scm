@@ -1193,13 +1193,13 @@
   (define (pr-where args ep)
     (when (pair? args) 
       (cond [(not (car args)) 
-             (write-string ": " ep)
+             (write-string ":\n" ep)
              (pr-msg (cdr args) ep)]
             [(symbol? (car args)) 
-             (write-string " in " ep) (write (car args) ep) (write-string ": " ep)
+             (write-string " in " ep) (write (car args) ep) (write-string ":\n" ep)
              (pr-msg (cdr args) ep)]
             [else 
-             (write-string ": " ep)
+             (write-string ":\n" ep)
              (pr-msg args ep)]))) 
   (define (pr-msg args ep)
     (when (pair? args) 
@@ -1212,7 +1212,7 @@
        (write-char #\space ep) (write (car args) ep)
        (pr-rest (cdr args) ep)))
    (cond [(or (string? prefix) (symbol? prefix)) 
-          (write-string prefix ep)]
+          (display prefix ep)]
          [else (write-string "Error" ep)])
    (pr-where args ep)
    (newline ep))
@@ -1317,7 +1317,7 @@
   (define fn #f) (define lno #f) 
   (define line #f) (define pfx #f)
   (when (%port-location port (set& fn) (set& lno) (set& line) (set& pfx))
-    (set! msg (format "~a:~a: ~a~%~a~%~a^" fn lno msg line pfx)))
+    (set! msg (format "~a:~a:~a: ~a~%~a~%~a^" fn lno (string-length pfx) msg line pfx)))
   (raise (error-object 'read msg args)))
 
 (define (read-error? obj)

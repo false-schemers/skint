@@ -263,6 +263,7 @@ static void _sck(obj *s) {
 #define string_obj(s) hp_pushptr((s), STRING_NTAG)
 #define is_string(o) isstring(o)
 #define string_len(o) stringlen(o) 
+#define string_get(o, i) ((int)(unsigned char)*stringref(o, i))
 #define string_ref(o, i) (*stringref(o, i))
 #define bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
 #define is_bytevector(o) isbytevector(o)
@@ -1326,7 +1327,7 @@ define_instruction(sget) {
   cks(ac); ckk(x); 
   i = get_fixnum(x); 
   if (i >= string_len(ac)) failtype(x, "valid string index");
-  ac = char_obj(string_ref(ac, i));
+  ac = char_obj(string_get(ac, i));
   gonexti();
 }
 
@@ -1843,7 +1844,7 @@ define_instruction(stol) {
   cks(ac); n = string_len(ac);
   hp_reserve(pairbsz()*n);
   while (n > 0) {
-    *--hp = l; *--hp = char_obj(string_ref(ac, n-1));
+    *--hp = l; *--hp = char_obj(string_get(ac, n-1));
     l = hend_pair();
     --n;
   }

@@ -564,7 +564,7 @@ static void tifree(tifile_t *tp) {
 }
 
 static int tigetch(tifile_t *tp) {
-  int c; retry: c = *(tp->next); 
+  int c; retry: c = *(unsigned char *)(tp->next); 
   if (c != 0) { ++(tp->next); return c; } 
   /* see if we need to return actual 0 or refill the line */
   if (tp->next < tp->cb.fill)  { ++(tp->next); return c; }
@@ -636,7 +636,8 @@ static void sifree(sifile_t *fp) {
   assert(fp); if (fp->base) free(fp->base); free(fp); }
 
 static int sigetch(sifile_t *fp) {
-  int c; assert(fp && fp->p); if (!(c = *(fp->p))) return EOF; ++(fp->p); return c; }
+  int c; assert(fp && fp->p); 
+  if (!(c = *(unsigned char *)(fp->p))) return EOF; ++(fp->p); return c; }
 
 static int siungetch(int c, sifile_t *fp) {
   assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
