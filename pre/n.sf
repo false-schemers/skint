@@ -993,7 +993,10 @@ unsigned char* bytevectorref(obj o, int i) {
 (%localdef "static int noputch(int c, void *p) { return EOF; }")
 (%localdef "static int noflush(void *p) { return EOF; }")
 (%localdef "static int noctl(ctlop_t op, void *p, ...) { return -1; }")
-(%localdef "static void ffree(void *vp) { FILE *fp = vp; assert(fp); fclose(fp); }")
+(%localdef "static void ffree(void *vp) {
+  FILE *fp = vp; assert(fp); 
+  if (fp != stdin && fp != stdout && fp != stderr) fclose(fp);
+}")
 
 ; input ports
 

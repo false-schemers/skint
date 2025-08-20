@@ -524,7 +524,8 @@ jump:
 /* instructions for basic vm machinery */
 
 define_instrhelper(cxi_fail) { 
-  fprintf(stderr, "run-time failure: %s\n", (char*)ac);
+  char *msg = (char*)ac;
+  fprintf(stderr, "run-time failure: %s\n", msg);
   ac = void_obj(); /* so it is not printed by repl */
   unwindi(0); 
 }
@@ -3606,7 +3607,8 @@ define_instruction(spfc) {
 }
 
 define_instruction(ploc) {
-  cxtype_iport_t *vt; obj fb = sref(0), nb = sref(1);
+  cxtype_iport_t *vt; obj tmp;
+  obj fb = sref(0), nb = sref(1);
   obj lb = sref(2), pb = sref(3); /* may be #f */
   ckr(ac); ckz(fb); ckz(nb);
   vt = iportvt(ac); assert(vt);
@@ -3618,13 +3620,17 @@ define_instruction(ploc) {
       int *d, n = pf->cb.fill - pf->cb.buf; ckz(lb);
       if (n > 0 && pf->cb.buf[n-1] == '\n') --n;
       d = newstringn(pf->cb.buf, n);
-      box_ref(lb) = string_obj(d);
+      tmp = string_obj(d); /* possible gc */
+      pf = iportdata(ac); lb = sref(2); pb = sref(3); /* reload after possible gc */
+      box_ref(lb) = tmp;
     } 
     if (pb) { 
       char *s; int *d, n = pf->next - pf->cb.buf; ckz(pb);
       d = newstringn(pf->cb.buf, n);
       for (s = sdatachars(d); n > 0; --n, ++s) if (!isspace(*s)) *s = ' ';
-      box_ref(pb) = string_obj(d);
+      tmp = string_obj(d); /* possible gc */
+      pb = sref(3); /* reload after possible gc */
+      box_ref(pb) = tmp;
     } 
     ac = bool_obj(1);
   } else {
@@ -4013,27 +4019,30 @@ define_instruction(sreturn4) {
 }
 
 define_instruction(atest0) {
-  if (unlikely(ac != fixnum_obj(0))) fail("argument count error on entry");
+  if (unlikely(ac != fixnum_obj(0))) fail("argument count error on entry (0 args expected)");
   gonexti();
 }
 
 define_instruction(atest1) {
-  if (unlikely(ac != fixnum_obj(1))) fail("argument count error on entry");
+  if (ac != fixnum_obj(1)) {
+    int x = 10;
+  }
+  if (unlikely(ac != fixnum_obj(1))) fail("argument count error on entry (1 arg expected)");
   gonexti();
 }
 
 define_instruction(atest2) {
-  if (unlikely(ac != fixnum_obj(2))) fail("argument count error on entry");
+  if (unlikely(ac != fixnum_obj(2))) fail("argument count error on entry (2 args expected)");
   gonexti();
 }
 
 define_instruction(atest3) {
-  if (unlikely(ac != fixnum_obj(3))) fail("argument count error on entry");
+  if (unlikely(ac != fixnum_obj(3))) fail("argument count error on entry (3 args expected)");
   gonexti();
 }
 
 define_instruction(atest4) {
-  if (unlikely(ac != fixnum_obj(4))) fail("argument count error on entry");
+  if (unlikely(ac != fixnum_obj(4))) fail("argument count error on entry (4 args expected)");
   gonexti();
 }
 

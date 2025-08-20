@@ -548,7 +548,10 @@ static int noflush(void *p) { return EOF; }
 
 static int noctl(ctlop_t op, void *p, ...) { return -1; }
 
-static void ffree(void *vp) { FILE *fp = vp; assert(fp); fclose(fp); }
+static void ffree(void *vp) {
+  FILE *fp = vp; assert(fp); 
+  if (fp != stdin && fp != stdout && fp != stderr) fclose(fp);
+}
 
 /* file input ports */
 
