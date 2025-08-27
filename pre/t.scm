@@ -1799,9 +1799,9 @@
 
 (define (file-resolve-relative-to-base-path filename basepath)
   (if (path-relative? filename) ; leading . and .. to be resolved by OS
-      (if (base-path-separator basepath)
-          (string-append basepath filename) 
-          (string-append basepath (string (directory-separator)) filename))
+      (cond [(base-path-separator basepath) (string-append basepath filename)]
+            [(string=? basepath "") filename]
+            [else (string-append basepath (string (directory-separator)) filename)])
       filename))
 
 ; hacks for relative file name resolution
@@ -2183,8 +2183,8 @@
     ; these are special forms in skint!
     (define-library) (import)
     ; selected extracts from r7rs-large and srfis
-    (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format 28) 
-    (fprintf) (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
+    (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format) (fprintf) 
+    (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
     ; skint extras go into repl and (skint) library; the rest goes to (skint hidden)
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
     (record?) (make-record) (record-length) (record-ref) (record-set!) (expand)
@@ -2206,6 +2206,7 @@
     (list->numvector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
     (path-separator) (void) (void?) (implementation-name) (implementation-version) (version-alist)
+    (current-language) (current-country) (current-locale-details)
     ; (skint c99-math) library is defined if host provides the corresponding functions
     (flcopysign . c99-math) (flsign-bit . c99-math) (fladjacent . c99-math) (flnormalized? . c99-math) 
     (fldenormalized? . c99-math) (flexponent . c99-math) (flilogb . c99-math) (fl+* . c99-math) 
@@ -2558,10 +2559,12 @@
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (when ci? (set-port-fold-case! port #t))
-      (let loop ([x (read-code-sexp port)])
-        (unless (eof-object? x)
-          (eval x env)
-          (loop (read-code-sexp port))))))
+      ; in case command-line is changed during the load, save its current value
+      (parameterize ([command-line (command-line)])
+        (let loop ([x (read-code-sexp port)])
+          (unless (eof-object? x)
+            (eval x env)
+            (loop (read-code-sexp port)))))))
   ; we aren't asked by the spec to call last expr tail-recursively, so this
   (void))
 
@@ -2776,7 +2779,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.6.2")
+(define *skint-version* "0.6.4")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

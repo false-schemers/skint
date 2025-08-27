@@ -1971,6 +1971,9 @@
 (define xsi-math-available (case (string-ref *host-sig* 9) [(#\x) 'xsi-math] [else #f]))
 (define skint-host-os (case (string-ref *host-sig* 0) [(#\w) 'windows] [(#\m) 'macosx] [(#\u) 'unix] [else #f]))
 (define skint-host-endianness (case (string-ref *host-sig* 4) [(#\l) 'little-endian] [(#\b) 'big-endian] [else #f]))
+(define current-language (make-parameter (string->symbol (substring *host-sig* 16 18))))
+(define current-country (make-parameter (string->symbol (substring *host-sig* 18 20))))
+(define current-locale-details (make-parameter (cond [(%host-facet 1) => (lambda (s) (list (string->symbol s)))] [else '()])))
 
 (define current-directory
   (case-lambda 
@@ -2040,9 +2043,9 @@
 (define format-fresh-line ; TODO: add (fresh-line [p]) instruction for source ports
   (make-parameter newline))
 (define format-help-string 
-  (make-parameter "supported directives: ~~ ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~f ~? ~k ~* ~!"))
+  (make-parameter "supported directives: ~~ ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~f ~? ~k ~* ~N@* ~!"))
 
-(define (fprintf p fs . args)
+(define (fprintf p fs . allargs)
   (define (hd args)
     (if (pair? args) (car args) (error "format: no argument for ~ directive")))
   (define (tl args)
@@ -2051,22 +2054,21 @@
     (if (pair? fl) (car fl) (error "format: incomplete ~ directive")))
   (define (write-num rx arg p)
     (if (number? arg) (display (number->string arg rx) p) (display arg p)))
-  (define (memd fl &w &d)
+  (define (memd fl &w &d &at)
     (let loop ([fl fl] [c (fhd fl)] [&n &w])
       (cond [(char-numeric? c) 
              (when (< (unbox &n) 0) (set-box! &n 0))
              (set-box! &n (+ (* (unbox &n) 10) (digit-value c)))
              (loop (cdr fl) (fhd (cdr fl)) &n)]
-            [(char=? c #\,)
-             (loop (cdr fl) (fhd (cdr fl)) &d)]
+            [(char=? c #\,) (loop (cdr fl) (fhd (cdr fl)) &d)]
+            [(char=? c #\@) (set-box! &at #t) (cdr fl)]
             [else fl])))
-  (let lp ([fl (string->list fs)] [args args])
+  (let lp ([fl (string->list fs)] [args allargs])
     (cond [(null? fl) args] ; formally unspecified, but useful value
           [(char=? (car fl) #\~)
            (when (null? (cdr fl)) (error "format: incomplete escape sequence"))
-           (let* ([w -1] [d -1] [fl (memd (cdr fl) (set& w) (set& d))])
+           (let* ([w -1] [d -1] [at #f] [fl (memd (cdr fl) (set& w) (set& d) (set& at))])
              (case (char-downcase (car fl))
-               [(#\*) (lp (cdr fl) (tl args))] ;+ CL, skips 1 arg
                [(#\~) (write-char #\~ p) (lp (cdr fl) args)]
                [(#\%) (newline p) (lp (cdr fl) args)]
                [(#\t) (write-char #\tab p) (lp (cdr fl) args)]
@@ -2085,6 +2087,10 @@
                [(#\y) ((format-pretty-print) (hd args) p) (lp (cdr fl) (tl args))]
                [(#\f) ((format-fixed-print) (hd args) w d p) (lp (cdr fl) (tl args))]
                [(#\? #\k) (lp (string->list (hd args)) (hd (tl args))) (lp (cdr fl) (tl (tl args)))]
+               [(#\*) (cond [(and at (<= 0 w (length allargs))) (lp (cdr fl) (list-tail allargs w))]
+                            [(<= 0 w (length args)) (lp (cdr fl) (list-tail args w))]
+                            [(= w -1) (lp (cdr fl) (tl args))]
+                            [else (error "format: invalid ~* directive")])]
                [else  (error "format: unrecognized ~ directive" (car fl))]))]
           [else (write-char (car fl) p) (lp (cdr fl) args)])))
 

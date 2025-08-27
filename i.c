@@ -4194,27 +4194,6 @@ define_instruction(scall44) {
   sdrop(4); callsubi();
 }
 
-/* <? combo gets in a way of decoding ;>? from (if (< 1 2 3) 4 5)
-define_instruction(brnotlt) {
-  obj x = ac, y = spop();
-  if (likely(are_fixnums(x, y))) {
-    int dx = get_fixnum(*ip++);
-    ac = bool_obj(get_fixnum(x) < get_fixnum(y));
-    ip = ac ? ip : ip + dx;
-    gonexti(); 
-  } else {
-    int dx = get_fixnum(*ip++);
-    double fx, fy;
-    if (likely(is_flonum(x))) fx = get_flonum(x);
-    else { cki(x); fx = (double)get_fixnum(x); }
-    if (likely(is_flonum(y))) fy = get_flonum(y);
-    else { cki(y); fy = (double)get_fixnum(y); }
-    ac = bool_obj(fx < fy);
-    ip = ac ? ip : ip + dx;
-    gonexti(); 
-  }
-}
-*/
 
 define_instruction(pushsub) {
   obj x = ac, y = spop();
@@ -4357,6 +4336,15 @@ define_instruction(heapsz) {
 define_instruction(hostsig) {
   extern char* host_sig(void);
   ac = string_obj(newstring(host_sig())); 
+  gonexti();
+}
+
+define_instruction(hostfct) {
+  extern char* host_facet(int fno);
+  int i; char *s; ckk(ac);
+  i = get_fixnum(ac); s = (char *)host_facet(i);
+  if (s) ac = string_obj(newstring(s));
+  else ac = bool_obj(0);
   gonexti();
 }
 

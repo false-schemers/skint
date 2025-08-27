@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <wchar.h>
 #include <assert.h>
+#include <locale.h>
 
 #if defined(_MSC_VER)
 #ifdef _POSIX_

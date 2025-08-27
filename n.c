@@ -1264,6 +1264,7 @@ extern int set_cwd(char *cwd)
 static char sig[33] = "????????????????????????????????";
 extern char* host_sig(void)
 {
+  const char *loc, *usc;
   union _u { char ca[4]; uint32_t ui; } u; u.ui = 1;
   sig[4] = (u.ca[0] == 1) ? 'l' : (u.ca[3] == 1) ? 'b' : '?';
   sig[5] = '0' + (sizeof(void*))/2;
@@ -1290,7 +1291,31 @@ extern char* host_sig(void)
 #else
   sig[10] = 'i';
 #endif
+  /* 11..15 are reserved */
+  loc = setlocale(LC_ALL, NULL); if (!loc) loc = "en_US";
+  sig[16] = loc[0] ? loc[0] : '?';
+  sig[17] = (loc[0] && loc[1]) ? loc[1] : '?';
+  if (sig[16] == 'C' && sig[17] == '?') sig[16] = 'e', sig[17] = 'n';
+  usc = strchr(loc, '_'); if (!usc) usc = "_US";
+  sig[18] = usc[1] ? usc[1] : '?';
+  sig[19] = (usc[1] && usc[2]) ? usc[2] : '?';
   return sig;
 }
+
+extern const char* host_facet(int fno)
+{
+  switch (fno) {
+    case 0: { /* full locale */
+      return setlocale(LC_ALL, NULL);
+    }
+    case 1: { /* encoding */
+      const char *p = setlocale(LC_ALL, NULL);
+      if (!p) break; p = strchr(p, '.');
+      if (!p) break; return p+1;
+    }
+  }
+  return NULL;
+}
+
 
 
