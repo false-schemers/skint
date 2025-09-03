@@ -2395,11 +2395,6 @@
   (cond [(new-id? id) (new-id-lookup id at)]
         [else #f]))
 
-; patch (scheme r5rs) library to remap string->symbol to hidden string-ci->symbol
-(let ([p (assq 'string->symbol (library-exports (find-library-in-env '(scheme r5rs) root-environment)))]
-      [q (assq 'string-ci->symbol (library-exports (find-library-in-env '(skint hidden) root-environment)))])
-  (if (and (pair? p) (pair? q)) (set-cdr! p (cdr q))))
-
 ; patch (scheme r5rs) library to remap read to read-simple-ci
 (let ([p (assq 'read (library-exports (find-library-in-env '(scheme r5rs) root-environment)))]
       [q (assq 'read-simple-ci (library-exports (find-library-in-env '(skint hidden) root-environment)))])

@@ -1508,12 +1508,6 @@ char *t_code[] = {
 
   "C", 0,
   "'1,${@(y16:root-environment),'(l2:y5:skint;y6:hidden;),@(y19:find-libr"
-  "ary-in-env)[02}V4,'(y17:string-ci->symbol)A3,'1,${@(y16:root-environme"
-  "nt),'(l2:y6:scheme;y4:r5rs;),@(y19:find-library-in-env)[02}V4,'(y14:st"
-  "ring->symbol)A3,.0p?{.1p}{f}?{.1d,.1sd}_2",
-
-  "C", 0,
-  "'1,${@(y16:root-environment),'(l2:y5:skint;y6:hidden;),@(y19:find-libr"
   "ary-in-env)[02}V4,'(y14:read-simple-ci)A3,'1,${@(y16:root-environment)"
   ",'(l2:y6:scheme;y4:r5rs;),@(y19:find-library-in-env)[02}V4,'(y4:read)A"
   "3,.0p?{.1p}{f}?{.1d,.1sd}_2",

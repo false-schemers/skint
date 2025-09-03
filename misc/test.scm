@@ -3125,4 +3125,6 @@
 
 (test '(hello abracadabra GOODBYE) (read (open-input-string "(hello #!fold-case AbraCADabRa #!no-fold-case GOODBYE)")))
 
+(test "FooBar" (symbol->string (eval '(string->symbol "FooBar") (scheme-report-environment 5))))
+
 (test-end)

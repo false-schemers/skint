@@ -270,6 +270,7 @@ declare_instruction(ieqv,       "D7\0'(i-1)",   0,  "fxeqv",                    
 declare_instruction(iaddc,      "D+",           0,  "fxaddc",                   '3', AUTOGL)
 declare_instruction(isubc,      "D-",           0,  "fxsubc",                   '3', AUTOGL)
 declare_instruction(imulc,      "D*",           0,  "fxmulc",                   '3', AUTOGL)
+declare_instruction(ifmr,       "Dr",           0,  "fxfmr",                    '3', AUTOGL)
 declare_instruction(jzerop,     "J=0",          0,  "flzero?",                  '1', AUTOGL)
 declare_instruction(jposp,      "J>0",          0,  "flpositive?",              '1', AUTOGL)
 declare_instruction(jnegp,      "J<0",          0,  "flnegative?",              '1', AUTOGL)

@@ -2204,6 +2204,13 @@ define_instruction(imulc) {
   gonexti();
 }
 
+define_instruction(ifmr) {
+  obj x = ac, y = spop(), m = spop(); long long mr; cki(x); cki(y); cki(m);
+  mr = ((long long)get_fixnum(x) * (long long)get_fixnum(y)) % (long long)get_fixnum(m);
+  ac = fixnum_obj((int)mr);
+  gonexti();
+}
+
 define_instruction(ilt) {
   obj x = ac, y = spop(); cki(x); cki(y);
   ac = bool_obj(get_fixnum(x) < get_fixnum(y));
