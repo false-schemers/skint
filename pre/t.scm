@@ -567,6 +567,9 @@
         ; TODO? here we can do some fancy shortcuts or extensions
         [else (x-error "improper define-syntax form" (cons head tail))]))
 
+; new body expander; uses 'stretch' environment that can be extended via in-place modification after rules 
+; close over it, subject to the r^6rs-like constraint: downstream-defined ids can't have any effect on the 
+; scan pass, so it can take into account (and bind) only the upstream definitions.
 (define (xpand-body tail env appos?)
   (cond
     [(null? tail) 
@@ -576,67 +579,75 @@
     [(not (list? tail))
      (x-error "improper body form" (cons 'body tail))]
     [else
-     (let loop ([env env] [ids '()] [inits '()] [nids '()] [body tail])
-       (if (and (pair? body) (pair? (car body)))
-           (let ([first (car body)] [rest (cdr body)])
-             (let* ([head (car first)] [tail (cdr first)] [hval (prexpand head env)])
-               (case hval
-                 [(begin) ; internal
-                  (if (list? tail) 
-                      (loop env ids inits nids (append tail rest))
-                      (x-error "improper begin form" first))]
-                 [(define) ; internal
-                  (let ([tail (preprocess-define head tail)])
-                    (cond [(list1? tail) ; idless
-                           (let ([init (car tail)])
-                             (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))]
-                          [else ; (id sexp)
-                           (let* ([id (car tail)] [init (cadr tail)]
-                                  [nid (gensym (id->sym id))] [env (add-local-var id nid env)])
-                             (loop env (cons id ids) (cons init inits) (cons nid nids) rest))]))]
-                 [(define-syntax) ; internal
-                  (let ([tail (preprocess-define-syntax head tail)])
-                    (let* ([id (car tail)] [init (cadr tail)]
-                           [env (extend-xenv-local id '(undefined) env)]) ; placeholder val
-                      (loop env (cons id ids) (cons init inits) (cons #t nids) rest)))]
-                 [(define-library) ; internal
-                  (if (and (list2+? tail) (listname? (car tail)))
-                      ; note: library is fully expanded in incomplete env, to make it
-                      ; immediately available for import; it ignores lexical scope anyway 
-                      (let* ([core (xpand-define-library head tail env #f)] 
-                             ; core is (define-library <listname> <library>)
-                             [listname (cadr core)] [library (caddr core)]
-                             [env (extend-xenv-local listname library env)])
-                        (loop env ids inits nids rest)) ; no trace for xpand-labels
-                      (x-error "improper define-library form" first))]
-                 [(import) ; internal
-                  (if (list? tail)
-                      ; note: import is fully expanded in incomplete env, right now! 
-                      (let* ([core (xpand-import head tail env #f)] ; core is (import <library>)
-                             [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
-                        (let scan ([eal eal] [env env])
-                          (if (null? eal) ; add init code as if it were idless define
-                              (let ([init (list syntax-quote-id code)])
-                                (loop env (cons #f ids) (cons init inits) (cons #f nids) rest))
-                              (let ([id (id-rename-as head (caar eal))] [loc (cdar eal)])
-                                (scan (cdr eal) 
-                                  (lambda (i at) ; make env sharing loc, but for peek/ref only!
-                                    (if (eq? i id) (and (memq at '(ref peek)) loc) (env i at))))))))
-                      (x-error "improper import form" first))] 
-                 [else
-                  (if (val-transformer? hval)
-                      (loop env ids inits nids (cons (hval first env) rest))
-                      (xpand-labels (reverse ids) (reverse inits) (reverse nids) body env appos?))])))
-           (xpand-labels (reverse ids) (reverse inits) (reverse nids) body env appos?)))]))
-
+     (let ([parent-env env] [new-bindings '()]) ; a-list of discovered bindings
+       (define (extend-xenv-local! id val set?) ; extend stretch env via in-place modification
+         (set! new-bindings (cons (list id (make-location val) set?) new-bindings)))
+       (define (env id at) ; 'stretch' environment, extended via in-place modification
+         (define ivs (if (pair? id) (assoc id new-bindings) (assq id new-bindings)))
+         (case at ; check for set! to read-only bindings
+           [(ref peek) (if ivs (cadr ivs) (parent-env id at))]
+           [(set!) (if ivs (and (caddr ivs) (cadr ivs)) (parent-env id at))]
+           [else (if ivs #f (parent-env id at))]))
+       (let loop ([ids '()] [inits '()] [nids '()] [body tail])
+         (if (and (pair? body) (pair? (car body)))
+             (let ([first (car body)] [rest (cdr body)])
+               (let* ([head (car first)] [tail (cdr first)] [hval (prexpand head env)])
+                 (case hval
+                   [(begin) ; internal
+                    (if (list? tail) 
+                        (loop ids inits nids (append tail rest))
+                        (x-error "improper begin form" first))]
+                   [(define) ; internal
+                    (let ([tail (preprocess-define head tail)])
+                      (cond [(list1? tail) ; idless
+                             (let ([init (car tail)])
+                               (loop (cons #f ids) (cons init inits) (cons #f nids) rest))]
+                            [else ; (id sexp)
+                             (let* ([id (car tail)] [init (cadr tail)] [nid (gensym (id->sym id))])
+                               (extend-xenv-local! id (list 'ref nid) #t)
+                               (loop (cons id ids) (cons init inits) (cons nid nids) rest))]))]
+                   [(define-syntax) ; internal, expand immediately
+                    (let ([tail (preprocess-define-syntax head tail)])
+                      (let ([id (car tail)] [init (cadr tail)]) 
+                        (extend-xenv-local! id (xpand #t init env) #f)
+                        (loop ids inits nids rest)))] ; no trace for xpand-labels
+                   [(define-library) ; internal
+                    (if (and (list2+? tail) (listname? (car tail)))
+                        ; note: library is expanded immediately, as it is a syntax form
+                        (let* ([core (xpand-define-library head tail env #f)] 
+                               ; core is (define-library <listname> <library>)
+                               [listname (cadr core)] [library (caddr core)])
+                          (extend-xenv-local! listname library #t)
+                          (loop ids inits nids rest)) ; no trace for xpand-labels
+                        (x-error "improper define-library form" first))]
+                   [(import) ; internal, make available immediately
+                    (if (list? tail)
+                        (let* ([core (xpand-import head tail env #f)] ; core is (import <library>)
+                               [l (cadr core)] [code (library-code l)] [eal (library-exports l)])
+                          (let scan ([eal eal])
+                            (if (null? eal) ; add init code as if it were idless define
+                                (let ([init (list syntax-quote-id code)])
+                                  (loop (cons #f ids) (cons init inits) (cons #f nids) rest))
+                                (let ([id (id-rename-as head (caar eal))] [loc (cdar eal)])
+                                  (extend-xenv-local! id loc #f) ; read-only
+                                  (scan (cdr eal)))))) 
+                        (x-error "improper import form" first))] 
+                   [else
+                    (if (val-transformer? hval)
+                        (loop ids inits nids (cons (hval first env) rest))
+                        ; TODO: suport SRFI 251 here!
+                        (xpand-labels (reverse ids) (reverse inits) (reverse nids) body env appos?))])))
+             (xpand-labels (reverse ids) (reverse inits) (reverse nids) body env appos?))))]))
+           
+; new labels expander; uses the fact that there are no syntax definitions left
 (define (xpand-labels ids inits nids body env appos?)
-  (define no-defines? (andmap (lambda (nid) (eq? nid #t)) nids))
+  (define no-defines? (null? nids))
   (let loop ([ids ids] [inits inits] [nids nids] [sets '()] [lids '()])
     (cond [(null? ids)
            (if (and no-defines? (list1? body))
                ; special case: expand body using current appos?
                (xpand appos? (car body) env)
-               ; general case: produce expression    
+               ; general case: produce expression
                (let* ([xexps (append (reverse sets) (map (lambda (x) (xpand #f x env)) body))]
                       [xexp (if (list1? xexps) (car xexps) (cons 'begin xexps))])
                  (if (null? lids) xexp
@@ -649,9 +660,7 @@
            (loop (cdr ids) (cdr inits) (cdr nids)
              (cons (xpand-set! (list (car ids) (car inits)) env) sets)
              (cons (car nids) lids))]
-          [else ; define-syntax, nid is #t
-           (location-set-val! (xenv-lookup env (car ids) 'set!) (xpand #t (car inits) env))
-           (loop (cdr ids) (cdr inits) (cdr nids) sets lids)])))
+          [else (x-error "improper labels form" first)])))
 
 ; FIXME: make sure that (begin (begin) x (begin)) == x !! (tail-rec includes hack)
 (define (xpand-begin tail env appos?) ; non-internal
