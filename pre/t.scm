@@ -635,24 +635,28 @@
                    [else
                     (if (val-transformer? hval)
                         (loop ids inits nids (cons (hval first env) rest))
-                        ; TODO: suport SRFI 251 here!
                         (xpand-labels (reverse ids) (reverse inits) (reverse nids) body env appos?))])))
              (xpand-labels (reverse ids) (reverse inits) (reverse nids) body env appos?))))]))
            
 ; new labels expander; uses the fact that there are no syntax definitions left
 (define (xpand-labels ids inits nids body env appos?)
-  (define no-defines? (null? nids))
+  (define l1-appos? (if (null? nids) appos? #f))
+  (define xexp ; expanded inner expression
+    (cond [(null? body) '(begin)] ; shouldn't happen if called only from xpand-body
+          [(list1? body) (xpand l1-appos? (car body) env)] ; last form can't be a definition
+          [else ; head form is guaranteed to be an expression; support SRFI 251 for the tail
+           (let ([xhead (xpand #f (car body) env)] [xtail (xpand-body (cdr body) env #f)])
+             (if (and (pair? xtail) (eq? (car xtail) 'begin))
+                 (if (null? (cdr xtail)) xhead (cons 'begin (cons xhead (cdr xtail))))
+                 (list 'begin xhead xtail)))]))
+  (define xexps (if (and (pair? xexp) (eq? (car xexp) 'begin)) (cdr xexp) (list xexp)))
   (let loop ([ids ids] [inits inits] [nids nids] [sets '()] [lids '()])
     (cond [(null? ids)
-           (if (and no-defines? (list1? body))
-               ; special case: expand body using current appos?
-               (xpand appos? (car body) env)
-               ; general case: produce expression
-               (let* ([xexps (append (reverse sets) (map (lambda (x) (xpand #f x env)) body))]
-                      [xexp (if (list1? xexps) (car xexps) (cons 'begin xexps))])
-                 (if (null? lids) xexp
-                     (pair* 'call (list 'lambda (reverse lids) xexp)
-                       (map (lambda (lid) '(begin)) lids)))))]
+           (let* ([xexps (append (reverse sets) xexps)]
+                  [xexp (if (list1? xexps) (car xexps) (cons 'begin xexps))])
+             (if (null? lids) xexp
+                 (pair* 'call (list 'lambda (reverse lids) xexp)
+                        (map (lambda (lid) '(begin)) lids))))]
           [(not (car ids)) ; idless define, nid is #f
            (loop (cdr ids) (cdr inits) (cdr nids)
              (cons (xpand #f (car inits) env) sets) lids)]
@@ -2201,7 +2205,7 @@
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg) (fxabs) 
     (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
     (fxexpt) (%fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsra) (fxsrl) (fxeqv)
-    (fxaddc) (fxsubc) (fxmulc) (fixnum->flonum) (fixnum->string) (string->fixnum) 
+    (fxaddc) (fxsubc) (fxmulc) (fxfmar) (fixnum->flonum) (fixnum->string) (string->fixnum) 
     (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
     (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
@@ -2783,7 +2787,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.6.4")
+(define *skint-version* "0.6.5")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
