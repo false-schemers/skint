@@ -1350,9 +1350,12 @@
         [(char? x)
          (write-char #\c port)
          (write-serialized-char x port)]
-        [(number? x)
-         (write-char (if (exact? x) #\i #\j) port)
-         (write-string (number->string x 10) port)]
+        [(flonum? x) 
+         (write-char #\j port)
+         (write-string (flonum->string x #t) port)]
+        [(fixnum? x)
+         (write-char #\i port)
+         (write-string (fixnum->string x) port)]
         [(list? x)
          (write-char #\l port)
          (write-serialized-size (length x) port)

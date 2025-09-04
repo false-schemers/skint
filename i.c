@@ -1931,7 +1931,9 @@ define_instruction(jtos) {
   if (d >= HUGE_VAL) { ac = string_obj(newstring("+inf.0")); gonexti(); }
   /* since double can't hold more than 17 decimal digits, limit fixed representation length */
   if (is_fixnum(arg) && fabs(d) <= 9007199254740992.0 && (pr = get_fixnum(arg)) >= 0 && pr < 18) 
-    sprintf(buf, "%.*f", (int)pr, d); else sprintf(buf, "%.16g", d);
+    sprintf(buf, "%.*f", (int)pr, d); 
+  else if (arg == bool_obj(1)) sprintf(buf, "%.17g", d);
+  else sprintf(buf, "%.16g", d);
   for (s = buf; *s != 0; ++s) { if (strchr(".e", *s)) break; }
   if (*s == '.' || *s == 'e') {
     if (*s == '.') s = strchr(s+1, 'e'); 
