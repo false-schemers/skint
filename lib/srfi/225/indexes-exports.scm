@@ -1,0 +1,41 @@
+(export
+    ;; required
+    dictionary?-id
+    dict-find-update!-id
+    dict-comparator-id
+    dict-map-id
+    dict-pure?-id
+    dict-remove-id
+    dict-size-id
+
+    ;; extra
+    dict->alist-id
+    dict-adjoin!-accumulator-id
+    dict-adjoin!-id
+    dict-any-id
+    dict-contains?-id
+    dict-count-id
+    dict-delete-all!-id
+    dict-delete!-id
+    dict-empty?-id
+    dict-entries-id
+    dict-every-id
+    dict-filter-id
+    dict-fold-id
+    dict-for-each-id
+    dict-intern!-id
+    dict-keys-id
+    dict-map->list-id
+    dict-map-id
+    dict-pop!-id
+    dict-ref-id
+    dict-ref/default-id
+    dict-remove-id
+    dict-replace!-id
+    dict-set!-accumulator-id
+    dict-set!-id
+    dict-update!-id
+    dict-update/default!-id
+    dict-values-id
+    dict=?-id
+    dict->generator-id)
