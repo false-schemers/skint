@@ -64,7 +64,7 @@ make test
 make install
 # steps below test and install the optional external library
 make libtest
-sudo make libinstall
+make libinstall
 ```
 ---
 \* Similar build command line works on Windows/MSVC:
