@@ -32,8 +32,14 @@ The resulting interpreter has no dependencies (except for C runtime and standard
 If linked statically, it can be easily moved between systems with the same ABI. Note that this interpreter is a complete R7RS-small
 system in the sense that it does not require any external files to operate (all standard libraries are built in).
 
+In addition to the standard libraries built into the interpreter, SKINT provides external libraries in the distribution’s 
+`lib` subdirectory. If you perform a manual install, you can copy this folder to any location you choose and tell SKINT 
+where to find it either with command-line options or an environment variable, as described below. Alternatively, you can 
+hard-code the library path into the interpreter by adding `-D LIBDIR=`*lib_path* when you compile it.
+
 For a more traditional install, please follow the instructions below. Skint will be
-installed as `/usr/local/bin/skint` command (unless you set a different destination via `configure` as shown below).
+installed as `/usr/local/bin/skint` command, while the optional external library will go into
+`/usr/local/share/skint/` directory (unless you set a different destination via `configure` as shown below).
 
 ```
 git clone https://github.com/false-schemers/skint.git
@@ -41,6 +47,9 @@ cd skint
 make
 make test
 sudo make install
+# steps below test and install the optional external library
+make libtest
+sudo make libinstall
 ```
 If you would like to use the traditional install, but prefer to install SKINT to a place other than `/usr/local`,
 you may insert the `configure` command between `cd skint` and the first call to `make`, e.g.
@@ -52,6 +61,9 @@ cd skint
 make
 make test
 make install
+# steps below test and install the optional external library
+make libtest
+sudo make libinstall
 ```
 ---
 \* Similar build command line works on Windows/MSVC:
@@ -100,6 +112,9 @@ Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and eva
 Please note that SKINT's interaction environment exposes bindings for all R7RS-small procedures 
 and syntax forms directly, so there is no need to use `import`. All R7RS-small libraries are built-in and
 do not rely on any external .sld files.
+
+The optional external library in the `lib` subtree contains SKINT ports of more than 100 SRFIs. Please check 
+the `lib/README.md` file for details.
 
 ## Origins
 
