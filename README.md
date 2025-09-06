@@ -5,7 +5,8 @@
 SKINT is a portable interpreter for the R7RS Scheme programming language. 
 It can be built from five C source files (~11K lines of code) with a single command. There are no distributives or packages; 
 just compile the source files with your favorite C compiler, link them with the standard C runtime libraries, 
-and you're done. For some platforms, precompiled binaries are available (please see [releases](https://github.com/false-schemers/skint/releases)).
+and you're done. Standard libraries are built in; ports of more than 100 SRFIs are available as an optional external 
+directory of .sld library files.
 
 ## Installation
 
@@ -33,7 +34,7 @@ If linked statically, it can be easily moved between systems with the same ABI. 
 system in the sense that it does not require any external files to operate (all standard libraries are built in).
 
 In addition to the standard libraries built into the interpreter, SKINT provides external libraries in the distribution’s 
-`lib` subdirectory. If you perform a manual install, you can copy this folder to any location you choose and tell SKINT 
+`lib` subdirectory. If you perform a manual install, you can copy this directory to any location you choose and tell SKINT 
 where to find it either with command-line options or an environment variable, as described below. Alternatively, you can 
 hard-code the library path into the interpreter by adding `-D LIBDIR=`*lib_path* when you compile it.
 
@@ -112,6 +113,8 @@ Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and eva
 Please note that SKINT's interaction environment exposes bindings for all R7RS-small procedures 
 and syntax forms directly, so there is no need to use `import`. All R7RS-small libraries are built-in and
 do not rely on any external .sld files.
+
+### SRFI support
 
 The optional external library in the `lib` subtree contains SKINT ports of more than 100 SRFIs. Please check 
 the `lib/README.md` file for details.
