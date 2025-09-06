@@ -10,7 +10,11 @@ UNINSTALL = rm -f
 RM        = rm -f
 RMR       = rm -rf
 ARCH      = unknown
+VERSION   = $(shell sed -n 's/(define \*skint-version\* "\([0-9.]*\)")/\1/p' pre/t.scm)
+DISTNAME  = skint-$(VERSION)
+DISTDIR   = dist/$(DISTNAME)
 
+$(info version is $(VERSION))
 $(info prefix is set to $(PREFIX))
 
 ifneq ($(wildcard lib/.),)
@@ -75,7 +79,7 @@ ifeq ($(ARCH),RV64)
   CFLAGS += -D NAN_BOXING
 endif
 
-.PHONY: all clean realclean test install uninstall
+.PHONY: all clean realclean dist distclean test libtest install libinstall uninstall libuninstall
 
 exe     = ./skint
 
@@ -94,10 +98,10 @@ objects = $(sources:%.c=%.o)
 all: $(exe)
 
 test:
-	$(exe) misc/test.scm
+	$(exe) test/test.scm
 
 libtest:
-	$(exe) -I ./lib test/srfi/all.scm
+	$(exe) test/srfi/all.scm
 
 clean:
 	$(RM) $(objects)
@@ -106,6 +110,9 @@ clean:
 realclean:
 	$(RM) $(objects) $(exe)
 	$(RM) tmp1 prefix.mk
+	$(RMR) dist
+
+distclean: realclean
 
 install:
 	$(MKPATH) $(PREFIX)/bin
@@ -130,3 +137,12 @@ $(objects): %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(objects): $(includes)
+
+dist:   dist/$(DISTNAME).tar.gz
+dist/$(DISTNAME).tar.gz: $(DISTDIR)
+	tar czf $@ -C dist $(DISTNAME)
+
+$(DISTDIR): Makefile
+	mkdir -p $@
+	cp -r pre misc lib test *.c *.h LICENSE configure Makefile $@
+
