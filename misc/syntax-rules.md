@@ -78,6 +78,7 @@ A template of the form `(<ellipsis> <converter name> <template+>)` where `<ellip
   * `(... bytevector->list <template>)`
   * `(... length <template>)`
   * `(... make-list <template> <template>)`
+  * `(... string-append <template+>)`
   * `(... char<=? <template+>)`
   * `(... <= <template+>)`
   * `(... + <template+>)`
