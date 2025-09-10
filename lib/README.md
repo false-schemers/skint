@@ -17,8 +17,10 @@ This directory contains additional external libraries in a form of .sld files. T
 23
 25
 26
-27
+27*
+28
 29
+30
 31
 34
 35
@@ -29,18 +31,21 @@ This directory contains additional external libraries in a form of .sld files. T
 42
 43
 45
+46
 48
 51
-54
+54*
+55
 60
 61
+62
 63
 64
 66
 67
 69
 71
-74
+74*
 78
 86
 87
@@ -48,7 +53,7 @@ This directory contains additional external libraries in a form of .sld files. T
 98
 111
 113
-115
+115*
 116
 117
 121
@@ -83,7 +88,7 @@ This directory contains additional external libraries in a form of .sld files. T
 176
 189
 193
-194
+194*
 196
 197
 214
@@ -107,5 +112,5 @@ This directory contains additional external libraries in a form of .sld files. T
 257
 264
 
-Note: SRFIs marked with an asterisk are implemented in abbreviated form: parts that require support for either full Unicode or a full numerical
+Note: SRFIs marked with an asterisk are implemented in abridged form: parts that require support for either full Unicode or a full numerical
 tower (both features are not required by R7RS-small) are omitted.
