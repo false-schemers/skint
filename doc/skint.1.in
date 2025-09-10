@@ -1,0 +1,105 @@
+.\" SKINT.1.in  --  man page template for SKINT
+.\" substitute @VERSION@, @DATE@, @LIBDIR@ at build time
+.TH SKINT 1 "@DATE@" "SKINT @VERSION@" "User Commands"
+.SH NAME
+skint \- cheap and fast R7RS Scheme interpreter
+.SH SYNOPSIS
+.B skint
+[\fIOPTION\fR]... [\fIFILE\fR] [\fIARG\fR]...
+.br
+.PP
+If no \fIFILE\fR is given, an interactive Read-Eval-Print loop is started.
+.SH DESCRIPTION
+\fBskint\fR is a small, self-contained interpreter for the R7RS-small
+Scheme language.  All standard libraries are built-in; more than 100
+SRFIs can be loaded from the optional external library tree.
+.PP
+When \fIFILE\fR is supplied it is executed as a Scheme script
+(SRFI-22 semantics) after which \fBskint\fR exits.
+.SH OPTIONS
+.TP
+.BR \-v ", " \-\-verbose
+Increase output verbosity.
+.TP
+.BR \-q ", " \-\-quiet
+Suppress non-essential messages.
+.TP
+.BR \-A ", " \-\-append\-libdir =\fIDIR\fR
+Append \fIDIR\fR to the library search path.
+.TP
+.BR \-I ", " \-\-prepend\-libdir =\fIDIR\fR
+Prepend \fIDIR\fR to the library search path.
+.TP
+.BR \-D ", " \-\-define\-feature =\fINAME\fR
+Add \fINAME\fR to the (features) list.
+.TP
+.BR \-U ", " \-\-undef\-feature =\fINAME\fR
+Remove \fINAME\fR from the (features) list.
+.TP
+.BR \-e ", " \-\-eval =\fISEXP\fR
+Evaluate and print \fISEXP\fR, then continue.
+.TP
+.BR \-l ", " \-\-load =\fIFILE\fR
+Load \fIFILE\fR and continue.
+.TP
+.BR \-s ", " \-\-script =\fIFILE\fR
+Run \fIFILE\fR as a script (SRFI-22).
+.TP
+.BR \-p ", " \-\-program =\fIFILE\fR
+Run \fIFILE\fR as a program (non-script mode).
+.TP
+.BR \-V ", " \-\-version
+Show version (in SRFI 176 format) and exit.
+.TP
+.BR \-h ", " \-\-help
+Show help and exit.
+.TP
+.B \-\-
+Ends option processing; remaining arguments are passed to the script.
+
+.SH ENVIRONMENT
+.TP
+.B SKINT_LIBDIRS
+Colon-separated list of directories searched for `.sld` libraries.  If unset the default is
+.IR ./ : lib/ : @LIBDIR@/
+
+.SH FILES
+.TP
+.I @LIBDIR@/
+External library tree (`.sld` modules) installed by \fBmake libinstall\fR.
+
+.SH EXAMPLES
+.TP
+Interactive REPL:
+.B skint
+.TP
+Interactive REPL with command line editing:
+.B rlwrap skint
+.TP
+Run a script:
+.B skint -s hello.scm arg1 arg2
+.TP
+Evaluate an expression:
+.B skint -e '(display (+ 1 2 3)) (newline)'
+.TP
+Load a file then enter REPL:
+.B skint -l init.scm
+
+.SH EXIT STATUS
+.TP
+.B 0
+successful execution
+.TP
+.B 1
+syntax or runtime error
+.TP
+.B 2
+command-line usage error
+
+.SH SEE ALSO
+Full README: https://github.com/false-schemers/skint/README.md  
+R7RS-small: https://small.r7rs.org/
+
+.SH AUTHORS
+SKINT contributors (https://github.com/false-schemers/skint).
+

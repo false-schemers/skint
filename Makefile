@@ -5,6 +5,7 @@ CFLAGS    = -O3 -DNDEBUG
 LDFLAGS   = 
 MKPATH    = install -d
 INSTALL   = install -m 755 -s
+INSTALLD  = install -D -m 644
 CPR       = cp -a
 UNINSTALL = rm -f 
 RM        = rm -f
@@ -13,6 +14,7 @@ ARCH      = unknown
 VERSION   = $(shell sed -n 's/(define \*skint-version\* "\([0-9.]*\)")/\1/p' pre/t.scm)
 DISTNAME  = skint-$(VERSION)
 DISTDIR   = dist/$(DISTNAME)
+
 
 $(info version is $(VERSION))
 $(info prefix is set to $(PREFIX))
@@ -81,13 +83,15 @@ endif
 
 .PHONY: all clean realclean dist distclean test libtest install libinstall uninstall libuninstall
 
-exe     = ./skint
+exe      = ./skint
+man_in   = doc/skint.1.in
+man      = ./skint.1
 
-sources = s.c \
-          k.c \
-          i.c \
-          n.c \
-          t.c
+sources  = s.c \
+           k.c \
+           i.c \
+           n.c \
+           t.c
 
 includes = i.h \
            n.h \
@@ -95,7 +99,15 @@ includes = i.h \
 
 objects = $(sources:%.c=%.o)
 
-all: $(exe)
+
+all: $(exe) $(man)
+
+$(man): $(man_in)
+	sed -e 's|@VERSION@|$(VERSION)|g' \
+	    -e 's|@DATE@|'$(date +%d\ %b\ %Y)'|g' \
+	    -e 's|@LIBDIR@|$(LIBROOT)/lib|g' \
+	    -e 's|@PREFIX@|$(PREFIX)|g' \
+	    $< >$@
 
 test:
 	$(exe) test/test.scm
@@ -108,7 +120,7 @@ clean:
 	$(RM) tmp1
 
 realclean:
-	$(RM) $(objects) $(exe)
+	$(RM) $(objects) $(exe) $(man)
 	$(RM) tmp1 prefix.mk
 	$(RMR) dist
 
@@ -117,6 +129,8 @@ distclean: realclean
 install:
 	$(MKPATH) $(PREFIX)/bin
 	$(INSTALL) $(exe) $(PREFIX)/bin
+	$(MKPATH) $(PREFIX)/share/man/man1/
+	$(INSTALLD) $(man) $(PREFIX)/share/man/man1/
 
 libinstall:
 	$(MKPATH) $(LIBROOT)/lib
@@ -125,7 +139,8 @@ libinstall:
 	find $(LIBROOT) -type d -exec chmod 755 {} +
 
 uninstall:
-	$(UNINSTALL) $(exe) $(PREFIX)/bin
+	$(UNINSTALL) $(PREFIX)/bin/$(exe)
+	$(UNINSTALL) $(PREFIX)/share/man/man1/$(man)
 
 libuninstall:
 	$(RMR) $(LIBROOT)
