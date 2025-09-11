@@ -19,12 +19,12 @@ This produces a standalone binary that you can copy anywhere you like.
 All standard R7RS-small libraries are already baked in; no external files are needed.
 
 In addition to the standard libraries built into the interpreter, SKINT provides external libraries in the distribution’s 
-`lib` subdirectory. If you perform a manual install, you can copy this folder to any location you choose and tell SKINT 
+`lib` subdirectory. If you perform a manual install, you can copy this directory to any location you choose and tell SKINT 
 where to find it either with `-I` / `-A` command-line options or `SKINT_LIBDIRS` environment variable. Alternatively, you can 
 hard-code the library path into the interpreter by adding `-D LIBDIR=`*lib_path* when you compile it.
 
 
-Traditional build (Unix & macOS)
+Traditional build (Un*x & MacOS)
 ---------------------------------
 1. **Get the sources**
    ```bash
