@@ -10,7 +10,7 @@ directory of .sld library files.
 
 ## Installation
 
-Here's how you can compile SKINT on a unix box using GCC (\* see Windows command line below):
+Here's how you can compile SKINT on a Un*x-like system using GCC (\* see Windows command line below):
 
 ```
 gcc -o skint [skint].c -lm
@@ -107,7 +107,7 @@ Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and eva
   *  command-line options can be shown by running `skint --help` 
   *  both `import` and `define-library` forms can be entered interactively into REPL
   *  REPL supports single-line “comma-commands” — type `,help` for a full list
-  *  on Un*x-like systems, interactive use of skint with line exiting requires external readline wrapper
+  *  on Un*x-like systems, interactive use of skint with line editing requires external readline wrapper
      such as [rlwrap](https://github.com/hanslub42/rlwrap)    
   
 Please note that SKINT's interaction environment exposes bindings for all R7RS-small procedures 
