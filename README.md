@@ -27,7 +27,7 @@ clang -o skint -O3 -D NDEBUG -D NAN_BOXING [skint].c -lm
 ```
 
 The NAN_BOXING option assumes that the upper 16 bits of heap pointers are zero (48-bit address space). It is recommended to use this
-option on 64-bit systems that guarantee this.
+option on 64-bit systems that guarantee this (most of them do).
 
 The resulting interpreter has no dependencies (except for C runtime and standard -lm math library) and can be run from any location.
 If linked statically, it can be easily moved between systems with the same ABI. Note that this interpreter is a complete R7RS-small
