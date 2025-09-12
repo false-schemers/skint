@@ -990,24 +990,20 @@ obj isassoc(obj x, obj l) {
   } return 0;
 }
 
-/* internal recursive write procedure */
-typedef struct { stab_t *pst; int disp; cxtype_oport_t *vt; void *pp; } wenv_t;
-static void wrc(int c, wenv_t *e) { e->vt->putch(c, e->pp); }
-static void wrs(char *s, wenv_t *e) {
-  cxtype_oport_t *vt = e->vt; void *pp = e->pp;
-  assert(vt); while (*s) vt->putch(*s++, pp);
-}
+/* common syntax data */
+static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+}; /* NB: 0 at num_map[255], so EOF maps to 0 */
+#define is_numsym(c) (inisub_map[(c) & 0xFF])
+
 static int cleansymname(char *s) {
-  static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  };
   char *p = s; while (*p) if (inisub_map[*p++ & 0xFF] == 0) return 0; if (!s[0]) return 0;
   if (inisub_map[s[0] & 0xFF] == 1) return 1;
   if (s[0] == '+' || s[0] == '-') {
@@ -1016,6 +1012,70 @@ static int cleansymname(char *s) {
     return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || (s[1] != '.' && !isdigit(s[1]));
   }
   else return s[0] == '.' && s[1] && !isdigit(s[1]); 
+}
+
+static int is_delimiter(int c) {
+  switch (c) {
+    case '\t': case '\r': case '\n': case ' ':
+    case '(':  case ')':  case '[':  case ']':
+    case '|':  case '\"': case ';':  case EOF:
+      return 1;
+  }
+  return 0;
+}
+
+/* internal read-ahead procedure; returns 'o', 'i', 'e', 0, 1, 2 */
+int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, obj *po, long *pl, double *pd) {
+  int c, xc; cbuf_t *pcb; char *s;
+next: 
+  switch (c = in_getc(in)) {
+    case EOF:  return *po = mkeof(), 'o';
+    case '(':  case ')': case '[': case ']':
+    case '\'': case '`': case ',': case '\"': case '|':
+    case '\\': case '{': case '}':  
+      return *po = obj_from_char(c), 'o';
+    case ';':  goto in_linecomm;
+    case '#':  goto in_hash;
+    default:   
+    if ((c >= '\t' && c <= '\n') || (c >= '\f' && c <= '\r') || c == ' ') goto in_whitespace;
+    if (is_numsym(c)) goto in_numsym;
+    in_ungetc(c, in); goto err;
+  }
+in_whitespace: 
+  c = in_getc(in);
+  if (c == EOF) return *po = mkeof(), 'o';
+  if ((c >= '\t' && c <= '\n') || (c >= '\f' && c <= '\r') || c == ' ') goto in_whitespace;
+  in_ungetc(c, in); goto next;
+in_linecomm:
+  c = in_getc(in);
+  if (c == EOF) return *po = mkeof(), 'o';
+  if (c != '\n') goto in_linecomm;
+  goto next;
+in_hash:
+  c = in_getc(in); if (c != EOF) in_ungetc(c, in); /* peek */
+  if (strchr("bodxieBODXIE", c) == NULL) return *po = obj_from_char('#'), 'o';
+  c = '#'; /* fall through */
+in_numsym:
+  pcb = newcb();
+  while (is_numsym(c) || c == '#') { cbputc(c, pcb); c = in_getc(in); }
+  if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
+  if (cleansymname((s = cbdata(pcb)))) {
+    if (fold) { int i, n = cblen(pcb); for (i = 0; i < n; ++i) s[i] = tolower(s[i]); }
+    *po = mksymbol(internsym(s)); xc = 'o';
+  } else if (s[0] == '.' && s[1] == 0) {
+    *po = obj_from_char('.'); xc = 'o';
+  } else xc = strtofxfl(cbdata(pcb), 10, pl, pd);
+  freecb(pcb); return xc; /* 'o', 'i', 'e', or 0 */
+err:
+  return 2;
+}
+
+/* internal recursive write procedure */
+typedef struct { stab_t *pst; int disp; cxtype_oport_t *vt; void *pp; } wenv_t;
+static void wrc(int c, wenv_t *e) { e->vt->putch(c, e->pp); }
+static void wrs(char *s, wenv_t *e) {
+  cxtype_oport_t *vt = e->vt; void *pp = e->pp;
+  assert(vt); while (*s) vt->putch(*s++, pp);
 }
 static void wrd(double d, int prc, wenv_t *e) {
   char buf[50], *s;

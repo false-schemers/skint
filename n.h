@@ -460,6 +460,7 @@ static int iportpeekc(obj o) {
   cxtype_iport_t *vt = iportvt(o); void *pp = iportdata(o); int c;
   assert(vt); c = vt->getch(pp); if (c != EOF) vt->ungetch(c, pp); return c;
 }
+int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, obj *po, long *pl, double *pd);
 /* file input ports */
 typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
 typedef struct { cbuf_t cb; char *next; FILE *fp; int lno, fns; tiflags_t flags; } tifile_t;

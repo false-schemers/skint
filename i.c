@@ -3730,6 +3730,21 @@ define_instruction(rdln) {
   gonexti(); 
 }
 
+define_instruction(rdah) {
+  cxtype_iport_t *vt; int fold = (ac != bool_obj(0));
+  obj o = bool_obj(0); long l; double d; ac = spop();
+  ckr(ac); vt = iportvt(ac); assert(vt);
+  switch (rdah(fold, vt->getch, vt->ungetch, iportdata(ac), &o, &l, &d)) {
+    case 'o': ac = o; break;
+    case 'e': ac = fixnum_obj(l); break;
+    case 'i': ac = flonum_obj(d); break;
+    case  0 : ac = obj_from_char('n'); break; /* unsupported number */
+    case  1 : ac = obj_from_char('d'); break; /* invalid delimiter */
+    default : ac = obj_from_char('z'); break; /* invalid token */
+  }
+  gonexti(); 
+}
+
 define_instruction(eofp) {
   ac = bool_obj(is_eof(ac));
   gonexti();
