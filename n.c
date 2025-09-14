@@ -991,6 +991,7 @@ obj isassoc(obj x, obj l) {
 }
 
 /* common syntax data */
+
 static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
@@ -1001,6 +1002,7 @@ static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 }; /* NB: 0 at num_map[255], so EOF maps to 0 */
+
 #define is_numsym(c) (inisub_map[(c) & 0xFF])
 
 static int cleansymname(char *s) {
@@ -1025,7 +1027,8 @@ static int is_delimiter(int c) {
 }
 
 /* internal read-ahead procedure; returns 'o', 'i', 'e', 0, 1, 2 */
-int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, obj *po, long *pl, double *pd) {
+int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), 
+         void *in, obj *po, long *pl, double *pd) {
   int c, xc; cbuf_t *pcb; char *s;
 next: 
   switch (c = in_getc(in)) {
