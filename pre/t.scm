@@ -1337,7 +1337,7 @@
 
 (define (write-serialized-numvector-element x t port)  
   (case t 
-    [(0) (write-serialized-byte x port)]
+    [(0 32 33 34 35 36 37 38 39) (write-serialized-byte x port)]
     [(1 2 3 10 11) (write-string (number->string x 10) port) (write-char #\; port)]))
 
 (define (write-serialized-sexp x port)
@@ -1376,12 +1376,13 @@
          (do ([i 0 (fx+ i 1)]) [(fx=? i (string-length x))]
            (write-serialized-char (string-ref x i) port))]
         [(numvector? x) => (lambda (t)
-           (define n (numvector-length x)) 
+           (define n (if (<= 32 t 39) (bytevector-length x) (numvector-length x)))
+           (define ref (if (<= 32 t 39) bytevector-u8-ref numvector-ref))
            (write-char (if (fxzero? t) #\b #\h) port) 
            (write-serialized-size n port) 
            (unless (fxzero? t) (write-serialized-size t port))
            (do ([i 0 (fx+ i 1)]) [(fx=? i n)]
-             (write-serialized-numvector-element (numvector-ref x i) t port)))]
+             (write-serialized-numvector-element (ref x i) t port)))]
         [(symbol? x)
          (write-char #\y port)
          (let ([x (symbol->string x)])

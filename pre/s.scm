@@ -1677,9 +1677,8 @@
   (define (sub-read p)
     ; bumped code using %read-ahead builtin
     (let ([c (%read-ahead fold-case? p)])
-      (cond [(symbol? c) c]
-            [(number? c) c]
-            [(eof-object? c) c]
+      (cond [(symbol? c) c] [(number? c) c]
+            [(numvector? c) c] [(eof-object? c) c]
             [(eqv? c #\() (sub-read-list c p close-paren #t)]
             [(eqv? c #\)) close-paren]
             [(eqv? c #\[) (sub-read-list c p close-bracket #t)]

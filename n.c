@@ -1028,8 +1028,8 @@ static int is_delimiter(int c) {
 
 /* internal read-ahead procedure; returns 'o', 'i', 'e', 0, 1, 2 */
 int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), 
-         void *in, obj *po, long *pl, double *pd) {
-  int c, xc; cbuf_t *pcb; char *s;
+         void *in, obj *po, long *pl, double *pd, int **pp) {
+  int c, xc; cbuf_t *pcb; char *s; unsigned char *b; 
 next: 
   switch (c = in_getc(in)) {
     case EOF:  return *po = mkeof(), 'o';
@@ -1056,6 +1056,7 @@ in_linecomm:
   goto next;
 in_hash:
   c = in_getc(in); if (c != EOF) in_ungetc(c, in); /* peek */
+  if (c == '*') { in_getc(in); goto in_bitvec; }
   if (strchr("bodxieBODXIE", c) == NULL) return *po = obj_from_char('#'), 'o';
   c = '#'; /* fall through */
 in_numsym:
@@ -1069,6 +1070,16 @@ in_numsym:
     *po = obj_from_char('.'); xc = 'o';
   } else xc = strtofxfl(cbdata(pcb), 10, pl, pd);
   freecb(pcb); return xc; /* 'o', 'i', 'e', or 0 */
+in_bitvec:
+  pcb = newcb(); c = in_getc(in);
+  while (c == '0' || c == '1') { cbputc(c, pcb); c = in_getc(in); }
+  if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
+  xc = cblen(pcb); *pp = makebytevector((xc+7)/8, 0); bvdatatype(*pp) = 32+xc%8;
+  for (s = cbdata(pcb), c = 0, b = bvdatabytes(*pp); c < xc; ++c, ++s) {
+    unsigned char *pb = b+c/8; int m = 1 << (c%8);
+    if (*s == '1') *pb |= m; else *pb &= ~m;
+  }
+  freecb(pcb); return 'b';
 err:
   return 2;
 }
@@ -1182,6 +1193,17 @@ static void wrdatum(obj o, wenv_t *e) {
       if (i) wrc(' ', e); wrdatum(vectorref(o, i), e); 
     }
     wrc(')', e);
+  } else if (isbytevector(o) && (bytevectortype(o) &~ 7) == 32) {
+    int i, n = bytevectorlen(o), t = bytevectortype(o);
+    wrs("#*", e); if (n > 0) {
+      int bitl = ((t&7) ? (n-1)*8 + (t&7) : n*8);
+      unsigned char *pb = bytevectorref(o, 0);
+      for (i = 0; i < bitl; ++i) {
+        int m = 1 << (i%8);
+        wrc(((int)(*pb) & m) ? '1' : '0', e);
+        if (i%8 == 7) ++pb;
+      }
+    }
   } else if (isbytevector(o)) {
     int i, n = bytevectorlen(o), t = bytevectortype(o), sz = 1;
     char buf[50]; 
