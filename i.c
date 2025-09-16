@@ -3651,7 +3651,7 @@ define_instruction(ploc) {
     box_ref(fb) = symbol_obj(pf->fns);
     box_ref(nb) = fixnum_obj(pf->lno);
     if (lb) { 
-      int *d, n = pf->cb.fill - pf->cb.buf; ckz(lb);
+      int *d, n = (int)(pf->cb.fill - pf->cb.buf); ckz(lb);
       if (n > 0 && pf->cb.buf[n-1] == '\n') --n;
       d = newstringn(pf->cb.buf, n);
       tmp = string_obj(d); /* possible gc */
@@ -3659,7 +3659,7 @@ define_instruction(ploc) {
       box_ref(lb) = tmp;
     } 
     if (pb) { 
-      char *s; int *d, n = pf->next - pf->cb.buf; ckz(pb);
+      char *s; int *d, n = (int)(pf->next - pf->cb.buf); ckz(pb);
       d = newstringn(pf->cb.buf, n);
       for (s = sdatachars(d); n > 0; --n, ++s) if (!isspace(*s)) *s = ' ';
       tmp = string_obj(d); /* possible gc */
