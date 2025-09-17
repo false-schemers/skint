@@ -1083,7 +1083,7 @@ unsigned char* bytevectorref(obj o, int i) {
         *pd = NULL;
       } else {
         char *s; tiungetch(c, tp);
-        s = tp->next; n = tp->cb.fill - s;
+        s = tp->next; n = (int)(tp->cb.fill - s);
         if (n > 0 && s[n-1] == '\\n') --n;
         *pd = newstringn(s, n);
         tp->next = tp->cb.fill;
@@ -1138,7 +1138,7 @@ unsigned char* bytevectorref(obj o, int i) {
       if (*(sp->p) == 0) *pd = NULL;
       else {
         char *s = strchr(sp->p, '\\n');
-        if (s) { *pd = newstringn(sp->p, s-sp->p); sp->p = s+1; }
+        if (s) { *pd = newstringn(sp->p, (int)(s-sp->p)); sp->p = s+1; }
         else { *pd = newstring(sp->p); sp->p += strlen(sp->p); }
       }  
       va_end(args);
@@ -1608,7 +1608,7 @@ in_numsym:
   while (is_numsym(c) || c == '#') { cbputc(c, pcb); c = in_getc(in); }
   if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
   if (cleansymname((s = cbdata(pcb)))) {
-    if (fold) { int i, n = cblen(pcb); for (i = 0; i < n; ++i) s[i] = tolower(s[i]); }
+    if (fold) { int i, n = (int)cblen(pcb); for (i = 0; i < n; ++i) s[i] = tolower(s[i]); }
     *po = mksymbol(internsym(s)); xc = 'o';
   } else if (s[0] == '.' && s[1] == 0) {
     *po = obj_from_char('.'); xc = 'o';
@@ -1618,7 +1618,7 @@ in_bitvec:
   pcb = newcb(); c = in_getc(in);
   while (c == '0' || c == '1') { cbputc(c, pcb); c = in_getc(in); }
   if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
-  xc = cblen(pcb); *pp = makebytevector((xc+7)/8, 0); bvdatatype(*pp) = 32+xc%8;
+  xc = (int)cblen(pcb); *pp = makebytevector((xc+7)/8, 0); bvdatatype(*pp) = 32+xc%8;
   for (s = cbdata(pcb), c = 0, b = bvdatabytes(*pp); c < xc; ++c, ++s) {
     unsigned char *pb = b+c/8; int m = 1 << (c%8);
     if (*s == '1') *pb |= m; else *pb &= ~m;
