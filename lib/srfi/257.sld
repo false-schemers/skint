@@ -17,7 +17,7 @@
     ~string->number ~number->string
     ~null? ~pair? ~list? ~boolean? ~number?
     ~integer? ~vector? ~string? ~symbol? ~char?
-    ~and ~or ~not
+    ~and ~or ~not ~cut!
     ~list* ~list-no-order ~list-no-order* ~= ~?
     ~prop ~test ~iterate
     ~if-id-member ~replace-specials
@@ -651,8 +651,8 @@
     ((_ newp #f xv c kt kf)
      (submatch xv newp c kt kf))))
 
-; 'cut' matcher (does not allow backtracking into p; experimental)
-(define-syntax ~!
+; 'cut' matcher (does not allow backtracking into p)
+(define-syntax ~cut!
   (syntax-rules ()
     ((_ () (p) (n) kt ()) ; scan for vars
      (submatch () p (n) kt ()))

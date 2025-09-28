@@ -322,6 +322,47 @@
   ((1 (1 . 2) (1 . 3) (2 . 6))                (other)))
 
 
+; tests for ~cut! matcher
+
+(define (matcher-nocut x k)
+  (match x
+    ((~append a (~cons (~append b c) d)) 
+     (=> next back) (k `(fst ,a ,b ,c ,d)) (back))
+    (x (k `(final ,x)))))
+
+(test-restart matcher-nocut
+  ((1) (2 3) (4))
+  (fst ((1) (2 3)) (4) () ())
+  (fst ((1) (2 3)) () (4) ())
+  (fst ((1)) (2 3) () ((4)))
+  (fst ((1)) (2) (3) ((4)))
+  (fst ((1)) () (2 3) ((4)))
+  (fst () (1) () ((2 3) (4)))
+  (fst () () (1) ((2 3) (4)))
+  (final ((1) (2 3) (4))))
+
+(define (matcher-cut x k)
+  (match x
+    ((~append a (~cons (~cut! (~append b c)) d)) 
+     (=> next back) (k `(fst ,a ,b ,c ,d)) (back))
+    (x (k `(final ,x)))))
+
+(test-restart matcher-cut
+  ((1) (2 3) (4))
+  ; commented-out solutions skipped because of cut!
+  ; bt points inside (~append b c) are taken off
+  ; the backtracking stack as soon as it produces
+  ; its first solution
+  (fst ((1) (2 3)) (4) () ())
+  ;(fst ((1) (2 3)) () (4) ())
+  (fst ((1)) (2 3) () ((4)))
+  ;(fst ((1)) (2) (3) ((4)))
+  ;(fst ((1)) () (2 3) ((4)))
+  (fst () (1) () ((2 3) (4)))
+  ;(fst () () (1) ((2 3) (4)))
+  (final ((1) (2 3) (4))))
+
+
 ; custom matcher with (extended) lambda-list-like patterns
 
 (define-match-pattern ~llp->p (quote quasiquote)
