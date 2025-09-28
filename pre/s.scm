@@ -1574,10 +1574,6 @@
   (define (reader-token? form)
     (and (pair? form) (eq? (car form) reader-token-marker)))
 
-  (define (char-symbolic? c)
-    (string-position c
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!$%&*/:<=>?^_~0123456789+-.@"))
-
   (define (char-hex-digit? c)
     (let ([scalar-value (char->integer c)])
       (or (and (>= scalar-value 48) (<= scalar-value 57))
@@ -1604,21 +1600,20 @@
         (sub-read-carefully p)))
 
   (define (sub-read p)
-    (let ([c (read-char p)])
-      (cond [(eof-object? c) c]
-            [(char-whitespace? c) (sub-read p)]
+    ; bumped code using %read-ahead builtin/instruction
+    (let ([c (%read-ahead fold-case? p)])
+      (cond [(not (char? c)) c] ; handled by %read-ahead
             [(char=? c #\() (sub-read-list c p close-paren #t)]
             [(char=? c #\)) close-paren]
             [(char=? c #\[) (sub-read-list c p close-bracket #t)]
             [(char=? c #\]) close-bracket]
+            [(char=? c #\.) dot]
             [(char=? c #\') (list 'quote (sub-read-carefully p))]
             [(char=? c #\`) (list 'quasiquote (sub-read-carefully p))]
-            [(char-symbolic? c) (sub-read-number-or-symbol c p)]
-            [(char=? c #\;)
-             (let loop ([c (read-char p)])
-               (or (eof-object? c) (char=? c #\newline)
-                   (loop (read-char p))))
-             (sub-read p)]
+            [(char=? c #\n) (r-error p "unsupported number syntax (implementation restriction)")]
+            [(char=? c #\d) (r-error p "invalid delimiter")]
+            [(char=? c #\y) (r-error p "unsupported symbol syntax")]
+            [(char=? c #\z) (r-error p "invalid token")]
             [(char=? c #\,)
              (let ([next (peek-char p)])
                (cond [(eof-object? next)
@@ -1673,10 +1668,6 @@
                           [(f32) (list->numvector (sub-read-numerical-list p name) 10)]
                           [(f64) (list->numvector (sub-read-numerical-list p name) 11)]
                           [else (r-error p "unexpected name after #" name)]))]
-                     [(or (char-ci=? c #\b) (char-ci=? c #\o)
-                          (char-ci=? c #\d) (char-ci=? c #\x)
-                          (char-ci=? c #\i) (char-ci=? c #\e))
-                      (sub-read-number-or-symbol #\# p)]
                      [(char=? c #\&)
                       (read-char p)
                       (box (sub-read-carefully p))]
@@ -1845,41 +1836,6 @@
             [else
              (read-char p)
              (loop (peek-char p) (cons c l) (+ cc 1))])))
-
-  (define (suspect-number-or-symbol-peculiar? hash? c l s)
-    (cond [(or hash? (char-numeric? c)) #f]
-          [(or (string-ci=? s "+i") (string-ci=? s "-i")) #f]
-          [(or (string-ci=? s "+nan.0") (string-ci=? s "-nan.0")) #f]
-          [(or (string-ci=? s "+inf.0") (string-ci=? s "-inf.0")) #f]
-          [(or (char=? c #\+) (char=? c #\-))
-           (cond [(null? (cdr l)) #t]
-                 [(char=? (cadr l) #\.) (and (pair? (cddr l)) (not (char-numeric? (caddr l))))]
-                 [else (not (char-numeric? (cadr l)))])]
-          [else (and (char=? c #\.) (pair? (cdr l)) (not (char-numeric? (cadr l))))]))
-
-  (define (sub-read-number-or-symbol c p)
-    (let loop ([c (peek-char p)] [l (list c)] [hash? (char=? c #\#)])
-      (cond [(or (eof-object? c) (char-delimiter? c))
-             (let* ([l (reverse! l)] [c (car l)] [s (list->string l)])
-               (if (or hash? (char-numeric? c) 
-                     (char=? c #\+) (char=? c #\-) (char=? c #\.))   
-                   (cond [(string=? s ".") dot]
-                         [(suspect-number-or-symbol-peculiar? hash? c l s)
-                          (if fold-case? 
-                              (string->symbol (string-foldcase s))
-                              (string->symbol s))]
-                         [(string->number s)]
-                         [else (r-error p "unsupported number syntax (implementation restriction)" s)])
-                   (if fold-case? 
-                       (string->symbol (string-foldcase s))
-                       (string->symbol s))))]
-            [(char=? c #\#)
-             (read-char p) 
-             (loop (peek-char p) (cons c l) #t)]
-            [(char-symbolic? c)
-             (read-char p) 
-             (loop (peek-char p) (cons c l) hash?)]
-            [else (r-error p "unexpected number/symbol char" c)])))
             
   ; body of %read
   (let ([form (sub-read port)])

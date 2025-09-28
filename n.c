@@ -367,7 +367,7 @@ static cxtype_t cxt_bytevector = { "bytevector", free };
 
 cxtype_t *BYTEVECTOR_NTAG = &cxt_bytevector;
 
-#define mallocbvdata(n) cxm_cknull(malloc(2*sizeof(int)+(n)), "malloc(bytevector)")
+#define mallocbvdata(n) cxm_cknull(calloc(2*sizeof(int)+(n), 1), "malloc(bytevector)")
 
 #ifndef NDEBUG
 unsigned char* bytevectorref(obj o, int i) {
@@ -605,7 +605,7 @@ static int tictl(ctlop_t op, tifile_t *tp, ...) {
         *pd = NULL;
       } else {
         char *s; tiungetch(c, tp);
-        s = tp->next; n = tp->cb.fill - s;
+        s = tp->next; n = (int)(tp->cb.fill - s);
         if (n > 0 && s[n-1] == '\n') --n;
         *pd = newstringn(s, n);
         tp->next = tp->cb.fill;
@@ -653,7 +653,7 @@ static int sictl(ctlop_t op, sifile_t *sp, ...) {
       if (*(sp->p) == 0) *pd = NULL;
       else {
         char *s = strchr(sp->p, '\n');
-        if (s) { *pd = newstringn(sp->p, s-sp->p); sp->p = s+1; }
+        if (s) { *pd = newstringn(sp->p, (int)(s-sp->p)); sp->p = s+1; }
         else { *pd = newstring(sp->p); sp->p += strlen(sp->p); }
       }  
       va_end(args);
@@ -990,24 +990,22 @@ obj isassoc(obj x, obj l) {
   } return 0;
 }
 
-/* internal recursive write procedure */
-typedef struct { stab_t *pst; int disp; cxtype_oport_t *vt; void *pp; } wenv_t;
-static void wrc(int c, wenv_t *e) { e->vt->putch(c, e->pp); }
-static void wrs(char *s, wenv_t *e) {
-  cxtype_oport_t *vt = e->vt; void *pp = e->pp;
-  assert(vt); while (*s) vt->putch(*s++, pp);
-}
+/* common syntax data */
+
+static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+}; /* NB: 0 at num_map[255], so EOF maps to 0 */
+
+#define is_numsym(c) (inisub_map[(c) & 0xFF])
+
 static int cleansymname(char *s) {
-  static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  };
   char *p = s; while (*p) if (inisub_map[*p++ & 0xFF] == 0) return 0; if (!s[0]) return 0;
   if (inisub_map[s[0] & 0xFF] == 1) return 1;
   if (s[0] == '+' || s[0] == '-') {
@@ -1016,6 +1014,82 @@ static int cleansymname(char *s) {
     return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || (s[1] != '.' && !isdigit(s[1]));
   }
   else return s[0] == '.' && s[1] && !isdigit(s[1]); 
+}
+
+static int is_delimiter(int c) {
+  switch (c) {
+    case '\t': case '\r': case '\n': case ' ':
+    case '(':  case ')':  case '[':  case ']':
+    case '|':  case '\"': case ';':  case EOF:
+      return 1;
+  }
+  return 0;
+}
+
+/* internal read-ahead procedure; returns 'o', 'i', 'e', 0, 1, 2 */
+int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), 
+         void *in, obj *po, long *pl, double *pd, int **pp) {
+  int c, xc; cbuf_t *pcb; char *s; unsigned char *b; 
+next: 
+  switch (c = in_getc(in)) {
+    case EOF:  return *po = mkeof(), 'o';
+    case '(':  case ')': case '[': case ']':
+    case '\'': case '`': case ',': case '\"': case '|':
+    case '\\': case '{': case '}':  
+      return *po = obj_from_char(c), 'o';
+    case ';':  goto in_linecomm;
+    case '#':  goto in_hash;
+    default:   
+    if ((c >= '\t' && c <= '\n') || (c >= '\f' && c <= '\r') || c == ' ') goto in_whitespace;
+    if (is_numsym(c)) goto in_numsym;
+    in_ungetc(c, in); goto err;
+  }
+in_whitespace: 
+  c = in_getc(in);
+  if (c == EOF) return *po = mkeof(), 'o';
+  if ((c >= '\t' && c <= '\n') || (c >= '\f' && c <= '\r') || c == ' ') goto in_whitespace;
+  in_ungetc(c, in); goto next;
+in_linecomm:
+  c = in_getc(in);
+  if (c == EOF) return *po = mkeof(), 'o';
+  if (c != '\n') goto in_linecomm;
+  goto next;
+in_hash:
+  c = in_getc(in); if (c != EOF) in_ungetc(c, in); /* peek */
+  if (c == '*') { in_getc(in); goto in_bitvec; }
+  if (strchr("bodxieBODXIE", c) == NULL) return *po = obj_from_char('#'), 'o';
+  c = '#'; /* fall through */
+in_numsym:
+  pcb = newcb();
+  while (is_numsym(c) || c == '#') { cbputc(c, pcb); c = in_getc(in); }
+  if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
+  if (cleansymname((s = cbdata(pcb)))) {
+    if (fold) { int i, n = (int)cblen(pcb); for (i = 0; i < n; ++i) s[i] = tolower(s[i]); }
+    *po = mksymbol(internsym(s)); xc = 'o';
+  } else if (s[0] == '.' && s[1] == 0) {
+    *po = obj_from_char('.'); xc = 'o';
+  } else xc = strtofxfl(cbdata(pcb), 10, pl, pd);
+  freecb(pcb); return xc; /* 'o', 'i', 'e', or 0 */
+in_bitvec:
+  pcb = newcb(); c = in_getc(in);
+  while (c == '0' || c == '1') { cbputc(c, pcb); c = in_getc(in); }
+  if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
+  xc = (int)cblen(pcb); *pp = makebytevector((xc+7)/8, 0); bvdatatype(*pp) = 32+xc%8;
+  for (s = cbdata(pcb), c = 0, b = bvdatabytes(*pp); c < xc; ++c, ++s) {
+    unsigned char *pb = b+c/8; int m = 1 << (c%8);
+    if (*s == '1') *pb |= m; else *pb &= ~m;
+  }
+  freecb(pcb); return 'b';
+err:
+  return 2;
+}
+
+/* internal recursive write procedure */
+typedef struct { stab_t *pst; int disp; cxtype_oport_t *vt; void *pp; } wenv_t;
+static void wrc(int c, wenv_t *e) { e->vt->putch(c, e->pp); }
+static void wrs(char *s, wenv_t *e) {
+  cxtype_oport_t *vt = e->vt; void *pp = e->pp;
+  assert(vt); while (*s) vt->putch(*s++, pp);
 }
 static void wrd(double d, int prc, wenv_t *e) {
   char buf[50], *s;
@@ -1119,6 +1193,17 @@ static void wrdatum(obj o, wenv_t *e) {
       if (i) wrc(' ', e); wrdatum(vectorref(o, i), e); 
     }
     wrc(')', e);
+  } else if (isbytevector(o) && (bytevectortype(o) &~ 7) == 32) {
+    int i, n = bytevectorlen(o), t = bytevectortype(o);
+    wrs("#*", e); if (n > 0) {
+      int bitl = ((t&7) ? (n-1)*8 + (t&7) : n*8);
+      unsigned char *pb = bytevectorref(o, 0);
+      for (i = 0; i < bitl; ++i) {
+        int m = 1 << (i%8);
+        wrc(((int)(*pb) & m) ? '1' : '0', e);
+        if (i%8 == 7) ++pb;
+      }
+    }
   } else if (isbytevector(o)) {
     int i, n = bytevectorlen(o), t = bytevectortype(o), sz = 1;
     char buf[50]; 
