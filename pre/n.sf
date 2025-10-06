@@ -662,12 +662,6 @@ char* stringref(obj o, int i) {
   return d1;
 }")
 
-(%definition "extern void stringfill(int *d, int c);")
-(%localdef "void stringfill(int *d, int c) {
-  int l = *d, i; char *s = sdatachars(d);
-  for (i = 0; i < l; ++i) s[i] = c;
-}")
-
 (%definition "extern int strcmp_ci(char *s1, char *s2);")
 (%localdef "int strcmp_ci(char *s1, char *s2) {
   int c1, c2, d;

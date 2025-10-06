@@ -242,7 +242,7 @@ extern double flmqu(double x, double y);
 extern double flmlo(double x, double y);
 extern double flgcd(double x, double y);
 extern double flround(double x);
-extern int strtofxfl(char *s, int radix, long *pl, double *pd);
+extern int strtofxfl(const char *s, int radix, long *pl, double *pd);
 /* fixnums */
 typedef long fixnum_t;
 #define is_fixnum_obj(o) (isim0(o))
@@ -322,24 +322,41 @@ typedef int char_t;
 /* strings */
 extern cxtype_t *STRING_NTAG;
 #define isstring(o) (isnative(o, STRING_NTAG))
-#define stringdata(o) ((int*)getnative(o, STRING_NTAG))
+#define stringdata(o) ((const int*)getnative(o, STRING_NTAG))
+#define sdatalen(d) ((d)[0])
+#define stringlen(o) sdatalen(stringdata(o))
+#define stringchars(o) ((const char*)(sdatachars(stringdata(o))))
+/* ascii representation block */
 #define sdatachars(d) ((char*)((d)+1))
-#define stringlen(o) (*stringdata(o))
-#define stringchars(o) ((char*)(stringdata(o)+1))
-#define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)
+#define sdataget(d, i) (sdatachars(d)[i])
+#define sdataput(d, i, c) (sdatachars(d)[i] = (c), d)
 #ifdef NDEBUG
   #define stringref(o, i) (stringchars(o)+(i))
 #else
   extern char* stringref(obj o, int i);
 #endif
-extern int *newstring(char *s);
-extern int *newstringn(char *s, int n);
-extern int *allocstring(int n, int c);
-extern int *substring(int *d, int from, int to);
-extern int *stringcat(int *d0, int *d1);
-extern int *dupstring(int *d);
-extern void stringfill(int *d, int c);
-extern int strcmp_ci(char *s1, char *s2);
+#define stringget(o, i) (*(unsigned char *)stringref(o, i))
+#define stringput(o, i, c) (*stringref(o, i) = (c))
+extern int *newsdata(const char *s);
+extern int *newsdatan(const char *s, int n);
+extern int *makesdata(int n, int c);
+extern int *subsdata(const int *d, int from, int to);
+extern int *catsdata(const int *d0, const int *d1);
+extern int *dupsdata(const int *d);
+/* char ops */
+#define uisspace(c) isspace(c)
+#define uislower(c) islower(c)
+#define uisupper(c) isupper(c)
+#define uisalpha(c) isalpha(c)
+#define uisdigit(c) isdigit(c)
+#define udigitval(c) ((c) - '0')
+#define utolower(c) tolower(c)
+#define utoupper(c) toupper(c)
+#define utotitle(c) toupper(c)
+#define utofold(c)  tolower(c)
+extern int strcmp_ci(const char *s1, const char *s2);
+/* end of representation-dependent block */
+#define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)
 /* vectors */
 #define VECTOR_BTAG 1
 #define isvector(o) istagged(o, VECTOR_BTAG)
@@ -393,8 +410,8 @@ extern int islist(obj l);
 #define issymbol(o) (isimm(o, SYMBOL_ITAG))
 #define mksymbol(i) mkimm(i, SYMBOL_ITAG)
 #define getsymbol(o) getimmu(o, SYMBOL_ITAG)
-extern char *symbolname(int sym);
-extern int internsym(char *name);
+extern const char *symbolname(int sym);
+extern int internsym(const char *name);
 /* records */
 #define isrecord(o) istyped(o)
 #define recordrtd(r) *typedtype(r)
@@ -471,8 +488,8 @@ extern tifile_t *tialloc(FILE *fp, int fns);
 #define mkiport_bytefile(l, fp) hpushptr(fp, IPORT_BYTEFILE_NTAG, l)
 /* string input ports */
 typedef enum { SIF_NONE = 0, SIF_CI = 2 } siflags_t;
-typedef struct { char *p; void *base; siflags_t flags; } sifile_t;
-extern sifile_t *sialloc(char *p, void *base);
+typedef struct { const char *p; void *base; siflags_t flags; } sifile_t;
+extern sifile_t *sialloc(const char *p, void *base);
 #define mkiport_string(l, fp) hpushptr(fp, IPORT_STRING_NTAG, l)
 /* bytevector input ports */
 typedef struct { unsigned char *p, *e; void *base; } bvifile_t;
@@ -498,11 +515,11 @@ static void oportputc(int c, obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
   assert(vt); vt->putch(c, pp);
 }
-static void oportputs(char *s, obj o) {
+static void oportputs(const char *s, obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
   assert(vt); while (*s) vt->putch(*s++, pp);
 }
-static void oportwrite(char *s, int n, obj o) {
+static void oportwrite(const char *s, int n, obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
   assert(vt); while (n-- > 0) vt->putch(*s++, pp);
 }

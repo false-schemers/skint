@@ -1,0 +1,33 @@
+/* UNICODE replacements for standard string interfaces*/
+
+/* char (code point) */
+extern int uisspace(int c);
+extern int uislower(int c);
+extern int uisupper(int c);
+extern int uisalpha(int c);
+extern int uisdigit(int c);
+extern int udigitval(int c);
+extern int utolower(int c);
+extern int utoupper(int c);
+extern int utotitle(int c);
+extern int utofold(int c);
+
+/* sdata (string data) */
+#define sdatachars(d) ((unsigned char*)((d)+2))
+extern int *makesdata(int n, int c);
+extern int sdataget(int *d, int i);
+extern int *sdataput(int *d, int i, int c);
+extern int *newsdata(const char *u8s);
+extern int *newsdatan(const char *u8s, int nbytes);
+extern int *subsdata(const int *d, int fromc, int toc);
+extern int *catsdata(const int *d0, const int *d1);
+extern int *dupsdata(const int *d);
+
+/* string procedures */
+#define stringget(o, i) sdataget(stringdata(o), i)
+static void stringput(obj o, int i, int c) {
+  int *d = stringdata(o); assert(i >= 0 && i < d[0]);
+  if (d[0] == d[1] && (unsigned char)c < 0x80) sdatachars(d)[i] = c;
+  else setnative(o, sdataput(d, i, c)); 
+} 
+extern int *stringcat(int sc, obj pso[]);

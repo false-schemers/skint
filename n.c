@@ -1,6 +1,7 @@
 /* n.c -- generated via skint nsf2c.ssc n.sf */
 
 #include "s.h"
+#define STRINTROSPECT
 #include "n.h"
 
 #ifdef NAN_BOXING
@@ -38,6 +39,10 @@ int isnative(obj o, cxtype_t *tp) {
 void *getnative(obj o, cxtype_t *tp) {
   assert(isnative(o, tp));
   return (void*)(*objptr_from_obj(o));
+}
+void setnative(obj o, cxtype_t *tp, void *v) {
+  assert(isnative(o, tp));
+  *objptr_from_obj(o) = (obj)v;
 }
 #endif
 
@@ -250,9 +255,9 @@ double flround(double x) {
   else return (d < u) ? f : c;
 }
 
-int strtofxfl(char *s, int radix, long *pl, double *pd) {
-  extern int strcmp_ci(char *s1, char *s2); /* defined below */
-  char *e; int conv = 0, eno = errno; long l; double d;
+int strtofxfl(const char *s, int radix, long *pl, double *pd) {
+  extern int strcmp_ci(const char *s1, const char *s2); /* defined below */
+  const char *e; int conv = 0, eno = errno; long l; double d;
   for (; s[0] == '#'; s += 2) {
     switch (s[1]) {
       case 'b': case 'B': radix = 2; break;
@@ -267,17 +272,17 @@ int strtofxfl(char *s, int radix, long *pl, double *pd) {
   if (isspace(*s)) return 0;
   for (e = s; *e; ++e) { if (strchr(".eEiInN", *e)) break; }
   if (!*e || radix != 10) { /* s is not a syntax for an inexact number */
-    l = (errno = 0, strtol(s, &e, radix));
+    l = (errno = 0, strtol(s, (char**)&e, radix));
     if (errno || *e || e == s) { if (conv == 'i') goto fl; return (errno = eno, 0); }
     if (conv == 'i') return (errno = eno, *pd = (double)l, 'i');
     if (FIXNUM_MIN <= l && l <= FIXNUM_MAX) return (errno = eno, *pl = l, 'e');
     return (errno = eno, 0); /* can't represent as an exact */
   } 
   fl: if (radix != 10) return (errno = eno, 0); 
-  e = "", errno = 0; if (*s != '+' && *s != '-') d = strtod(s, &e);
+  e = "", errno = 0; if (*s != '+' && *s != '-') d = strtod(s, (char**)&e);
   else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
   else if (strcmp_ci(s+1, "nan.0") == 0) d = HUGE_VAL - HUGE_VAL;
-  else d = strtod(s, &e);
+  else d = strtod(s, (char**)&e);
   if (errno || *e || e == s) return (errno = eno, 0);
   if ((conv == 'e') && ((l=(long)d) < FIXNUM_MIN || l > FIXNUM_MAX || (double)l != d))
     return (errno = eno, 0); /* can't be converted to an exact number */
@@ -303,33 +308,35 @@ static cxtype_t cxt_string = { "string", free };
 
 cxtype_t *STRING_NTAG = &cxt_string;
 
+/* ascii representation block */
+
 #ifndef NDEBUG
 char* stringref(obj o, int i) {
-  int *d = stringdata(o); assert(i >= 0 && i < *d);  
+  const int *d = stringdata(o); assert(i >= 0 && i < d[0]);  
   return sdatachars(d)+i;
 }
 #endif
 
-int *newstring(char *s) {
+int *newsdata(const char *s) {
   int l, *d; assert(s); l = (int)strlen(s); 
   d = cxm_cknull(malloc(sizeof(int)+l+1), "malloc(string)");
   *d = l; strcpy(sdatachars(d), s); return d;
 }
 
-int *newstringn(char *s, int n) {
+int *newsdatan(const char *s, int n) {
   int *d; char *ns; assert(s); assert(n >= 0);
   d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(stringn)");
   *d = n; memcpy((ns = sdatachars(d)), s, n); ns[n] = 0; return d;
 }
 
-int *allocstring(int n, int c) {
+int *makesdata(int n, int c) {
   int *d; char *s; assert(n+1 > 0); 
   d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
   *d = n; s = sdatachars(d); memset(s, c, n); s[n] = 0;
   return d;
 }
 
-int *substring(int *d0, int from, int to) {
+int *subsdata(const int *d0, int from, int to) {
   int n = to-from, *d1; char *s0, *s1; assert(d0);
   assert(0 <= from && from <= to && to <= *d0); 
   d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
@@ -338,7 +345,7 @@ int *substring(int *d0, int from, int to) {
   return d1;
 }
 
-int *stringcat(int *d0, int *d1) {
+int *catsdata(const int *d0, const int *d1) {
   int l0 = *d0, l1 = *d1, n = l0+l1; char *s0, *s1, *s;
   int *d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
   *d = n; s = sdatachars(d); s0 = sdatachars(d0); s1 = sdatachars(d1);
@@ -346,18 +353,15 @@ int *stringcat(int *d0, int *d1) {
   return d;
 }
 
-int *dupstring(int *d0) {
+int *dupsdata(const int *d0) {
   int n = *d0, *d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
   memcpy(d1, d0, sizeof(int)+n+1);
   return d1;
 }
 
-void stringfill(int *d, int c) {
-  int l = *d, i; char *s = sdatachars(d);
-  for (i = 0; i < l; ++i) s[i] = c;
-}
+/* end of representation-dependent block */
 
-int strcmp_ci(char *s1, char *s2) {
+int strcmp_ci(const char *s1, const char *s2) {
   int c1, c2, d;
   do { c1 = *s1++; c2 = *s2++; d = (unsigned)tolower(c1) - (unsigned)tolower(c2); } while (!d && c1 && c2);
   return d;
@@ -424,18 +428,18 @@ int islist(obj l) {
 
 static struct { char **a; char ***v; size_t sz; size_t u; size_t maxu; } symt;
 
-static unsigned long hashs(char *s) {
+static unsigned long hashs(const char *s) {
   unsigned long i = 0, l = (unsigned long)strlen(s), h = l;
   while (i < l) h = (h << 4) ^ (h >> 28) ^ s[i++];
   return h ^ (h  >> 10) ^ (h >> 20);
 }
 
-char *symbolname(int sym) {
+const char *symbolname(int sym) {
   assert(sym >= 0); assert(sym < (int)symt.u);
   return symt.a[sym];
 }
 
-int internsym(char *name) {
+int internsym(const char *name) {
   size_t i, j; /* based on a code (C) 1998, 1999 by James Clark. */
   if (symt.sz == 0) { /* init */
     symt.a = cxm_cknull(calloc(64, sizeof(char*)), "symtab[0]");
@@ -607,7 +611,7 @@ static int tictl(ctlop_t op, tifile_t *tp, ...) {
         char *s; tiungetch(c, tp);
         s = tp->next; n = (int)(tp->cb.fill - s);
         if (n > 0 && s[n-1] == '\n') --n;
-        *pd = newstringn(s, n);
+        *pd = newsdatan(s, n);
         tp->next = tp->cb.fill;
       }  
       va_end(args);
@@ -631,7 +635,7 @@ static int tictl(ctlop_t op, tifile_t *tp, ...) {
 
 /* string input ports */
 
-sifile_t *sialloc(char *p, void *base) { 
+sifile_t *sialloc(const char *p, void *base) { 
   sifile_t *fp = cxm_cknull(malloc(sizeof(sifile_t)), "malloc(sifile)");
   fp->p = p; fp->base = base; fp->flags = SIF_NONE; return fp; }
 
@@ -653,8 +657,8 @@ static int sictl(ctlop_t op, sifile_t *sp, ...) {
       if (*(sp->p) == 0) *pd = NULL;
       else {
         char *s = strchr(sp->p, '\n');
-        if (s) { *pd = newstringn(sp->p, (int)(s-sp->p)); sp->p = s+1; }
-        else { *pd = newstring(sp->p); sp->p += strlen(sp->p); }
+        if (s) { *pd = newsdatan(sp->p, (int)(s-sp->p)); sp->p = s+1; }
+        else { *pd = newsdata(sp->p); sp->p += strlen(sp->p); }
       }  
       va_end(args);
       return 0;
@@ -963,7 +967,7 @@ obj ismember(obj x, obj l) {
     for (; l != mknull(); l = cdr(l)) 
       { obj y = car(l); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return l; }
   } else if (isstring(x)) {
-    char *xs = stringchars(x);
+    const char *xs = stringchars(x);
     for (; l != mknull(); l = cdr(l)) 
       { obj y = car(l); if (isstring(y) && 0 == strcmp(xs, stringchars(y))) return l; }
   } else {
@@ -981,7 +985,7 @@ obj isassoc(obj x, obj l) {
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return p; }
   } else if (isstring(x)) {
-    char *xs = stringchars(x);
+    const char *xs = stringchars(x);
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l), y = car(p); if (isstring(y) && 0 == strcmp(xs, stringchars(y))) return p; }
   } else {
@@ -1005,8 +1009,8 @@ static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123
 
 #define is_numsym(c) (inisub_map[(c) & 0xFF])
 
-static int cleansymname(char *s) {
-  char *p = s; while (*p) if (inisub_map[*p++ & 0xFF] == 0) return 0; if (!s[0]) return 0;
+static int cleansymname(const char *s) {
+  const char *p = s; while (*p) if (inisub_map[*p++ & 0xFF] == 0) return 0; if (!s[0]) return 0;
   if (inisub_map[s[0] & 0xFF] == 1) return 1;
   if (s[0] == '+' || s[0] == '-') {
     if (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0) return 0;
@@ -1087,7 +1091,7 @@ err:
 /* internal recursive write procedure */
 typedef struct { stab_t *pst; int disp; cxtype_oport_t *vt; void *pp; } wenv_t;
 static void wrc(int c, wenv_t *e) { e->vt->putch(c, e->pp); }
-static void wrs(char *s, wenv_t *e) {
+static void wrs(const char *s, wenv_t *e) {
   cxtype_oport_t *vt = e->vt; void *pp = e->pp;
   assert(vt); while (*s) vt->putch(*s++, pp);
 }
@@ -1125,7 +1129,7 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (isvoid(o)) {
     wrs("#<void>", e);
   } else if (isshebang(o)) {
-    char *s = symbolname(getshebang(o));
+    const char *s = symbolname(getshebang(o));
     wrs("#<!", e); wrs(s, e); wrc('>', e);
   } else if (o == obj_from_unit()) {
     wrs("#<values>", e);
@@ -1134,7 +1138,7 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (isoport(o)) {
     char buf[60]; sprintf(buf, "#<%s>", ckoportvt(o)->tname); wrs(buf, e);
   } else if (issymbol(o)) {
-    char *s = symbolname(getsymbol(o));
+    const char *s = symbolname(getsymbol(o));
     if (e->disp || cleansymname(s)) wrs(s, e);
     else {
       wrc('|', e);
@@ -1172,7 +1176,7 @@ static void wrdatum(obj o, wenv_t *e) {
       default: wrs("#\\", e); wrc(c, e); break;
     }
   } else if (isstring(o)) {
-    char *s = stringchars(o);
+    const char *s = stringchars(o);
     if (e->disp) wrs(s, e);
     else {
       wrc('\"', e);
@@ -1329,7 +1333,7 @@ char *lib_dir = STR(LIBDIR);
 char *lib_dir = "";
 #endif
  
-extern char *get_cwd(void)
+extern const char *get_cwd(void)
 {
   static char buf[FILENAME_MAX]; size_t len;
   if (getcwd(buf, FILENAME_MAX) == NULL) return NULL;
@@ -1341,7 +1345,7 @@ extern char *get_cwd(void)
   return buf;
 }
 
-extern int set_cwd(char *cwd)
+extern int set_cwd(const char *cwd)
 {
   return chdir(cwd);
 }

@@ -263,8 +263,8 @@ static void _sck(obj *s) {
 #define string_obj(s) hp_pushptr((s), STRING_NTAG)
 #define is_string(o) isstring(o)
 #define string_len(o) stringlen(o) 
-#define string_get(o, i) ((int)(unsigned char)*stringref(o, i))
-#define string_ref(o, i) (*stringref(o, i))
+#define string_get(o, i) (stringget(o, i))
+#define string_put(o, i, v) (stringput(o, i, v))
 #define bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
 #define is_bytevector(o) isbytevector(o)
 #define bytevector_len(o) bytevectorlen(o)
@@ -506,7 +506,7 @@ jump:
     { assert(rc == 4);
     if (isintegrable(r[2]) && is_fixnum(r[3])) {
       const char *cs = integrable_code(integrabledata(r[2]), get_fixnum(r[3]));
-      r[2] = cs ? hpushstr(3, newstring((char*)cs)) : obj_from_bool(0);
+      r[2] = cs ? hpushstr(3, newsdata((char*)cs)) : obj_from_bool(0);
     } else r[2] = obj_from_bool(0);
     r[0] = r[1]; r[1] = obj_from_ktrap();
     pc = objptr_from_obj(r[0])[0];
@@ -1300,7 +1300,7 @@ define_instruction(str) {
   int i, n; obj o = *ip++; unsigned char *s;
   /* special arrangement for handcoded proc */
   if (!o) o = ac; n = get_fixnum(o);
-  o = string_obj(allocstring(n, ' '));
+  o = string_obj(makesdata(n, ' '));
   s = (unsigned char *)stringchars(o);
   for (i = 0; i < n; ++i) {
     obj x = sref(i); ckc(x); s[i] = get_char(x);
@@ -1313,7 +1313,7 @@ define_instruction(smk) {
   int n, c; obj x = spop(); 
   ckk(ac); ckc(x);
   n = get_fixnum(ac), c = get_char(x);
-  ac = string_obj(allocstring(n, c)); 
+  ac = string_obj(makesdata(n, c)); 
   gonexti();
 }
 
@@ -1337,7 +1337,7 @@ define_instruction(sput) {
   cks(ac); ckk(x); ckc(y); 
   i = get_fixnum(x); 
   if (i >= string_len(ac)) failtype(x, "valid string index");
-  string_ref(ac, i) = get_char(y);
+  string_put(ac, i, get_char(y));
   gonexti();
 }
 
@@ -1347,13 +1347,13 @@ define_instruction(ssub) {
   is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start string index");
   if (ie > string_len(ac)) failtype(y, "valid end string index");
-  d = substring(stringdata(ac), is, ie);
+  d = subsdata(stringdata(ac), is, ie);
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(spos) {
-  obj x = ac, y = spop(); char *s, *p;
+  obj x = ac, y = spop(); const char *s, *p;
   cks(y); s = stringchars(y);
   if (is_string(x)) {
     p = strstr(s, stringchars(x));
@@ -1366,25 +1366,28 @@ define_instruction(spos) {
 }
 
 define_instruction(supc) {
-  int *d; char *s; cks(ac);
-  d = dupstring(stringdata(ac)); 
-  for (s = sdatachars(d); *s; ++s) *s = toupper(*s);
+  int *d, i, l; cks(ac);
+  d = dupsdata(stringdata(ac)); 
+  for (l = sdatalen(d), i = 0; i < l; ++i) 
+    d = sdataput(d, i, utoupper(sdataget(d, i)));
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(sdnc) {
-  int *d; char *s; cks(ac);
-  d = dupstring(stringdata(ac)); 
-  for (s = sdatachars(d); *s; ++s) *s = tolower(*s);
+  int *d, i, l; cks(ac);
+  d = dupsdata(stringdata(ac)); 
+  for (l = sdatalen(d), i = 0; i < l; ++i) 
+    d = sdataput(d, i, utolower(sdataget(d, i)));
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(sflc) {
-  int *d; char *s; cks(ac);
-  d = dupstring(stringdata(ac)); 
-  for (s = sdatachars(d); *s; ++s) *s = tolower(*s); /* stub */
+  int *d, i, l; cks(ac);
+  d = dupsdata(stringdata(ac)); 
+  for (l = sdatalen(d), i = 0; i < l; ++i) 
+    d = sdataput(d, i, utolower(sdataget(d, i)));
   ac = string_obj(d);
   gonexti();
 }
@@ -1397,7 +1400,7 @@ define_instruction(sapp) {
     obj s = sref(a); cks(s);
     n += string_len(s);
   }
-  d = allocstring(n, ' ');
+  d = makesdata(n, ' ');
   for (i = 0, a = 0; a < c; ++a) {
     obj s = sref(a); n = string_len(s);
     memcpy(sdatachars(d)+i, stringchars(s), n);
@@ -1411,7 +1414,7 @@ define_instruction(sapp2) {
   /* specialized version of sapp; both args on stack */
   obj x = spop(), y = spop(); int *d; 
   cks(x); cks(y);
-  d = stringcat(stringdata(x), stringdata(y));
+  d = catsdata(stringdata(x), stringdata(y));
   ac = string_obj(d);
   gonexti();
 }
@@ -1882,10 +1885,10 @@ define_instruction(ltos) {
     obj x = pair_car(ac); ckc(x);
     ++n; 
   }
-  d = allocstring(n, ' ');
+  d = makesdata(n, ' ');
   for (i = 0; i < n; ac = pair_cdr(ac), ++i) {
     obj x = pair_car(ac);
-    sdatachars(d)[i] = get_char(x);
+    d = sdataput(d, i, get_char(x));
   }
   ac = string_obj(d);
   gonexti();
@@ -1894,7 +1897,7 @@ define_instruction(ltos) {
 
 define_instruction(ytos) {
   cky(ac);
-  ac = string_obj(newstring(symbolname(get_symbol(ac))));
+  ac = string_obj(newsdata(symbolname(get_symbol(ac))));
   gonexti();
 }
 
@@ -1915,12 +1918,12 @@ define_instruction(itos) {
   do { int d = num % radix; *--s = d < 10 ? d + '0' : d - 10 + 'a'; }
   while (num /= radix);
   if (neg) *--s = '-';
-  ac = string_obj(newstring(s));  
+  ac = string_obj(newsdata(s));  
   gonexti();
 }
 
 define_instruction(stoi) {
-  char *e, *s; long l, radix;
+  char *e; const char *s; long l, radix;
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
@@ -1949,9 +1952,9 @@ define_instruction(itoc) {
 define_instruction(jtos) {
   char buf[50], *s; double d; long pr = -1; 
   obj arg = spop(); ckj(ac); d = get_flonum(ac);
-  if (d != d) { ac = string_obj(newstring("+nan.0")); gonexti(); }
-  if (d <= -HUGE_VAL) { ac = string_obj(newstring("-inf.0")); gonexti(); }
-  if (d >= HUGE_VAL) { ac = string_obj(newstring("+inf.0")); gonexti(); }
+  if (d != d) { ac = string_obj(newsdata("+nan.0")); gonexti(); }
+  if (d <= -HUGE_VAL) { ac = string_obj(newsdata("-inf.0")); gonexti(); }
+  if (d >= HUGE_VAL) { ac = string_obj(newsdata("+inf.0")); gonexti(); }
   /* since double can't hold more than 17 decimal digits, limit fixed representation length */
   if (is_fixnum(arg) && fabs(d) <= 9007199254740992.0 && (pr = get_fixnum(arg)) >= 0 && pr < 18) 
     sprintf(buf, "%.*f", (int)pr, d); 
@@ -1968,12 +1971,12 @@ define_instruction(jtos) {
   } else if (*s == 0 && pr <= 0) { 
     *s++ = '.'; if (pr < 0) *s++ = '0'; *s = 0; 
   }
-  ac = string_obj(newstring(buf));
+  ac = string_obj(newsdata(buf));
   gonexti();
 }
 
 define_instruction(stoj) {
-  char *e = "", *s; double d; cks(ac);
+  char *e = ""; const char *s; double d; cks(ac);
   s = stringchars(ac); errno = 0;
   if (*s != '+' && *s != '-') d = strtod(s, &e);
   else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
@@ -1992,7 +1995,7 @@ define_instruction(ntos) {
 }
 
 define_instruction(ston) {
-  char *s; int radix; long l; double d;
+  const char *s; int radix; long l; double d;
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
@@ -3548,7 +3551,7 @@ define_instruction(opop) {
 }
 
 define_instruction(oif) {
-  FILE *fp; char *fn; cks(ac);
+  FILE *fp; const char *fn; cks(ac);
   fn = stringchars(ac); fp = fopen(fn, "r");
   ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp, internsym(fn));
   gonexti();
@@ -3577,7 +3580,7 @@ define_instruction(obof) {
 
 define_instruction(ois) {
   int *d; cks(ac);
-  d = dupstring(stringdata(ac));
+  d = dupsdata(stringdata(ac));
   ac = iport_string_obj(sialloc(sdatachars(d), d));
   gonexti();
 }
@@ -3653,14 +3656,14 @@ define_instruction(ploc) {
     if (lb) { 
       int *d, n = (int)(pf->cb.fill - pf->cb.buf); ckz(lb);
       if (n > 0 && pf->cb.buf[n-1] == '\n') --n;
-      d = newstringn(pf->cb.buf, n);
+      d = newsdatan(pf->cb.buf, n);
       tmp = string_obj(d); /* possible gc */
       pf = iportdata(ac); lb = sref(2); pb = sref(3); /* reload after possible gc */
       box_ref(lb) = tmp;
     } 
     if (pb) { 
       char *s; int *d, n = (int)(pf->next - pf->cb.buf); ckz(pb);
-      d = newstringn(pf->cb.buf, n);
+      d = newsdatan(pf->cb.buf, n);
       for (s = sdatachars(d); n > 0; --n, ++s) if (!isspace(*s)) *s = ' ';
       tmp = string_obj(d); /* possible gc */
       pb = sref(3); /* reload after possible gc */
@@ -3682,7 +3685,7 @@ define_instruction(gos) {
     ac = eof_obj();
   } else {
     cbuf_t *pcb = oportdata(ac);
-    ac = string_obj(newstring(cbdata(pcb)));
+    ac = string_obj(newsdatan(cbdata(pcb), (int)cblen(pcb)));
   }
   gonexti();
 }
@@ -3893,7 +3896,7 @@ define_instruction(igco) {
   int n; const char *cs; ckg(ac); ckk(sref(0));
   n = get_fixnum(spop());
   cs = integrable_code(integrabledata(ac), n);
-  ac = cs ? string_obj(newstring((char*)cs)) : bool_obj(0);
+  ac = cs ? string_obj(newsdata((char*)cs)) : bool_obj(0);
   gonexti(); 
 }
 
@@ -4290,15 +4293,15 @@ define_instruction(fren) {
 }
 
 define_instruction(getcwd) {
-  extern char *get_cwd(void);
-  char *s = get_cwd();
-  if (s) ac = string_obj(newstring(s));
+  extern const char *get_cwd(void);
+  const char *s = get_cwd();
+  if (s) ac = string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
 
 define_instruction(setcwd) {
-  extern int set_cwd(char *cwd);
+  extern int set_cwd(const char *cwd);
   int res; cks(ac);
   res = set_cwd(stringchars(ac));
   ac = bool_obj(res == 0);
@@ -4310,7 +4313,7 @@ define_instruction(argvref) {
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); /* todo: range-check */
   s = argv_ref(i);
-  if (s) ac = string_obj(newstring(s));
+  if (s) ac = string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
@@ -4318,7 +4321,7 @@ define_instruction(argvref) {
 define_instruction(getenv) {
   char *v; cks(ac);
   v = getenv(stringchars(ac));
-  if (v) ac = string_obj(newstring(v));
+  if (v) ac = string_obj(newsdata(v));
   else ac = bool_obj(0);
   gonexti(); 
 }
@@ -4328,7 +4331,7 @@ define_instruction(envvref) {
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); /* todo: range-check */
   s = envv_ref(i);
-  if (s) ac = string_obj(newstring(s));
+  if (s) ac = string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
@@ -4385,7 +4388,7 @@ define_instruction(heapsz) {
 
 define_instruction(hostsig) {
   extern char* host_sig(void);
-  ac = string_obj(newstring(host_sig())); 
+  ac = string_obj(newsdata(host_sig())); 
   gonexti();
 }
 
@@ -4393,14 +4396,14 @@ define_instruction(hostfct) {
   extern char* host_facet(int fno);
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); s = (char *)host_facet(i);
-  if (s) ac = string_obj(newstring(s));
+  if (s) ac = string_obj(newsdata(s));
   else ac = bool_obj(0);
   gonexti();
 }
 
 define_instruction(libdir) {
   extern char *lib_dir;
-  ac = string_obj(newstring(lib_dir));
+  ac = string_obj(newsdata(lib_dir));
   gonexti();
 }
 
@@ -4652,7 +4655,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
         int x = rds_char(port);
         cbputc(x, pcb);
       }
-      if (c == 's') ra = hpushstr(sp-r, newstring(cbdata(pcb)));
+      if (c == 's') ra = hpushstr(sp-r, newsdatan(cbdata(pcb), (int)cblen(pcb)));
       else ra = mksymbol(internsym(cbdata(pcb)));
       freecb(pcb);
     } break;
@@ -4710,7 +4713,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
 /* protects registers from r to sp, in: ra=str, out: ra=sexp/eof */
 static obj *rds_stox(obj *r, obj *sp, obj *hp)
 {
-  int *d = dupstring(stringdata(ra));
+  int *d = dupsdata(stringdata(ra));
   ra = mkiport_string(sp-r, sialloc(sdatachars(d), d));
   hp = rds_sexp(r, sp, hp);  /* ra=port => ra=sexp/eof */
   return hp;
@@ -5057,7 +5060,7 @@ out:
 /* protects registers from r to sp, in: ra=str, out: ra=codevec/eof */
 static obj *rds_stoc(obj *r, obj *sp, obj *hp)
 {
-  int *d = dupstring(stringdata(ra));
+  int *d = dupsdata(stringdata(ra));
   /* fprintf(stderr, "** rds_stoc(%s)\n", sdatachars(d)); */
   ra = mkiport_string(sp-r, sialloc(sdatachars(d), d));
   hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
