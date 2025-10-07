@@ -12,8 +12,14 @@ extern int utoupper(int c);
 extern int utotitle(int c);
 extern int utofold(int c);
 
+/* basic string parsing/unparsing */
+extern int uencode(unsigned char *buf, int c);
+extern int udecode(const unsigned char **sp);
+#define unextc(cp) udecode(&cp)
+
 /* sdata (string data) */
 #define sdatachars(d) ((unsigned char*)((d)+2))
+#define sdatacspan(d) ((d)[1])
 extern int *makesdata(int n, int c);
 extern int sdataget(int *d, int i);
 extern int *sdataput(int *d, int i, int c);
@@ -22,6 +28,8 @@ extern int *newsdatan(const char *u8s, int nbytes);
 extern int *subsdata(const int *d, int fromc, int toc);
 extern int *catsdata(const int *d0, const int *d1);
 extern int *dupsdata(const int *d);
+extern int sdatacmp(const int *d1, const int *d2);
+extern int sdatacmp_ci(const int *d1, const int *d2);
 
 /* string procedures */
 #define stringget(o, i) sdataget(stringdata(o), i)

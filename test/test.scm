@@ -2725,36 +2725,34 @@
 
 ;; Strings
 
-; skint can't read \| yet (legal in r7rs)
-;(test (write-then-read "\r\n\t\b\a\|\"\\")
-;     (list->string
-;      (map integer->char
-;           '(13 10 9 8 7 124 34 92))))
+(test (write-then-read "\r\n\t\b\a\|\"\\")
+      (list->string
+        (map integer->char
+           '(13 10 9 8 7 124 34 92))))
 
 (test (write-then-read
       "\x7f;\x4c;\x61;\x72;\x63;\x65;\x6e;\x79;\x0;#x21;")
-     (list->string
-      (map integer->char
+      (list->string
+        (map integer->char
            '(127 76 97 114 99 101 110 121 0 35 120 50 49 59))))
 
 ;; Characters
-#|
-(test (write-then-read (map integer->char '(32 9 10 13)))
-     '(#\space #\tab #\newline #\return))
 
-; skint can't read \delete yet (legal in r7rs)
-;(test (write-then-read '(#\alarm #\backspace #\delete #\escape #\newline))
-;     (map integer->char '(7 8 127 27 10)))
+(test (write-then-read (map integer->char '(32 9 10 13)))
+      '(#\space #\tab #\newline #\return))
+
+(test (write-then-read '(#\alarm #\backspace #\delete #\escape #\newline))
+      (map integer->char '(7 8 127 27 10)))
 
 (test (write-then-read '(#\null #\return #\space #\tab))
-     (map integer->char '(0 13 32 9)))
+      (map integer->char '(0 13 32 9)))
 
 (test (write-then-read '(#\return #\space #\tab))
-     (map integer->char '(13 32 9)))
+      (map integer->char '(13 32 9)))
 
 (test (write-then-read '(#\x0 #\x00 #\x1 #\x20 #\x5f #\x7c #\x7f))
-     (map integer->char '(0 0 1 32 95 124 127)))
-|#
+      (map integer->char '(0 0 1 32 95 124 127)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

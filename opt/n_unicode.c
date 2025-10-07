@@ -1,6 +1,6 @@
 
 /* encode one code-point into buf[0..3], return byte length 1..4 */
-static int utf8_encode(unsigned char *buf, int c)
+int uencode(unsigned char *buf, int c)
 {
   if (c < 0x80) { buf[0] = c; return 1; }
   if (c < 0x800) {
@@ -22,7 +22,7 @@ static int utf8_encode(unsigned char *buf, int c)
 }
 
 /* decode one code-point starting at s, advance *sp, return code-point or -1 on error */
-static int utf8_decode(const unsigned char **sp)
+int udecode(const unsigned char **sp)
 {
   const unsigned char *s = *sp;
   if (s[0] < 0x80) {                 /* 1 byte */
@@ -60,7 +60,7 @@ static const unsigned char *utf8_skip_n(const unsigned char *s, int n)
 int *makesdata(int n, int c)
 {
   unsigned char buf[4], *s, *end;
-  int len = (c < 0x80) ? (buf[0] = c, 1) : utf8_encode(buf, c);
+  int len = (c < 0x80) ? (buf[0] = c, 1) : uencode(buf, c);
   int bc = n*len, *pb = cxm_cknull(malloc(sizeof(int)*2+bc+1), "malloc(string)");
   pb[0] = n, pb[1] = bc;
   s = sdatachars(pb), end = s + bc;
@@ -78,7 +78,7 @@ int sdataget(int *pb, int i)
   s = sdatachars(pb);
   if (pb[0] == pb[1]) return s[i];
   si = utf8_skip_n(s, i);
-  return utf8_decode(&si);
+  return udecode(&si);
 }
 
 /* replace code point at index i to c, possibly realloc *ppb */
@@ -91,7 +91,7 @@ int *sdataput(int *pb, int i, int c)
   if (pb[0] == pb[1] && c < 0x80) { s[i] = c; return pb; }
   si = (unsigned char*)utf8_skip_n(s, i);
   sip1 = (unsigned char*)utf8_skip_n(si, 1);
-  oldlen = (int)(sip1 - si), len = utf8_encode(buf, c);
+  oldlen = (int)(sip1 - si), len = uencode(buf, c);
   if (len == oldlen) { memcpy(si, buf, len); return pb; }
   oldbc  = pb[1]; bc = oldbc + len - oldlen; e = s + oldbc;
   if (bc < oldbc) memmove(si+len, sip1, e-sip1+1);
@@ -112,7 +112,7 @@ int *newsdata(const char *cstr)
   assert(cstr); s = (const unsigned char *)cstr;
   while (*s) {
     const unsigned char *s0 = s;
-    int c = utf8_decode(&s);
+    int c = udecode(&s);
     if (c < 0) break; /* stop on invalid UTF-8 */
     ++n; bc += (int)(s - s0);
   }
@@ -130,7 +130,7 @@ int *newsdatan(const char *cstr, int nb)
   s = (const unsigned char *)cstr, e = s + nb;
   while (s < e) {
     const unsigned char *s0 = s;
-    int c = utf8_decode(&s);
+    int c = udecode(&s);
     if (c < 0) break; /* stop on invalid UTF-8 */
     ++n; bc += (int)(s - s0);
   }
@@ -174,6 +174,31 @@ int *dupsdata(const int *d)
   return d1;
 }
 
+int sdatacmp(const int *d1, const int *d2)
+{
+  int bc1 = d1[1], bc2 = d2[1]; 
+  char *s1 = sdatachars(d1), *s2 = sdatachars(d2);
+  int cmp = memcmp(s1, s2, bc1 < bc2 ? bc1 : bc2);
+  if (cmp != 0) return cmp;
+  if (bc1 < bc2) return -1;
+  if (bc1 > bc2) return 1;
+  return 0;
+}
+
+int sdatacmp_ci(const int *d1, const int *d2)
+{
+  int bc1 = d1[1], bc2 = d2[1]; 
+  char *s1 = sdatachars(d1), *e1 = s1 + bc1;
+  char *s2 = sdatachars(d2), *e2 = s2 + bc2; 
+  while (s1 < e1 && s2 < e2) {
+    int c1 = utofold(udecode(&s1)), c2 = utofold(udecode(&s2));
+    if (c1 < c2) return -1; if (c1 > c2) return 1;
+  }
+  if (bc1 < bc2) return -1;
+  if (bc1 > bc2) return 1;
+  return 0;
+}
+
 /* append strings producing new sdata */
 int *stringcat(int sc, obj pso[])
 {
@@ -192,7 +217,6 @@ int *stringcat(int sc, obj pso[])
   *s = 0;
   return pb;
 }
-
 
 
 /* start of tabgen-generated property table */

@@ -3250,96 +3250,93 @@ define_instruction(cge) {
 
 define_instruction(cicmp) {
   obj x = ac, y = spop(); int cmp; ckc(x); ckc(y);
-  cmp = tolower(get_char(x)) - tolower(get_char(y));
+  cmp = utofold(get_char(x)) - utofold(get_char(y));
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(cieq) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) == tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) == utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cilt) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) < tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) < utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cigt) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) > tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) > utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cile) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) <= tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) <= utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cige) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) >= tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) >= utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cwsp) {
   ckc(ac);
-  ac = bool_obj(isspace(get_char(ac)));
+  ac = bool_obj(uisspace(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(clcp) {
   ckc(ac);
-  ac = bool_obj(islower(get_char(ac)));
+  ac = bool_obj(uislower(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cucp) {
   ckc(ac);
-  ac = bool_obj(isupper(get_char(ac)));
+  ac = bool_obj(uisupper(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(calp) {
   ckc(ac);
-  ac = bool_obj(isalpha(get_char(ac)));
+  ac = bool_obj(uisalpha(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cnup) {
   ckc(ac);
-  ac = bool_obj(isdigit(get_char(ac)));
+  ac = bool_obj(uisdigit(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cupc) {
   ckc(ac);
-  ac = char_obj(toupper(get_char(ac)));
+  ac = char_obj(utoupper(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cdnc) {
   ckc(ac);
-  ac = char_obj(tolower(get_char(ac)));
+  ac = char_obj(utolower(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cflc) {
   ckc(ac);
-  ac = char_obj(tolower(get_char(ac))); /* stub */
+  ac = char_obj(utofold(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cdgv) {
   int ch; ckc(ac);
   ch = get_char(ac);
-  if (likely('0' <= ch && ch <= '9')) ac = fixnum_obj(ch - '0');  
-  /* R7RS won't allow hex and any larger radix digits
-  else if (likely('a' <= ch && ch <= 'z')) ac = fixnum_obj(10 + ch - 'a');  
-  else if (likely('A' <= ch && ch <= 'Z')) ac = fixnum_obj(10 + ch - 'A'); */
+  if (likely(uisdigit(ch))) ac = fixnum_obj(udigitval(ch));  
   else ac = bool_obj(0);
   gonexti(); 
 }
@@ -3347,75 +3344,75 @@ define_instruction(cdgv) {
 
 define_instruction(scmp) {
   obj x = ac, y = spop(); int cmp; cks(x); cks(y);
-  cmp = strcmp(stringchars(x), stringchars(y));
+  cmp = sdatacmp(stringdata(x), stringdata(y));
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(seq) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) == 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) == 0);
   gonexti(); 
 }
 
 define_instruction(slt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) < 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) < 0);
   gonexti(); 
 }
 
 define_instruction(sgt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) > 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) > 0);
   gonexti(); 
 }
 
 define_instruction(sle) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) <= 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) <= 0);
   gonexti(); 
 }
 
 define_instruction(sge) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) >= 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) >= 0);
   gonexti(); 
 }
 
 define_instruction(sicmp) {
   obj x = ac, y = spop(); int cmp; cks(x); cks(y);
-  cmp = strcmp_ci(stringchars(x), stringchars(y));
+  cmp = sdatacmp_ci(stringdata(x), stringdata(y));
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(sieq) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) == 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) == 0);
   gonexti(); 
 }
 
 define_instruction(silt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) < 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) < 0);
   gonexti(); 
 }
 
 define_instruction(sigt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) > 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) > 0);
   gonexti(); 
 }
 
 define_instruction(sile) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) <= 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) <= 0);
   gonexti(); 
 }
 
 define_instruction(sige) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) >= 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) >= 0);
   gonexti(); 
 }
 

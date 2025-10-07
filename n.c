@@ -256,7 +256,6 @@ double flround(double x) {
 }
 
 int strtofxfl(const char *s, int radix, long *pl, double *pd) {
-  extern int strcmp_ci(const char *s1, const char *s2); /* defined below */
   const char *e; int conv = 0, eno = errno; long l; double d;
   for (; s[0] == '#'; s += 2) {
     switch (s[1]) {
@@ -359,11 +358,37 @@ int *dupsdata(const int *d0) {
   return d1;
 }
 
+int sdatacmp(const int *d1, const int *d2)
+{
+  int len1 = sdatalen(d1), len2 = sdatalen(d2); 
+  char *s1 = sdatachars(d1), *s2 = sdatachars(d2);
+  int cmp = memcmp(s1, s2, len1 < len2 ? len1 : len2);
+  if (cmp != 0) return cmp;
+  if (len1 < len2) return -1;
+  if (len1 > len2) return 1;
+  return 0;
+}
+
+int sdatacmp_ci(const int *d1, const int *d2)
+{
+  int len1 = sdatalen(d1), len2 = sdatalen(d2); 
+  char *s1 = sdatachars(d1), *e1 = s1 + len1;
+  char *s2 = sdatachars(d2), *e2 = s2 + len2; 
+  while (s1 < e1 && s2 < e2) {
+    int c1 = tolower(*s1++), c2 = tolower(*s2++);
+    if (c1 < c2) return -1; if (c1 > c2) return 1;
+  }
+  if (len1 < len2) return -1;
+  if (len1 > len2) return 1;
+  return 0;
+}
+
 /* end of representation-dependent block */
 
-int strcmp_ci(const char *s1, const char *s2) {
+int strcmp_ci(const char *s1, const char *s2) { /* s1 or s2 should be ascii */
   int c1, c2, d;
-  do { c1 = *s1++; c2 = *s2++; d = (unsigned)tolower(c1) - (unsigned)tolower(c2); } while (!d && c1 && c2);
+  do { c1 = *s1++; c2 = *s2++; d = (unsigned)tolower(c1) - (unsigned)tolower(c2); } 
+  while (!d && c1 && c2);
   return d;
 }
 
@@ -884,7 +909,7 @@ static int stabequal(obj x, obj y, stab_t *p) {
 #ifdef FLONUMS_BOXED
   if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y); 
 #endif
-  if (h == (obj)STRING_NTAG) return strcmp(stringchars(x), stringchars(y)) == 0;
+  if (h == (obj)STRING_NTAG) return sdatacmp(stringdata(x), stringdata(y)) == 0;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)); 
   if (isaptr(h) || !(n = size_from_obj(h)) || hblkref(x, 0) != hblkref(y, 0)) return 0;
   if (stabufind(x, y, p)) return 1; /* seen before and decided to be equal */
@@ -898,7 +923,7 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
 #ifdef FLONUMS_BOXED
   if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y) ? fuel-1 : -1; 
 #endif
-  if (h == (obj)STRING_NTAG) return strcmp(stringchars(x), stringchars(y)) == 0 ? fuel-1 : -1;
+  if (h == (obj)STRING_NTAG) return sdatacmp(stringdata(x), stringdata(y)) == 0 ? fuel-1 : -1;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)) ? fuel-1 : -1;
   if (isaptr(h) || !(n = size_from_obj(h)) || hblkref(x, 0) != hblkref(y, 0)) return -1;
   if (--fuel == 0) return 0; /* we must spend fuel while comparing objects themselves */
@@ -967,9 +992,9 @@ obj ismember(obj x, obj l) {
     for (; l != mknull(); l = cdr(l)) 
       { obj y = car(l); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return l; }
   } else if (isstring(x)) {
-    const char *xs = stringchars(x);
+    const int *xd = stringdata(x);
     for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (isstring(y) && 0 == strcmp(xs, stringchars(y))) return l; }
+      { obj y = car(l); if (isstring(y) && 0 == sdatacmp(xd, stringdata(y))) return l; }
   } else {
     for (; l != mknull(); l = cdr(l)) 
       { if (isequal(car(l), x)) return l; }
@@ -985,9 +1010,9 @@ obj isassoc(obj x, obj l) {
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return p; }
   } else if (isstring(x)) {
-    const char *xs = stringchars(x);
+    const int *xd = stringdata(x);
     for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (isstring(y) && 0 == strcmp(xs, stringchars(y))) return p; }
+      { obj p = car(l), y = car(p); if (isstring(y) && 0 == sdatacmp(xd, stringdata(y))) return p; }
   } else {
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l); if (isequal(car(p), x)) return p; }
@@ -1095,6 +1120,10 @@ static void wrs(const char *s, wenv_t *e) {
   cxtype_oport_t *vt = e->vt; void *pp = e->pp;
   assert(vt); while (*s) vt->putch(*s++, pp);
 }
+static void wrsn(const char *s, int n, wenv_t *e) {
+  cxtype_oport_t *vt = e->vt; void *pp = e->pp;
+  assert(vt); while (n-- > 0) vt->putch(*s++, pp);
+}
 static void wrd(double d, int prc, wenv_t *e) {
   char buf[50], *s;
   if (d != d) wrs("+nan.0", e); 
@@ -1176,13 +1205,18 @@ static void wrdatum(obj o, wenv_t *e) {
       default: wrs("#\\", e); wrc(c, e); break;
     }
   } else if (isstring(o)) {
-    const char *s = stringchars(o);
+    const int *d = stringdata(o), n = sdatacspan(d);
+    const char *s = sdatachars(d), *es = s + n;
     if (e->disp) wrs(s, e);
     else {
       wrc('\"', e);
-      while (*s) {
-        int c = *s++;
-        switch(c) {
+      while (s < es) {
+        int c = unextc(s);
+        switch (c) {
+          case 0: wrs("\\x0;", e); break;
+          case '\t': wrs("\\t", e); break;
+          case '\n': wrs("\\n", e); break;
+          case '\r': wrs("\\r", e); break;
           case '\"': wrs("\\\"", e); break;
           case '\\': wrs("\\\\", e); break;
           default: wrc(c, e); break;

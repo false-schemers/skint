@@ -328,6 +328,7 @@ extern cxtype_t *STRING_NTAG;
 #define stringchars(o) ((const char*)(sdatachars(stringdata(o))))
 /* ascii representation block */
 #define sdatachars(d) ((char*)((d)+1))
+#define sdatacspan(d) ((d)[0])
 #define sdataget(d, i) (sdatachars(d)[i])
 #define sdataput(d, i, c) (sdatachars(d)[i] = (c), d)
 #ifdef NDEBUG
@@ -343,6 +344,12 @@ extern int *makesdata(int n, int c);
 extern int *subsdata(const int *d, int from, int to);
 extern int *catsdata(const int *d0, const int *d1);
 extern int *dupsdata(const int *d);
+extern int sdatacmp(const int *d1, const int *d2);
+extern int sdatacmp_ci(const int *d1, const int *d2);
+/* basic parsing/unparsing */
+#define uencode(buf, c) (buf[0] = (c), 1)
+#define udecode(cpp) (*(*cpp)++)
+#define unextc(cp) (*(cp)++)
 /* char ops */
 #define uisspace(c) isspace(c)
 #define uislower(c) islower(c)
@@ -354,8 +361,8 @@ extern int *dupsdata(const int *d);
 #define utoupper(c) toupper(c)
 #define utotitle(c) toupper(c)
 #define utofold(c)  tolower(c)
-extern int strcmp_ci(const char *s1, const char *s2);
 /* end of representation-dependent block */
+extern int strcmp_ci(const char *s1, const char *s2);
 #define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)
 /* vectors */
 #define VECTOR_BTAG 1
