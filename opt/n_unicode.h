@@ -40,4 +40,5 @@ static void stringput(obj o, int i, int c) {
   if (d[0] == d[1] && (unsigned char)c < 0x80) sdatachars(d)[i] = c;
   else setnative(o, sdataput(d, i, c)); 
 } 
+extern int *stringr(int sc, obj pso[]);
 extern int *stringrcat(int sc, obj pso[]);

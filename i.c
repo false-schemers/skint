@@ -1300,10 +1300,8 @@ define_instruction(str) {
   int i, n, *d; obj o = *ip++;
   /* special arrangement for handcoded proc */
   if (!o) o = ac; n = get_fixnum(o);
-  d = makesdata(n, ' ');
-  for (i = 0; i < n; ++i) {
-    obj x = sref(i); ckc(x); d = sdataput(d, i, get_char(x));
-  }
+  d = stringr(n, sp-n);
+  if (!d) { for (i = 0; i < n; ++i) ckc(sref(i)); fail("non-char argument"); }
   sdrop(n); ac = string_obj(d);
   gonexti();
 }
@@ -1386,12 +1384,12 @@ define_instruction(sflc) {
 }
 
 define_instruction(sapp) {
-  int c, i, *d; obj o = *ip++;
+  int n, i, *d; obj o = *ip++;
   /* special arrangement for handcoded proc */
-  if (!o) o = ac; c = get_fixnum(o);
-  d = stringrcat(c, sp-c);
-  if (!d) { for (i = 0; i < c; ++i) cks(sref(i)); fail("non-string argument"); }
-  sdrop(c); ac = string_obj(d);
+  if (!o) o = ac; n = get_fixnum(o);
+  d = stringrcat(n, sp-n);
+  if (!d) { for (i = 0; i < n; ++i) cks(sref(i)); fail("non-string argument"); }
+  sdrop(n); ac = string_obj(d);
   gonexti();
 }
 

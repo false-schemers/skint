@@ -375,6 +375,16 @@ int sdatacmp(const int *d1, const int *d2) {
   return 0;
 }
 
+int *stringr(int sc, obj pso[]) {
+  int i, *d; unsigned char *s; assert(sc >= 0);
+  for (i = 0; i < sc; ++i) if (!ischar(pso[i])) return NULL; 
+  d = cxm_cknull(malloc(sizeof(int)+sc+1), "malloc(string)");
+  d[0] = sc; s = sdatachars(d);
+  for (i = sc-1; i >= 0; --i) *s++ = char_from_obj(pso[i]); 
+  *s = 0;
+  return d;
+}
+
 int *stringrcat(int sc, obj pso[]) {
   int i, n = 0, *d; unsigned char *s;
   assert(sc >= 0);

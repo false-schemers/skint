@@ -69,12 +69,19 @@ int uencode(unsigned char *buf, int ch)
   return s - buf; 
 }
 
-/* Advance <s> by <n> valid UTF-8 sequences */
+/* put unicode char c as utf-8 to pcb */
+static void cbputu8c(int c, cbuf_t* pcb) {
+  if (pcb->fill + 5 > pcb->end) cbgrow(pcb, 5);
+  pcb->fill += uencode(pcb->fill, c);
+}
+
+#define charlen(c) ((c >> 3)["\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0\0\0\2\2\2\2\3\3\4\0"])
+
+/* advance s by n valid UTF-8 sequences */
 static const unsigned char *utf8_skip_n(const unsigned char *s, int n)
 {
   while (n-- > 0) {
-    int bc = (*s >> 3)["\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0\0\0\2\2\2\2\3\3\4\0"];
-    assert(bc); s += bc;
+    int bc = charlen(*s); assert(bc); s += bc;
   }
   return s;
 }
@@ -197,7 +204,19 @@ int *dupsdata(const int *d)
 
 int *mapsdata(const int *d, int (*f)(int))
 {
-  ...
+  cbuf_t pcb = newcb(); int n = sdatalen(d), *d1;
+  const char *s = sdatachars(d);
+  while (n-- > 0) {
+    int c = (*f)(udecode(&s));
+    if (c < 0x80) cbputc(c, pcb);
+    else cbputu8c(c, pcb); 
+  }
+  n = cblen(pcb);
+  d1 = cxm_cknull(malloc(sizeof(int)*2 + n + 1), "malloc(string)");
+  d1[0] = d[0]; d1[1] = n;
+  memcpy(sdatachars(d1), cbdata(pcb), n + 1);
+  freecb(pcb);
+  return d1;
 }
 
 int sdatacmp(const int *d1, const int *d2)
@@ -223,6 +242,24 @@ int sdatacmp_ci(const int *d1, const int *d2)
   if (bc1 < bc2) return -1;
   if (bc1 > bc2) return 1;
   return 0;
+}
+
+/* make new sdata from a (reverse) stack of chars */
+int *stringr(int sc, obj pso[])
+{
+  int i, bc = 0, *pb; unsigned char *s;
+  assert(sc >= 0);
+  for (i = 0; i < sc; ++i) { 
+    obj oi = pso[i]; if (!ischar(oi)) return NULL;
+    bc += charlen(char_from_obj(oi)); 
+  }
+  pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
+  pb[0] = sc; pb[1] = bc; s = sdatachars(pb);
+  for (i = sc-1; i >= 0; --i) {
+    obj oi = pso[i]; s += uencode(s, char_from_obj(oi)); 
+  }
+  *s = 0; assert(s-sdatachars(pb) == bc);
+  return pb;
 }
 
 /* append strings producing new sdata */

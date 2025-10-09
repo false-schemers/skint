@@ -348,6 +348,7 @@ extern int sdatacmp_ci(const int *d1, const int *d2);
 #endif
 #define stringget(o, i) (*(unsigned char *)stringref(o, i))
 #define stringput(o, i, c) (*stringref(o, i) = (c))
+extern int *stringr(int sc, obj pso[]);
 extern int *stringrcat(int sc, obj pso[]);
 /* basic parsing/unparsing */
 #define uencode(buf, c) (buf[0] = (c), 1)
