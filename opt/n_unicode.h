@@ -15,6 +15,7 @@ extern int utofold(int c);
 /* basic string parsing/unparsing */
 extern int uencode(unsigned char *buf, int c);
 extern int udecode(const unsigned char **sp);
+extern int udecode_check(const unsigned char **sp);
 #define unextc(cp) udecode(&cp)
 
 /* sdata (string data) */
@@ -28,6 +29,7 @@ extern int *newsdatan(const char *u8s, int nbytes);
 extern int *subsdata(const int *d, int fromc, int toc);
 extern int *catsdata(const int *d0, const int *d1);
 extern int *dupsdata(const int *d);
+extern int *mapsdata(const int *d, int (*f)(int));
 extern int sdatacmp(const int *d1, const int *d2);
 extern int sdatacmp_ci(const int *d1, const int *d2);
 
@@ -38,4 +40,4 @@ static void stringput(obj o, int i, int c) {
   if (d[0] == d[1] && (unsigned char)c < 0x80) sdatachars(d)[i] = c;
   else setnative(o, sdataput(d, i, c)); 
 } 
-extern int *stringcat(int sc, obj pso[]);
+extern int *stringrcat(int sc, obj pso[]);

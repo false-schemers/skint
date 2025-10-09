@@ -1297,15 +1297,14 @@ define_instruction(strp) {
 }
 
 define_instruction(str) {
-  int i, n; obj o = *ip++; unsigned char *s;
+  int i, n, *d; obj o = *ip++;
   /* special arrangement for handcoded proc */
   if (!o) o = ac; n = get_fixnum(o);
-  o = string_obj(makesdata(n, ' '));
-  s = (unsigned char *)stringchars(o);
+  d = makesdata(n, ' ');
   for (i = 0; i < n; ++i) {
-    obj x = sref(i); ckc(x); s[i] = get_char(x);
+    obj x = sref(i); ckc(x); d = sdataput(d, i, get_char(x));
   }
-  sdrop(n); ac = o;
+  sdrop(n); ac = string_obj(d);
   gonexti();
 }
 
@@ -1366,46 +1365,32 @@ define_instruction(spos) {
 }
 
 define_instruction(supc) {
-  int *d, i, l; cks(ac);
-  d = dupsdata(stringdata(ac)); 
-  for (l = sdatalen(d), i = 0; i < l; ++i) 
-    d = sdataput(d, i, utoupper(sdataget(d, i)));
+  int *d; cks(ac);
+  d = mapsdata(stringdata(ac), utoupper);
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(sdnc) {
-  int *d, i, l; cks(ac);
-  d = dupsdata(stringdata(ac)); 
-  for (l = sdatalen(d), i = 0; i < l; ++i) 
-    d = sdataput(d, i, utolower(sdataget(d, i)));
+  int *d; cks(ac);
+  d = mapsdata(stringdata(ac), utolower);  
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(sflc) {
-  int *d, i, l; cks(ac);
-  d = dupsdata(stringdata(ac)); 
-  for (l = sdatalen(d), i = 0; i < l; ++i) 
-    d = sdataput(d, i, utolower(sdataget(d, i)));
+  int *d; cks(ac);
+  d = mapsdata(stringdata(ac), utofold);  
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(sapp) {
-  int a, c, i, n, *d; obj o = *ip++;
+  int c, i, *d; obj o = *ip++;
   /* special arrangement for handcoded proc */
   if (!o) o = ac; c = get_fixnum(o);
-  for (n = 0, a = 0; a < c; ++a) {
-    obj s = sref(a); cks(s);
-    n += string_len(s);
-  }
-  d = makesdata(n, ' ');
-  for (i = 0, a = 0; a < c; ++a) {
-    obj s = sref(a); n = string_len(s);
-    memcpy(sdatachars(d)+i, stringchars(s), n);
-    i += n;
-  }
+  d = stringrcat(c, sp-c);
+  if (!d) { for (i = 0; i < c; ++i) cks(sref(i)); fail("non-string argument"); }
   sdrop(c); ac = string_obj(d);
   gonexti();
 }

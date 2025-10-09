@@ -1,57 +1,80 @@
 
-/* encode one code-point into buf[0..3], return byte length 1..4 */
-int uencode(unsigned char *buf, int c)
+/* decode one code-point starting at *sp, advance *sp, return code-point or 0xFFFD on error
+ * NB: always advances *sp by at least 1 byte; does basic checks for broken utf-8 encoding, 
+ * but pays no special attention to overlong utf-8 sequences and/or reserved code points */
+/* TODO: exclude surrogates and other invalid code points (need a map for that?) */ 
+int udecode_check(const unsigned char **sp)
 {
-  if (c < 0x80) { buf[0] = c; return 1; }
-  if (c < 0x800) {
-    buf[0] = 0xC0 | (c >> 6);
-    buf[1] = 0x80 | (c & 0x3F);
-    return 2;
-  }
-  if (c < 0x10000) {
-    buf[0] = 0xE0 | (c >> 12);
-    buf[1] = 0x80 | ((c >> 6) & 0x3F);
-    buf[2] = 0x80 | (c & 0x3F);
-    return 3;
-  }
-  buf[0] = 0xF0 | (c >> 18);
-  buf[1] = 0x80 | ((c >> 12) & 0x3F);
-  buf[2] = 0x80 | ((c >> 6) & 0x3F);
-  buf[3] = 0x80 | (c & 0x3F);
-  return 4;
-}
-
-/* decode one code-point starting at s, advance *sp, return code-point or -1 on error */
-int udecode(const unsigned char **sp)
-{
-  const unsigned char *s = *sp;
-  if (s[0] < 0x80) {                 /* 1 byte */
+  const unsigned char *s = *sp; int c;
+  if (s[0] < 0x80) { /* 1 byte */
     *sp = s + 1;
     return s[0];
   } else if ((s[0] & 0xE0) == 0xC0) { /* 2 byte */
-    int c = ((s[0] & 0x1F) << 6) | (s[1] & 0x3F);
+    if ((s[1] & 0xC0) != 0xC0) goto err;
+    c = ((s[0] & 0x1F) << 6) | (s[1] & 0x3F);
     *sp = s + 2;
     return c;
   } else if ((s[0] & 0xF0) == 0xE0) { /* 3 byte */
-    int c = ((s[0] & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
+    if ((s[1] & 0xC0) != 0xC0 || (s[2] & 0xC0) != 0xC0) goto err;
+    c = ((s[0] & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
     *sp = s + 3;
     return c;
   } else if ((s[0] & 0xF8) == 0xF0) { /* 4 byte */
-    int c = ((s[0] & 0x07) << 18) | ((s[1] & 0x3F) << 12)
+    if ((s[1] & 0xC0) != 0xC0 || (s[2] & 0xC0) != 0xC0 
+     || (s[3] & 0xC0) != 0xC0) goto err;
+    c = ((s[0] & 0x07) << 18) | ((s[1] & 0x3F) << 12)
       | ((s[2] & 0x3F) << 6)  | (s[3] & 0x3F);
     *sp = s + 4;
     return c;
   }
-  return -1; /* invalid lead byte */
+err:
+  *sp += 1; 
+  return 0xFFFD;
+}
+
+/* decodes legal utf-8 as well as any other encoded sequences for code points up to 21 bits 
+ * (0 to U+001FFFFF); do not use on broken encoding: it can step over \0 byte if it is a (bad) 
+ * payload byte and thus read past end of line. Returns next cp, including encoded U+FFFD */
+int udecode(const unsigned char **sp) 
+{ /* very fast, but does not detect any errors whatsoever */
+  unsigned char *s = *sp; unsigned long c; unsigned t = *s >> 4; 
+  c =  (unsigned long)(*s & t["\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\0\0\0\0\x1f\x1f\x0f\x07"]) 
+    << t["\0\0\0\0\0\0\0\0\0\0\0\0\x06\x06\x0c\x12"];
+  s += t["\1\1\1\1\1\1\1\1\0\0\0\0\1\1\1\1"];
+  c |= (unsigned long)(*s & t["\0\0\0\0\0\0\0\0\0\0\0\0\x3f\x3f\x3f\x3f"]) 
+    << t["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x06\x0c"];
+  s += t["\0\0\0\0\0\0\0\0\0\0\0\0\1\1\1\1"];
+  c |= (unsigned long)(*s & t["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x3f\x3f"]) 
+    << t["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x06"];
+  s += t["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1\1"];
+  c |= (unsigned long)(*s & t["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x3f"]);
+  s += t["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1"];
+  *sp = s; return (int)c;
+}
+
+/* encodes legal unicode as well as other code points up to 21 bits long (0 to U+001FFFFF) 
+ * if char is out of range, *buf is set to 0 and 0 is returned */
+int uencode(unsigned char *buf, int ch)
+{ /* very fast, but does not detect any errors whatsoever */
+  unsigned long c = (unsigned long)ch; unsigned char *s = buf;
+  int t = (int)!!(c & ~0x7fL) + (int)!!(c & ~0x7ffL) + (int)!!(c & ~0xffffL) + (int)!!(c & ~0x1fffffL);
+  *s = (unsigned char)(((c >> t["\0\0\0\x12\0"]) & t["\0\0\0\x07\0"]) | t["\0\0\0\xf0\0"]);
+  s += (unsigned char)(t["\0\0\0\1\0"]);
+  *s = (unsigned char)(((c >> t["\0\0\x0c\x0c\0"]) & t["\0\0\x0f\x3f\0"]) | t["\0\0\xe0\x80\0"]);
+  s += (unsigned char)(t["\0\0\1\1\0"]);
+  *s = (unsigned char)(((c >> t["\0\x06\x06\x06\0"]) & t["\0\x1f\x3f\x3f\0"]) | t["\0\xc0\x80\x80\0"]);
+  s += (unsigned char)(t["\0\1\1\1\0"]);
+  *s = (unsigned char)(((c & t["\x7f\x3f\x3f\x3f\0"])) | t["\0\x80\x80\x80\0"]);
+  s += (unsigned char)(t["\1\1\1\1\0"]);
+  return s - buf; 
 }
 
 /* Advance <s> by <n> valid UTF-8 sequences */
 static const unsigned char *utf8_skip_n(const unsigned char *s, int n)
 {
   while (n-- > 0) {
-    unsigned char b = *s;
-    if (b < 0x80) { ++s; continue; }
-    do { ++s; } while ((*s & 0xC0) == 0x80);
+    int bc = (*s >> 3)["\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0\0\0\2\2\2\2\3\3\4\0"];
+    assert(bc); s += bc;
   }
   return s;
 }
@@ -108,35 +131,33 @@ int *sdataput(int *pb, int i, int c)
 /* make a string block from a zero-terminated utf-8 string */
 int *newsdata(const char *cstr)
 {
-  int n = 0, bc = 0, *pb; const unsigned char *s;
-  assert(cstr); s = (const unsigned char *)cstr;
-  while (*s) {
-    const unsigned char *s0 = s;
-    int c = udecode(&s);
-    if (c < 0) break; /* stop on invalid UTF-8 */
-    ++n; bc += (int)(s - s0);
-  }
-  pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
-  pb[0] = n; pb[1] = bc;
-  memcpy(sdatachars(pb), cstr, bc + 1);
-  return pb;
+  return newsdatan(cstr, (int)strlen(cstr));
 }
 
 /* make a string block from a utf-8 string of n bytes */
 int *newsdatan(const char *cstr, int nb)
 {
-  int n = 0, bc = 0, *pb; const unsigned char *s, *e;
+  int n = 0, bc = 0, *pb, errc = 0; 
+  const unsigned char *s, *e;
   assert(cstr); assert(nb >= 0); 
   s = (const unsigned char *)cstr, e = s + nb;
   while (s < e) {
     const unsigned char *s0 = s;
-    int c = udecode(&s);
-    if (c < 0) break; /* stop on invalid UTF-8 */
-    ++n; bc += (int)(s - s0);
+    int c = udecode(&s); ++n;
+    if (c == 0xFFFD) ++errc;
+    bc += (c == 0xFFFD) ? 3 : (int)(s - s0); 
   }
   pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
   pb[0] = n; pb[1] = bc;
-  memcpy(sdatachars(pb), cstr, bc + 1);
+  if (errc) { /* copy with replacements */
+    unsigned char *d = sdatachars(pb);
+    s = (const unsigned char *)cstr;
+    while (s < e) d += uencode(d, udecode(&s));
+    assert(d-sdatachars(pb) == pb[1]);
+    *d = 0;
+  } else { /* copy verbatim */
+    memcpy(sdatachars(pb), cstr, bc + 1);
+  }
   return pb;
 }
 
@@ -174,6 +195,11 @@ int *dupsdata(const int *d)
   return d1;
 }
 
+int *mapsdata(const int *d, int (*f)(int))
+{
+  ...
+}
+
 int sdatacmp(const int *d1, const int *d2)
 {
   int bc1 = d1[1], bc2 = d2[1]; 
@@ -200,17 +226,17 @@ int sdatacmp_ci(const int *d1, const int *d2)
 }
 
 /* append strings producing new sdata */
-int *stringcat(int sc, obj pso[])
+int *stringrcat(int sc, obj pso[])
 {
   int i, n = 0, bc = 0, *pb; unsigned char *s;
   assert(sc >= 0);
   for (i = 0; i < sc; ++i) { 
-    int *di; obj oi = pso[i]; assert(isstring(oi)); 
+    int *di; obj oi = pso[i]; if (!isstring(oi)) return NULL;
     di = stringdata(oi); n += di[0]; bc += di[1]; 
   }
   pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
   pb[0] = n; pb[1] = bc; s = sdatachars(pb);
-  for (i = 0; i < sc; ++i) {
+  for (i = sc-1; i >= 0; --i) {
     obj oi = pso[i]; int *di = stringdata(oi), bci = di[1];
     memcpy(s, sdatachars(di), bci); s += bci;
   }

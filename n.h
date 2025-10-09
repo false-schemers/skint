@@ -331,6 +331,16 @@ extern cxtype_t *STRING_NTAG;
 #define sdatacspan(d) ((d)[0])
 #define sdataget(d, i) (sdatachars(d)[i])
 #define sdataput(d, i, c) (sdatachars(d)[i] = (c), d)
+extern int *newsdata(const char *s);
+extern int *newsdatan(const char *s, int n);
+extern int *makesdata(int n, int c);
+extern int *subsdata(const int *d, int from, int to);
+extern int *catsdata(const int *d0, const int *d1);
+extern int *dupsdata(const int *d);
+extern int *mapsdata(const int *d, int (*f)(int));
+extern int sdatacmp(const int *d1, const int *d2);
+extern int sdatacmp_ci(const int *d1, const int *d2);
+/* string procedures */
 #ifdef NDEBUG
   #define stringref(o, i) (stringchars(o)+(i))
 #else
@@ -338,29 +348,22 @@ extern cxtype_t *STRING_NTAG;
 #endif
 #define stringget(o, i) (*(unsigned char *)stringref(o, i))
 #define stringput(o, i, c) (*stringref(o, i) = (c))
-extern int *newsdata(const char *s);
-extern int *newsdatan(const char *s, int n);
-extern int *makesdata(int n, int c);
-extern int *subsdata(const int *d, int from, int to);
-extern int *catsdata(const int *d0, const int *d1);
-extern int *dupsdata(const int *d);
-extern int sdatacmp(const int *d1, const int *d2);
-extern int sdatacmp_ci(const int *d1, const int *d2);
+extern int *stringrcat(int sc, obj pso[]);
 /* basic parsing/unparsing */
 #define uencode(buf, c) (buf[0] = (c), 1)
 #define udecode(cpp) (*(*cpp)++)
 #define unextc(cp) (*(cp)++)
 /* char ops */
-#define uisspace(c) isspace(c)
-#define uislower(c) islower(c)
-#define uisupper(c) isupper(c)
-#define uisalpha(c) isalpha(c)
-#define uisdigit(c) isdigit(c)
+#define uisspace isspace
+#define uislower islower
+#define uisupper isupper
+#define uisalpha isalpha
+#define uisdigit isdigit
 #define udigitval(c) ((c) - '0')
-#define utolower(c) tolower(c)
-#define utoupper(c) toupper(c)
-#define utotitle(c) toupper(c)
-#define utofold(c)  tolower(c)
+#define utolower tolower
+#define utoupper toupper
+#define utotitle toupper
+#define utofold  tolower
 /* end of representation-dependent block */
 extern int strcmp_ci(const char *s1, const char *s2);
 #define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)

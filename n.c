@@ -319,47 +319,53 @@ char* stringref(obj o, int i) {
 int *newsdata(const char *s) {
   int l, *d; assert(s); l = (int)strlen(s); 
   d = cxm_cknull(malloc(sizeof(int)+l+1), "malloc(string)");
-  *d = l; strcpy(sdatachars(d), s); return d;
+  d[0] = l; strcpy(sdatachars(d), s); return d;
 }
 
 int *newsdatan(const char *s, int n) {
   int *d; char *ns; assert(s); assert(n >= 0);
   d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(stringn)");
-  *d = n; memcpy((ns = sdatachars(d)), s, n); ns[n] = 0; return d;
+  d[0] = n; memcpy((ns = sdatachars(d)), s, n); ns[n] = 0; return d;
 }
 
 int *makesdata(int n, int c) {
   int *d; char *s; assert(n+1 > 0); 
   d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
-  *d = n; s = sdatachars(d); memset(s, c, n); s[n] = 0;
+  d[0] = n; s = sdatachars(d); memset(s, c, n); s[n] = 0;
   return d;
 }
 
 int *subsdata(const int *d0, int from, int to) {
   int n = to-from, *d1; char *s0, *s1; assert(d0);
-  assert(0 <= from && from <= to && to <= *d0); 
+  assert(0 <= from && from <= to && to <= sdatalen(d0)); 
   d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
-  *d1 = n; s0 = sdatachars(d0); s1 = sdatachars(d1); 
+  d1[0] = n; s0 = sdatachars(d0); s1 = sdatachars(d1); 
   memcpy(s1, s0+from, n); s1[n] = 0;
   return d1;
 }
 
 int *catsdata(const int *d0, const int *d1) {
-  int l0 = *d0, l1 = *d1, n = l0+l1; char *s0, *s1, *s;
+  int l0 = sdatalen(d0), l1 = sdatalen(d1), n = l0+l1; char *s0, *s1, *s;
   int *d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
-  *d = n; s = sdatachars(d); s0 = sdatachars(d0); s1 = sdatachars(d1);
+  d[0] = n; s = sdatachars(d); s0 = sdatachars(d0); s1 = sdatachars(d1);
   memcpy(s, s0, l0); memcpy(s+l0, s1, l1); s[n] = 0;
   return d;
 }
 
 int *dupsdata(const int *d0) {
-  int n = *d0, *d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
+  int n = sdatalen(d0), *d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
   memcpy(d1, d0, sizeof(int)+n+1);
   return d1;
 }
 
-int sdatacmp(const int *d1, const int *d2)
-{
+int *mapsdata(const int *d, int (*f)(int)) {
+  int i, n = sdatalen(d), *d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
+  const char *s = sdatachars(d); char *s1 = sdatachars(d1);
+  d1[0] = d[0]; for (i = 0; i < n; ++i) *s1++ = (*f)(*s++);   
+  return d1;
+}
+
+int sdatacmp(const int *d1, const int *d2) {
   int len1 = sdatalen(d1), len2 = sdatalen(d2); 
   char *s1 = sdatachars(d1), *s2 = sdatachars(d2);
   int cmp = memcmp(s1, s2, len1 < len2 ? len1 : len2);
@@ -369,8 +375,25 @@ int sdatacmp(const int *d1, const int *d2)
   return 0;
 }
 
-int sdatacmp_ci(const int *d1, const int *d2)
-{
+int *stringrcat(int sc, obj pso[]) {
+  int i, n = 0, *d; unsigned char *s;
+  assert(sc >= 0);
+  for (i = 0; i < sc; ++i) { 
+    const int *di; obj oi = pso[i]; 
+    if (!isstring(oi)) return NULL; 
+    di = stringdata(oi); n += sdatalen(di);
+  }
+  d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
+  d[0] = n; s = sdatachars(d);
+  for (i = sc-1; i >= 0; --i) {
+    obj oi = pso[i]; const int *di = stringdata(oi), ni = sdatalen(di);
+    memcpy(s, sdatachars(di), ni); s += ni;
+  }
+  *s = 0;
+  return d;
+}
+
+int sdatacmp_ci(const int *d1, const int *d2) {
   int len1 = sdatalen(d1), len2 = sdatalen(d2); 
   char *s1 = sdatachars(d1), *e1 = s1 + len1;
   char *s2 = sdatachars(d2), *e2 = s2 + len2; 
