@@ -379,7 +379,7 @@ int *stringr(int sc, obj pso[]) {
   int i, *d; unsigned char *s; assert(sc >= 0);
   for (i = 0; i < sc; ++i) if (!ischar(pso[i])) return NULL; 
   d = cxm_cknull(malloc(sizeof(int)+sc+1), "malloc(string)");
-  d[0] = sc; s = sdatachars(d);
+  d[0] = sc; s = (unsigned char *)sdatachars(d);
   for (i = sc-1; i >= 0; --i) *s++ = char_from_obj(pso[i]); 
   *s = 0;
   return d;
@@ -394,7 +394,7 @@ int *stringrcat(int sc, obj pso[]) {
     di = stringdata(oi); n += sdatalen(di);
   }
   d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
-  d[0] = n; s = sdatachars(d);
+  d[0] = n; s = (unsigned char *)sdatachars(d);
   for (i = sc-1; i >= 0; --i) {
     obj oi = pso[i]; const int *di = stringdata(oi), ni = sdatalen(di);
     memcpy(s, sdatachars(di), ni); s += ni;
@@ -421,6 +421,31 @@ unsigned long sdatahash(const int *d) {
   unsigned long i = 0, l = (unsigned long)sdatalen(d), h = l;
   while (i < l) h = (h << 4) ^ (h >> 28) ^ s[i++];
   return h ^ (h  >> 10) ^ (h >> 20);
+}
+
+static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+}; /* NB: 0 at num_map[255], so EOF maps to 0 */
+
+#define isnumsym(c) (inisub_map[(c) & 0xFF])
+
+int cleansymname(const char *s, int blen) {
+  const char *p = s; if (blen < 1) return 0;
+  while (blen-- > 0) if (inisub_map[*p++ & 0xFF] == 0) return 0;
+  if (inisub_map[s[0] & 0xFF] == 1) return 1;
+  if (s[0] == '+' || s[0] == '-') {
+    if (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0) return 0;
+    if ((s[1] == 'i' || s[1] == 'I') && s[2] == 0) return 0;
+    return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || (s[1] != '.' && !isdigit(s[1]));
+  }
+  else return s[0] == '.' && s[1] && !isdigit(s[1]); 
 }
 
 /* end of representation-dependent block */
@@ -1070,31 +1095,6 @@ obj isassoc(obj x, obj l) {
 
 /* common syntax data */
 
-static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
-  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-}; /* NB: 0 at num_map[255], so EOF maps to 0 */
-
-#define is_numsym(c) (inisub_map[(c) & 0xFF])
-
-static int cleansymname(const char *s, int blen) {
-  const char *p = s; if (blen < 1) return 0;
-  while (blen-- > 0) if (inisub_map[*p++ & 0xFF] == 0) return 0;
-  if (inisub_map[s[0] & 0xFF] == 1) return 1;
-  if (s[0] == '+' || s[0] == '-') {
-    if (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0) return 0;
-    if ((s[1] == 'i' || s[1] == 'I') && s[2] == 0) return 0;
-    return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || (s[1] != '.' && !isdigit(s[1]));
-  }
-  else return s[0] == '.' && s[1] && !isdigit(s[1]); 
-}
-
 static int is_delimiter(int c) {
   switch (c) {
     case '\t': case '\r': case '\n': case ' ':
@@ -1120,7 +1120,7 @@ next:
     case '#':  goto in_hash;
     default:   
     if ((c >= '\t' && c <= '\n') || (c >= '\f' && c <= '\r') || c == ' ') goto in_whitespace;
-    if (is_numsym(c)) goto in_numsym;
+    if (isnumsym(c)) goto in_numsym;
     in_ungetc(c, in); goto err;
   }
 in_whitespace: 
@@ -1140,7 +1140,7 @@ in_hash:
   c = '#'; /* fall through */
 in_numsym:
   pcb = newcb();
-  while (is_numsym(c) || c == '#') { cbputc(c, pcb); c = in_getc(in); }
+  while (isnumsym(c) || c == '#') { cbputc(c, pcb); c = in_getc(in); }
   if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
   if (cleansymname((s = cbdata(pcb)), (int)cblen(pcb))) {
     int *d = newsdatan(s, (int)cblen(pcb));

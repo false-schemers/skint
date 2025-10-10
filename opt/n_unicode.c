@@ -288,6 +288,16 @@ int *stringrcat(int sc, obj pso[])
   return pb;
 }
 
+/* local function/macro that checks if c can be a part of a number amd/or a clean symbol */
+int isnumsym(int c) 
+{
+  ...  
+}
+
+/* local procedure that checks if s[0..blen-1] is a proper syntax of a 'clean' symbol */
+int cleansymname(const char *s, int blen) {
+  ...
+}
 
 /* start of tabgen-generated property table */
  0x0000003F, 0x00000973, 0x00000E3F, 0x00002073, 0x0000213F, 0x00003064, 0x00003A3F, 0x00004175,

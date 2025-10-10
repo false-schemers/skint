@@ -348,7 +348,7 @@ extern unsigned long sdatahash(const int *d);
   extern char* stringref(obj o, int i);
 #endif
 #define stringget(o, i) (*(unsigned char *)stringref(o, i))
-#define stringput(o, i, c) (*stringref(o, i) = (c))
+#define stringput(o, i, c) (*(unsigned char *)stringref(o, i) = (c))
 extern int *stringr(int sc, obj pso[]);
 extern int *stringrcat(int sc, obj pso[]);
 /* basic parsing/unparsing */
