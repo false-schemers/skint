@@ -1880,13 +1880,13 @@ define_instruction(ltos) {
 
 define_instruction(ytos) {
   cky(ac);
-  ac = string_obj(newsdata(symbolname(get_symbol(ac))));
+  ac = string_obj(dupsdata(symsdata(get_symbol(ac))));
   gonexti();
 }
 
 define_instruction(stoy) {
   cks(ac);
-  ac = mksymbol(internsym(stringchars(ac)));
+  ac = mksymbol(internsdata((int *)stringdata(ac), 1/*dup*/));
   gonexti();
 }
 
@@ -4636,7 +4636,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
         cbputc(x, pcb);
       }
       if (c == 's') ra = hpushstr(sp-r, newsdatan(cbdata(pcb), (int)cblen(pcb)));
-      else ra = mksymbol(internsym(cbdata(pcb)));
+      else ra = mksymbol(internsdata(newsdatan(cbdata(pcb), (int)cblen(pcb)), 0));
       freecb(pcb);
     } break;
     case 'b': {

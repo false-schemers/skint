@@ -32,6 +32,7 @@ extern int *dupsdata(const int *d);
 extern int *mapsdata(const int *d, int (*f)(int));
 extern int sdatacmp(const int *d1, const int *d2);
 extern int sdatacmp_ci(const int *d1, const int *d2);
+extern unsigned long sdatahash(const int *d);
 
 /* string procedures */
 #define stringget(o, i) sdataget(stringdata(o), i)

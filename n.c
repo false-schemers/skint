@@ -416,6 +416,13 @@ int sdatacmp_ci(const int *d1, const int *d2) {
   return 0;
 }
 
+unsigned long sdatahash(const int *d) {
+  const char *s = sdatachars(d);
+  unsigned long i = 0, l = (unsigned long)sdatalen(d), h = l;
+  while (i < l) h = (h << 4) ^ (h >> 28) ^ s[i++];
+  return h ^ (h  >> 10) ^ (h >> 20);
+}
+
 /* end of representation-dependent block */
 
 int strcmp_ci(const char *s1, const char *s2) { /* s1 or s2 should be ascii */
@@ -484,48 +491,57 @@ int islist(obj l) {
   }
 }
 
-static struct { char **a; char ***v; size_t sz; size_t u; size_t maxu; } symt;
+/* symbol table */
+static struct { int **a; int ***v; size_t sz; size_t u; size_t maxu; } symt;
 
-static unsigned long hashs(const char *s) {
-  unsigned long i = 0, l = (unsigned long)strlen(s), h = l;
-  while (i < l) h = (h << 4) ^ (h >> 28) ^ s[i++];
-  return h ^ (h  >> 10) ^ (h >> 20);
-}
-
-const char *symbolname(int sym) {
-  assert(sym >= 0); assert(sym < (int)symt.u);
-  return symt.a[sym];
-}
-
-int internsym(const char *name) {
+/* intern d into symt; d is owned by the caller if dup != 0, by symt otherwise */
+int internsdata(int *d, int dup) {
   size_t i, j; /* based on a code (C) 1998, 1999 by James Clark. */
   if (symt.sz == 0) { /* init */
     symt.a = cxm_cknull(calloc(64, sizeof(char*)), "symtab[0]");
     symt.v = cxm_cknull(calloc(64, sizeof(char**)), "symtab[1]");
     symt.sz = 64, symt.maxu = 64 / 2;
-    i = hashs(name) & (symt.sz-1);
+    i = sdatahash(d) & (symt.sz-1);
   } else {
-    unsigned long h = hashs(name);
+    unsigned long h = sdatahash(d);
     for (i = h & (symt.sz-1); symt.v[i]; i = (i-1) & (symt.sz-1))
-      if (strcmp(name, *symt.v[i]) == 0) return (int)(symt.v[i] - symt.a);
+      if (sdatacmp(d, *symt.v[i]) == 0) {
+        if (!dup) free(d); /* owned by symt */
+        return (int)(symt.v[i] - symt.a);
+      }
     if (symt.u == symt.maxu) { /* rehash */
       size_t nsz = symt.sz * 2;
-      char **na = cxm_cknull(calloc(nsz, sizeof(char*)), "symtab[2]");
-      char ***nv = cxm_cknull(calloc(nsz, sizeof(char**)), "symtab[3]");
+      int **na = cxm_cknull(calloc(nsz, sizeof(int*)), "symtab[2]");
+      int ***nv = cxm_cknull(calloc(nsz, sizeof(int**)), "symtab[3]");
       for (i = 0; i < symt.sz; i++)
         if (symt.v[i]) {
-          for (j = hashs(*symt.v[i]) & (nsz-1); nv[j]; j = (j-1) & (nsz-1)) ;
+          for (j = sdatahash(*symt.v[i]) & (nsz-1); nv[j]; j = (j-1) & (nsz-1)) ;
           nv[j] = symt.v[i] - symt.a + na;
         }
       free(symt.v); symt.v = nv; symt.sz = nsz; symt.maxu = nsz / 2;
-      memcpy(na, symt.a, symt.u * sizeof(char*)); free(symt.a); symt.a = na; 
+      memcpy(na, symt.a, symt.u * sizeof(int*)); free(symt.a); symt.a = na; 
       for (i = h & (symt.sz-1); symt.v[i]; i = (i-1) & (symt.sz-1)) ;
     }
   }
-  *(symt.v[i] = symt.a + symt.u) = 
-    strcpy(cxm_cknull(malloc(strlen(name)+1), "symtab[4]"), name);
+  *(symt.v[i] = symt.a + symt.u) = dup ? dupsdata(d) : d;
   return (int)((symt.u)++);
 }
+
+int internsym(const char *name) {
+  /* NB: in unicode mode, newsdata scans & validates */
+  return internsdata(newsdata(name), 0); 
+}
+
+const int *symsdata(int sym) {
+  assert(sym >= 0); assert(sym < (int)symt.u);
+  return symt.a[sym];
+} 
+
+const char *symbolname(int sym) {
+  assert(sym >= 0); assert(sym < (int)symt.u);
+  return sdatachars(symt.a[sym]);
+}
+
 
 int isprocedure(obj o) {
   if (!o) return 0;
@@ -1067,8 +1083,9 @@ static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123
 
 #define is_numsym(c) (inisub_map[(c) & 0xFF])
 
-static int cleansymname(const char *s) {
-  const char *p = s; while (*p) if (inisub_map[*p++ & 0xFF] == 0) return 0; if (!s[0]) return 0;
+static int cleansymname(const char *s, int blen) {
+  const char *p = s; if (blen < 1) return 0;
+  while (blen-- > 0) if (inisub_map[*p++ & 0xFF] == 0) return 0;
   if (inisub_map[s[0] & 0xFF] == 1) return 1;
   if (s[0] == '+' || s[0] == '-') {
     if (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0) return 0;
@@ -1125,9 +1142,10 @@ in_numsym:
   pcb = newcb();
   while (is_numsym(c) || c == '#') { cbputc(c, pcb); c = in_getc(in); }
   if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
-  if (cleansymname((s = cbdata(pcb)))) {
-    if (fold) { int i, n = (int)cblen(pcb); for (i = 0; i < n; ++i) s[i] = tolower(s[i]); }
-    *po = mksymbol(internsym(s)); xc = 'o';
+  if (cleansymname((s = cbdata(pcb)), (int)cblen(pcb))) {
+    int *d = newsdatan(s, (int)cblen(pcb));
+    if (fold) { int *d1 = mapsdata(d, utofold); free(d); d = d1; }
+    *po = mksymbol(internsdata(d, 0)); xc = 'o';
   } else if (s[0] == '.' && s[1] == 0) {
     *po = obj_from_char('.'); xc = 'o';
   } else xc = strtofxfl(cbdata(pcb), 10, pl, pd);
@@ -1200,14 +1218,19 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (isoport(o)) {
     char buf[60]; sprintf(buf, "#<%s>", ckoportvt(o)->tname); wrs(buf, e);
   } else if (issymbol(o)) {
-    const char *s = symbolname(getsymbol(o));
-    if (e->disp || cleansymname(s)) wrs(s, e);
+    const int *d = symsdata(getsymbol(o)); int n = sdatacspan(d);
+    const char *s = sdatachars(d);
+    if (e->disp || cleansymname(s, n)) wrsn(s, n, e);
     else {
       wrc('|', e);
-      while (*s) {
+      while (n-- > 0) {
         int c = *s++;
         switch(c) {
-          case '|': wrs("\\|", e); break;
+          case 0: wrs("\\x0;", e); break;
+          case '\t': wrs("\\t", e); break;
+          case '\n': wrs("\\n", e); break;
+          case '\r': wrs("\\r", e); break;
+          case '|' : wrs("\\|", e); break;
           case '\\': wrs("\\\\", e); break;
           default: wrc(c, e); break;
         }

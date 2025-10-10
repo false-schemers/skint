@@ -244,6 +244,13 @@ int sdatacmp_ci(const int *d1, const int *d2)
   return 0;
 }
 
+unsigned long sdatahash(const int *d) {
+  const char *s = sdatachars(d); /* just hash bytes */
+  unsigned long i = 0, l = (unsigned long)d[1], h = l;
+  while (i < l) h = (h << 4) ^ (h >> 28) ^ s[i++];
+  return h ^ (h  >> 10) ^ (h >> 20);
+}
+
 /* make new sdata from a (reverse) stack of chars */
 int *stringr(int sc, obj pso[])
 {

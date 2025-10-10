@@ -340,6 +340,7 @@ extern int *dupsdata(const int *d);
 extern int *mapsdata(const int *d, int (*f)(int));
 extern int sdatacmp(const int *d1, const int *d2);
 extern int sdatacmp_ci(const int *d1, const int *d2);
+extern unsigned long sdatahash(const int *d);
 /* string procedures */
 #ifdef NDEBUG
   #define stringref(o, i) (stringchars(o)+(i))
@@ -423,6 +424,8 @@ extern int islist(obj l);
 #define getsymbol(o) getimmu(o, SYMBOL_ITAG)
 extern const char *symbolname(int sym);
 extern int internsym(const char *name);
+extern int internsdata(int *d, int dup);
+extern const int *symsdata(int sym);
 /* records */
 #define isrecord(o) istyped(o)
 #define recordrtd(r) *typedtype(r)
