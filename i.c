@@ -1350,15 +1350,17 @@ define_instruction(ssub) {
 }
 
 define_instruction(spos) {
-  obj x = ac, y = spop(); const char *s, *p;
-  cks(y); s = stringchars(y);
+  const int *d; const char *s, *p; int spn;
+  obj x = ac, y = spop(); cks(y); 
+  d = stringdata(y); s = sdatachars(d); spn = sdatacspan(d); 
   if (is_string(x)) {
-    p = strstr(s, stringchars(x));
+    const int *xd = stringdata(x);
+    p = msearch(s, spn, sdatachars(xd), sdatacspan(xd));
   } else {
-    ckc(x); 
-    p = strchr(s, get_char(x));
+    int c; ckc(x); c = get_char(x);
+    p = umemchr(s, c, spn);
   }
-  ac = p ? fixnum_obj(p-s) : bool_obj(0);
+  ac = p ? fixnum_obj(udistance(s, p)) : bool_obj(0);
   gonexti();
 }
 

@@ -1,7 +1,6 @@
 /* n.c -- generated via skint nsf2c.ssc n.sf */
 
 #include "s.h"
-#define STRINTROSPECT
 #include "n.h"
 
 #ifdef NAN_BOXING
@@ -591,6 +590,20 @@ obj* procedureref(obj o, int i) {
 
 /* common i/o utils */
 
+char *msearch(const char *h, int hlen, const char *n, int nlen)
+{
+  int c0; const char *l, *p;
+  if (nlen <= 0) return (char *)h;
+  if (nlen > hlen) return NULL;
+  c0 = *n; l = h + (hlen - nlen + 1);
+  for (p = h; p < l; ++p) {
+    p = memchr(p, c0, l-p);
+    if (!p) break;
+    if (memcmp(p, n, nlen) == 0) return (char *)p;
+  }
+  return NULL;
+}
+
 cbuf_t* cbinit(cbuf_t* pcb) {
   pcb->fill = pcb->buf = cxm_cknull(malloc(64), "malloc(cbdata)");
   pcb->end = pcb->buf + 64; return pcb;
@@ -670,12 +683,12 @@ static void tifree(tifile_t *tp) {
 }
 
 static int tigetch(tifile_t *tp) {
-  int c; retry: c = *(unsigned char *)(tp->next); 
-  if (c != 0) { ++(tp->next); return c; } 
-  /* see if we need to return actual 0 or refill the line */
-  if (tp->next < tp->cb.fill)  { ++(tp->next); return c; }
-  else if (tp->flags & TIF_EOF || !tp->fp) return EOF;
-  else { /* refill with next line from fp */
+  int c; retry: c = unextc_check(tp->next); 
+  if (c != 0 || tp->next <= tp->cb.fill) return c; 
+  else if (tp->flags & TIF_EOF || !tp->fp) { /* done */
+    tp->next = cbdata(cbclear(&tp->cb));
+    return EOF; 
+  } else { /* refill with next line from fp */
     cbuf_t *pcb = cbclear(&tp->cb); FILE *fp = tp->fp; 
     char *line = fgets(cballoc(pcb, 256), 256, fp);
     if (!line) { cbclear(pcb); tp->flags |= TIF_EOF; }
@@ -693,7 +706,7 @@ static int tigetch(tifile_t *tp) {
 
 static int tiungetch(int c, tifile_t *tp) { 
   assert(tp->next > tp->cb.buf && tp->next <= tp->cb.fill);
-  tp->next -= 1; // todo: utf-8
+  tp->next = uungetch(c, &tp->cb, tp->next);
   return c;
 }
 
@@ -829,7 +842,7 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define OPORT_FILE_PTINDEX       6
   { "file-output-port", ffree, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
+    (int (*)(int, void*))(ufputc), (int (*)(void*))fflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEFILE_PTINDEX   7
   { "binary-file-output-port", ffree, SPT_OUTPUT|SPT_BINARY,
@@ -839,7 +852,7 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define OPORT_STRING_PTINDEX     8
   { "string-output-port", (void (*)(void*))freecb, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
+    (int (*)(int, void*))ucbputc, (int (*)(void*))cbflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEVECTOR_PTINDEX 9
   { "bytevector-output-port", (void (*)(void*))freecb, SPT_OUTPUT|SPT_BINARY,
@@ -1169,11 +1182,12 @@ typedef struct { stab_t *pst; int disp; cxtype_oport_t *vt; void *pp; } wenv_t;
 static void wrc(int c, wenv_t *e) { e->vt->putch(c, e->pp); }
 static void wrs(const char *s, wenv_t *e) {
   cxtype_oport_t *vt = e->vt; void *pp = e->pp;
-  assert(vt); while (*s) vt->putch(*s++, pp);
+  assert(vt); while (*s) vt->putch(unextc(s), pp);
 }
-static void wrsn(const char *s, int n, wenv_t *e) {
-  cxtype_oport_t *vt = e->vt; void *pp = e->pp;
-  assert(vt); while (n-- > 0) vt->putch(*s++, pp);
+static void wrsn(const char *s, int spn, wenv_t *e) {
+  cxtype_oport_t *vt = e->vt; void *pp = e->pp; const char *es = s + spn;
+  /* todo: would be *much* faster if we had vt->putn (aka write) */
+  assert(vt); while (s < es) vt->putch(unextc(s), pp);
 }
 static void wrd(double d, int prc, wenv_t *e) {
   char buf[50], *s;
@@ -1226,7 +1240,7 @@ static void wrdatum(obj o, wenv_t *e) {
       while (n-- > 0) {
         int c = *s++;
         switch(c) {
-          case 0: wrs("\\x0;", e); break;
+          case 0x00: wrs("\\x0;", e); break;
           case '\t': wrs("\\t", e); break;
           case '\n': wrs("\\n", e); break;
           case '\r': wrs("\\r", e); break;
@@ -1263,13 +1277,13 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (isstring(o)) {
     const int *d = stringdata(o), n = sdatacspan(d);
     const char *s = sdatachars(d), *es = s + n;
-    if (e->disp) wrs(s, e);
+    if (e->disp) wrsn(s, n, e);
     else {
       wrc('\"', e);
       while (s < es) {
         int c = unextc(s);
         switch (c) {
-          case 0: wrs("\\x0;", e); break;
+          case 0x00: wrs("\\x0;", e); break;
           case '\t': wrs("\\t", e); break;
           case '\n': wrs("\\n", e); break;
           case '\r': wrs("\\r", e); break;

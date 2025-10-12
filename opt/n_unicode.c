@@ -70,9 +70,10 @@ int uencode(unsigned char *buf, int ch)
 }
 
 /* put unicode char c as utf-8 to pcb */
-static void cbputu8c(int c, cbuf_t* pcb) {
+static int cbputu8c(int c, cbuf_t* pcb) {
   if (pcb->fill + 5 > pcb->end) cbgrow(pcb, 5);
   pcb->fill += uencode(pcb->fill, c);
+  return c;
 }
 
 #define charlen(c) ((c >> 3)["\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0\0\0\2\2\2\2\3\3\4\0"])
@@ -287,6 +288,59 @@ int *stringrcat(int sc, obj pso[])
   *s = 0;
   return pb;
 }
+
+/* count code points between two utf-8 pointers */
+int udistance(const char *u8s, const char *u8e) {
+  int n = 0;
+  while (u8s < u8e) { u8s += charlen(*u8s); assert(bc); ++n; }
+  return n;
+}
+
+void *umemchr(const void *s, int c, size_t spn) {
+  if (c < 0x80) {
+    return memchr(s, c, spn);
+  } else { 
+    char buf[4]; int cl = uencode(buf, c);
+    return msearch(s, spn, buf, cl);
+  }
+}
+
+/* make sure c is read via unextc on the return value next time
+ * NOTE: this is an internal call, so assert its proper use in
+ * relation to the preceding getc/unextc */
+char *uungetch(int c, cbuf_t *pcb, char *next) {
+  assert(pcb->base <= next && next <= pcb->fill);
+  /* roll pcb back and validate in case c */
+  if (c != 0xFFFD) {
+    char *prev = next - charlen(c);
+#ifndef NDEBUG
+    char *p;
+#endif    
+    assert(pcb->base <= prev);
+    assert((p = prev, udecode_check(&p)) == c && p == next); 
+    return prev;
+  } else {
+    char *prev = next - 1;
+    assert(pcb->base <= prev);
+    *prev = 0xFF; /* will trigger 0xFFFD error on next getc/unextc */
+  }
+}
+
+int ufputc(int c, FILE *fp) {
+  if (c < 0x80) {
+    fputc(c, fp);
+  } else {
+    unsigned char buf[4]; int len = uencode(buf, c);
+    fwrite(buf, 1, len, fp);
+  }
+  return c;
+}
+
+extern int ucbputc(int c, cbuf_t* pcb)
+{
+  return c < 0x80 ? cbputc(c, pcb) : cbputu8c(c, pcb);
+}
+
 
 /* local function/macro that checks if c can be a part of a number amd/or a clean symbol */
 int isnumsym(int c) 

@@ -355,6 +355,12 @@ extern int *stringrcat(int sc, obj pso[]);
 #define uencode(buf, c) (buf[0] = (c), 1)
 #define udecode(cpp) (*(*cpp)++)
 #define unextc(cp) (*(cp)++)
+#define unextc_check(cp) (*(cp)++)
+#define udistance(sp, ep) ((ep) - (sp))
+#define umemchr memchr
+#define uungetch(c, pcb, next) ((next)-1)
+#define ufputc fputc
+#define ucbputc cbputc
 /* char ops */
 #define uisspace isspace
 #define uislower islower
@@ -459,6 +465,7 @@ typedef struct { /* extends cxtype_t */
 #define PORTTYPES_MAX 10
 extern cxtype_port_t cxt_port_types[PORTTYPES_MAX];
 /* common i/o utils */
+extern char *msearch(const char *h, int hlen, const char *n, int nlen);
 typedef struct { char *buf; char *fill; char *end; } cbuf_t;
 extern cbuf_t* newcb(void);
 extern void freecb(cbuf_t* pcb);

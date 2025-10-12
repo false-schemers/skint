@@ -17,6 +17,12 @@ extern int uencode(unsigned char *buf, int c);
 extern int udecode(const unsigned char **sp);
 extern int udecode_check(const unsigned char **sp);
 #define unextc(cp) udecode(&cp)
+#define unextc_check(cp) udecode_check(&cp)
+extern int udistance(const char *u8s, const char *u8e);
+extern void *umemchr(const void *s, int c, size_t spn);
+extern char *uungetch(int c, cbuf_t *pcb, char *next);
+extern int ufputc(int c, FILE *fp); 
+extern int ucbputc(int c, cbuf_t* pcb); 
 
 /* sdata (string data) */
 #define sdatachars(d) ((unsigned char*)((d)+2))
