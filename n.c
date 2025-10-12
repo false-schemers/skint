@@ -435,16 +435,21 @@ static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123
 
 #define isnumsym(c) (inisub_map[(c) & 0xFF])
 
+/* check if s[0..blen-1] can be printed as a symbol without vertical bars
+ * s can have internal \0s, but it is 0-terminated (s[blen] == 0) */
 int cleansymname(const char *s, int blen) {
-  const char *p = s; if (blen < 1) return 0;
-  while (blen-- > 0) if (inisub_map[*p++ & 0xFF] == 0) return 0;
+  const char *p = s; int bl = blen; if (bl < 1) return 0; assert(s[bl] == 0);
+  while (bl-- > 0) if (inisub_map[*p++ & 0xFF] == 0) return 0;
   if (inisub_map[s[0] & 0xFF] == 1) return 1;
   if (s[0] == '+' || s[0] == '-') {
-    if (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0) return 0;
-    if ((s[1] == 'i' || s[1] == 'I') && s[2] == 0) return 0;
-    return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || (s[1] != '.' && !isdigit(s[1]));
+    if (blen == 1) return 1;
+    if (blen == 2 && (s[1] == 'i' || s[1] == 'I')) return 0;
+    if (blen == 6 && (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0)) return 0;
+    if (blen >= 2 && s[1] == '.' && !isdigit(s[2])) return 1; 
+    if (s[1] != '.' && !isdigit(s[1])) return 1;
+    return 0;
   }
-  else return s[0] == '.' && s[1] && !isdigit(s[1]); 
+  return (blen >= 2 && s[0] == '.' && !isdigit(s[1])); 
 }
 
 /* end of representation-dependent block */
