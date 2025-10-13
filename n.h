@@ -538,8 +538,8 @@ extern tifile_t *tialloc(FILE *fp, int fns);
 #define mkiport_bytefile(l, fp) hpushptr(fp, IPORT_BYTEFILE_NTAG, l)
 /* string input ports */
 typedef enum { SIF_NONE = 0, SIF_CI = 2 } siflags_t;
-typedef struct { const char *p; void *base; siflags_t flags; } sifile_t;
-extern sifile_t *sialloc(const char *p, void *base);
+typedef struct { const char *p; const char *e; void *base; siflags_t flags; } sifile_t;
+extern sifile_t *sialloc(const char *p, int span, void *base);
 #define mkiport_string(l, fp) hpushptr(fp, IPORT_STRING_NTAG, l)
 /* bytevector input ports */
 typedef struct { unsigned char *p, *e; void *base; } bvifile_t;

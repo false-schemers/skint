@@ -754,16 +754,16 @@ static int tictl(ctlop_t op, tifile_t *tp, ...) {
 
 /* string input ports */
 
-sifile_t *sialloc(const char *p, void *base) { 
+sifile_t *sialloc(const char *p, int span, void *base) { 
   sifile_t *fp = cxm_cknull(malloc(sizeof(sifile_t)), "malloc(sifile)");
-  fp->p = p; fp->base = base; fp->flags = SIF_NONE; return fp; }
+  fp->p = p; fp->e = p+span; fp->base = base; fp->flags = SIF_NONE; return fp; }
 
 static void sifree(sifile_t *fp) { 
   assert(fp); if (fp->base) free(fp->base); free(fp); }
 
 static int sigetch(sifile_t *fp) {
-  int c; assert(fp && fp->p); 
-  if (!(c = *(unsigned char *)(fp->p))) return EOF; ++(fp->p); return c; }
+  int c; assert(fp && fp->p);
+  if (fp->p >= fp->e) return EOF; c = unextc(fp->p); return c; }
 
 static int siungetch(int c, sifile_t *fp) {
   assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }

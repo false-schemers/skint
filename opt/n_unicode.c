@@ -10,18 +10,18 @@ int udecode_check(const unsigned char **sp)
     *sp = s + 1;
     return s[0];
   } else if ((s[0] & 0xE0) == 0xC0) { /* 2 byte */
-    if ((s[1] & 0xC0) != 0xC0) goto err;
+    if ((s[1] & 0xC0) != 0x80) goto err;
     c = ((s[0] & 0x1F) << 6) | (s[1] & 0x3F);
     *sp = s + 2;
     return c;
   } else if ((s[0] & 0xF0) == 0xE0) { /* 3 byte */
-    if ((s[1] & 0xC0) != 0xC0 || (s[2] & 0xC0) != 0xC0) goto err;
+    if ((s[1] & 0xC0) != 0x80 || (s[2] & 0xC0) != 0x80) goto err;
     c = ((s[0] & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
     *sp = s + 3;
     return c;
   } else if ((s[0] & 0xF8) == 0xF0) { /* 4 byte */
-    if ((s[1] & 0xC0) != 0xC0 || (s[2] & 0xC0) != 0xC0 
-     || (s[3] & 0xC0) != 0xC0) goto err;
+    if ((s[1] & 0xC0) != 0x80 || (s[2] & 0xC0) != 0x80 
+     || (s[3] & 0xC0) != 0x80) goto err;
     c = ((s[0] & 0x07) << 18) | ((s[1] & 0x3F) << 12)
       | ((s[2] & 0x3F) << 6)  | (s[3] & 0x3F);
     *sp = s + 4;
@@ -328,7 +328,10 @@ char *uungetch(int c, cbuf_t *pcb, char *next) {
 }
 
 int ufputc(int c, FILE *fp) {
-  if (c < 0x80) {
+  assert(c >= 0);
+  if (!c) { /* use MURF-8 to encode NUL */
+    fputc(0xC0, fp); fputc(0x80, fp);
+  } else if (c < 0x80) {
     fputc(c, fp);
   } else {
     unsigned char buf[4]; int len = uencode(buf, c);
@@ -339,6 +342,7 @@ int ufputc(int c, FILE *fp) {
 
 extern int ucbputc(int c, cbuf_t* pcb)
 {
+  assert(c >= 0);
   return c < 0x80 ? cbputc(c, pcb) : cbputu8c(c, pcb);
 }
 
