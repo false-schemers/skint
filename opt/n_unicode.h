@@ -28,7 +28,7 @@ extern int ucbputc(int c, cbuf_t* pcb);
 #define sdatachars(d) ((unsigned char*)((d)+2))
 #define sdatacspan(d) ((d)[1])
 extern int *makesdata(int n, int c);
-extern int sdataget(int *d, int i);
+extern int sdataget(const int *d, int i);
 extern int *sdataput(int *d, int i, int c);
 extern int *newsdata(const char *u8s);
 extern int *newsdatan(const char *u8s, int nbytes);
@@ -43,9 +43,9 @@ extern unsigned long sdatahash(const int *d);
 /* string procedures */
 #define stringget(o, i) sdataget(stringdata(o), i)
 static void stringput(obj o, int i, int c) {
-  int *d = stringdata(o); assert(i >= 0 && i < d[0]);
+  const int *d = stringdata(o); assert(i >= 0 && i < d[0]);
   if (d[0] == d[1] && (unsigned char)c < 0x80) sdatachars(d)[i] = c;
-  else setnative(o, sdataput(d, i, c)); 
+  else setnative(o, STRING_NTAG, sdataput((int *)d, i, c)); 
 } 
 extern int *stringr(int sc, obj pso[]);
 extern int *stringrcat(int sc, obj pso[]);

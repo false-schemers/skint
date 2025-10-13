@@ -1927,6 +1927,7 @@
 (define xsi-math-available (case (string-ref *host-sig* 9) [(#\x) 'xsi-math] [else #f]))
 (define skint-host-os (case (string-ref *host-sig* 0) [(#\w) 'windows] [(#\m) 'macosx] [(#\u) 'unix] [else #f]))
 (define skint-host-endianness (case (string-ref *host-sig* 4) [(#\l) 'little-endian] [(#\b) 'big-endian] [else #f]))
+(define opt-unicode (case (string-ref *host-sig* 11) [(#\u) 'unicode] [else #f]))
 (define current-language (make-parameter (string->symbol (substring *host-sig* 16 18))))
 (define current-country (make-parameter (string->symbol (substring *host-sig* 18 20))))
 (define current-locale-details (make-parameter (cond [(%host-facet 1) => (lambda (s) (list (string->symbol s)))] [else '()])))
@@ -1951,6 +1952,7 @@
 (if skint-host-endianness (set! *features* (cons skint-host-endianness *features*)))
 (if c99-math-available (set! *features* (cons c99-math-available *features*)))
 (if xsi-math-available (set! *features* (cons xsi-math-available *features*)))
+(if opt-unicode (set! *features* (cons opt-unicode *features*)))
 (set! *features* (reverse *features*))
 
 (define features

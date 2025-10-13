@@ -4507,8 +4507,18 @@ static int rds_char(obj port)
 {
   int c = iportgetc(port);
   if (c == '%') {
-    char buf[3];
+    char buf[10];
     buf[0] = iportgetc(port); buf[1] = iportgetc(port); buf[2] = 0;
+    if (buf[0] == 'u') {
+      buf[0] = buf[1]; buf[1] = iportgetc(port);
+      buf[2] = iportgetc(port); buf[3] = iportgetc(port); buf[4] = 0;
+    } else if (buf[0] == 'U') {
+      buf[0] = buf[1]; buf[1] = iportgetc(port);
+      buf[2] = iportgetc(port); buf[3] = iportgetc(port); 
+      buf[4] = iportgetc(port); buf[5] = iportgetc(port); 
+      buf[6] = iportgetc(port); buf[7] = iportgetc(port); 
+      buf[8] = 0;
+    }
     c = (int)strtol(buf, NULL, 16);
   }
   return c;
@@ -4635,7 +4645,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
       size_t n = rds_size(port), i;
       for (i = 0; i < n; ++i) {
         int x = rds_char(port);
-        cbputc(x, pcb);
+        ucbputc(x, pcb);
       }
       if (c == 's') ra = hpushstr(sp-r, newsdatan(cbdata(pcb), (int)cblen(pcb)));
       else ra = mksymbol(internsdata(newsdatan(cbdata(pcb), (int)cblen(pcb)), 0));

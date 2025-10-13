@@ -37,7 +37,7 @@ err:
  * payload byte and thus read past end of line. Returns next cp, including encoded U+FFFD */
 int udecode(const unsigned char **sp) 
 { /* very fast, but does not detect any errors whatsoever */
-  unsigned char *s = *sp; unsigned long c; unsigned t = *s >> 4; 
+  const unsigned char *s = *sp; unsigned long c; unsigned t = *s >> 4; 
   c =  (unsigned long)(*s & t["\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\0\0\0\0\x1f\x1f\x0f\x07"]) 
     << t["\0\0\0\0\0\0\0\0\0\0\0\0\x06\x06\x0c\x12"];
   s += t["\1\1\1\1\1\1\1\1\0\0\0\0\1\1\1\1"];
@@ -102,9 +102,9 @@ int *makesdata(int n, int c)
 }
 
 /* retrieve code point at index i, decoding utf-8 */
-int sdataget(int *pb, int i)
+int sdataget(const int *pb, int i)
 {
-  unsigned char *s, *si;
+  const unsigned char *s, *si;
   assert(pb && i >= 0 && i < pb[0]);
   s = sdatachars(pb);
   if (pb[0] == pb[1]) return s[i];
@@ -172,12 +172,12 @@ int *newsdatan(const char *cstr, int nb)
 int *subsdata(const int *d, int fromc, int toc)
 {
   char *s, *sf, *st; int bc, *pb;
-  assert(d && fromc >= 0 && toc >= fromc && toc < d[0]);
+  assert(d && fromc >= 0 && toc >= fromc && toc <= d[0]);
   s = sdatachars(d);
   if (d[0] == d[1]) {
     sf = s + fromc; bc = toc-fromc; 
   } else {
-    sf = utf8_skip_n(s, fromc); st = utf8_skip_n(sf, toc-fromc); bc = st-sf;
+    sf = (char *)utf8_skip_n(s, fromc); st = (char *)utf8_skip_n(sf, toc-fromc); bc = st-sf;
   }
   pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
   pb[0] = toc-fromc; pb[1] = bc; s = sdatachars(pb);
@@ -205,7 +205,7 @@ int *dupsdata(const int *d)
 
 int *mapsdata(const int *d, int (*f)(int))
 {
-  cbuf_t pcb = newcb(); int n = sdatalen(d), *d1;
+  cbuf_t *pcb = newcb(); int n = sdatalen(d), *d1;
   const char *s = sdatachars(d);
   while (n-- > 0) {
     int c = (*f)(udecode(&s));
@@ -276,13 +276,13 @@ int *stringrcat(int sc, obj pso[])
   int i, n = 0, bc = 0, *pb; unsigned char *s;
   assert(sc >= 0);
   for (i = 0; i < sc; ++i) { 
-    int *di; obj oi = pso[i]; if (!isstring(oi)) return NULL;
+    const int *di; obj oi = pso[i]; if (!isstring(oi)) return NULL;
     di = stringdata(oi); n += di[0]; bc += di[1]; 
   }
   pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
   pb[0] = n; pb[1] = bc; s = sdatachars(pb);
   for (i = sc-1; i >= 0; --i) {
-    obj oi = pso[i]; int *di = stringdata(oi), bci = di[1];
+    obj oi = pso[i]; const int *di = stringdata(oi), bci = di[1];
     memcpy(s, sdatachars(di), bci); s += bci;
   }
   *s = 0;
@@ -292,7 +292,7 @@ int *stringrcat(int sc, obj pso[])
 /* count code points between two utf-8 pointers */
 int udistance(const char *u8s, const char *u8e) {
   int n = 0;
-  while (u8s < u8e) { u8s += charlen(*u8s); assert(bc); ++n; }
+  while (u8s < u8e) { int bc = charlen(*u8s); assert(bc); u8s += bc;  ++n; }
   return n;
 }
 
@@ -309,20 +309,21 @@ void *umemchr(const void *s, int c, size_t spn) {
  * NOTE: this is an internal call, so assert its proper use in
  * relation to the preceding getc/unextc */
 char *uungetch(int c, cbuf_t *pcb, char *next) {
-  assert(pcb->base <= next && next <= pcb->fill);
+  assert(pcb->buf <= next && next <= pcb->fill);
   /* roll pcb back and validate in case c */
   if (c != 0xFFFD) {
     char *prev = next - charlen(c);
 #ifndef NDEBUG
     char *p;
 #endif    
-    assert(pcb->base <= prev);
+    assert(pcb->buf <= prev);
     assert((p = prev, udecode_check(&p)) == c && p == next); 
     return prev;
   } else {
     char *prev = next - 1;
-    assert(pcb->base <= prev);
+    assert(pcb->buf <= prev);
     *prev = 0xFF; /* will trigger 0xFFFD error on next getc/unextc */
+    return prev;
   }
 }
 
@@ -677,7 +678,7 @@ static char inisub_map[128] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123
 /* local function that checks if c can be a part of a number and/or a clean symbol *
  * returns 1 for initial, 2 for subsequent, 0 for none of the above */
 int isnumsym(int c) {
-  if (0 <= c & c < 0x80) return inisub_map[c];
+  if (0 <= c && c < 0x80) return inisub_map[c];
   switch (uprop(c)) {
     case 'l': case 'u': case 'a': case 'i': return 1;
     case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7: case 8: case 9:

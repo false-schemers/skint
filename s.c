@@ -1007,6 +1007,10 @@ char *s_code[] = {
   "10:big-endian)}{f}}_1@!(y21:skint-host-endianness)",
 
   "C", 0,
+  "'(i11),@(y10:*host-sig*)S4,'(cu),.1v?{'(y7:unicode)}{f}_1@!(y11:opt-un"
+  "icode)",
+
+  "C", 0,
   "${'(i18),'(i16),@(y10:*host-sig*)S7X5,@(y14:make-parameter)[01}@!(y16:"
   "current-language)",
 
@@ -1048,6 +1052,10 @@ char *s_code[] = {
   "C", 0,
   "@(y18:xsi-math-available)?{@(y10:*features*),@(y18:xsi-math-available)"
   "c@!(y10:*features*)}",
+
+  "C", 0,
+  "@(y11:opt-unicode)?{@(y10:*features*),@(y11:opt-unicode)c@!(y10:*featu"
+  "res*)}",
 
   "C", 0,
   "@(y10:*features*)A8@!(y10:*features*)",

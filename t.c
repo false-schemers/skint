@@ -740,8 +740,11 @@ char *t_code[] = {
 
   "P", "write-serialized-char",
   "%2'(c%25),.1C=,.0?{.0}{'(c%22),.2C=,.0?{.0}{'(c%5c),.3C=,.0?{.0}{'(c )"
-  ",.4C<,.0?{.0}{'(c~),.5C>}_1}_1}_1}_1?{.1,'(c%25)W0'(i16),.1X8X6,'1,.1S"
-  "3I=?{.2,'(c0)W0}.2,.1,@(y12:write-string)[32}.1,.1W0]2",
+  ",.4C<,.0?{.0}{'(c~),.5C>}_1}_1}_1}_1?{.1,'(c%25)W0'(i16),.1X8X6,.0S3,'"
+  "1,.1v?{.3,'(c0)W0.3,.2,@(y12:write-string)[42}'2,.1v?{.3,.2,@(y12:writ"
+  "e-string)[42}'3,.1v?{.3,'(cu)W0.3,'(c0)W0.3,.2,@(y12:write-string)[42}"
+  "'4,.1v?{.3,'(cu)W0.3,.2,@(y12:write-string)[42}.3,'(cU)W0${.5,'(c0),.5"
+  "S3,'8-S2,@(y12:write-string)[02}.3,.2,@(y12:write-string)[42}.1,.1W0]2",
 
   "P", "write-serialized-byte",
   "%2'(i16),.1X6,'1,.1S3I=?{.2,'(c0)W0}.2,.1,@(y12:write-string)[32",
@@ -1764,7 +1767,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.6.7)@!(y15:*skint-version*)",
+  "'(s5:0.6.8)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",

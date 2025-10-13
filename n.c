@@ -306,7 +306,9 @@ static cxtype_t cxt_string = { "string", free };
 
 cxtype_t *STRING_NTAG = &cxt_string;
 
-/* ascii representation block */
+#ifdef OPT_UNICODE
+#include "opt/n_unicode.c"
+#else /* ascii representation block */
 
 #ifndef NDEBUG
 char* stringref(obj o, int i) {
@@ -452,7 +454,7 @@ int cleansymname(const char *s, int blen) {
   return (blen >= 2 && s[0] == '.' && !isdigit(s[1])); 
 }
 
-/* end of representation-dependent block */
+#endif /* end of !OPT_UNICODE block */
 
 int strcmp_ci(const char *s1, const char *s2) { /* s1 or s2 should be ascii */
   int c1, c2, d;
@@ -621,7 +623,7 @@ cbuf_t* newcb(void) {
 
 void freecb(cbuf_t* pcb) { if (pcb) { free(pcb->buf); free(pcb); } }
 
-static void cbgrow(cbuf_t* pcb, size_t n) {
+void cbgrow(cbuf_t* pcb, size_t n) {
   size_t oldsz = pcb->end - pcb->buf, newsz = oldsz*2;
   size_t cnt = pcb->fill - pcb->buf;
   if (oldsz + n > newsz) newsz += n;
@@ -1489,7 +1491,12 @@ extern char* host_sig(void)
 #else
   sig[10] = 'i';
 #endif
-  /* 11..15 are reserved */
+#ifdef OPT_UNICODE
+  sig[11] = 'u';
+#else
+  sig[11] = '0';
+#endif
+  /* 12..15 are reserved */
   loc = setlocale(LC_ALL, NULL); if (!loc) loc = "en_US";
   sig[16] = loc[0] ? loc[0] : '?';
   sig[17] = (loc[0] && loc[1]) ? loc[1] : '?';

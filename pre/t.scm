@@ -1318,8 +1318,13 @@
   (cond [(or (char=? x #\%) (char=? x #\") (char=? x #\\) (char<? x #\space) (char>? x #\~))
          (write-char #\% port)
          (let ([s (fixnum->string (char->integer x) 16)])
-           (if (fx=? (string-length s) 1) (write-char #\0 port))
-           (write-string s port))]
+           (case (string-length s)
+             [(1) (write-char #\0 port) (write-string s port)]
+             [(2) (write-string s port)]
+             [(3) (write-char #\u port) (write-char #\0 port) (write-string s port)]
+             [(4) (write-char #\u port) (write-string s port)]
+             [else (write-char #\U port) (write-string (make-string (- 8 (string-length s)) #\0) port) 
+                   (write-string s port)]))]
         [else (write-char x port)]))
 
 (define (write-serialized-byte x port)
@@ -1398,8 +1403,8 @@
   (if (and (number? arg) (exact? arg) (fx<=? 0 arg) (fx<=? arg 9))
       (write-char (string-ref "0123456789" arg) port)
       (begin (write-char #\( port)
-            (write-serialized-sexp arg port)
-            (write-char #\) port))))
+             (write-serialized-sexp arg port)
+             (write-char #\) port))))
 
 
 ;--------------------------------------------------------------------------------------------------
@@ -2791,7 +2796,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.6.7")
+(define *skint-version* "0.6.8")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
