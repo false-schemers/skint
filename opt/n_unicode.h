@@ -1,4 +1,4 @@
-/* UNICODE replacements for standard string interfaces*/
+/* UNICODE replacements for standard string interfaces */
 
 /* char (code point) */
 extern int uisspace(int c);
@@ -49,3 +49,6 @@ static void stringput(obj o, int i, int c) {
 } 
 extern int *stringr(int sc, obj pso[]);
 extern int *stringrcat(int sc, obj pso[]);
+
+/* system procedures */
+extern FILE *ufopen(const char* fname, const char* mode);

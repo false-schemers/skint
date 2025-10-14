@@ -396,6 +396,7 @@ extern int *stringrcat(int sc, obj pso[]);
 #define utoupper toupper
 #define utotitle toupper
 #define utofold  tolower
+#define ufopen fopen
 #endif /* end of !OPT_UNICODE block */
 extern int strcmp_ci(const char *s1, const char *s2);
 #define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)
@@ -615,4 +616,9 @@ extern void oportputshared(obj x, obj p, int disp);
 #endif
 #if defined(XSI_MATH_LIB) && defined(NOXMATH)
 #undef XSI_MATH_LIB
+#endif
+
+/* Enhanced TTY */
+#ifdef OPT_ENHTTY
+#include "opt/n_enhtty.h"
 #endif

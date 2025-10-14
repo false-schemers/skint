@@ -1522,5 +1522,8 @@ extern const char* host_facet(int fno)
   return NULL;
 }
 
+#ifdef OPT_ENHTTY
+#include "opt/n_enhtty.c"
+#endif
 
 

@@ -1,3 +1,4 @@
+/* UNICODE replacements for standard string interfaces */
 
 /* decode one code-point starting at *sp, advance *sp, return code-point or 0xFFFD on error
  * NB: always advances *sp by at least 1 byte; does basic checks for broken utf-8 encoding, 
@@ -66,7 +67,7 @@ int uencode(unsigned char *buf, int ch)
   s += (unsigned char)(t["\0\1\1\1\0"]);
   *s = (unsigned char)(((c & t["\x7f\x3f\x3f\x3f\0"])) | t["\0\x80\x80\x80\0"]);
   s += (unsigned char)(t["\1\1\1\1\0"]);
-  return s - buf; 
+  return (int)(s - buf); 
 }
 
 /* put unicode char c as utf-8 to pcb */
@@ -177,7 +178,7 @@ int *subsdata(const int *d, int fromc, int toc)
   if (d[0] == d[1]) {
     sf = s + fromc; bc = toc-fromc; 
   } else {
-    sf = (char *)utf8_skip_n(s, fromc); st = (char *)utf8_skip_n(sf, toc-fromc); bc = st-sf;
+    sf = (char *)utf8_skip_n(s, fromc); st = (char *)utf8_skip_n(sf, toc-fromc); bc = (int)(st-sf);
   }
   pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
   pb[0] = toc-fromc; pb[1] = bc; s = sdatachars(pb);
@@ -212,7 +213,7 @@ int *mapsdata(const int *d, int (*f)(int))
     if (c < 0x80) cbputc(c, pcb);
     else cbputu8c(c, pcb); 
   }
-  n = cblen(pcb);
+  n = (int)cblen(pcb);
   d1 = cxm_cknull(malloc(sizeof(int)*2 + n + 1), "malloc(string)");
   d1[0] = d[0]; d1[1] = n;
   memcpy(sdatachars(d1), cbdata(pcb), n + 1);
@@ -301,7 +302,7 @@ void *umemchr(const void *s, int c, size_t spn) {
     return memchr(s, c, spn);
   } else { 
     char buf[4]; int cl = uencode(buf, c);
-    return msearch(s, spn, buf, cl);
+    return msearch(s, (int)spn, buf, cl);
   }
 }
 
@@ -945,4 +946,29 @@ int utofold(int c) {
   int fc = ucase_to(c, ufold, sizeof(ufold)/sizeof(uint64_t));
   if (fc == -42) return c; /* special no-fall-back-to-lc identity case */
   return (fc != c) ? fc : ucase_to(c, utolc, sizeof(utolc)/sizeof(uint64_t));
+}
+
+/* opening file with utf-8 name */
+FILE *ufopen(const char* fname, const char* mode)
+{
+#ifdef _WIN32
+  wchar_t *wfname, wbuf[FILENAME_MAX], wmbuf[20]; int wlen, wmlen;
+  FILE *fp;
+  wlen = MultiByteToWideChar(CP_UTF8, 0, fname, -1, NULL, 0);
+  if (wlen == 0) return NULL; /* empty fname or broken utf-8 */
+  if (wlen <= FILENAME_MAX) wfname = wbuf; 
+  else wfname = (wchar_t*)cxm_cknull(malloc(wlen*sizeof(wchar_t)), "malloc(ufopen)");
+  MultiByteToWideChar(CP_UTF8, 0, fname, -1, wfname, wlen);
+  wmlen = MultiByteToWideChar(CP_UTF8, 0, mode, -1, NULL, 0);
+  if (wmlen == 0 || wmlen > sizeof(wmbuf)/sizeof(wchar_t)) {
+    if (wfname != wbuf) free(wfname);
+    return NULL;
+  }
+  MultiByteToWideChar(CP_UTF8, 0, mode, -1, wmbuf, wmlen);
+  fp = _wfopen(wfname, wmbuf);
+  if (wfname != wbuf) free(wfname);
+  return fp;
+#else
+  return fopen(filename, mode);
+#endif
 }

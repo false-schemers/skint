@@ -3534,28 +3534,28 @@ define_instruction(opop) {
 
 define_instruction(oif) {
   FILE *fp; const char *fn; cks(ac);
-  fn = stringchars(ac); fp = fopen(fn, "r");
+  fn = stringchars(ac); fp = ufopen(fn, "r");
   ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp, internsym(fn));
   gonexti();
 }
 
 define_instruction(oof) {
   FILE *fp; cks(ac);
-  fp = fopen(stringchars(ac), "w");
+  fp = ufopen(stringchars(ac), "w");
   ac = (fp == NULL) ? bool_obj(0) : oport_file_obj(fp);
   gonexti();
 }
 
 define_instruction(obif) {
   FILE *fp; cks(ac);
-  fp = fopen(stringchars(ac), "rb");
+  fp = ufopen(stringchars(ac), "rb");
   ac = (fp == NULL) ? bool_obj(0) : iport_bytefile_obj(fp);
   gonexti();
 }
 
 define_instruction(obof) {
   FILE *fp; cks(ac);
-  fp = fopen(stringchars(ac), "wb");
+  fp = ufopen(stringchars(ac), "wb");
   ac = (fp == NULL) ? bool_obj(0) : oport_bytefile_obj(fp);
   gonexti();
 }
@@ -4253,7 +4253,7 @@ define_instruction(pushsub) {
 
 define_instruction(fexis) {
   FILE *f; cks(ac);
-  f = fopen(stringchars(ac), "r"); /* todo: pile #ifdefs here */
+  f = ufopen(stringchars(ac), "r"); /* todo: pile #ifdefs here */
   if (f != NULL) fclose(f);
   ac = bool_obj(f != NULL);
   gonexti(); 
@@ -5140,7 +5140,7 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
     ra = mksymbol(internsym(pe->igname));
     hp = rds_global_loc(r, sp, hp); /* ra->ra */
     spush(ra); assert(isbox(ra));
-    ra = mkiport_string(sp-r, sialloc(lcode, strlen(lcode), NULL));
+    ra = mkiport_string(sp-r, sialloc(lcode, (int)strlen(lcode), NULL));
     hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
     if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
     if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
@@ -5175,7 +5175,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       ra = mksymbol(internsym((char*)name));
       hp = rds_global_loc(r, sp, hp); /* ra->ra */
       spush(ra); assert(isbox(ra));
-      ra = mkiport_string(sp-r, sialloc((char*)data, strlen(data), NULL));
+      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
@@ -5246,7 +5246,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       /* special entry for cx_continuation_2Dadapter_2Dcode */
       ent += 1; name = ent[0], data = ent[1];
       assert(name == 0); assert(data != 0);
-      ra = mkiport_string(sp-r, sialloc((char*)data, strlen(data), NULL));
+      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       assert(!iseof(ra));
@@ -5275,7 +5275,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       }
       /* sexp-decode data into the cdr of the binding */
       spush(bnd); /* protect from gc */
-      ra = mkiport_string(sp-r, sialloc((char*)data, strlen(data), NULL));
+      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_sexp(r, sp, hp);  /* ra=port => ra=sexp/eof */      
       bnd = spop();
       assert(ispair(bnd) && (ispair(ra) || issymbol(ra)));
@@ -5286,7 +5286,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
 #ifdef VM_AC_IN_REG
       obj ac;
 #endif      
-      ra = mkiport_string(sp-r, sialloc((char*)data, strlen(data), NULL));
+      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
