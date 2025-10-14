@@ -1349,7 +1349,7 @@
 
 ; integrables:
 ;
-; (input-port? x)
+; (%port? x (andmask 7)) +
 ; (output-port? x)
 ; (input-port-open? p)
 ; (output-port-open? p)
@@ -1376,9 +1376,9 @@
 ; (open-output-bytevector)
 ; (get-output-bytevector p)
 
-(define (port? x) (or (input-port? x) (output-port? x)))
-(define textual-port? port?) ; all ports are bimodal
-(define binary-port? port?)  ; all ports are bimodal
+(define (port? x) (fixnum? (%port? x)))
+(define (textual-port? x) (eqv? (%port? x 4) 0))
+(define (binary-port? x) (eqv? (%port? x 4) 4))
 
 (define %current-input-port-parameter
   (case-lambda 

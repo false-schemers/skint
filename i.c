@@ -3450,6 +3450,14 @@ define_instruction(void) {
   gonexti();
 }
 
+define_instruction(pp) {
+  int mask; cxtype_port_t *vt; obj m = spop(); 
+  ckk(m); mask = get_fixnum(m); vt = portvt(ac);
+  if (!vt) ac = bool_obj(0);
+  else ac = fixnum_obj((int)vt->spt & mask);
+  gonexti();
+}
+
 define_instruction(ipp) {
   ac = bool_obj(is_iport(ac));
   gonexti();

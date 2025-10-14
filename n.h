@@ -503,6 +503,12 @@ extern cxtype_port_t cxt_port_types[PORTTYPES_MAX];
 
 /* common i/o utils */
 extern char *msearch(const char *h, int hlen, const char *n, int nlen);
+static cxtype_port_t *portvt(obj o) { 
+  cxtype_t *pt; if (!isobjptr(o)) return NULL;
+  pt = (cxtype_t*)objptr_from_obj(o)[-1];
+  if (pt >= (cxtype_t*)&cxt_port_types[0] && 
+      pt < (cxtype_t*)&cxt_port_types[PORTTYPES_MAX])
+  return (cxtype_port_t*)pt; else return NULL; }
 
 /* input ports */
 extern cxtype_t *IPORT_CLOSED_NTAG;
