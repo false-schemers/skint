@@ -337,6 +337,7 @@ extern void freecb(cbuf_t* pcb);
 extern void cbgrow(cbuf_t* pcb, size_t n);
 extern char* cballoc(cbuf_t* pcb, size_t n);
 extern int cbputc(int c, cbuf_t* pcb);
+static int cbempty(cbuf_t* pcb) { return pcb->fill == pcb->buf; }
 extern size_t cblen(cbuf_t* pcb);
 extern char* cbdata(cbuf_t* pcb);
 extern cbuf_t* cbclear(cbuf_t *pcb);
@@ -487,7 +488,7 @@ extern obj* procedureref(obj o, int i);
 #define getshebang(o) getimmu(o, SHEBANG_ITAG)
 
 /* input/output ports */
-typedef enum { CTLOP_RDLN, CTLOP_CI, CTLOP_SETCI } ctlop_t;
+typedef enum { CTLOP_RDLN, CTLOP_CI, CTLOP_SETCI, CTLOP_SETPROMPT } ctlop_t;
 typedef struct { /* extends cxtype_t */
   const char *tname;
   void (*free)(void*);
@@ -498,7 +499,11 @@ typedef struct { /* extends cxtype_t */
   int  (*flush)(void*);
   int  (*ctl)(ctlop_t, void*, ...);
 } cxtype_port_t, cxtype_iport_t, cxtype_oport_t;
+#ifdef OPT_ENHTTY /* + tty */
+#define PORTTYPES_MAX 12
+#else /* no tty ports */
 #define PORTTYPES_MAX 10
+#endif
 extern cxtype_port_t cxt_port_types[PORTTYPES_MAX];
 
 /* common i/o utils */
@@ -538,20 +543,26 @@ int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*),
          void *in, obj *po, long *pl, double *pd, int **pp);
 /* file input ports */
 typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
-typedef struct { cbuf_t cb; char *next; FILE *fp; int lno, fns; tiflags_t flags; } tifile_t;
+typedef struct tifile { cbuf_t cb; char *next; FILE *fp; int lno, fns; tiflags_t flags; } tifile_t;
 extern tifile_t *tialloc(FILE *fp, int fns);
 #define mkiport_file(l, fp) hpushptr(fp, IPORT_FILE_NTAG, l)
 /* bytefile input ports */
 #define mkiport_bytefile(l, fp) hpushptr(fp, IPORT_BYTEFILE_NTAG, l)
 /* string input ports */
 typedef enum { SIF_NONE = 0, SIF_CI = 2 } siflags_t;
-typedef struct { const char *p; const char *e; void *base; siflags_t flags; } sifile_t;
+typedef struct sifile { const char *p; const char *e; void *base; siflags_t flags; } sifile_t;
 extern sifile_t *sialloc(const char *p, int span, void *base);
 #define mkiport_string(l, fp) hpushptr(fp, IPORT_STRING_NTAG, l)
 /* bytevector input ports */
-typedef struct { unsigned char *p, *e; void *base; } bvifile_t;
+typedef struct bvfile { unsigned char *p, *e; void *base; } bvifile_t;
 extern bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base);
 #define mkiport_bytevector(l, fp) hpushptr(fp, IPORT_BYTEVECTOR_NTAG, l)
+/* optional enhanced tty ports */
+#ifdef OPT_ENHTTY
+extern struct ttfile *ttalloc(int in);
+extern cxtype_t *IPORT_TTY_NTAG;
+extern cxtype_t *OPORT_TTY_NTAG;
+#endif
 
 /* output ports */
 extern cxtype_t *OPORT_CLOSED_NTAG;
@@ -591,6 +602,8 @@ static void oportflush(obj o) {
 #define mkoport_string(l, fp) hpushptr(fp, OPORT_STRING_NTAG, l)
 /* bytevector output ports */
 #define mkoport_bytevector(l, fp) hpushptr(fp, OPORT_BYTEVECTOR_NTAG, l)
+
+/* internal list functions */
 extern int iscircular(obj x);
 extern int iseqv(obj x, obj y);
 extern obj ismemv(obj x, obj l);
@@ -622,9 +635,4 @@ extern void oportputshared(obj x, obj p, int disp);
 #endif
 #if defined(XSI_MATH_LIB) && defined(NOXMATH)
 #undef XSI_MATH_LIB
-#endif
-
-/* Enhanced TTY */
-#ifdef OPT_ENHTTY
-#include "opt/n_enhtty.h"
 #endif

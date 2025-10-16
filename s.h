@@ -27,7 +27,6 @@
 #include <locale.h>
 #include <stdarg.h>
 
-
 #if defined(_MSC_VER)
 #ifdef _POSIX_
 #undef _POSIX_
@@ -44,6 +43,7 @@
 #include <process.h> /* for getpid */
 #include <locale.h> /* for setlocale */
 #include <sys/stat.h> /* for _S_IREAD|_S_IWRITE */
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #if _MSC_VER >= 1600
 #include <crtversion.h>

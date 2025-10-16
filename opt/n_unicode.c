@@ -4,28 +4,28 @@
  * NB: always advances *sp by at least 1 byte; does basic checks for broken utf-8 encoding, 
  * but pays no special attention to overlong utf-8 sequences and/or reserved code points */
 /* TODO: exclude surrogates and other invalid code points (need a map for that?) */ 
-int udecode_check(const unsigned char **sp)
+int udecode_check(const char **sp)
 {
-  const unsigned char *s = *sp; int c;
+  const unsigned char *s = (const unsigned char *)*sp; int c;
   if (s[0] < 0x80) { /* 1 byte */
-    *sp = s + 1;
+    *sp = (const char *)s + 1;
     return s[0];
   } else if ((s[0] & 0xE0) == 0xC0) { /* 2 byte */
     if ((s[1] & 0xC0) != 0x80) goto err;
     c = ((s[0] & 0x1F) << 6) | (s[1] & 0x3F);
-    *sp = s + 2;
+    *sp = (const char *)s + 2;
     return c;
   } else if ((s[0] & 0xF0) == 0xE0) { /* 3 byte */
     if ((s[1] & 0xC0) != 0x80 || (s[2] & 0xC0) != 0x80) goto err;
     c = ((s[0] & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
-    *sp = s + 3;
+    *sp = (const char *)s + 3;
     return c;
   } else if ((s[0] & 0xF8) == 0xF0) { /* 4 byte */
     if ((s[1] & 0xC0) != 0x80 || (s[2] & 0xC0) != 0x80 
      || (s[3] & 0xC0) != 0x80) goto err;
     c = ((s[0] & 0x07) << 18) | ((s[1] & 0x3F) << 12)
       | ((s[2] & 0x3F) << 6)  | (s[3] & 0x3F);
-    *sp = s + 4;
+    *sp = (const char *)s + 4;
     return c;
   }
 err:
@@ -36,9 +36,10 @@ err:
 /* decodes legal utf-8 as well as any other encoded sequences for code points up to 21 bits 
  * (0 to U+001FFFFF); do not use on broken encoding: it can step over \0 byte if it is a (bad) 
  * payload byte and thus read past end of line. Returns next cp, including encoded U+FFFD */
-int udecode(const unsigned char **sp) 
+int udecode(const char **sp) 
 { /* very fast, but does not detect any errors whatsoever */
-  const unsigned char *s = *sp; unsigned long c; unsigned t = *s >> 4; 
+  const unsigned char *s = (const unsigned char*)*sp; 
+  unsigned long c; unsigned t = *s >> 4; 
   c =  (unsigned long)(*s & t["\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\0\0\0\0\x1f\x1f\x0f\x07"]) 
     << t["\0\0\0\0\0\0\0\0\0\0\0\0\x06\x06\x0c\x12"];
   s += t["\1\1\1\1\1\1\1\1\0\0\0\0\1\1\1\1"];
@@ -50,14 +51,14 @@ int udecode(const unsigned char **sp)
   s += t["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1\1"];
   c |= (unsigned long)(*s & t["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x3f"]);
   s += t["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1"];
-  *sp = s; return (int)c;
+  *sp = (const char *)s; return (int)c;
 }
 
 /* encodes legal unicode as well as other code points up to 21 bits long (0 to U+001FFFFF) 
  * if char is out of range, *buf is set to 0 and 0 is returned */
-int uencode(unsigned char *buf, int ch)
+int uencode(char *buf, int ch)
 { /* very fast, but does not detect any errors whatsoever */
-  unsigned long c = (unsigned long)ch; unsigned char *s = buf;
+  unsigned long c = (unsigned long)ch; unsigned char *s = (unsigned char *)buf;
   int t = (int)!!(c & ~0x7fL) + (int)!!(c & ~0x7ffL) + (int)!!(c & ~0xffffL) + (int)!!(c & ~0x1fffffL);
   *s = (unsigned char)(((c >> t["\0\0\0\x12\0"]) & t["\0\0\0\x07\0"]) | t["\0\0\0\xf0\0"]);
   s += (unsigned char)(t["\0\0\0\1\0"]);
@@ -67,7 +68,7 @@ int uencode(unsigned char *buf, int ch)
   s += (unsigned char)(t["\0\1\1\1\0"]);
   *s = (unsigned char)(((c & t["\x7f\x3f\x3f\x3f\0"])) | t["\0\x80\x80\x80\0"]);
   s += (unsigned char)(t["\1\1\1\1\0"]);
-  return (int)(s - buf); 
+  return (int)(s - (unsigned char *)buf); 
 }
 
 /* put unicode char c as utf-8 to pcb */
@@ -77,21 +78,25 @@ static int cbputu8c(int c, cbuf_t* pcb) {
   return c;
 }
 
-#define charlen(c) ((c >> 3)["\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0\0\0\2\2\2\2\3\3\4\0"])
+/* calc length of utf-8 sequence by the code point */
+static int charlen(int c) { return 1 + (c > 0x7f) + (c > 0x7ff) + (c > 0xffff); }
+
+/* calc length of utf-8 sequence by its first byte */
+#define utfb0tobc(c) ((c >> 3)["\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0\0\0\2\2\2\2\3\3\4\0"])
 
 /* advance s by n valid UTF-8 sequences */
-static const unsigned char *utf8_skip_n(const unsigned char *s, int n)
+static char *utf8_skip_n(const char *s, int n)
 {
   while (n-- > 0) {
-    int bc = charlen(*s); assert(bc); s += bc;
+    int bc = utfb0tobc(*(const unsigned char *)s); assert(bc); s += bc;
   }
-  return s;
+  return (char *)s;
 }
 
 /* allocate a new string block, containing utf-8 encoding of char c, repeated n times */
 int *makesdata(int n, int c)
 {
-  unsigned char buf[4], *s, *end;
+  char buf[4], *s, *end;
   int len = (c < 0x80) ? (buf[0] = c, 1) : uencode(buf, c);
   int bc = n*len, *pb = cxm_cknull(malloc(sizeof(int)*2+bc+1), "malloc(string)");
   pb[0] = n, pb[1] = bc;
@@ -105,10 +110,10 @@ int *makesdata(int n, int c)
 /* retrieve code point at index i, decoding utf-8 */
 int sdataget(const int *pb, int i)
 {
-  const unsigned char *s, *si;
+  const char *s, *si;
   assert(pb && i >= 0 && i < pb[0]);
   s = sdatachars(pb);
-  if (pb[0] == pb[1]) return s[i];
+  if (pb[0] == pb[1]) return ((const unsigned char *)s)[i];
   si = utf8_skip_n(s, i);
   return udecode(&si);
 }
@@ -117,12 +122,12 @@ int sdataget(const int *pb, int i)
 int *sdataput(int *pb, int i, int c)
 {
   int oldlen, len, oldbc, bc, ioff, ipoff, eoff;
-  unsigned char buf[4], *s, *si, *e, *sip1;
+  char buf[4], *s, *si, *e, *sip1;
   assert(pb && i >= 0 && i < pb[0]);
   s = sdatachars(pb);
   if (pb[0] == pb[1] && c < 0x80) { s[i] = c; return pb; }
-  si = (unsigned char*)utf8_skip_n(s, i);
-  sip1 = (unsigned char*)utf8_skip_n(si, 1);
+  si = utf8_skip_n(s, i);
+  sip1 = utf8_skip_n(si, 1);
   oldlen = (int)(sip1 - si), len = uencode(buf, c);
   if (len == oldlen) { memcpy(si, buf, len); return pb; }
   oldbc  = pb[1]; bc = oldbc + len - oldlen; e = s + oldbc;
@@ -147,11 +152,11 @@ int *newsdata(const char *cstr)
 int *newsdatan(const char *cstr, int nb)
 {
   int n = 0, bc = 0, *pb, errc = 0; 
-  const unsigned char *s, *e;
+  const char *s, *e;
   assert(cstr); assert(nb >= 0); 
-  s = (const unsigned char *)cstr, e = s + nb;
+  s = cstr, e = s + nb;
   while (s < e) {
-    const unsigned char *s0 = s;
+    const char *s0 = s;
     int c = udecode(&s); ++n;
     if (c == 0xFFFD) ++errc;
     bc += (c == 0xFFFD) ? 3 : (int)(s - s0); 
@@ -159,8 +164,8 @@ int *newsdatan(const char *cstr, int nb)
   pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
   pb[0] = n; pb[1] = bc;
   if (errc) { /* copy with replacements */
-    unsigned char *d = sdatachars(pb);
-    s = (const unsigned char *)cstr;
+    char *d = sdatachars(pb);
+    s = cstr;
     while (s < e) d += uencode(d, udecode(&s));
     assert(d-sdatachars(pb) == pb[1]);
     *d = 0;
@@ -238,7 +243,8 @@ int sdatacmp_ci(const int *d1, const int *d2)
   char *s1 = sdatachars(d1), *e1 = s1 + bc1;
   char *s2 = sdatachars(d2), *e2 = s2 + bc2; 
   while (s1 < e1 && s2 < e2) {
-    int c1 = utofold(udecode(&s1)), c2 = utofold(udecode(&s2));
+    int c1 = utofold(udecode((const char **)&s1));
+    int c2 = utofold(udecode((const char **)&s2));
     if (c1 < c2) return -1; if (c1 > c2) return 1;
   }
   if (bc1 < bc2) return -1;
@@ -256,7 +262,7 @@ unsigned long sdatahash(const int *d) {
 /* make new sdata from a (reverse) stack of chars */
 int *stringr(int sc, obj pso[])
 {
-  int i, bc = 0, *pb; unsigned char *s;
+  int i, bc = 0, *pb; char *s;
   assert(sc >= 0);
   for (i = 0; i < sc; ++i) { 
     obj oi = pso[i]; if (!ischar(oi)) return NULL;
@@ -274,7 +280,7 @@ int *stringr(int sc, obj pso[])
 /* append strings producing new sdata */
 int *stringrcat(int sc, obj pso[])
 {
-  int i, n = 0, bc = 0, *pb; unsigned char *s;
+  int i, n = 0, bc = 0, *pb; char *s;
   assert(sc >= 0);
   for (i = 0; i < sc; ++i) { 
     const int *di; obj oi = pso[i]; if (!isstring(oi)) return NULL;
@@ -293,7 +299,7 @@ int *stringrcat(int sc, obj pso[])
 /* count code points between two utf-8 pointers */
 int udistance(const char *u8s, const char *u8e) {
   int n = 0;
-  while (u8s < u8e) { int bc = charlen(*u8s); assert(bc); u8s += bc;  ++n; }
+  while (u8s < u8e) { int bc = utfb0tobc(*u8s); assert(bc); u8s += bc;  ++n; }
   return n;
 }
 
@@ -335,7 +341,7 @@ int ufputc(int c, FILE *fp) {
   } else if (c < 0x80) {
     fputc(c, fp);
   } else {
-    unsigned char buf[4]; int len = uencode(buf, c);
+    char buf[4]; int len = uencode(buf, c);
     fwrite(buf, 1, len, fp);
   }
   return c;
@@ -969,6 +975,6 @@ FILE *ufopen(const char* fname, const char* mode)
   if (wfname != wbuf) free(wfname);
   return fp;
 #else
-  return fopen(filename, mode);
+  return fopen(fname, mode);
 #endif
 }

@@ -748,6 +748,7 @@ static int tictl(ctlop_t op, tifile_t *tp, ...) {
       if (d) tp->flags |= TIF_CI; else tp->flags &= ~TIF_CI;
       return d != 0;
     } break;
+    default: break;
   }
   return -1;
 }
@@ -794,6 +795,7 @@ static int sictl(ctlop_t op, sifile_t *sp, ...) {
       if (d) sp->flags |= SIF_CI; else sp->flags &= ~SIF_CI;
       return d != 0;
     } break;
+    default: break;
   }
   return -1;
 }
@@ -812,6 +814,11 @@ static int bvigetch(bvifile_t *fp) {
 
 static int bviungetch(int c, bvifile_t *fp) {
   assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }
+
+/* optional enhanced tty ports */
+#ifdef OPT_ENHTTY
+#include "opt/n_enhtty.h"
+#endif
 
 /* port type array */
 
@@ -865,28 +872,35 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
   { "bytevector-output-port", (void (*)(void*))freecb, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
-    (int (*)(ctlop_t, void *, ...))noctl }    
+    (int (*)(ctlop_t, void *, ...))noctl },
+#ifdef OPT_ENHTTY /* + tty */
+#define IPORT_TTY_PTINDEX 10
+  { "tty-input-port", (void (*)(void*))ttfree, SPT_INPUT,
+    (int (*)(void*))ttgetch, (int (*)(int, void*))ttungetch,
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(ctlop_t, void *, ...))ttctl },
+#define OPORT_TTY_PTINDEX 11
+  { "tty-output-port", (void (*)(void*))ttfree, SPT_OUTPUT,
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))ttputch, (int (*)(void*))ttflush,
+    (int (*)(ctlop_t, void *, ...))noctl },
+#endif
 };
 
 cxtype_t *IPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[IPORT_CLOSED_PTINDEX];
-
 cxtype_t *IPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_FILE_PTINDEX];
-
 cxtype_t *IPORT_BYTEFILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_BYTEFILE_PTINDEX];
-
 cxtype_t *IPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[IPORT_STRING_PTINDEX];
-
 cxtype_t *IPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_port_types[IPORT_BYTEVECTOR_PTINDEX];
-
 cxtype_t *OPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[OPORT_CLOSED_PTINDEX];
-
 cxtype_t *OPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[OPORT_FILE_PTINDEX];
-
 cxtype_t *OPORT_BYTEFILE_NTAG = (cxtype_t *)&cxt_port_types[OPORT_BYTEFILE_PTINDEX];
-
 cxtype_t *OPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[OPORT_STRING_PTINDEX];
-
 cxtype_t *OPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_port_types[OPORT_BYTEVECTOR_PTINDEX];
+#ifdef OPT_ENHTTY /* + tty */
+cxtype_t *IPORT_TTY_NTAG = (cxtype_t *)&cxt_port_types[IPORT_TTY_PTINDEX];
+cxtype_t *OPORT_TTY_NTAG = (cxtype_t *)&cxt_port_types[OPORT_TTY_PTINDEX];
+#endif
 
 /* eq hash table for circular/sharing checks and safe equal? */
 typedef struct { obj *v; obj *r; size_t sz; size_t u, maxu, c; } stab_t;
@@ -1160,7 +1174,7 @@ in_hash:
   c = '#'; /* fall through */
 in_numsym:
   pcb = newcb();
-  while (isnumsym(c) || c == '#') { cbputc(c, pcb); c = in_getc(in); }
+  while (isnumsym(c) || c == '#') { ucbputc(c, pcb); c = in_getc(in); }
   if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
   if (cleansymname((s = cbdata(pcb)), (int)cblen(pcb))) {
     int *d = newsdatan(s, (int)cblen(pcb));
@@ -1242,10 +1256,11 @@ static void wrdatum(obj o, wenv_t *e) {
     const int *d = symsdata(getsymbol(o)); int n = sdatacspan(d);
     const char *s = sdatachars(d);
     if (e->disp || cleansymname(s, n)) wrsn(s, n, e);
-    else {
+    else { 
+      n = sdatalen(d);
       wrc('|', e);
       while (n-- > 0) {
-        int c = *s++;
+        int c = unextc(s);
         switch(c) {
           case 0x00: wrs("\\x0;", e); break;
           case '\t': wrs("\\t", e); break;
@@ -1258,7 +1273,6 @@ static void wrdatum(obj o, wenv_t *e) {
       }
       wrc('|', e);
     }
-
   } else if (isnull(o)) {
     wrs("()", e);
   } else if (ispair(o)) {
@@ -1389,14 +1403,23 @@ void oportputshared(obj x, obj p, int disp) {
 
 /* system-dependent extensions */
 
+extern int is_tty(FILE *fp)
+{
+  return fp && isatty(fileno(fp));
+}
 
 extern int is_tty_port(obj o)
 {
-  FILE *fp = NULL;
-  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = ((tifile_t*)iportdata(o))->fp;
-  else if ((cxtype_t*)iportvt(o) == IPORT_BYTEFILE_NTAG) fp = (FILE*)iportdata(o);
-  else if ((cxtype_t*)oportvt(o) == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
-  else if ((cxtype_t*)oportvt(o) == OPORT_BYTEFILE_NTAG) fp = (FILE*)oportdata(o); 
+  FILE *fp = NULL; cxtype_t *vt = (cxtype_t*)portvt(o);
+#ifdef OPT_ENHTTY /* + tty */
+  extern int ttyisansi(void);
+  if (vt == IPORT_TTY_NTAG) return 1;
+  if (vt == OPORT_TTY_NTAG) return ttyisansi() ? 'a' : 1;
+#endif  
+  if (vt == IPORT_FILE_NTAG) fp = ((tifile_t*)iportdata(o))->fp;
+  else if (vt == IPORT_BYTEFILE_NTAG) fp = (FILE*)iportdata(o);
+  else if (vt == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
+  else if (vt == OPORT_BYTEFILE_NTAG) fp = (FILE*)oportdata(o); 
   if (!fp) return 0;
   return isatty(fileno(fp));
 }
@@ -1496,7 +1519,12 @@ extern char* host_sig(void)
 #else
   sig[11] = '0';
 #endif
-  /* 12..15 are reserved */
+#ifdef OPT_ENHTTY
+  sig[12] = 'e';
+#else
+  sig[12] = '0';
+#endif
+  /* 13..15 are reserved */
   loc = setlocale(LC_ALL, NULL); if (!loc) loc = "en_US";
   sig[16] = loc[0] ? loc[0] : '?';
   sig[17] = (loc[0] && loc[1]) ? loc[1] : '?';

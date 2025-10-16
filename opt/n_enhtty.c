@@ -3,8 +3,6 @@
 #if defined(_MSC_VER)
 /* =========================== Windows TTY ================================= */
 
-static DWORD original_in_mode;
-static DWORD original_out_mode;
 static UINT original_in_cp;
 static UINT original_out_cp;
 
@@ -12,32 +10,31 @@ void ttyfini(void)
 {
   SetConsoleCP(original_in_cp);
   SetConsoleOutputCP(original_out_cp);
-  SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), original_in_mode);
-  SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), original_out_mode);
 }
 
 void ttyinit(void) 
 {
-#ifndef ENABLE_VIRTUAL_TERMINAL_INPUT
-#define ENABLE_VIRTUAL_TERMINAL_INPUT 0x0200
-#endif
-#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
-#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
-#endif
-#ifndef DISABLE_NEWLINE_AUTO_RETURN
-#define DISABLE_NEWLINE_AUTO_RETURN 0x0008
-#endif
   HANDLE hin = GetStdHandle(STD_INPUT_HANDLE);
   HANDLE hout = GetStdHandle(STD_OUTPUT_HANDLE);
   original_in_cp = GetConsoleCP();
   original_out_cp = GetConsoleOutputCP();
-  GetConsoleMode(hin, &original_in_mode);
-  GetConsoleMode(hout, &original_out_mode);
   SetConsoleCP(CP_UTF8);
   SetConsoleOutputCP(CP_UTF8);
-  SetConsoleMode(hin, original_in_mode | ENABLE_VIRTUAL_TERMINAL_INPUT);
-  SetConsoleMode(hout, original_out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN);
   atexit(ttyfini);
+}
+
+int ttyisansi(void)
+{
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
+  const char *term; DWORD mode = 0;
+  HANDLE hout = GetStdHandle(STD_OUTPUT_HANDLE);
+  if (hout == INVALID_HANDLE_VALUE) return 0;
+  if (GetConsoleMode(hout, &mode) && (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)) return 1;
+  if (getenv("ANSICON")) return 1; /* ANSICON, ConEmuANSI */
+  term = getenv("TERM"); /* check for Cygwin, MSYS2, Git-Bash, mintty */
+  return !!(term && (strstr(term, "xterm") || strstr(term, "cygwin") || strstr(term, "rxvt")));
 }
 
 char* ttygets(const char *prompt, char *buf, int bufsz) 
@@ -1481,12 +1478,17 @@ static void linenoiseAtExit(void)
 
 /* ========================== External functions ============================= */
 
+void ttyinit(void) 
+{
+  linenoiseInit();
+}
+
 void ttysethistory(const char *pfx, size_t plen, int autosave)
 {
   char *home = getenv("HOME");
   if (home) {
     char fnbuf[FILENAME_MAX+1];
-    snprintf(fnbuf, FILENAME_MAX, "%s/.%.*s-ln-history", home, plen, pfx);
+    snprintf(fnbuf, FILENAME_MAX, "%s/.%.*s-ln-history", home, (int)plen, pfx);
     fnbuf[FILENAME_MAX] = 0;
     free(history_fn);
     history_fn = strdup(fnbuf);
@@ -1495,14 +1497,26 @@ void ttysethistory(const char *pfx, size_t plen, int autosave)
   }
 }
 
+int ttyisansi(void)
+{
+  const char *term; struct winsize w;
+  if (!isatty(STDOUT_FILENO)) return 0;
+  term = getenv("TERM");
+  if (!term || !*term || strcmp(term, "dumb") == 0) return 0;
+  /* paranoia: ask for cursor position; if the terminal answers, it speaks ANSI */
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) return 1;
+  return 0;
+}
+
 char *ttygets(const char *prompt, char *buf, int bufsz)
 {
-  int count;
+  int count; if (!prompt) prompt = "test}";
   if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) {
-    /* Not a tty: EOF (pre-check via fistty!) */
-    return NULL;
+    fputs("NONTTY}", stdout);
+    fflush(stdout);
+    return fgets(buf, bufsz, stdin);
   } else if (isUnsupportedTerm()) {
-    fputs(prompt, stdout);
+    fputs("UNSUP}", stdout);
     fflush(stdout);
     return fgets(buf, bufsz, stdin);
   } else {
@@ -1518,7 +1532,7 @@ char *ttygets(const char *prompt, char *buf, int bufsz)
     if (history_autosave && history_fn != NULL) {
       linenoiseHistorySave(history_fn);
     }
-    return cbsets(pcb, buf);
+    return buf;
   }
 }
 
@@ -1531,5 +1545,119 @@ void ttyputs(const char *line)
     fputs(line, stdout);  
   }
 }
-
 #endif
+
+/* since all ttys are in fact synchronous, they share static copies of ttfile */
+static ttfile_t ttyin, ttyout;
+
+static void ttfini(void) {
+  ttflush(&ttyout);
+  free(ttyin.prompt);
+  cbfini(&ttyin.cb);
+  cbfini(&ttyout.cb);
+}
+
+ttfile_t *ttalloc(int in) {
+  static int done = 0;
+  if (!done) {
+    ttyinit();    
+    cbinit(&ttyin.cb); ttyin.next = ttyin.cb.buf; *(ttyin.next) = 0;
+    ttyin.lno = 0; ttyin.prompt = NULL; ttyin.flags = TTF_NONE;
+    cbinit(&ttyout.cb); ttyout.lno = 0; ttyout.flags = TTF_NONE;
+    atexit(ttfini);
+    done = 1;
+  }
+  return in ? &ttyin : &ttyout;
+}
+
+static void ttfree(ttfile_t *tp) {
+  /* closed only at shutdown */
+}
+
+static int ttgetch(ttfile_t *tp) {
+  int c; 
+  if (!cbempty(&ttyout.cb)) ttflush(&ttyout);
+  retry: c = unextc_check(tp->next);
+  if (c == 0x1A) goto eof; /* handle ^Z manually! */
+  if (c != 0 || tp->next <= tp->cb.fill) return c; 
+  else if (tp->flags & TTF_EOF) {
+    goto eof; 
+  } else { /* refill with next line from fp */
+    cbuf_t *pcb = cbclear(&tp->cb); 
+    char *line = ttygets(tp->prompt, cballoc(pcb, 2048), 2048);
+    if (!line) { cbclear(pcb); tp->flags |= TTF_EOF; }
+    else pcb->fill = pcb->buf + strlen(line); /* trim */
+    tp->lno += 1; tp->next = cbdata(pcb); /* 0-term */
+    goto retry;
+  }
+eof:
+  tp->next = cbdata(cbclear(&tp->cb));
+  tp->flags |= TTF_EOF;
+  return EOF;
+}
+
+static int ttungetch(int c, ttfile_t *tp) {
+  assert(tp->next > tp->cb.buf && tp->next <= tp->cb.fill);
+  tp->next = uungetch(c, &tp->cb, tp->next);
+  return c;
+}
+
+static int ttctl(ctlop_t op, ttfile_t *tp, ...) {
+  switch (op) {
+    case CTLOP_RDLN: {
+      va_list args; int c, n, **pd;
+      va_start(args, tp); 
+      pd = va_arg(args, int **);
+      c = ttgetch(tp);
+      if (c == EOF) {
+        *pd = NULL;
+      } else {
+        char *s; ttungetch(c, tp);
+        s = tp->next; n = (int)(tp->cb.fill - s);
+        if (n > 0 && s[n-1] == '\n') --n;
+        *pd = newsdatan(s, n);
+        tp->next = tp->cb.fill;
+      }  
+      va_end(args);
+      return 0;
+    } break;
+    case CTLOP_CI: {
+      va_list args; va_start(args, tp);
+      va_end(args);
+      return (tp->flags & TTF_CI) != 0;
+    } break;
+    case CTLOP_SETCI: {
+      va_list args; int d; va_start(args, tp);
+      d = va_arg(args, int);
+      va_end(args);
+      if (d) tp->flags |= TTF_CI; else tp->flags &= ~TTF_CI;
+      return d != 0;
+    } break;
+    case CTLOP_SETPROMPT: {
+      va_list args; char *s; va_start(args, tp);
+      s = va_arg(args, char*);
+      va_end(args);
+      if (tp->prompt) { free(tp->prompt); tp->prompt = NULL; }
+      if (s) { 
+        tp->prompt = cxm_cknull(malloc(strlen(s)+1), "malloc(setprompt)");
+        strcpy(tp->prompt, s);
+      }
+      return 0;
+    } break;
+  }
+  return -1;
+}
+
+static int ttputch(int c, ttfile_t *tp) {
+  /* note: there is no point in writing NULs to tty, 
+   * so we just skip them */
+  if (c) ucbputc(c, &tp->cb);
+  if (c == '\n') ttflush(tp);
+  return c;
+}
+
+static int ttflush(ttfile_t *tp) {
+  if (!cbempty(&tp->cb)) ttyputs(cbdata(&tp->cb));
+  cbclear(&tp->cb);
+  return 0;
+}

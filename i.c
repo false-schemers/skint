@@ -278,6 +278,10 @@ static void _sck(obj *s) {
 #define oport_string_obj(fp) hp_pushptr((fp), OPORT_STRING_NTAG)
 #define iport_bytevector_obj(fp) hp_pushptr((fp), IPORT_BYTEVECTOR_NTAG)
 #define oport_bytevector_obj(fp) hp_pushptr((fp), OPORT_BYTEVECTOR_NTAG)
+#ifdef OPT_ENHTTY
+#define iport_tty_obj() hp_pushptr(ttalloc(1), IPORT_TTY_NTAG)
+#define oport_tty_obj() hp_pushptr(ttalloc(0), OPORT_TTY_NTAG)
+#endif
 #define is_iport(o) isiport(o)
 #define is_oport(o) isoport(o)
 #define is_box(o) isbox(o)
@@ -3469,8 +3473,14 @@ define_instruction(opp) {
 }
 
 define_instruction(ttyp) {
-  extern int is_tty_port(obj o); /* s.c */
+  extern int is_tty_port(obj o); /* n.c */
+#ifdef OPT_ENHTTY /* + tty */
+  int res = is_tty_port(ac);
+  if (res == 'a') ac = mksymbol(internsym("ansi"));
+  else ac = bool_obj(!!res);
+#else
   ac = bool_obj(is_tty_port(ac));
+#endif
   gonexti();
 }
 
@@ -3512,16 +3522,28 @@ define_instruction(setcerr) {
 }
 
 define_instruction(sip) {
+#ifdef OPT_ENHTTY /* + tty */
+  extern int is_tty(FILE *fp); /* n.c */
+  if (is_tty(stdin)) ac = iport_tty_obj(); else
+#endif
   ac = iport_file_obj(stdin, internsym("-"));
   gonexti();
 }
 
 define_instruction(sop) {
+#ifdef OPT_ENHTTY /* + tty */
+  extern int is_tty(FILE *fp); /* n.c */
+  if (is_tty(stdout)) ac = oport_tty_obj(); else
+#endif
   ac = oport_file_obj(stdout);
   gonexti();
 }
 
 define_instruction(sep) {
+#ifdef OPT_ENHTTY /* + tty */
+  extern int is_tty(FILE *fp); /* n.c */
+  if (is_tty(stderr)) ac = oport_tty_obj(); else
+#endif
   ac = oport_file_obj(stderr);
   gonexti();
 }
@@ -3664,6 +3686,15 @@ define_instruction(ploc) {
     ac = bool_obj(0);
   }
   sdrop(4);
+  gonexti();
+}
+
+define_instruction(sppr) {
+  cxtype_iport_t *vt; obj p = spop(); const int *d; int res; const char *s;
+  ckr(ac); cks(p); vt = iportvt(ac); assert(vt);
+  d = stringdata(p); s = sdatacspan(d) ? sdatachars(d) : NULL;
+  res = vt->ctl(CTLOP_SETPROMPT, iportdata(ac), s);
+  ac = bool_obj(res == 0);
   gonexti();
 }
 

@@ -1367,6 +1367,7 @@
 ; (%open-binary-input-file s) +
 ; (%open-output-file x) +
 ; (%open-binary-output-file x) +
+; (set-port-prompt! p str) +
 ; (close-input-port p)
 ; (close-output-port p)
 ; (open-input-string s)
@@ -1928,6 +1929,7 @@
 (define skint-host-os (case (string-ref *host-sig* 0) [(#\w) 'windows] [(#\m) 'macosx] [(#\u) 'unix] [else #f]))
 (define skint-host-endianness (case (string-ref *host-sig* 4) [(#\l) 'little-endian] [(#\b) 'big-endian] [else #f]))
 (define opt-unicode (case (string-ref *host-sig* 11) [(#\u) 'unicode] [else #f]))
+(define opt-enhtty (case (string-ref *host-sig* 12) [(#\e) 'enhanced-tty] [else #f]))
 (define current-language (make-parameter (string->symbol (substring *host-sig* 16 18))))
 (define current-country (make-parameter (string->symbol (substring *host-sig* 18 20))))
 (define current-locale-details (make-parameter (cond [(%host-facet 1) => (lambda (s) (list (string->symbol s)))] [else '()])))
@@ -1953,6 +1955,7 @@
 (if c99-math-available (set! *features* (cons c99-math-available *features*)))
 (if xsi-math-available (set! *features* (cons xsi-math-available *features*)))
 (if opt-unicode (set! *features* (cons opt-unicode *features*)))
+(if opt-enhtty (set! *features* (cons opt-enhtty *features*)))
 (set! *features* (reverse *features*))
 
 (define features

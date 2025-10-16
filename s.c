@@ -1011,6 +1011,10 @@ char *s_code[] = {
   "icode)",
 
   "C", 0,
+  "'(i12),@(y10:*host-sig*)S4,'(ce),.1v?{'(y12:enhanced-tty)}{f}_1@!(y10:"
+  "opt-enhtty)",
+
+  "C", 0,
   "${'(i18),'(i16),@(y10:*host-sig*)S7X5,@(y14:make-parameter)[01}@!(y16:"
   "current-language)",
 
@@ -1056,6 +1060,10 @@ char *s_code[] = {
   "C", 0,
   "@(y11:opt-unicode)?{@(y10:*features*),@(y11:opt-unicode)c@!(y10:*featu"
   "res*)}",
+
+  "C", 0,
+  "@(y10:opt-enhtty)?{@(y10:*features*),@(y10:opt-enhtty)c@!(y10:*feature"
+  "s*)}",
 
   "C", 0,
   "@(y10:*features*)A8@!(y10:*features*)",
