@@ -1368,6 +1368,20 @@ define_instruction(spos) {
   gonexti();
 }
 
+define_instruction(ssto8) {
+  obj x = spop(), y = spop(); int is, ie, *d, *d1;
+  const char *ss, *se; 
+  cks(ac); ckk(x); ckk(y); 
+  is = get_fixnum(x), ie = get_fixnum(y);
+  if (is > ie) failtype(x, "valid start string index");
+  if (ie > string_len(ac)) failtype(y, "valid end string index");
+  d = (int *)stringdata(ac); ss = uadvance(sdatachars(d), is), se = uadvance(ss, ie-is);
+  d1 = newbytevector((unsigned char *)ss, se-ss); /* no validation needed */
+  ac = bytevector_obj(d1);
+  gonexti();
+}
+
+
 define_instruction(supc) {
   int *d; cks(ac);
   d = mapsdata(stringdata(ac), utoupper);
@@ -1466,6 +1480,19 @@ define_instruction(bsub) {
   if (ie > bytevector_len(ac)) failtype(y, "valid end bytevector index");
   d = subbytevector(bytevectordata(ac), is, ie);
   ac = bytevector_obj(d);
+  gonexti();
+}
+
+define_instruction(s8tos) {
+  obj x = spop(), y = spop(); int is, ie, *d, *d1;
+  const unsigned char *ss, *se; 
+  ckb(ac); ckk(x); ckk(y); 
+  is = get_fixnum(x), ie = get_fixnum(y);
+  if (is > ie) failtype(x, "valid start bytevector index");
+  if (ie > bytevector_len(ac)) failtype(y, "valid end bytevector index");
+  d = bytevectordata(ac); ss = bvdatabytes(d) + is, se = ss + (ie-is);
+  d1 = newsdatan((char *)ss, se-ss); /* internal validation */
+  ac = string_obj(d1);
   gonexti();
 }
 

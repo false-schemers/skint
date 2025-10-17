@@ -65,7 +65,7 @@
 
 (test 65 (char->integer #\A))
 (test #\A (integer->char 65))
-(test #\λ (integer->char 955))          ; Greek lambda
+(test #\λ (integer->char 955)) ; Greek lambda
 
 (test #t (char=? #\λ #\λ))
 (test #f (char=? #\A #\λ))
@@ -85,7 +85,7 @@
 (test "" (string-append))
 
 (test "Heλlo" (string-copy "Heλlo"))
-(test "λ"   (string-copy "λμν" 0 1))
+(test "λ" (string-copy "λμν" 0 1))
 
 (let ((s (string-copy "cat")))
   (string-set! s 1 #\λ)
@@ -107,7 +107,7 @@
 (test 'λ (string->symbol "λ"))
 (test "λ" (symbol->string 'λ))
 
-(test '(206 187) (string->utf8 "λ"))
+(test #u8(206 187) (string->utf8 "λ"))
 (test "λ" (utf8->string #u8(206 187)))
 
 (test #t (string<? "α" "β"))            ; Greek alpha < beta
@@ -152,17 +152,14 @@
 
 ;;; More string->utf8 / utf8->string + lexicographical order tests
 
-;; ----- extra string->utf8 -----
-(test #u8()        (string->utf8 ""))
-(test #u8(65)      (string->utf8 "A"))
-(test #u8(206 187) (string->utf8 "λ"))            ; 2-byte
-(test #u8(228 189 160) (string->utf8 "你"))       ; 3-byte
-(test #u8(240 159 140 136) (string->utf8 "🌈"))   ; 4-byte
+(test #u8() (string->utf8 ""))
+(test #u8(65) (string->utf8 "A"))
+(test #u8(206 187) (string->utf8 "λ")) ; 2-byte
+(test #u8(228 189 160) (string->utf8 "你")) ; 3-byte
+(test #u8(240 159 140 136) (string->utf8 "🌈")) ; 4-byte
 
-(test '(65 206 187 240 159 140 136)
-      (string->utf8 "Aλ🌈"))                   ; mixed
+(test #u8(65 206 187 240 159 140 136) (string->utf8 "Aλ🌈")) ; mixed
 
-;; ----- extra utf8->string -----
 (test ""  (utf8->string #u8()))
 (test "A" (utf8->string #u8(65)))
 (test "λ" (utf8->string #u8(206 187)))
@@ -170,24 +167,23 @@
 (test "🌈" (utf8->string #u8(240 159 140 136)))
 (test "Aλ🌈" (utf8->string #u8(65 206 187 240 159 140 136)))
 
-;; ----- lexicographical order (unequal-length strings) -----
-(test #t (string<? "" "α"))             ; empty < anything
+(test #t (string<? "" "α")) ; empty < anything
 (test #f (string<? "α" ""))
 
-(test #t (string<? "α" "αβ"))           ; proper prefix is smaller
+(test #t (string<? "α" "αβ")) ; proper prefix is smaller
 (test #f (string<? "αβ" "α"))
 (test #t (string<=? "α" "αβ"))
 (test #f (string<=? "αβ" "α"))
 
-(test #t (string<? "abc" "абв"))        ; Latin < Cyrillic
+(test #t (string<? "abc" "абв")) ; Latin < Cyrillic
 (test #f (string<? "абв" "abc"))
 
-(test #t (string<? "你好" "你好吗"))     ; shorter CJK string first
+(test #t (string<? "你好" "你好吗")) ; shorter CJK string first
 (test #f (string<? "你好吗" "你好"))
 (test #t (string>=? "你好吗" "你好"))
 (test #f (string>=? "你好" "你好吗"))
 
-(test #t (string<? "🌈" "🌈🌟"))        ; emoji prefix test
+(test #t (string<? "🌈" "🌈🌟")) ; emoji prefix test
 (test #f (string<? "🌈🌟" "🌈"))
 
 (test-end)

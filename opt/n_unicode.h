@@ -19,6 +19,7 @@ extern int udecode_check(const char **sp);
 #define unextc(cp) udecode((const char **)&(cp))
 #define unextc_check(cp) udecode_check((const char **)&(cp))
 extern int udistance(const char *u8s, const char *u8e);
+extern char *uadvance(const char *s, int n);
 extern void *umemchr(const void *s, int c, size_t spn);
 extern char *uungetch(int c, cbuf_t *pcb, char *next);
 extern int ufputc(int c, FILE *fp); 
@@ -31,7 +32,7 @@ extern int *makesdata(int n, int c);
 extern int sdataget(const int *d, int i);
 extern int *sdataput(int *d, int i, int c);
 extern int *newsdata(const char *u8s);
-extern int *newsdatan(const char *u8s, int nbytes);
+extern int *newsdatan(const char *u8s, int cspan);
 extern int *subsdata(const int *d, int fromc, int toc);
 extern int *catsdata(const int *d0, const int *d1);
 extern int *dupsdata(const int *d);
@@ -43,8 +44,8 @@ extern unsigned long sdatahash(const int *d);
 /* string procedures */
 #define stringget(o, i) sdataget(stringdata(o), i)
 static void stringput(obj o, int i, int c) {
-  const int *d = stringdata(o); assert(i >= 0 && i < d[0]);
-  if (d[0] == d[1] && (unsigned char)c < 0x80) sdatachars(d)[i] = c;
+  const int *d = stringdata(o); assert(c >= 0 && i >= 0 && i < d[0]);
+  if (d[0] == d[1] && c < 0x80) sdatachars(d)[i] = c;
   else setnative(o, STRING_NTAG, sdataput((int *)d, i, c)); 
 } 
 extern int *stringr(int sc, obj pso[]);

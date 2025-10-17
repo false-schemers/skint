@@ -989,6 +989,8 @@
 ; (list->bytevector l) +
 ; (subbytevector b from to) +
 ; (bytevector=? b1 b2 b ...)
+; (subutf8->string b from to) +
+; (substring->utf8 s from to) +
 
 (define (subbytevector->list bvec start end)
   (let loop ([i (fx- end 1)] [l '()])
@@ -1031,23 +1033,11 @@
      [(bvec b start) (subbytevector-fill! bvec b start (bytevector-length bvec))]
      [(bvec b start end) (subbytevector-fill! bvec b start end)]))
 
-(define (subutf8->string vec start end)
-  (let ([p (open-output-string)])
-    (write-subbytevector vec start end p)
-    ; todo: make a single operation: get-final-output-string (can reuse cbuf?)
-    (let ([s (get-output-string p)]) (close-output-port p) s)))
-
 (define utf8->string
   (case-lambda
     [(bvec) (subutf8->string bvec 0 (bytevector-length bvec))]
     [(bvec start) (subutf8->string bvec start (bytevector-length bvec))]
     [(bvec start end) (subutf8->string bvec start end)]))
-
-(define (substring->utf8 str start end)
-  (let ([p (open-output-bytevector)])
-    (write-substring str start end p)
-    ; todo: make a single operation: get-final-output-bytevector (can reuse cbuf?)
-    (let ([v (get-output-bytevector p)]) (close-output-port p) v)))
 
 (define string->utf8
   (case-lambda

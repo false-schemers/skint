@@ -85,7 +85,7 @@ static int charlen(int c) { return 1 + (c > 0x7f) + (c > 0x7ff) + (c > 0xffff); 
 #define utfb0tobc(c) ((c >> 3)["\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\1\0\0\0\0\0\0\0\0\2\2\2\2\3\3\4\0"])
 
 /* advance s by n valid UTF-8 sequences */
-static char *utf8_skip_n(const char *s, int n)
+char *uadvance(const char *s, int n)
 {
   while (n-- > 0) {
     int bc = utfb0tobc(*(const unsigned char *)s); assert(bc); s += bc;
@@ -114,7 +114,7 @@ int sdataget(const int *pb, int i)
   assert(pb && i >= 0 && i < pb[0]);
   s = sdatachars(pb);
   if (pb[0] == pb[1]) return ((const unsigned char *)s)[i];
-  si = utf8_skip_n(s, i);
+  si = uadvance(s, i);
   return udecode(&si);
 }
 
@@ -126,8 +126,8 @@ int *sdataput(int *pb, int i, int c)
   assert(pb && i >= 0 && i < pb[0]);
   s = sdatachars(pb);
   if (pb[0] == pb[1] && c < 0x80) { s[i] = c; return pb; }
-  si = utf8_skip_n(s, i);
-  sip1 = utf8_skip_n(si, 1);
+  si = uadvance(s, i);
+  sip1 = uadvance(si, 1);
   oldlen = (int)(sip1 - si), len = uencode(buf, c);
   if (len == oldlen) { memcpy(si, buf, len); return pb; }
   oldbc  = pb[1]; bc = oldbc + len - oldlen; e = s + oldbc;
@@ -183,7 +183,7 @@ int *subsdata(const int *d, int fromc, int toc)
   if (d[0] == d[1]) {
     sf = s + fromc; bc = toc-fromc; 
   } else {
-    sf = (char *)utf8_skip_n(s, fromc); st = (char *)utf8_skip_n(sf, toc-fromc); bc = (int)(st-sf);
+    sf = (char *)uadvance(s, fromc); st = (char *)uadvance(sf, toc-fromc); bc = (int)(st-sf);
   }
   pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
   pb[0] = toc-fromc; pb[1] = bc; s = sdatachars(pb);

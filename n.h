@@ -382,6 +382,7 @@ extern int *stringrcat(int sc, obj pso[]);
 #define unextc(cp) (*(cp)++)
 #define unextc_check(cp) (*(cp)++)
 #define udistance(sp, ep) ((ep) - (sp))
+#define uadvance(sp, n) ((sp) + (n))
 #define umemchr memchr
 #define uungetch(c, pcb, next) ((next)-1)
 #define ufputc fputc
