@@ -954,12 +954,25 @@ int utofold(int c) {
   return (fc != c) ? fc : ucase_to(c, utolc, sizeof(utolc)/sizeof(uint64_t));
 }
 
+static int fgetu8bom(FILE *fp)
+{
+  int c = fgetc(fp);
+  if (c == EOF) return 0;
+  /* not comitted yet - just looking ahead... */
+  if ((c & 0xFF) != 0xEF) { ungetc(c, fp); return 0; }
+  /* now we are comitted to read all 3 bytes - partial reads can happen */
+  if ((c = fgetc(fp)) == EOF || (c & 0xFF) != 0xBB) return 0;
+  if ((c = fgetc(fp)) == EOF || (c & 0xFF) != 0xBF) return 0;
+  /* all three bytes are there */
+  return 1;
+}
+
 /* opening file with utf-8 name */
 FILE *ufopen(const char* fname, const char* mode)
 {
+  FILE *fp;
 #ifdef _WIN32
   wchar_t *wfname, wbuf[FILENAME_MAX], wmbuf[20]; int wlen, wmlen;
-  FILE *fp;
   wlen = MultiByteToWideChar(CP_UTF8, 0, fname, -1, NULL, 0);
   if (wlen == 0) return NULL; /* empty fname or broken utf-8 */
   if (wlen <= FILENAME_MAX) wfname = wbuf; 
@@ -973,8 +986,150 @@ FILE *ufopen(const char* fname, const char* mode)
   MultiByteToWideChar(CP_UTF8, 0, mode, -1, wmbuf, wmlen);
   fp = _wfopen(wfname, wmbuf);
   if (wfname != wbuf) free(wfname);
-  return fp;
 #else
-  return fopen(fname, mode);
+  fp = fopen(fname, mode);
 #endif
+  if (fp && mode[0] == 'r' && mode[1] == 0) {
+    /* text file opened for read: check for UTF8 BOM */
+    fgetu8bom(fp);
+  }
+  return fp;
+}
+
+/* removing file with utf-8 name */
+int uremove(const char *fname)
+{
+  int ret;
+#ifdef _WIN32
+  int wlen;
+  wchar_t wbuf[FILENAME_MAX], *wpath;
+  wlen = MultiByteToWideChar(CP_UTF8, 0, fname, -1, NULL, 0);
+  if (wlen == 0) return -1; /* empty or invalid UTF-8 */
+  if (wlen <= FILENAME_MAX) wpath = wbuf;
+  else wpath = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+  if (!wpath) return -1;
+  MultiByteToWideChar(CP_UTF8, 0, fname, -1, wpath, wlen);
+  ret = _wremove(wpath);
+  if (wpath != wbuf) free(wpath);
+#else
+  ret = remove(fname);
+#endif
+  return ret;
+}
+
+/* renaming file with utf-8 name */
+int urename(const char *fnold, const char *fnnew)
+{
+  int ret;
+#ifdef _WIN32
+  int wlen1, wlen2;
+  wchar_t *wold, wbuf1[FILENAME_MAX], *wnew, wbuf2[FILENAME_MAX];
+  wlen1 = MultiByteToWideChar(CP_UTF8, 0, fnold, -1, NULL, 0);
+  wlen2 = MultiByteToWideChar(CP_UTF8, 0, fnnew, -1, NULL, 0);
+  if (wlen1 == 0 || wlen2 == 0) return -1;
+  if (wlen1 <= FILENAME_MAX) wold = wbuf1;
+  else wold = (wchar_t*)malloc(wlen1 * sizeof(wchar_t));
+  if (wlen2 <= FILENAME_MAX) wnew = wbuf2;
+  else wnew = (wchar_t*)malloc(wlen2 * sizeof(wchar_t));
+  if (!wold || !wnew) { ret = -1; goto out; }
+  MultiByteToWideChar(CP_UTF8, 0, fnold, -1, wold, wlen1);
+  MultiByteToWideChar(CP_UTF8, 0, fnnew, -1, wnew, wlen2);
+  ret = _wrename(wold, wnew);
+out:
+  if (wold != wbuf1) free(wold);
+  if (wnew != wbuf2) free(wnew);
+#else
+  ret = remove(fnold, fnnew);
+#endif
+  return ret;
+}
+
+/* utf-8 getenv */
+char *ugetenv(const char *name)
+{
+#ifdef _WIN32
+  int wlen; wchar_t wbuf[256], *wname, *wval;
+  static char buf[1024]; int len;
+  wlen = MultiByteToWideChar(CP_UTF8, 0, name, -1, NULL, 0);
+  if (wlen == 0) return NULL;
+  if (wlen <= sizeof(wbuf)/sizeof(wchar_t)) wname = wbuf;
+  else wname = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+  if (!wname) return NULL;
+  MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, wlen);
+  wval = _wgetenv(wname);
+  if (wname != wbuf) free(wname);
+  if (!wval) return NULL;
+  len = WideCharToMultiByte(CP_UTF8, 0, wval, -1, buf, sizeof(buf), NULL, NULL);
+  if (len == 0) return NULL;
+  return buf;
+#else
+  return getenv(name);
+#endif  
+}
+
+/* utf-8 getcwd */
+const char *ugetcwd(void)
+{
+  static char buf[FILENAME_MAX];
+#ifdef _WIN32
+  static wchar_t wbuf[FILENAME_MAX], *wval; int len;
+  wval = _wgetcwd(wbuf, FILENAME_MAX);  
+  if (!wval) return NULL;
+  len = WideCharToMultiByte(CP_UTF8, 0, wval, -1, buf, sizeof(buf), NULL, NULL);
+  /* if this is a regular path that has internal separators but not at the end, add it */ 
+  if (len > 0 && len < FILENAME_MAX-1 && strchr(buf, '\\') && buf[len-1] != '\\') {
+    buf[len++] = '\\'; buf[len] = 0;
+  }  
+#else
+  size_t len;
+  if (getcwd(buf, FILENAME_MAX) == NULL) return NULL;
+  len = strlen(buf);
+  /* if this is a regular path that has internal separators but not at the end, add it */ 
+  if (len > 0 && len < FILENAME_MAX-1 && strchr(buf, '/') && buf[len-1] != '/') {
+    buf[len++] = '/'; buf[len] = 0;
+  }  
+#endif  
+  return buf;
+}
+
+/* utf-8 chdir */
+int uchdir(const char *path)
+{
+  int ret;
+#ifdef _WIN32
+  int wlen;
+  wchar_t wbuf[FILENAME_MAX], *wpath;
+  wlen = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+  if (wlen == 0) return -1; /* empty or invalid UTF-8 */
+  if (wlen <= FILENAME_MAX) wpath = wbuf;
+  else wpath = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+  if (!wpath) return -1;
+  MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, wlen);
+  ret = _wchdir(wpath);
+  if (wpath != wbuf) free(wpath);
+#else
+  ret = chdir(cwd);
+#endif
+  return ret;  
+}
+
+/* utf-8 shell command */
+int usystem(const char *cmd)
+{
+  int ret;
+#ifdef _WIN32
+  int wlen;
+  wchar_t wbuf[FILENAME_MAX], *wcmd;
+  wlen = MultiByteToWideChar(CP_UTF8, 0, cmd, -1, NULL, 0);
+  if (wlen == 0) return -1; /* empty or invalid UTF-8 */
+  if (wlen <= FILENAME_MAX) wcmd = wbuf;
+  else wcmd = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+  if (!wcmd) return -1;
+  MultiByteToWideChar(CP_UTF8, 0, cmd, -1, wcmd, wlen);
+  ret = _wsystem(wcmd);
+  if (wcmd != wbuf) free(wcmd);
+#else
+  ret = system(cmd);
+#endif
+  return ret;
 }

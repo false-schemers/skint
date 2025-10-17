@@ -1466,8 +1466,9 @@ char *lib_dir = STR(LIBDIR);
 #else
 char *lib_dir = "";
 #endif
- 
-extern const char *get_cwd(void)
+
+#ifndef OPT_UNICODE /* ascii versions */
+const char *ugetcwd(void)
 {
   static char buf[FILENAME_MAX]; size_t len;
   if (getcwd(buf, FILENAME_MAX) == NULL) return NULL;
@@ -1479,10 +1480,11 @@ extern const char *get_cwd(void)
   return buf;
 }
 
-extern int set_cwd(const char *cwd)
+int uchdir(const char *cwd)
 {
   return chdir(cwd);
 }
+#endif
 
 static char sig[33] = "????????????????????????????????";
 extern char* host_sig(void)

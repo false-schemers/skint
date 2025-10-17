@@ -1,5 +1,7 @@
--include  prefix.mk
-PREFIX    ?= /usr/local
+-include    prefix.mk
+PREFIX      ?= /usr/local
+USE_UNICODE ?= 0
+USE_ENHTTY  ?= 0
 LIBROOT   = $(PREFIX)/share/skint
 CFLAGS    = -O3 -DNDEBUG
 LDFLAGS   = 
@@ -18,9 +20,19 @@ DISTDIR   = dist/$(DISTNAME)
 
 $(info version is $(VERSION))
 $(info prefix is set to $(PREFIX))
+$(info use-unicode is set to $(USE_UNICODE))
+$(info use-enhanced-tty is set to $(USE_ENHTTY))
 
 ifneq ($(wildcard lib/.),)
   CFLAGS += -DLIBDIR=$(LIBROOT)/lib
+endif
+
+ifeq ($(USE_UNICODE),1)
+  CFLAGS += -DOPT_UNICODE
+endif
+
+ifeq ($(USE_ENHTTY),1)
+  CFLAGS += -DOPT_ENHTTY
 endif
 
 ifneq ($(shell which clang),)

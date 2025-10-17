@@ -4319,7 +4319,7 @@ define_instruction(pushsub) {
 
 define_instruction(fexis) {
   FILE *f; cks(ac);
-  f = ufopen(stringchars(ac), "r"); /* todo: pile #ifdefs here */
+  f = ufopen(stringchars(ac), "r");
   if (f != NULL) fclose(f);
   ac = bool_obj(f != NULL);
   gonexti(); 
@@ -4327,31 +4327,31 @@ define_instruction(fexis) {
 
 define_instruction(frem) {
   int res; cks(ac);
-  res = remove(stringchars(ac));
+  res = uremove(stringchars(ac));
   ac = bool_obj(res == 0);
   gonexti(); 
 }
 
 define_instruction(fren) {
   int res; cks(ac); cks(sref(0));
-  res = rename(stringchars(ac), stringchars(sref(0)));
+  res = urename(stringchars(ac), stringchars(sref(0)));
   spop();
   ac = bool_obj(res == 0);
   gonexti(); 
 }
 
 define_instruction(getcwd) {
-  extern const char *get_cwd(void);
-  const char *s = get_cwd();
+  extern const char *ugetcwd(void);
+  const char *s = ugetcwd();
   if (s) ac = string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
 
 define_instruction(setcwd) {
-  extern int set_cwd(const char *cwd);
+  extern int uchdir(const char *cwd);
   int res; cks(ac);
-  res = set_cwd(stringchars(ac));
+  res = uchdir(stringchars(ac));
   ac = bool_obj(res == 0);
   gonexti(); 
 }
@@ -4404,7 +4404,7 @@ define_instruction(cursec) {
 
 define_instruction(system) {
   int res; cks(ac);
-  res = system(stringchars(ac));
+  res = usystem(stringchars(ac));
   ac = fixnum_obj(res);
   gonexti(); 
 }

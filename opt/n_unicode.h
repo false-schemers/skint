@@ -53,3 +53,9 @@ extern int *stringrcat(int sc, obj pso[]);
 
 /* system procedures */
 extern FILE *ufopen(const char* fname, const char* mode);
+extern int uremove(const char *fname);
+extern int urename(const char *fnold, const char *fnnew);
+extern char *ugetenv(const char *name);
+extern const char *ugetcwd(void);
+extern int uchdir(const char *cwd);
+extern int usystem(const char *cmd);

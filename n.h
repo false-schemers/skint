@@ -399,6 +399,10 @@ extern int *stringrcat(int sc, obj pso[]);
 #define utotitle toupper
 #define utofold  tolower
 #define ufopen fopen
+#define uremove remove
+#define urename rename
+#define ugetenv getenv
+#define usystem system
 #endif /* end of !OPT_UNICODE block */
 extern int strcmp_ci(const char *s1, const char *s2);
 #define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)
