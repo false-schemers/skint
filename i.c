@@ -1376,7 +1376,7 @@ define_instruction(ssto8) {
   if (is > ie) failtype(x, "valid start string index");
   if (ie > string_len(ac)) failtype(y, "valid end string index");
   d = (int *)stringdata(ac); ss = uadvance(sdatachars(d), is), se = uadvance(ss, ie-is);
-  d1 = newbytevector((unsigned char *)ss, se-ss); /* no validation needed */
+  d1 = newbytevector((unsigned char *)ss, (int)(se-ss)); /* no validation needed */
   ac = bytevector_obj(d1);
   gonexti();
 }
@@ -1491,7 +1491,7 @@ define_instruction(s8tos) {
   if (is > ie) failtype(x, "valid start bytevector index");
   if (ie > bytevector_len(ac)) failtype(y, "valid end bytevector index");
   d = bytevectordata(ac); ss = bvdatabytes(d) + is, se = ss + (ie-is);
-  d1 = newsdatan((char *)ss, se-ss); /* internal validation */
+  d1 = newsdatan((char *)ss, (int)(se-ss)); /* internal validation */
   ac = string_obj(d1);
   gonexti();
 }
@@ -3551,7 +3551,7 @@ define_instruction(setcerr) {
 define_instruction(sip) {
 #ifdef OPT_ENHTTY /* + tty */
   extern int is_tty(FILE *fp); /* n.c */
-  if (is_tty(stdin)) ac = iport_tty_obj(); else
+  if (is_tty(stdin) && is_tty(stdout)) ac = iport_tty_obj(); else
 #endif
   ac = iport_file_obj(stdin, internsym("-"));
   gonexti();
