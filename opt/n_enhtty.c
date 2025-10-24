@@ -37,31 +37,6 @@ int ttyisansi(void)
   return !!(term && (strstr(term, "xterm") || strstr(term, "cygwin") || strstr(term, "rxvt")));
 }
 
-#if 0
-char* ttygets(const char *prompt, char *buf, int bufsz) 
-{
-  HANDLE hin; wchar_t lbuf[120], *wbuf; DWORD rc, wc; char *res;
-  if (prompt) ttyputs(prompt);
-  if (!buf || bufsz <= 0) return NULL;
-  hin = GetStdHandle(STD_INPUT_HANDLE);
-  if (bufsz <= sizeof(buf)/sizeof(wchar_t)) wbuf = lbuf;
-  else wbuf = cxm_cknull(malloc(bufsz*sizeof(wchar_t)), "malloc(tty_gets)");
-  rc = 0; res = NULL;
-  if (ReadConsoleW(hin, wbuf, bufsz-1, &rc, NULL)) {
-    if (rc > 0 && wbuf[rc-1] == L'\n') {
-      wbuf[rc-1] = L'\0';
-      if (rc > 1 && wbuf[rc-2] == L'\r') wbuf[rc-2] = L'\0';
-    } else wbuf[rc] = L'\0';
-    wcscat(wbuf, L"\n");
-    wc = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, buf, bufsz, NULL, NULL);
-    if (!wc) buf[0] = '\0'; /* no input or conversion failure */
-    else res = buf;
-  }
-  if (wbuf != lbuf) free(wbuf);
-  return res;
-}
-#endif
-
 char* ttygetln(const char *prompt, cbuf_t *pcb) 
 {
   char *buf = cballoc(cbclear(pcb), 256); int bufsz = 256;
@@ -1531,38 +1506,6 @@ int ttyisansi(void)
   return 0;
 }
 
-#if 0
-char *ttygets(const char *prompt, char *buf, int bufsz)
-{
-  int count; if (!prompt) prompt = "test}";
-  if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) {
-    fputs("NONTTY}", stdout);
-    fflush(stdout);
-    return fgets(buf, bufsz, stdin);
-  } else if (isUnsupportedTerm()) {
-    fputs("UNSUP}", stdout);
-    fflush(stdout);
-    return fgets(buf, bufsz, stdin);
-  } else {
-    if (history_fn == NULL && prompt != NULL && isalnum(*prompt)) {
-      char *fnpchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-      ttysethistory(prompt, strspn(prompt, fnpchars), 1);
-    }
-    count = linenoiseRaw(buf, bufsz, prompt);
-    if (count == -1)
-      return NULL;
-    linenoiseHistoryAdd(buf);
-    if (history_autosave && history_fn != NULL) {
-      linenoiseHistorySave(history_fn);
-    }
-    count = strlen(buf);
-    if (count < bufsz-1) { buf[count++] = '\n'; buf[count] = 0; }
-    else return NULL; 
-    return buf;
-  }
-}
-#endif
-
 char *ttygetln(const char *prompt, cbuf_t *pcb)
 {
   char *buf = cballoc(cbclear(pcb), LINENOISE_MAX_LINE); int bufsz = LINENOISE_MAX_LINE;
@@ -1571,6 +1514,7 @@ char *ttygetln(const char *prompt, cbuf_t *pcb)
     if (prompt) fputs(prompt, stdout);
     fflush(stdout);
     res = fgets(buf, bufsz, stdin);
+    assert(buf == pcb->buf); assert(!res || res == buf);
     if (res) pcb->fill = pcb->buf + strlen(res);
     return res;
   } else {
@@ -1584,7 +1528,9 @@ char *ttygetln(const char *prompt, cbuf_t *pcb)
     if (history_autosave && history_fn != NULL) {
       linenoiseHistorySave(history_fn);
     }
+    assert(buf == pcb->buf);
     pcb->fill = pcb->buf + strlen(buf);
+    assert(pcb->fill < pcb->end);
     cbputc('\n', pcb);
     return cbdata(pcb);
   }
@@ -1606,7 +1552,6 @@ static ttfile_t ttyin, ttyout;
 
 static void ttfini(void) {
   ttflush(&ttyout);
-  free(ttyin.prompt);
   cbfini(&ttyin.cb);
   cbfini(&ttyout.cb);
 }
@@ -1616,7 +1561,7 @@ ttfile_t *ttalloc(int in) {
   if (!done) {
     ttyinit();    
     cbinit(&ttyin.cb); ttyin.next = ttyin.cb.buf; *(ttyin.next) = 0;
-    ttyin.lno = 0; ttyin.prompt = NULL; ttyin.flags = TTF_NONE;
+    ttyin.lno = 0; ttyin.prbuf[0] = 0; ttyin.flags = TTF_NONE;
     cbinit(&ttyout.cb); ttyout.lno = 0; ttyout.flags = TTF_NONE;
     atexit(ttfini);
     done = 1;
@@ -1630,6 +1575,7 @@ static void ttfree(ttfile_t *tp) {
 
 static int ttgetch(ttfile_t *tp) {
   int c; 
+  assert(tp->next >= tp->cb.buf && tp->next <= tp->cb.fill);
   if (!cbempty(&ttyout.cb)) ttflush(&ttyout);
   retry: c = unextc_check(tp->next);
   if (c == 0x1A) goto eof; /* handle ^Z manually! */
@@ -1638,9 +1584,11 @@ static int ttgetch(ttfile_t *tp) {
     goto eof; 
   } else { /* refill with next line from fp */
     cbuf_t *pcb = &tp->cb;
-    char *line = ttygetln(tp->prompt, pcb);
+    char *line = ttygetln(tp->prbuf, pcb);
+    assert(!line || line == pcb->buf);
     if (!line) { cbclear(pcb); tp->flags |= TTF_EOF; }
-    tp->lno += 1; tp->next = line; /* 0-term */
+    tp->lno += 1; tp->next = line ? line : cbdata(pcb);
+    strcpy(tp->prbuf, "  "); /* continuation line prompt */
     goto retry;
   }
 eof:
@@ -1690,10 +1638,11 @@ static int ttctl(ctlop_t op, ttfile_t *tp, ...) {
       va_list args; char *s; va_start(args, tp);
       s = va_arg(args, char*);
       va_end(args);
-      if (tp->prompt) { free(tp->prompt); tp->prompt = NULL; }
-      if (s) { 
-        tp->prompt = cxm_cknull(malloc(strlen(s)+1), "malloc(setprompt)");
-        strcpy(tp->prompt, s);
+      if (s) {
+        strncpy(tp->prbuf, s, sizeof(tp->prbuf));
+        tp->prbuf[sizeof(tp->prbuf)-1] = 0;
+      } else {
+        tp->prbuf[0] = 0;
       }
       return 0;
     } break;

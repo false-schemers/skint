@@ -3717,11 +3717,16 @@ define_instruction(ploc) {
 }
 
 define_instruction(sppr) {
+#ifdef OPT_ENHTTY /* + tty */
   cxtype_iport_t *vt; obj p = spop(); const int *d; int res; const char *s;
   ckr(ac); cks(p); vt = iportvt(ac); assert(vt);
   d = stringdata(p); s = sdatacspan(d) ? sdatachars(d) : NULL;
   res = vt->ctl(CTLOP_SETPROMPT, iportdata(ac), s);
   ac = bool_obj(res == 0);
+#else /* no prompt ports */
+  obj p = spop();
+  ac = bool_obj(0);
+#endif
   gonexti();
 }
 

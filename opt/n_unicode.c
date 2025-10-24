@@ -1039,7 +1039,7 @@ out:
   if (wold != wbuf1) free(wold);
   if (wnew != wbuf2) free(wnew);
 #else
-  ret = remove(fnold, fnnew);
+  ret = rename(fnold, fnnew);
 #endif
   return ret;
 }
@@ -1108,7 +1108,7 @@ int uchdir(const char *path)
   ret = _wchdir(wpath);
   if (wpath != wbuf) free(wpath);
 #else
-  ret = chdir(cwd);
+  ret = chdir(path);
 #endif
   return ret;  
 }

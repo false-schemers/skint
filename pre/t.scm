@@ -2653,7 +2653,7 @@
     (for-each print vals)))
 
 (define (repl-read ip prompt op)
-  (when prompt  (format op "~%~a ~!" prompt))
+  (when prompt (newline op) (or (set-port-prompt! ip prompt) (format op "~a~!" prompt)))
   (read-code-sexp ip))
 
 (define (repl-exec-command cmd argstr op)
@@ -2766,7 +2766,7 @@
 (define (repl)
   (define ip (current-input-port))
   (define op (current-output-port))
-  (define prompt (and (tty-port? ip) "skint]")) 
+  (define prompt (and (tty-port? ip) "skint] ")) 
   (set-current-file-stack! '())
   (when *repl-first-time*
     (set! *repl-first-time* #f)
@@ -2796,7 +2796,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.6.8")
+(define *skint-version* "0.6.9")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

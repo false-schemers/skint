@@ -1649,8 +1649,8 @@ char *t_code[] = {
   "list1?)[01}?{.0^aY8}{f}~?{.0^,.2^,@(y10:%25for-each1)[52}]5",
 
   "P", "repl-read",
-  "%3.1?{${.3,'(s7:~%25~a ~!),.6,@(y6:format)[03}}.0,@(y14:read-code-sexp"
-  ")[31",
+  "%3.1?{.2W6${.3,.3,@(y16:set-port-prompt!)[02},.0?{.0}{${.4,'(s4:~a~!),"
+  ".7,@(y6:format)[03}}_1}.0,@(y14:read-code-sexp)[31",
 
   "P", "repl-exec-command",
   "%3,#0'(l3:y4:load;y2:cd;y2:sh;),.2A0?{${.4,@(y22:string-trim-whitespac"
@@ -1745,10 +1745,10 @@ char *t_code[] = {
   "t@!(y17:*repl-first-time*)",
 
   "P", "repl",
-  "%0,,,#0#1#2Pi.!0Po.!1.0^P09?{'(s6:skint])}{f}.!2${n,@(y23:set-current-"
-  "file-stack!)[01}@(y17:*repl-first-time*)?{f@!(y17:*repl-first-time*)${"
-  "@(y10:skint-main)[00}}${k0,${.2,@(y18:set-reset-handler!)[01}${.6^,.8^"
-  ",@(y16:repl-environment),.8^,@(y14:repl-from-port)[04}_3}t]3",
+  "%0,,,#0#1#2Pi.!0Po.!1.0^P09?{'(s7:skint] )}{f}.!2${n,@(y23:set-current"
+  "-file-stack!)[01}@(y17:*repl-first-time*)?{f@!(y17:*repl-first-time*)$"
+  "{@(y10:skint-main)[00}}${k0,${.2,@(y18:set-reset-handler!)[01}${.6^,.8"
+  "^,@(y16:repl-environment),.8^,@(y14:repl-from-port)[04}_3}t]3",
 
   "C", 0,
   "'(l12:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity"
@@ -1767,7 +1767,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.6.8)@!(y15:*skint-version*)",
+  "'(s5:0.6.9)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",
