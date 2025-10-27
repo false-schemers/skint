@@ -4,7 +4,8 @@ USE_UNICODE ?= 0
 USE_ENHTTY  ?= 0
 LIBROOT   = $(PREFIX)/share/skint
 CFLAGS    = -O3 -DNDEBUG
-LDFLAGS   = 
+LDFLAGS   =
+LDLIBS    = -lm
 MKPATH    = install -d
 INSTALL   = install -m 755 -s
 INSTALLD  = install -D -m 644
@@ -33,6 +34,9 @@ endif
 
 ifeq ($(USE_ENHTTY),1)
   CFLAGS += -DOPT_ENHTTY
+ifeq ($(shell uname -s),Linux)
+  LDLIBS += -ldl
+endif
 endif
 
 ifneq ($(shell which clang),)
@@ -158,7 +162,7 @@ libuninstall:
 	$(RMR) $(LIBROOT)
 
 $(exe): $(objects)
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objects) -lm
+	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objects) $(LDLIBS)
 
 $(objects): %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<

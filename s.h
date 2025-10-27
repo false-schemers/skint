@@ -79,6 +79,7 @@ typedef struct _stat stat_t;
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -91,6 +92,7 @@ typedef struct stat stat_t;
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #define setbmode(fp) /* nothing */
@@ -107,6 +109,7 @@ typedef struct stat stat_t;
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #define setbmode(fp) /* nothing */
