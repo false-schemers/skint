@@ -1136,7 +1136,11 @@ static int is_delimiter(int c) {
     case '|':  case '\"': case ';':  case EOF:
       return 1;
   }
+#ifdef OPT_UNICODE
+  return (!uisspace(c));
+#else
   return 0;
+#endif
 }
 
 /* internal read-ahead procedure; returns 'o', 'i', 'e', 0, 1, 2 */
@@ -1542,12 +1546,22 @@ extern const char* host_facet(int fno)
   switch (fno) {
     case 0: { /* full locale */
       return setlocale(LC_ALL, NULL);
-    }
+    } break;
     case 1: { /* encoding */
       const char *p = setlocale(LC_ALL, NULL);
       if (!p) break; p = strchr(p, '.');
       if (!p) break; return p+1;
-    }
+    } break;
+    case 2: { /* reserved */
+    } break;
+    case 3: { /* enhanced terminal host/library */
+#ifdef OPT_ENHTTY
+      extern const char* enhterm_lib;
+      return enhterm_lib;
+#else
+      return NULL;
+#endif
+    } break;
   }
   return NULL;
 }

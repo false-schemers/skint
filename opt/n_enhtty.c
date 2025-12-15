@@ -5,6 +5,7 @@
 
 static UINT original_in_cp;
 static UINT original_out_cp;
+const char* enhterm_lib = NULL;
 
 void ttyfini(void) 
 {
@@ -20,6 +21,7 @@ void ttyinit(void)
   original_out_cp = GetConsoleOutputCP();
   SetConsoleCP(CP_UTF8);
   SetConsoleOutputCP(CP_UTF8);
+  enhterm_lib = "conhost.exe";
   atexit(ttyfini);
 }
 
@@ -111,13 +113,15 @@ typedef struct RL {
 
 static RL g_rl = { 0 };
 static char* g_history_path = NULL;
+const char* enhterm_lib = NULL;
 
 static void* try_dlopen_many(const char* const* names)
 {
   for (size_t i = 0; names[i]; ++i) {
     void* h = dlopen(names[i], RTLD_LAZY | RTLD_LOCAL);
-    if (h) return h;
+    if (h) { enhterm_lib = (const char *)(names[i]); return h; }
   }
+  enhterm_lib = NULL;
   return NULL;
 }
 

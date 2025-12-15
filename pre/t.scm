@@ -2091,6 +2091,10 @@
           (when (symbol? name) (name-lookup *root-name-registry* name (lambda (name) i)))))
       (loop (+ i 1))))) 
 
+; aux syntax keywords used by syntax-rules extension
+(name-lookup *root-name-registry* 'string->id  (lambda (n) (lambda (sexp env) (x-error "invalid syntax" sexp))))
+(name-lookup *root-name-registry* 'id->string  (lambda (n) (lambda (sexp env) (x-error "invalid syntax" sexp))))
+
 ; register initial define-syntax transformers coming from s.scm and this file
 (let loop ([l (initial-transformers)])
   (unless (null? l)
@@ -2108,7 +2112,7 @@
                (name-lookup *root-name-registry* k (lambda (name) sr-v))
                (loop l))]))))
 
-; register handcoded transformers
+; register handcoded transformers and auxiliary keywords
 (name-lookup *root-name-registry* 'include     (lambda (n) (make-include-transformer #f)))
 (name-lookup *root-name-registry* 'include-ci  (lambda (n) (make-include-transformer #t)))
 (name-lookup *root-name-registry* 'cond-expand (lambda (n) (make-cond-expand-transformer)))
@@ -2228,7 +2232,7 @@
     (list->numvector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
     (path-separator) (void) (void?) (implementation-name) (implementation-version) (version-alist)
-    (current-language) (current-country) (current-locale-details)
+    (current-language) (current-country) (current-locale-details) (id?) (string->id) (id->string)
     ; (skint c99-math) library is defined if host provides the corresponding functions
     (flcopysign . c99-math) (flsign-bit . c99-math) (fladjacent . c99-math) (flnormalized? . c99-math) 
     (fldenormalized? . c99-math) (flexponent . c99-math) (flilogb . c99-math) (fl+* . c99-math) 
@@ -2693,6 +2697,7 @@
       [(cd <string>) (current-directory (car args))]
       [(sh <string>) (%system (car args))]
       [(si) (print-version!)
+       (when enhanced-tty-library (format #t "enhanced-tty library: ~a~%" enhanced-tty-library))
        (format #t "~d collections, ~d reallocs, heap size ~d words~%" 
          (%gc-count) (%bump-count) (%heap-size))]
       [(gc) (%gc) (retry '(si))]

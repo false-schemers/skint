@@ -1575,7 +1575,8 @@
     (or (char-whitespace? c)
         (char=? c #\)) (char=? c #\()
         (char=? c #\]) (char=? c #\[)
-        (char=? c #\") (char=? c #\;)))
+        (char=? c #\") (char=? c #\|)
+        (char=? c #\;)))
 
   (define (sub-read-carefully p)
     (let ([form (sub-read p)])
@@ -1923,6 +1924,7 @@
 (define current-language (make-parameter (string->symbol (substring *host-sig* 16 18))))
 (define current-country (make-parameter (string->symbol (substring *host-sig* 18 20))))
 (define current-locale-details (make-parameter (cond [(%host-facet 1) => (lambda (s) (list (string->symbol s)))] [else '()])))
+(define enhanced-tty-library (%host-facet 3))
 
 (define current-directory
   (case-lambda 
