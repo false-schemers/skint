@@ -1777,7 +1777,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.6.9)@!(y15:*skint-version*)",
+  "'(s5:0.7.0)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",
@@ -1834,7 +1834,7 @@ char *t_code[] = {
   ".6a,@(y10:run-script)[02},@(y4:exit)[41}:0~?{t,@(y4:exit)[41}f]4}]4},@"
   "(y15:*skint-options*),.2,@(y28:get-next-command-line-option)[23}.!0.0^"
   "_1[02}PiP09?{PoP09}{f}?{${@(y15:*skint-version*),'(s30:SKINT Scheme In"
-  "terpreter v~a~%25),t,@(y6:format)[03}${'(s40:Copyright (c) 2024-2025 F"
+  "terpreter v~a~%25),t,@(y6:format)[03}${'(s40:Copyright (c) 2024-2026 F"
   "alse Schemers~%25),t,@(y6:format)[02}}t]5",
 
   0, 0, 0

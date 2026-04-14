@@ -271,14 +271,15 @@
 ; (record-ref r i)
 ; (record-set! r i v)
 
+(define *rtd-count* 0) 
 (define (new-record-type name fields)
   ; should be something like (cons name fields), but that would complicate procedure? 
   ; check that now relies on block tag being a non-immediate object, so we'll better put 
   ; some pseudo-unique immediate object here -- and we don't have to be fast doing that
-  (let loop ([fl (cons name fields)] [sl '("rtd://")]) 
-     (cond [(null? fl) (string->symbol (apply-to-list string-append (reverse sl)))]
-           [(null? (cdr fl)) (loop (cdr fl) (cons (symbol->string (car fl)) sl))]
-           [else (loop (cdr fl) (cons ":" (cons (symbol->string (car fl)) sl)))]))) 
+  ; NOTE: R7RS requires d-r-t records to be generative, so we have to "gensym" rtds
+  (set! *rtd-count* (+ *rtd-count* 1))
+  (string->symbol (string-append "rtd://" (symbol->string name) 
+                                 ":" (number->string *rtd-count*))))
   
 ; see http://okmij.org/ftp/Scheme/macro-symbol-p.txt
 (define-syntax %id-eq?? 
@@ -1547,9 +1548,9 @@
                (loop (fx+ i 1))))]
           [(box? form)
            (if (procedure? (unbox form))
-               (set-box! form (patch-shared! (unbox form)))
+               (set-box! form (patch-ref! (unbox form)))
                (patch-shared! (unbox form)))]))
-  (define (patch-shared form) (patch-shared! form) form)           
+  (define (patch-shared form) (patch-shared! form) form)
 
   (define reader-token-marker #f)
   (define close-paren #f)

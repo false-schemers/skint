@@ -2801,7 +2801,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.6.9")
+(define *skint-version* "0.7.0")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
@@ -2858,5 +2858,5 @@
   (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
     ; quick check for non-interactive use failed, greet
     (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
-    (format #t "Copyright (c) 2024-2025 False Schemers~%"))
+    (format #t "Copyright (c) 2024-2026 False Schemers~%"))
   #t) ; exited normally
