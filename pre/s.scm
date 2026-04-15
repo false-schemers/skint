@@ -1552,6 +1552,8 @@
                (patch-shared! (unbox form)))]))
   (define (patch-shared form) (patch-shared! form) form)
 
+  (define max-char-code (if opt-unicode #x10FFFF #xFF))
+  (define max-char-hex-digits (if opt-unicode 6 2))
   (define reader-token-marker #f)
   (define close-paren #f)
   (define close-bracket #f)
@@ -1809,9 +1811,10 @@
 
   (define (sub-read-x-char-escape p in-string?)
     (define (rev-digits->char l)
-      (if (null? l)
-          (r-error p "\\x escape sequence is too short")
-          (integer->char (string->fixnum (list->string (reverse! l)) 16))))
+      (if (null? l) (r-error p "\\x escape sequence is too short")
+          (let ([n (string->fixnum (list->string (reverse! l)) 16)])
+            (if (> n max-char-code) (r-error p "\\x escape sequence overflow")
+                (integer->char n)))))
     (let loop ([c (peek-char p)] [l '()] [cc 0])
       (cond [(eof-object? c)
              (if in-string?
@@ -1824,11 +1827,9 @@
              (rev-digits->char l)]
             [(not (char-hex-digit? c))
              (r-error p "unexpected char in \\x escape sequence" c)]
-            [(> cc 2)
+            [(> cc max-char-hex-digits)
              (r-error p "\\x escape sequence is too long")]
-            [else
-             (read-char p)
-             (loop (peek-char p) (cons c l) (+ cc 1))])))
+            [else (read-char p) (loop (peek-char p) (cons c l) (+ cc 1))])))
             
   ; body of %read
   (let ([form (sub-read port)])
