@@ -27,6 +27,19 @@ CFLAGS = $(CFLAGS) /DNAN_BOXING
 !MESSAGE x86_64 architecture detected
 !ENDIF
 
+# Optional features - enable on command line with OPT_UNICODE=1, OPT_ENHTTY=1
+!IF "$(OPT_UNICODE)" == "1"
+CFLAGS = $(CFLAGS) /DOPT_UNICODE
+!MESSAGE Unicode support enabled
+!ENDIF
+
+!IF "$(OPT_ENHTTY)" == "1"
+CFLAGS = $(CFLAGS) /DOPT_ENHTTY
+!MESSAGE Enhanced TTY support enabled
+!ENDIF
+
+LDFLAGS = /nologo
+
 # Source lists
 SOURCES = s.c k.c i.c n.c t.c
 INCLUDES = i.h n.h s.h
