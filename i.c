@@ -3993,7 +3993,7 @@ define_instruction(rdsx) {
 }
 
 define_instruction(rdsc) {
-  cks(ac); unload_ac(); /* ac->ra (string) */
+  cks(ac);
   unload_ac(); /* ac->ra (string) */
   unload_ip(); /* ip->rx */
   hp = rds_stoc(r, sp, hp);
@@ -4670,7 +4670,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
     case 'n': ra = mknull(); break;
     case 'c': ra = obj_from_char(rds_char(port)); break;
     case 'i': ra = obj_from_fixnum(rds_int(port)); break; 
-    case 'j': ra = obj_from_flonum(sp-r, rds_real(port)); break;
+    case 'j': { double d = rds_real(port); ra = obj_from_flonum((int)(sp-r), d); break; }
     case 'p': {
       spush(port);
       ra = sref(0); hp = rds_elt(r, sp, hp); 
