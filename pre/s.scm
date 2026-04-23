@@ -170,19 +170,31 @@
            (let () command ... 
              (loop (%do-step var step ...) ...))))]))
 
-
 (define-syntax quasiquote
-  (syntax-rules (unquote unquote-splicing quasiquote)
-    [(_ ,x) x]
-    [(_ (,@x)) x] ; popular extension/optimization
-    [(_ (,@x . y)) (append x `y)]
-    [(_ `x . d) (cons 'quasiquote (quasiquote (x) d))]
-    [(_ ,x   d) (cons 'unquote (quasiquote (x) . d))]
-    [(_ ,@x  d) (cons 'unquote-splicing (quasiquote (x) . d))]
-    [(_ (x . y) . d) (cons (quasiquote x . d) (quasiquote y . d))]
-    [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
-    [(_ #&x . d) (box (quasiquote x . d))]
-    [(_ x . d) 'x]))
+  (syntax-rules (unquote unquote-splicing quasiquote quote)
+    [(_ x) (quasiquote 0 () x 7)]
+    [(_ 0 () ,x s . a*) (quasiquote s x . a*)]
+    [(_ 0 () (,@x) s . a*) (quasiquote s x . a*)] ; popular extension
+    [(_ 0 () (,@x . y) s . a*) (quasiquote 0 () y 1 x s . a*)]
+    [(_ 0 d `x s . a*) (quasiquote 0 (d) (x) 2 quasiquote s . a*)]
+    [(_ 0 (d) ,x s . a*) (quasiquote 0 d (x) 2 unquote s . a*)]
+    [(_ 0 (d) ,@x s . a*) (quasiquote 0 d (x) 2 unquote-splicing s . a*)]
+    [(_ 0 d (x . y) s . a*) (quasiquote 0 d x 3 d y s . a*)]
+    [(_ 0 d #(x ...) s . a*) (quasiquote 0 d (x ...) 5 s . a*)]
+    [(_ 0 d #&x s . a*) (quasiquote 0 d x 6 s . a*)]
+    [(_ 0 d x s . a*) (quasiquote s 'x . a*)]
+    [(_ 1 'y '(x ...) s . a*) (quasiquote s '(x ... . y) . a*)]
+    [(_ 1 y x s . a*) (quasiquote s (append x y) . a*)]
+    [(_ 2 'y c s . a*) (quasiquote s '(c . y) . a*)]
+    [(_ 2 y c s . a*) (quasiquote s (cons 'c y) . a*)]
+    [(_ 3 x d y s . a*) (quasiquote 0 d y 4 x s . a*)]
+    [(_ 4 'y 'x s . a*) (quasiquote s '(x . y) . a*)]
+    [(_ 4 y x s . a*) (quasiquote s (cons x y) . a*)]
+    [(_ 5 '(x ...) s . a*) (quasiquote s '#(x ...) . a*)]
+    [(_ 5 x s . a*) (quasiquote s (list->vector x) . a*)]
+    [(_ 6 'x s . a*) (quasiquote s '#&x . a*)]
+    [(_ 6 x s . a*) (quasiquote s (box x) . a*)]
+    [(_ 7 x) x]))
 
 (define-syntax when ; + body support
   (syntax-rules ()

@@ -3125,4 +3125,50 @@
 
 (test "FooBar" (symbol->string (eval '(string->symbol "FooBar") (scheme-report-environment 5))))
 
+; extra tests for compliant quasiquote
+
+; basic unquote at head
+(define (foo-1 x) `(,x 1 2 3))
+(test #f (eq? (foo-1 0) (foo-1 0))) ; top pair is fresh (contains unquote)
+(test #t (eq? (cdr (foo-1 0)) (cdr (foo-1 0)))) ; tail is literal
+
+; unquote in the middle
+(define (foo-2 x) `(1 2 ,x 3 4))
+(test #t (eq? (car (foo-2 0)) (car (foo-2 0))))     ; first element literal
+(test #f (eq? (cddr (foo-2 0)) (cddr (foo-2 0))))   ; pair containing unquote is fresh
+(test #t (eq? (cdddr (foo-2 0)) (cdddr (foo-2 0)))) ; tail after unquote is literal
+
+; unquote at the end
+(define (foo-3 x) `((1) 2 3 ,x))
+(test #t (eq? (car (foo-3 0)) (car (foo-3 0))))  ; first element literal
+(test #f (eq? (cdddr (foo-3 0)) (cdddr (foo-3 0)))) ; pair containing unquote is fresh
+
+; unquote-splicing
+(define (foo-4 x) `((1) ,@x 4))
+(test #t (eq? (car (foo-4 '(2 3))) (car (foo-4 '(2 3))))) ; first element literal
+(test #f (eq? (foo-4 '(2 3)) (foo-4 '(2 3)))) ; top level fresh (splicing affects structure)
+
+; nested structure with unquote only in sublist
+(define (foo-5 x) `((a . a) (b ,x c) d))
+(test #t (eq? (car (foo-5 0)) (car (foo-5 0))))         ; '(a . a) is literal
+(test #t (eq? (cddr (foo-5 0)) (cddr (foo-5 0))))       ; '(d) tail is literal
+(test #f (eq? (cadr (foo-5 0)) (cadr (foo-5 0))))       ; sublist containing unquote is fresh
+
+; multiple unquotes - parts between are literal
+(define (foo-6 x y) `(,x a (b b) ,y c d))
+(test #f (eq? (foo-6 1 2) (foo-6 1 2)))                 ; top pair is fresh
+(test #f (eq? (cddr (foo-6 1 2)) (cddr (foo-6 1 2))))   ; '((b b) ,y c d) - this pair is fresh too
+(test #t (eq? (car (cddr (foo-6 1 2))) (car (cddr (foo-6 1 2))))) ; '(b b) itself is literal
+
+; deep nesting - only affected branch is fresh
+(define (foo-7 x) `((a a) (b (c (d ,x) e) f) (g . g)))
+(test #t (eq? (car (foo-7 0)) (car (foo-7 0))))         ; '(a a) is literal
+(test #t (eq? (caddr (foo-7 0)) (caddr (foo-7 0))))     ; '(g . g) is literal
+(test #f (eq? (cadr (foo-7 0)) (cadr (foo-7 0))))       ; (b ...) is fresh (contains unquote in subtree)
+
+; completely static quasiquote - entire structure is literal
+(define (foo-8) `(1 2 (3 4) 5))
+(test #t (eq? (foo-8) (foo-8))) ; entire structure is shared
+
+
 (test-end)
