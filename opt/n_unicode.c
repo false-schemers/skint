@@ -170,7 +170,9 @@ int *newsdatan(const char *cstr, int nb)
     assert(d-sdatachars(pb) == pb[1]);
     *d = 0;
   } else { /* copy verbatim */
-    memcpy(sdatachars(pb), cstr, bc + 1);
+    char *str = sdatachars(pb);
+    memcpy(str, cstr, bc);
+    str[bc] = 0;
   }
   return pb;
 }
