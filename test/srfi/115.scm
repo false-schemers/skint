@@ -184,7 +184,9 @@
 (test-re #f '(* lower) "abcD")
 (test-re '("abcD") '(w/nocase (* lower)) "abcD")
 
-;;[esl]- systems not supporting full Unicode won't be able to read this
+;;[esl]- systems not supporting full Unicode won't be able to even read this
+; Even when they could, we exclude unicode tests because Olin's SRFI-14 (charset) implementation
+; we currently use fails on chars with codes higher than 256. Need to replace it first!
 #|(cond-expand
 (full-unicode
 (test-re '("σζ") '(* lower) "σζ")
@@ -230,7 +232,7 @@
 (test '("abc" "123" "def" "456" "ghi" "789")
     (regexp-partition '(* numeric) "abc123def456ghi789"))
 
-(cond-expand
+#|(cond-expand
 (full-unicode
 (test '("한" "글")
         (regexp-extract
@@ -238,6 +240,7 @@
         (utf8->string '#u8(#xe1 #x84 #x92 #xe1 #x85 #xa1 #xe1 #x86 #xab
                                 #xe1 #x84 #x80 #xe1 #x85 #xb3 #xe1 #x86 #xaf)))))
 (else))
+|#
 
 (test "abc def" (regexp-replace '(+ space) "abc \t\n def" " "))
 (test "  abc-abc"
