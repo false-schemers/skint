@@ -1,4 +1,4 @@
-/* UNICODE replacements for standard string interfaces */
+/* n_unicode.h -- unicode strings and io/sys interfaces */
 
 /* char (code point) */
 extern int uisspace(int c);

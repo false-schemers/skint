@@ -1,4 +1,4 @@
-/* Enhanced TTY interfaces */
+/* n_enhtty.c -- enhanced tty interfaces */
 
 #if defined(_MSC_VER)
 /* =========================== Windows TTY ================================= */

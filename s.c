@@ -1021,15 +1021,16 @@ char *s_code[] = {
 
   "C", 0,
   "'0,@(y10:*host-sig*)S4,'(cw),.1v?{'(y7:windows)}{'(cm),.1v?{'(y6:macos"
-  "x)}{'(cu),.1v?{'(y4:unix)}{f}}}_1@!(y13:skint-host-os)",
+  "x)}{'(cl),.1v?{'(y5:linux)}{'(cu),.1v?{'(y4:unix)}{f}}}}_1@!(y13:skint"
+  "-host-os)",
 
   "C", 0,
   "'4,@(y10:*host-sig*)S4,'(cl),.1v?{'(y13:little-endian)}{'(cb),.1v?{'(y"
   "10:big-endian)}{f}}_1@!(y21:skint-host-endianness)",
 
   "C", 0,
-  "'(i11),@(y10:*host-sig*)S4,'(cu),.1v?{'(y7:unicode)}{f}_1@!(y11:opt-un"
-  "icode)",
+  "'(i11),@(y10:*host-sig*)S4,'(cu),.1v?{'(y12:full-unicode)}{f}_1@!(y11:"
+  "opt-unicode)",
 
   "C", 0,
   "'(i12),@(y10:*host-sig*)S4,'(ce),.1v?{'(y12:enhanced-tty)}{f}_1@!(y10:"

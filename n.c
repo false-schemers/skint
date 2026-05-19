@@ -1,4 +1,4 @@
-/* n.c -- generated via skint nsf2c.ssc n.sf */
+/* n.c -- native/platform interfaces */
 
 #include "s.h"
 #include "n.h"
@@ -1501,6 +1501,8 @@ extern char* host_sig(void)
   sig[0] = 'w'; sig[7] = ';';
 #elif defined(__APPLE__)
   sig[0] = 'm'; sig[7] = ':';
+#elif defined(__linux__)
+  sig[0] = 'l'; sig[7] = ':';
 #else /* assume Linux/Unix */
   sig[0] = 'u'; sig[7] = ':';
 #endif

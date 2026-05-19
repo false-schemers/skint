@@ -1,4 +1,4 @@
-/* UNICODE replacements for standard string interfaces */
+/* n_unicode.c -- unicode strings and io/sys interfaces */
 
 /* decode one code-point starting at *sp, advance *sp, return code-point or 0xFFFD on error
  * NB: always advances *sp by at least 1 byte; does basic checks for broken utf-8 encoding, 

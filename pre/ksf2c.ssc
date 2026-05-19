@@ -47,6 +47,13 @@
           [(string=? l "    m2 = 1 | ~(s*sizeof(obj)-1);")
            (display "    m2 = 1 | ~((cxoint_t)s*sizeof(obj)-1);" oport) (newline oport)
            (loop (read-line iport) #f)]
+          [(string-position "0, newstring(" l) =>
+           (lambda (n) 
+             (display (substring l 0 n) oport)
+             (display "0, newsdata(" oport)
+             (display (substring l (+ n (string-length "0, newstring(")) (string-length l)) oport)
+             (newline oport)
+             (loop (read-line iport) #f))]
           [else
            (display l oport) (newline oport)
            (loop (read-line iport) #f)])))

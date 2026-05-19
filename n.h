@@ -1,4 +1,4 @@
-/* n.h -- generated via skint nsf2h.ssc n.sf */
+/* n.h -- native/platform interfaces */
 
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Wparentheses-equality"

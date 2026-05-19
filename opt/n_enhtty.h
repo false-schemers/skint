@@ -1,4 +1,4 @@
-/* Enhanced TTY interfaces */
+/* n_enhtty.h -- enhanced tty interfaces */
 
 extern void ttyinit(void);
 extern char* ttygets(const char *prompt, char *buf, int bufsz);
