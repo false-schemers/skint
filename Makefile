@@ -1,4 +1,4 @@
--include    prefix.mk
+-include    config.mk
 PREFIX      ?= /usr/local
 USE_UNICODE ?= 0
 USE_ENHTTY  ?= 0
@@ -137,7 +137,7 @@ clean:
 
 realclean:
 	$(RM) $(objects) $(exe) $(man)
-	$(RM) tmp1 prefix.mk
+	$(RM) tmp1 config.mk
 	$(RMR) dist
 
 distclean: realclean
