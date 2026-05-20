@@ -1,7 +1,7 @@
 Installing SKINT
 ================
 
-Quick build
+Manual build
 ---------------
 If you only need the interpreter **right now** on a Unix-like box (64-bit: x86, ARM, Power, RISC-V):
 
@@ -23,6 +23,21 @@ In addition to the standard libraries built into the interpreter, SKINT provides
 where to find it either with `-I` / `-A` command-line options or `SKINT_LIBDIRS` environment variable. Alternatively, you can 
 hard-code the library path into the interpreter by adding `-D LIBDIR=`*lib_path* when you compile it.
 
+Fine-tuning the manual build
+---------------------
+
+| Goal | Example command |
+|---|---|
+| Maximum speed, 64-bit | `clang -O3 -DNDEBUG -DNAN_BOXING [skint].c -lm` |
+| Same, with Unicode support | `clang -O3 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE s.c k.c i.c n.c t.c -lm` |
+| Same, with REPL line editing |	`clang -O3 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE -DOPT_ENHTTY s.c k.c i.c n.c t.c -lm -ldl` |
+| Tiny debug build | `gcc -O0 -g -DDEBUG [skint].c -lm` |
+| Static binary | `gcc -static -O2 [skint].c -lm` |
+
+- `-DNDEBUG` removes internal assertions.  
+- `-DNAN_BOXING` activates NaN-boxing (needs 48-bit address space, typical on 64-bit Linux/MacOS/Windows).
+- `-DOPT_UNICODE` enables full Unicode support (otherwise, strings are 8-bit clean and use the system locale).
+- `-DOPT_ENHTTY` enables built-in REPL console line editing. Note that on Linux, this option requires linking against the dynamic linking library via `-ldl`. 
 
 Traditional build (Un*x & MacOS)
 ---------------------------------
@@ -32,11 +47,11 @@ Traditional build (Un*x & MacOS)
    cd skint
    ```
 
-2. **(Optional) pick a prefix**  
+2. **(Optional) configure install prefix and optional features**  
    Default installation path is `/usr/local`.  
-   To install elsewhere, run e.g.:
+   To install elsewhere, or to enable optional features (such as full Unicode support and REPL line editing), run:
    ```bash
-   ./configure --prefix=$HOME/opt/skint
+   ./configure --prefix=$HOME/opt/skint --use-unicode --use-enhanced-tty
    ```
 
 3. **Build**
@@ -62,28 +77,16 @@ Traditional build (Un*x & MacOS)
 
 If you haven't changed the prefix, after installation the command `skint` appears in your `$PATH`.
 
-Fine-tuning the build
----------------------
-| Goal | Example command |
-|---|---|
-| Maximum speed, 64-bit | `clang -O3 -DNDEBUG -DNAN_BOXING [skint].c -lm` |
-| Tiny debug build | `gcc -O0 -g -DDEBUG [skint].c -lm` |
-| Static binary | `gcc -static -O2 [skint].c -lm` |
-
-- `-DNAN_BOXING` activates NaN-boxing (needs 48-bit address space, typical on 64-bit Linux/MacOS/Windows).  
-- `-DNDEBUG` removes internal assertions.  
-- All options can also be set through `make CFLAGS=... LDFLAGS=...`.
-
 Windows (MSVC / MinGW)
 ----------------------
 - **MSVC (Developer Prompt)**  
   ```cmd
-  cl /O2 /DNDEBUG /DNAN_BOXING /Fe"skint.exe" s.c k.c i.c n.c t.c
+  cl /O2 /DNDEBUG /DNAN_BOXING /DOPT_UNICODE /DOPT_ENHTTY /Fe"skint.exe" s.c k.c i.c n.c t.c
   ```
 - **NMAKE** – see `misc/README.md` for the ready-made makefile.  
 - **MinGW** – same flags as Unix:  
   ```cmd
-  gcc -O2 -DNDEBUG -DNAN_BOXING -o skint.exe s.c k.c i.c n.c t.c -lm 
+  gcc -O2 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE -DOPT_ENHTTY -o skint.exe s.c k.c i.c n.c t.c -lm 
   ```
 
 The resulting `skint.exe` is fully self-contained and can be copied between Windows machines.
