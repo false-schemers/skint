@@ -66,6 +66,29 @@ make install
 make libtest
 make libinstall
 ```
+
+SKINT supports optional features that can be configured prior to compilation. When using the 
+`configure` script, you can enable these features with the following flags:
+
+*   `--use-unicode`: Enables full Unicode support by defining `OPT_UNICODE`.
+*   `--use-enhanced-tty`: Enables built-in REPL console line editing by defining `OPT_ENHTTY`.
+
+For example, to configure and install SKINT with both features enabled to a custom directory:
+
+```
+./configure --prefix=/home/gwendolyn/tools/skint --use-unicode --use-enhanced-tty
+make
+make install
+```
+
+If you are compiling manually without the configure script, you can pass these definitions 
+directly to your C compiler. Note that when enabling enhanced TTY on Linux, you must also 
+link against the dynamic linking library (`-ldl`):
+
+```
+clang -o skint -O3 -D NDEBUG -D NAN_BOXING -D OPT_UNICODE -D OPT_ENHTTY [skint].c -lm -ldl
+```
+
 ---
 \* Similar build command line works on Windows/MSVC:
 
@@ -83,7 +106,7 @@ with R7RS-small, but has the following known limitations and deviations from the
 
   *  fixnums are 30 bit long, flonums are doubles
   *  no support for bignums/rational/complex numbers
-  *  no support for Unicode; strings are 8-bit clean, use system locale
+  *  no support for Unicode; strings are 8-bit clean, use system locale (unless compiled with the `OPT_UNICODE` / `--use-unicode` option)
   *  source code literals cannot be circular (R7RS allows this)
   
 Some features of the R7RS-Small standard are not yet implemented or implemented in a simplified or non-conforming way:
@@ -107,8 +130,8 @@ Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and eva
   *  command-line options can be shown by running `skint --help` 
   *  both `import` and `define-library` forms can be entered interactively into REPL
   *  REPL supports single-line “comma-commands” — type `,help` for a full list
-  *  on Un*x-like systems, interactive use of skint with line editing requires external readline wrapper
-     such as [rlwrap](https://github.com/hanslub42/rlwrap)    
+  *  on Un*x-like systems, interactive use of SKINT with line editing requires external readline wrapper
+     such as [rlwrap](https://github.com/hanslub42/rlwrap) (unless compiled with the `OPT_ENHTTY` / `--use-enhanced-tty option`) 
   
 Please note that SKINT's interaction environment exposes bindings for all R7RS-small procedures 
 and syntax forms directly, so there is no need to use `import`. All R7RS-small libraries are built-in and
