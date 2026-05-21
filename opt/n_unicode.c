@@ -338,7 +338,7 @@ char *uungetch(int c, cbuf_t *pcb, char *next) {
 
 int ufputc(int c, FILE *fp) {
   assert(c >= 0);
-  if (!c) { /* use MURF-8 to encode NUL */
+  if (!c) { /* use MUTF-8 to encode NUL */
     fputc(0xC0, fp); fputc(0x80, fp);
   } else if (c < 0x80) {
     fputc(c, fp);
