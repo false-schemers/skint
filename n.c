@@ -1,4 +1,4 @@
-/* n.c -- generated via skint nsf2c.ssc n.sf */
+/* n.c -- native/platform interfaces */
 
 #include "s.h"
 #include "n.h"
@@ -38,6 +38,10 @@ int isnative(obj o, cxtype_t *tp) {
 void *getnative(obj o, cxtype_t *tp) {
   assert(isnative(o, tp));
   return (void*)(*objptr_from_obj(o));
+}
+void setnative(obj o, cxtype_t *tp, void *v) {
+  assert(isnative(o, tp));
+  *objptr_from_obj(o) = (obj)v;
 }
 #endif
 
@@ -250,9 +254,8 @@ double flround(double x) {
   else return (d < u) ? f : c;
 }
 
-int strtofxfl(char *s, int radix, long *pl, double *pd) {
-  extern int strcmp_ci(char *s1, char *s2); /* defined below */
-  char *e; int conv = 0, eno = errno; long l; double d;
+int strtofxfl(const char *s, int radix, long *pl, double *pd) {
+  const char *e; int conv = 0, eno = errno; long l; double d;
   for (; s[0] == '#'; s += 2) {
     switch (s[1]) {
       case 'b': case 'B': radix = 2; break;
@@ -267,17 +270,17 @@ int strtofxfl(char *s, int radix, long *pl, double *pd) {
   if (isspace(*s)) return 0;
   for (e = s; *e; ++e) { if (strchr(".eEiInN", *e)) break; }
   if (!*e || radix != 10) { /* s is not a syntax for an inexact number */
-    l = (errno = 0, strtol(s, &e, radix));
+    l = (errno = 0, strtol(s, (char**)&e, radix));
     if (errno || *e || e == s) { if (conv == 'i') goto fl; return (errno = eno, 0); }
     if (conv == 'i') return (errno = eno, *pd = (double)l, 'i');
     if (FIXNUM_MIN <= l && l <= FIXNUM_MAX) return (errno = eno, *pl = l, 'e');
     return (errno = eno, 0); /* can't represent as an exact */
   } 
   fl: if (radix != 10) return (errno = eno, 0); 
-  e = "", errno = 0; if (*s != '+' && *s != '-') d = strtod(s, &e);
+  e = "", errno = 0; if (*s != '+' && *s != '-') d = strtod(s, (char**)&e);
   else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
   else if (strcmp_ci(s+1, "nan.0") == 0) d = HUGE_VAL - HUGE_VAL;
-  else d = strtod(s, &e);
+  else d = strtod(s, (char**)&e);
   if (errno || *e || e == s) return (errno = eno, 0);
   if ((conv == 'e') && ((l=(long)d) < FIXNUM_MIN || l > FIXNUM_MAX || (double)l != d))
     return (errno = eno, 0); /* can't be converted to an exact number */
@@ -303,63 +306,160 @@ static cxtype_t cxt_string = { "string", free };
 
 cxtype_t *STRING_NTAG = &cxt_string;
 
+#ifdef OPT_UNICODE
+#include "opt/n_unicode.c"
+#else /* ascii representation block */
+
 #ifndef NDEBUG
 char* stringref(obj o, int i) {
-  int *d = stringdata(o); assert(i >= 0 && i < *d);  
+  const int *d = stringdata(o); assert(i >= 0 && i < d[0]);  
   return sdatachars(d)+i;
 }
 #endif
 
-int *newstring(char *s) {
+int *newsdata(const char *s) {
   int l, *d; assert(s); l = (int)strlen(s); 
   d = cxm_cknull(malloc(sizeof(int)+l+1), "malloc(string)");
-  *d = l; strcpy(sdatachars(d), s); return d;
+  d[0] = l; strcpy(sdatachars(d), s); return d;
 }
 
-int *newstringn(char *s, int n) {
+int *newsdatan(const char *s, int n) {
   int *d; char *ns; assert(s); assert(n >= 0);
   d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(stringn)");
-  *d = n; memcpy((ns = sdatachars(d)), s, n); ns[n] = 0; return d;
+  d[0] = n; memcpy((ns = sdatachars(d)), s, n); ns[n] = 0; return d;
 }
 
-int *allocstring(int n, int c) {
+int *makesdata(int n, int c) {
   int *d; char *s; assert(n+1 > 0); 
   d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
-  *d = n; s = sdatachars(d); memset(s, c, n); s[n] = 0;
+  d[0] = n; s = sdatachars(d); memset(s, c, n); s[n] = 0;
   return d;
 }
 
-int *substring(int *d0, int from, int to) {
+int *subsdata(const int *d0, int from, int to) {
   int n = to-from, *d1; char *s0, *s1; assert(d0);
-  assert(0 <= from && from <= to && to <= *d0); 
+  assert(0 <= from && from <= to && to <= sdatalen(d0)); 
   d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
-  *d1 = n; s0 = sdatachars(d0); s1 = sdatachars(d1); 
+  d1[0] = n; s0 = sdatachars(d0); s1 = sdatachars(d1); 
   memcpy(s1, s0+from, n); s1[n] = 0;
   return d1;
 }
 
-int *stringcat(int *d0, int *d1) {
-  int l0 = *d0, l1 = *d1, n = l0+l1; char *s0, *s1, *s;
+int *catsdata(const int *d0, const int *d1) {
+  int l0 = sdatalen(d0), l1 = sdatalen(d1), n = l0+l1; char *s0, *s1, *s;
   int *d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
-  *d = n; s = sdatachars(d); s0 = sdatachars(d0); s1 = sdatachars(d1);
+  d[0] = n; s = sdatachars(d); s0 = sdatachars(d0); s1 = sdatachars(d1);
   memcpy(s, s0, l0); memcpy(s+l0, s1, l1); s[n] = 0;
   return d;
 }
 
-int *dupstring(int *d0) {
-  int n = *d0, *d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
+int *dupsdata(const int *d0) {
+  int n = sdatalen(d0), *d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
   memcpy(d1, d0, sizeof(int)+n+1);
   return d1;
 }
 
-void stringfill(int *d, int c) {
-  int l = *d, i; char *s = sdatachars(d);
-  for (i = 0; i < l; ++i) s[i] = c;
+int *mapsdata(const int *d, int (*f)(int)) {
+  int i, n = sdatalen(d), *d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
+  const char *s = sdatachars(d); char *s1 = sdatachars(d1);
+  d1[0] = d[0]; for (i = 0; i < n; ++i) *s1++ = (*f)(*s++);   
+  return d1;
 }
 
-int strcmp_ci(char *s1, char *s2) {
+int sdatacmp(const int *d1, const int *d2) {
+  int len1 = sdatalen(d1), len2 = sdatalen(d2); 
+  char *s1 = sdatachars(d1), *s2 = sdatachars(d2);
+  int cmp = memcmp(s1, s2, len1 < len2 ? len1 : len2);
+  if (cmp != 0) return cmp;
+  if (len1 < len2) return -1;
+  if (len1 > len2) return 1;
+  return 0;
+}
+
+int *stringr(int sc, obj pso[]) {
+  int i, *d; unsigned char *s; assert(sc >= 0);
+  for (i = 0; i < sc; ++i) if (!ischar(pso[i])) return NULL; 
+  d = cxm_cknull(malloc(sizeof(int)+sc+1), "malloc(string)");
+  d[0] = sc; s = (unsigned char *)sdatachars(d);
+  for (i = sc-1; i >= 0; --i) *s++ = char_from_obj(pso[i]); 
+  *s = 0;
+  return d;
+}
+
+int *stringrcat(int sc, obj pso[]) {
+  int i, n = 0, *d; unsigned char *s;
+  assert(sc >= 0);
+  for (i = 0; i < sc; ++i) { 
+    const int *di; obj oi = pso[i]; 
+    if (!isstring(oi)) return NULL; 
+    di = stringdata(oi); n += sdatalen(di);
+  }
+  d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
+  d[0] = n; s = (unsigned char *)sdatachars(d);
+  for (i = sc-1; i >= 0; --i) {
+    obj oi = pso[i]; const int *di = stringdata(oi), ni = sdatalen(di);
+    memcpy(s, sdatachars(di), ni); s += ni;
+  }
+  *s = 0;
+  return d;
+}
+
+int sdatacmp_ci(const int *d1, const int *d2) {
+  int len1 = sdatalen(d1), len2 = sdatalen(d2); 
+  char *s1 = sdatachars(d1), *e1 = s1 + len1;
+  char *s2 = sdatachars(d2), *e2 = s2 + len2; 
+  while (s1 < e1 && s2 < e2) {
+    int c1 = tolower(*s1++), c2 = tolower(*s2++);
+    if (c1 < c2) return -1; if (c1 > c2) return 1;
+  }
+  if (len1 < len2) return -1;
+  if (len1 > len2) return 1;
+  return 0;
+}
+
+unsigned long sdatahash(const int *d) {
+  const char *s = sdatachars(d);
+  unsigned long i = 0, l = (unsigned long)sdatalen(d), h = l;
+  while (i < l) h = (h << 4) ^ (h >> 28) ^ s[i++];
+  return h ^ (h  >> 10) ^ (h >> 20);
+}
+
+static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+}; /* NB: 0 at num_map[255], so EOF maps to 0 */
+
+#define isnumsym(c) (inisub_map[(c) & 0xFF])
+
+/* check if s[0..blen-1] can be printed as a symbol without vertical bars
+ * s can have internal \0s, but it is 0-terminated (s[blen] == 0) */
+int cleansymname(const char *s, int blen) {
+  const char *p = s; int bl = blen; if (bl < 1) return 0; assert(s[bl] == 0);
+  while (bl-- > 0) if (inisub_map[*p++ & 0xFF] == 0) return 0;
+  if (inisub_map[s[0] & 0xFF] == 1) return 1;
+  if (s[0] == '+' || s[0] == '-') {
+    if (blen == 1) return 1;
+    if (blen == 2 && (s[1] == 'i' || s[1] == 'I')) return 0;
+    if (blen == 6 && (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0)) return 0;
+    if (blen >= 2 && s[1] == '.' && !isdigit(s[2])) return 1; 
+    if (s[1] != '.' && !isdigit(s[1])) return 1;
+    return 0;
+  }
+  return (blen >= 2 && s[0] == '.' && !isdigit(s[1])); 
+}
+
+#endif /* end of !OPT_UNICODE block */
+
+int strcmp_ci(const char *s1, const char *s2) { /* s1 or s2 should be ascii */
   int c1, c2, d;
-  do { c1 = *s1++; c2 = *s2++; d = (unsigned)tolower(c1) - (unsigned)tolower(c2); } while (!d && c1 && c2);
+  do { c1 = *s1++; c2 = *s2++; d = (unsigned)tolower(c1) - (unsigned)tolower(c2); } 
+  while (!d && c1 && c2);
   return d;
 }
 
@@ -422,48 +522,57 @@ int islist(obj l) {
   }
 }
 
-static struct { char **a; char ***v; size_t sz; size_t u; size_t maxu; } symt;
+/* symbol table */
+static struct { int **a; int ***v; size_t sz; size_t u; size_t maxu; } symt;
 
-static unsigned long hashs(char *s) {
-  unsigned long i = 0, l = (unsigned long)strlen(s), h = l;
-  while (i < l) h = (h << 4) ^ (h >> 28) ^ s[i++];
-  return h ^ (h  >> 10) ^ (h >> 20);
-}
-
-char *symbolname(int sym) {
-  assert(sym >= 0); assert(sym < (int)symt.u);
-  return symt.a[sym];
-}
-
-int internsym(char *name) {
+/* intern d into symt; d is owned by the caller if dup != 0, by symt otherwise */
+int internsdata(int *d, int dup) {
   size_t i, j; /* based on a code (C) 1998, 1999 by James Clark. */
   if (symt.sz == 0) { /* init */
     symt.a = cxm_cknull(calloc(64, sizeof(char*)), "symtab[0]");
     symt.v = cxm_cknull(calloc(64, sizeof(char**)), "symtab[1]");
     symt.sz = 64, symt.maxu = 64 / 2;
-    i = hashs(name) & (symt.sz-1);
+    i = sdatahash(d) & (symt.sz-1);
   } else {
-    unsigned long h = hashs(name);
+    unsigned long h = sdatahash(d);
     for (i = h & (symt.sz-1); symt.v[i]; i = (i-1) & (symt.sz-1))
-      if (strcmp(name, *symt.v[i]) == 0) return (int)(symt.v[i] - symt.a);
+      if (sdatacmp(d, *symt.v[i]) == 0) {
+        if (!dup) free(d); /* owned by symt */
+        return (int)(symt.v[i] - symt.a);
+      }
     if (symt.u == symt.maxu) { /* rehash */
       size_t nsz = symt.sz * 2;
-      char **na = cxm_cknull(calloc(nsz, sizeof(char*)), "symtab[2]");
-      char ***nv = cxm_cknull(calloc(nsz, sizeof(char**)), "symtab[3]");
+      int **na = cxm_cknull(calloc(nsz, sizeof(int*)), "symtab[2]");
+      int ***nv = cxm_cknull(calloc(nsz, sizeof(int**)), "symtab[3]");
       for (i = 0; i < symt.sz; i++)
         if (symt.v[i]) {
-          for (j = hashs(*symt.v[i]) & (nsz-1); nv[j]; j = (j-1) & (nsz-1)) ;
+          for (j = sdatahash(*symt.v[i]) & (nsz-1); nv[j]; j = (j-1) & (nsz-1)) ;
           nv[j] = symt.v[i] - symt.a + na;
         }
       free(symt.v); symt.v = nv; symt.sz = nsz; symt.maxu = nsz / 2;
-      memcpy(na, symt.a, symt.u * sizeof(char*)); free(symt.a); symt.a = na; 
+      memcpy(na, symt.a, symt.u * sizeof(int*)); free(symt.a); symt.a = na; 
       for (i = h & (symt.sz-1); symt.v[i]; i = (i-1) & (symt.sz-1)) ;
     }
   }
-  *(symt.v[i] = symt.a + symt.u) = 
-    strcpy(cxm_cknull(malloc(strlen(name)+1), "symtab[4]"), name);
+  *(symt.v[i] = symt.a + symt.u) = dup ? dupsdata(d) : d;
   return (int)((symt.u)++);
 }
+
+int internsym(const char *name) {
+  /* NB: in unicode mode, newsdata scans & validates */
+  return internsdata(newsdata(name), 0); 
+}
+
+const int *symsdata(int sym) {
+  assert(sym >= 0); assert(sym < (int)symt.u);
+  return symt.a[sym];
+} 
+
+const char *symbolname(int sym) {
+  assert(sym >= 0); assert(sym < (int)symt.u);
+  return sdatachars(symt.a[sym]);
+}
+
 
 int isprocedure(obj o) {
   if (!o) return 0;
@@ -488,6 +597,20 @@ obj* procedureref(obj o, int i) {
 
 /* common i/o utils */
 
+char *msearch(const char *h, int hlen, const char *n, int nlen)
+{
+  int c0; const char *l, *p;
+  if (nlen <= 0) return (char *)h;
+  if (nlen > hlen) return NULL;
+  c0 = *n; l = h + (hlen - nlen + 1);
+  for (p = h; p < l; ++p) {
+    p = memchr(p, c0, l-p);
+    if (!p) break;
+    if (memcmp(p, n, nlen) == 0) return (char *)p;
+  }
+  return NULL;
+}
+
 cbuf_t* cbinit(cbuf_t* pcb) {
   pcb->fill = pcb->buf = cxm_cknull(malloc(64), "malloc(cbdata)");
   pcb->end = pcb->buf + 64; return pcb;
@@ -500,7 +623,7 @@ cbuf_t* newcb(void) {
 
 void freecb(cbuf_t* pcb) { if (pcb) { free(pcb->buf); free(pcb); } }
 
-static void cbgrow(cbuf_t* pcb, size_t n) {
+void cbgrow(cbuf_t* pcb, size_t n) {
   size_t oldsz = pcb->end - pcb->buf, newsz = oldsz*2;
   size_t cnt = pcb->fill - pcb->buf;
   if (oldsz + n > newsz) newsz += n;
@@ -567,12 +690,12 @@ static void tifree(tifile_t *tp) {
 }
 
 static int tigetch(tifile_t *tp) {
-  int c; retry: c = *(unsigned char *)(tp->next); 
-  if (c != 0) { ++(tp->next); return c; } 
-  /* see if we need to return actual 0 or refill the line */
-  if (tp->next < tp->cb.fill)  { ++(tp->next); return c; }
-  else if (tp->flags & TIF_EOF || !tp->fp) return EOF;
-  else { /* refill with next line from fp */
+  int c; retry: c = unextc_check(tp->next); 
+  if (c != 0 || tp->next <= tp->cb.fill) return c; 
+  else if (tp->flags & TIF_EOF || !tp->fp) { /* done */
+    tp->next = cbdata(cbclear(&tp->cb));
+    return EOF; 
+  } else { /* refill with next line from fp */
     cbuf_t *pcb = cbclear(&tp->cb); FILE *fp = tp->fp; 
     char *line = fgets(cballoc(pcb, 256), 256, fp);
     if (!line) { cbclear(pcb); tp->flags |= TIF_EOF; }
@@ -590,7 +713,7 @@ static int tigetch(tifile_t *tp) {
 
 static int tiungetch(int c, tifile_t *tp) { 
   assert(tp->next > tp->cb.buf && tp->next <= tp->cb.fill);
-  tp->next -= 1; // todo: utf-8
+  tp->next = uungetch(c, &tp->cb, tp->next);
   return c;
 }
 
@@ -607,7 +730,7 @@ static int tictl(ctlop_t op, tifile_t *tp, ...) {
         char *s; tiungetch(c, tp);
         s = tp->next; n = (int)(tp->cb.fill - s);
         if (n > 0 && s[n-1] == '\n') --n;
-        *pd = newstringn(s, n);
+        *pd = newsdatan(s, n);
         tp->next = tp->cb.fill;
       }  
       va_end(args);
@@ -625,22 +748,23 @@ static int tictl(ctlop_t op, tifile_t *tp, ...) {
       if (d) tp->flags |= TIF_CI; else tp->flags &= ~TIF_CI;
       return d != 0;
     } break;
+    default: break;
   }
   return -1;
 }
 
 /* string input ports */
 
-sifile_t *sialloc(char *p, void *base) { 
+sifile_t *sialloc(const char *p, int span, void *base) { 
   sifile_t *fp = cxm_cknull(malloc(sizeof(sifile_t)), "malloc(sifile)");
-  fp->p = p; fp->base = base; fp->flags = SIF_NONE; return fp; }
+  fp->p = p; fp->e = p+span; fp->base = base; fp->flags = SIF_NONE; return fp; }
 
 static void sifree(sifile_t *fp) { 
   assert(fp); if (fp->base) free(fp->base); free(fp); }
 
 static int sigetch(sifile_t *fp) {
-  int c; assert(fp && fp->p); 
-  if (!(c = *(unsigned char *)(fp->p))) return EOF; ++(fp->p); return c; }
+  int c; assert(fp && fp->p);
+  if (fp->p >= fp->e) return EOF; c = unextc(fp->p); return c; }
 
 static int siungetch(int c, sifile_t *fp) {
   assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
@@ -653,8 +777,8 @@ static int sictl(ctlop_t op, sifile_t *sp, ...) {
       if (*(sp->p) == 0) *pd = NULL;
       else {
         char *s = strchr(sp->p, '\n');
-        if (s) { *pd = newstringn(sp->p, (int)(s-sp->p)); sp->p = s+1; }
-        else { *pd = newstring(sp->p); sp->p += strlen(sp->p); }
+        if (s) { *pd = newsdatan(sp->p, (int)(s-sp->p)); sp->p = s+1; }
+        else { *pd = newsdata(sp->p); sp->p += strlen(sp->p); }
       }  
       va_end(args);
       return 0;
@@ -671,6 +795,7 @@ static int sictl(ctlop_t op, sifile_t *sp, ...) {
       if (d) sp->flags |= SIF_CI; else sp->flags &= ~SIF_CI;
       return d != 0;
     } break;
+    default: break;
   }
   return -1;
 }
@@ -689,6 +814,11 @@ static int bvigetch(bvifile_t *fp) {
 
 static int bviungetch(int c, bvifile_t *fp) {
   assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }
+
+/* optional enhanced tty ports */
+#ifdef OPT_ENHTTY
+#include "opt/n_enhtty.h"
+#endif
 
 /* port type array */
 
@@ -726,7 +856,7 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define OPORT_FILE_PTINDEX       6
   { "file-output-port", ffree, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
+    (int (*)(int, void*))(ufputc), (int (*)(void*))fflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEFILE_PTINDEX   7
   { "binary-file-output-port", ffree, SPT_OUTPUT|SPT_BINARY,
@@ -736,34 +866,41 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define OPORT_STRING_PTINDEX     8
   { "string-output-port", (void (*)(void*))freecb, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
+    (int (*)(int, void*))ucbputc, (int (*)(void*))cbflush,
     (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEVECTOR_PTINDEX 9
   { "bytevector-output-port", (void (*)(void*))freecb, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
-    (int (*)(ctlop_t, void *, ...))noctl }    
+    (int (*)(ctlop_t, void *, ...))noctl },
+#ifdef OPT_ENHTTY /* + tty */
+#define IPORT_TTY_PTINDEX 10
+  { "tty-input-port", (void (*)(void*))ttfree, SPT_INPUT,
+    (int (*)(void*))ttgetch, (int (*)(int, void*))ttungetch,
+    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
+    (int (*)(ctlop_t, void *, ...))ttctl },
+#define OPORT_TTY_PTINDEX 11
+  { "tty-output-port", (void (*)(void*))ttfree, SPT_OUTPUT,
+    (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
+    (int (*)(int, void*))ttputch, (int (*)(void*))ttflush,
+    (int (*)(ctlop_t, void *, ...))noctl },
+#endif
 };
 
 cxtype_t *IPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[IPORT_CLOSED_PTINDEX];
-
 cxtype_t *IPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_FILE_PTINDEX];
-
 cxtype_t *IPORT_BYTEFILE_NTAG = (cxtype_t *)&cxt_port_types[IPORT_BYTEFILE_PTINDEX];
-
 cxtype_t *IPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[IPORT_STRING_PTINDEX];
-
 cxtype_t *IPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_port_types[IPORT_BYTEVECTOR_PTINDEX];
-
 cxtype_t *OPORT_CLOSED_NTAG = (cxtype_t *)&cxt_port_types[OPORT_CLOSED_PTINDEX];
-
 cxtype_t *OPORT_FILE_NTAG = (cxtype_t *)&cxt_port_types[OPORT_FILE_PTINDEX];
-
 cxtype_t *OPORT_BYTEFILE_NTAG = (cxtype_t *)&cxt_port_types[OPORT_BYTEFILE_PTINDEX];
-
 cxtype_t *OPORT_STRING_NTAG = (cxtype_t *)&cxt_port_types[OPORT_STRING_PTINDEX];
-
 cxtype_t *OPORT_BYTEVECTOR_NTAG = (cxtype_t *)&cxt_port_types[OPORT_BYTEVECTOR_PTINDEX];
+#ifdef OPT_ENHTTY /* + tty */
+cxtype_t *IPORT_TTY_NTAG = (cxtype_t *)&cxt_port_types[IPORT_TTY_PTINDEX];
+cxtype_t *OPORT_TTY_NTAG = (cxtype_t *)&cxt_port_types[OPORT_TTY_PTINDEX];
+#endif
 
 /* eq hash table for circular/sharing checks and safe equal? */
 typedef struct { obj *v; obj *r; size_t sz; size_t u, maxu, c; } stab_t;
@@ -880,7 +1017,7 @@ static int stabequal(obj x, obj y, stab_t *p) {
 #ifdef FLONUMS_BOXED
   if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y); 
 #endif
-  if (h == (obj)STRING_NTAG) return strcmp(stringchars(x), stringchars(y)) == 0;
+  if (h == (obj)STRING_NTAG) return sdatacmp(stringdata(x), stringdata(y)) == 0;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)); 
   if (isaptr(h) || !(n = size_from_obj(h)) || hblkref(x, 0) != hblkref(y, 0)) return 0;
   if (stabufind(x, y, p)) return 1; /* seen before and decided to be equal */
@@ -894,7 +1031,7 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
 #ifdef FLONUMS_BOXED
   if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y) ? fuel-1 : -1; 
 #endif
-  if (h == (obj)STRING_NTAG) return strcmp(stringchars(x), stringchars(y)) == 0 ? fuel-1 : -1;
+  if (h == (obj)STRING_NTAG) return sdatacmp(stringdata(x), stringdata(y)) == 0 ? fuel-1 : -1;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)) ? fuel-1 : -1;
   if (isaptr(h) || !(n = size_from_obj(h)) || hblkref(x, 0) != hblkref(y, 0)) return -1;
   if (--fuel == 0) return 0; /* we must spend fuel while comparing objects themselves */
@@ -963,9 +1100,9 @@ obj ismember(obj x, obj l) {
     for (; l != mknull(); l = cdr(l)) 
       { obj y = car(l); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return l; }
   } else if (isstring(x)) {
-    char *xs = stringchars(x);
+    const int *xd = stringdata(x);
     for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (isstring(y) && 0 == strcmp(xs, stringchars(y))) return l; }
+      { obj y = car(l); if (isstring(y) && 0 == sdatacmp(xd, stringdata(y))) return l; }
   } else {
     for (; l != mknull(); l = cdr(l)) 
       { if (isequal(car(l), x)) return l; }
@@ -981,9 +1118,9 @@ obj isassoc(obj x, obj l) {
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return p; }
   } else if (isstring(x)) {
-    char *xs = stringchars(x);
+    const int *xd = stringdata(x);
     for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (isstring(y) && 0 == strcmp(xs, stringchars(y))) return p; }
+      { obj p = car(l), y = car(p); if (isstring(y) && 0 == sdatacmp(xd, stringdata(y))) return p; }
   } else {
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l); if (isequal(car(p), x)) return p; }
@@ -992,30 +1129,6 @@ obj isassoc(obj x, obj l) {
 
 /* common syntax data */
 
-static char inisub_map[256] = { /* ini: [a-zA-Z!$%&*:/<=>?@^_~] sub: ini + [0123456789.@+-] */
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 2, 0, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 1, 1, 1, 1,
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
-  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-}; /* NB: 0 at num_map[255], so EOF maps to 0 */
-
-#define is_numsym(c) (inisub_map[(c) & 0xFF])
-
-static int cleansymname(char *s) {
-  char *p = s; while (*p) if (inisub_map[*p++ & 0xFF] == 0) return 0; if (!s[0]) return 0;
-  if (inisub_map[s[0] & 0xFF] == 1) return 1;
-  if (s[0] == '+' || s[0] == '-') {
-    if (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0) return 0;
-    if ((s[1] == 'i' || s[1] == 'I') && s[2] == 0) return 0;
-    return s[1] == 0 || (s[1] == '.' && s[2] && !isdigit(s[2])) || (s[1] != '.' && !isdigit(s[1]));
-  }
-  else return s[0] == '.' && s[1] && !isdigit(s[1]); 
-}
-
 static int is_delimiter(int c) {
   switch (c) {
     case '\t': case '\r': case '\n': case ' ':
@@ -1023,7 +1136,11 @@ static int is_delimiter(int c) {
     case '|':  case '\"': case ';':  case EOF:
       return 1;
   }
+#ifdef OPT_UNICODE
+  return (!uisspace(c));
+#else
   return 0;
+#endif
 }
 
 /* internal read-ahead procedure; returns 'o', 'i', 'e', 0, 1, 2 */
@@ -1041,7 +1158,7 @@ next:
     case '#':  goto in_hash;
     default:   
     if ((c >= '\t' && c <= '\n') || (c >= '\f' && c <= '\r') || c == ' ') goto in_whitespace;
-    if (is_numsym(c)) goto in_numsym;
+    if (isnumsym(c)) goto in_numsym;
     in_ungetc(c, in); goto err;
   }
 in_whitespace: 
@@ -1061,11 +1178,12 @@ in_hash:
   c = '#'; /* fall through */
 in_numsym:
   pcb = newcb();
-  while (is_numsym(c) || c == '#') { cbputc(c, pcb); c = in_getc(in); }
+  while (isnumsym(c) || c == '#') { ucbputc(c, pcb); c = in_getc(in); }
   if (c != EOF) in_ungetc(c, in); if (!is_delimiter(c)) return freecb(pcb), 1; 
-  if (cleansymname((s = cbdata(pcb)))) {
-    if (fold) { int i, n = (int)cblen(pcb); for (i = 0; i < n; ++i) s[i] = tolower(s[i]); }
-    *po = mksymbol(internsym(s)); xc = 'o';
+  if (cleansymname((s = cbdata(pcb)), (int)cblen(pcb))) {
+    int *d = newsdatan(s, (int)cblen(pcb));
+    if (fold) { int *d1 = mapsdata(d, utofold); free(d); d = d1; }
+    *po = mksymbol(internsdata(d, 0)); xc = 'o';
   } else if (s[0] == '.' && s[1] == 0) {
     *po = obj_from_char('.'); xc = 'o';
   } else xc = strtofxfl(cbdata(pcb), 10, pl, pd);
@@ -1087,9 +1205,14 @@ err:
 /* internal recursive write procedure */
 typedef struct { stab_t *pst; int disp; cxtype_oport_t *vt; void *pp; } wenv_t;
 static void wrc(int c, wenv_t *e) { e->vt->putch(c, e->pp); }
-static void wrs(char *s, wenv_t *e) {
+static void wrs(const char *s, wenv_t *e) {
   cxtype_oport_t *vt = e->vt; void *pp = e->pp;
-  assert(vt); while (*s) vt->putch(*s++, pp);
+  assert(vt); while (*s) vt->putch(unextc(s), pp);
+}
+static void wrsn(const char *s, int spn, wenv_t *e) {
+  cxtype_oport_t *vt = e->vt; void *pp = e->pp; const char *es = s + spn;
+  /* todo: would be *much* faster if we had vt->putn (aka write) */
+  assert(vt); while (s < es) vt->putch(unextc(s), pp);
 }
 static void wrd(double d, int prc, wenv_t *e) {
   char buf[50], *s;
@@ -1125,7 +1248,7 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (isvoid(o)) {
     wrs("#<void>", e);
   } else if (isshebang(o)) {
-    char *s = symbolname(getshebang(o));
+    const char *s = symbolname(getshebang(o));
     wrs("#<!", e); wrs(s, e); wrc('>', e);
   } else if (o == obj_from_unit()) {
     wrs("#<values>", e);
@@ -1134,21 +1257,26 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (isoport(o)) {
     char buf[60]; sprintf(buf, "#<%s>", ckoportvt(o)->tname); wrs(buf, e);
   } else if (issymbol(o)) {
-    char *s = symbolname(getsymbol(o));
-    if (e->disp || cleansymname(s)) wrs(s, e);
-    else {
+    const int *d = symsdata(getsymbol(o)); int n = sdatacspan(d);
+    const char *s = sdatachars(d);
+    if (e->disp || cleansymname(s, n)) wrsn(s, n, e);
+    else { 
+      n = sdatalen(d);
       wrc('|', e);
-      while (*s) {
-        int c = *s++;
+      while (n-- > 0) {
+        int c = unextc(s);
         switch(c) {
-          case '|': wrs("\\|", e); break;
+          case 0x00: wrs("\\x0;", e); break;
+          case '\t': wrs("\\t", e); break;
+          case '\n': wrs("\\n", e); break;
+          case '\r': wrs("\\r", e); break;
+          case '|' : wrs("\\|", e); break;
           case '\\': wrs("\\\\", e); break;
           default: wrc(c, e); break;
         }
       }
       wrc('|', e);
     }
-
   } else if (isnull(o)) {
     wrs("()", e);
   } else if (ispair(o)) {
@@ -1172,13 +1300,18 @@ static void wrdatum(obj o, wenv_t *e) {
       default: wrs("#\\", e); wrc(c, e); break;
     }
   } else if (isstring(o)) {
-    char *s = stringchars(o);
-    if (e->disp) wrs(s, e);
+    const int *d = stringdata(o), n = sdatacspan(d);
+    const char *s = sdatachars(d), *es = s + n;
+    if (e->disp) wrsn(s, n, e);
     else {
       wrc('\"', e);
-      while (*s) {
-        int c = *s++;
-        switch(c) {
+      while (s < es) {
+        int c = unextc(s);
+        switch (c) {
+          case 0x00: wrs("\\x0;", e); break;
+          case '\t': wrs("\\t", e); break;
+          case '\n': wrs("\\n", e); break;
+          case '\r': wrs("\\r", e); break;
           case '\"': wrs("\\\"", e); break;
           case '\\': wrs("\\\\", e); break;
           default: wrc(c, e); break;
@@ -1274,14 +1407,23 @@ void oportputshared(obj x, obj p, int disp) {
 
 /* system-dependent extensions */
 
+extern int is_tty(FILE *fp)
+{
+  return fp && isatty(fileno(fp));
+}
 
 extern int is_tty_port(obj o)
 {
-  FILE *fp = NULL;
-  if ((cxtype_t*)iportvt(o) == IPORT_FILE_NTAG) fp = ((tifile_t*)iportdata(o))->fp;
-  else if ((cxtype_t*)iportvt(o) == IPORT_BYTEFILE_NTAG) fp = (FILE*)iportdata(o);
-  else if ((cxtype_t*)oportvt(o) == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
-  else if ((cxtype_t*)oportvt(o) == OPORT_BYTEFILE_NTAG) fp = (FILE*)oportdata(o); 
+  FILE *fp = NULL; cxtype_t *vt = (cxtype_t*)portvt(o);
+#ifdef OPT_ENHTTY /* + tty */
+  extern int ttyisansi(void);
+  if (vt == IPORT_TTY_NTAG) return 1;
+  if (vt == OPORT_TTY_NTAG) return ttyisansi() ? 'a' : 1;
+#endif  
+  if (vt == IPORT_FILE_NTAG) fp = ((tifile_t*)iportdata(o))->fp;
+  else if (vt == IPORT_BYTEFILE_NTAG) fp = (FILE*)iportdata(o);
+  else if (vt == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
+  else if (vt == OPORT_BYTEFILE_NTAG) fp = (FILE*)oportdata(o); 
   if (!fp) return 0;
   return isatty(fileno(fp));
 }
@@ -1328,8 +1470,9 @@ char *lib_dir = STR(LIBDIR);
 #else
 char *lib_dir = "";
 #endif
- 
-extern char *get_cwd(void)
+
+#ifndef OPT_UNICODE /* ascii versions */
+const char *ugetcwd(void)
 {
   static char buf[FILENAME_MAX]; size_t len;
   if (getcwd(buf, FILENAME_MAX) == NULL) return NULL;
@@ -1341,10 +1484,11 @@ extern char *get_cwd(void)
   return buf;
 }
 
-extern int set_cwd(char *cwd)
+int uchdir(const char *cwd)
 {
   return chdir(cwd);
 }
+#endif
 
 static char sig[33] = "????????????????????????????????";
 extern char* host_sig(void)
@@ -1357,6 +1501,8 @@ extern char* host_sig(void)
   sig[0] = 'w'; sig[7] = ';';
 #elif defined(__APPLE__)
   sig[0] = 'm'; sig[7] = ':';
+#elif defined(__linux__)
+  sig[0] = 'l'; sig[7] = ':';
 #else /* assume Linux/Unix */
   sig[0] = 'u'; sig[7] = ':';
 #endif
@@ -1376,7 +1522,17 @@ extern char* host_sig(void)
 #else
   sig[10] = 'i';
 #endif
-  /* 11..15 are reserved */
+#ifdef OPT_UNICODE
+  sig[11] = 'u';
+#else
+  sig[11] = '0';
+#endif
+#ifdef OPT_ENHTTY
+  sig[12] = 'e';
+#else
+  sig[12] = '0';
+#endif
+  /* 13..15 are reserved */
   loc = setlocale(LC_ALL, NULL); if (!loc) loc = "en_US";
   sig[16] = loc[0] ? loc[0] : '?';
   sig[17] = (loc[0] && loc[1]) ? loc[1] : '?';
@@ -1392,15 +1548,28 @@ extern const char* host_facet(int fno)
   switch (fno) {
     case 0: { /* full locale */
       return setlocale(LC_ALL, NULL);
-    }
+    } break;
     case 1: { /* encoding */
       const char *p = setlocale(LC_ALL, NULL);
       if (!p) break; p = strchr(p, '.');
       if (!p) break; return p+1;
-    }
+    } break;
+    case 2: { /* reserved */
+    } break;
+    case 3: { /* enhanced terminal host/library */
+#ifdef OPT_ENHTTY
+      extern const char* enhterm_lib;
+      return enhterm_lib;
+#else
+      return NULL;
+#endif
+    } break;
   }
   return NULL;
 }
 
+#ifdef OPT_ENHTTY
+#include "opt/n_enhtty.c"
+#endif
 
 

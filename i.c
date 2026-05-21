@@ -263,8 +263,8 @@ static void _sck(obj *s) {
 #define string_obj(s) hp_pushptr((s), STRING_NTAG)
 #define is_string(o) isstring(o)
 #define string_len(o) stringlen(o) 
-#define string_get(o, i) ((int)(unsigned char)*stringref(o, i))
-#define string_ref(o, i) (*stringref(o, i))
+#define string_get(o, i) (stringget(o, i))
+#define string_put(o, i, v) (stringput(o, i, v))
 #define bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
 #define is_bytevector(o) isbytevector(o)
 #define bytevector_len(o) bytevectorlen(o)
@@ -278,6 +278,10 @@ static void _sck(obj *s) {
 #define oport_string_obj(fp) hp_pushptr((fp), OPORT_STRING_NTAG)
 #define iport_bytevector_obj(fp) hp_pushptr((fp), IPORT_BYTEVECTOR_NTAG)
 #define oport_bytevector_obj(fp) hp_pushptr((fp), OPORT_BYTEVECTOR_NTAG)
+#ifdef OPT_ENHTTY
+#define iport_tty_obj() hp_pushptr(ttalloc(1), IPORT_TTY_NTAG)
+#define oport_tty_obj() hp_pushptr(ttalloc(0), OPORT_TTY_NTAG)
+#endif
 #define is_iport(o) isiport(o)
 #define is_oport(o) isoport(o)
 #define is_box(o) isbox(o)
@@ -506,7 +510,7 @@ jump:
     { assert(rc == 4);
     if (isintegrable(r[2]) && is_fixnum(r[3])) {
       const char *cs = integrable_code(integrabledata(r[2]), get_fixnum(r[3]));
-      r[2] = cs ? hpushstr(3, newstring((char*)cs)) : obj_from_bool(0);
+      r[2] = cs ? hpushstr(3, newsdata((char*)cs)) : obj_from_bool(0);
     } else r[2] = obj_from_bool(0);
     r[0] = r[1]; r[1] = obj_from_ktrap();
     pc = objptr_from_obj(r[0])[0];
@@ -1297,15 +1301,12 @@ define_instruction(strp) {
 }
 
 define_instruction(str) {
-  int i, n; obj o = *ip++; unsigned char *s;
+  int i, n, *d; obj o = *ip++;
   /* special arrangement for handcoded proc */
   if (!o) o = ac; n = get_fixnum(o);
-  o = string_obj(allocstring(n, ' '));
-  s = (unsigned char *)stringchars(o);
-  for (i = 0; i < n; ++i) {
-    obj x = sref(i); ckc(x); s[i] = get_char(x);
-  }
-  sdrop(n); ac = o;
+  d = stringr(n, sp-n);
+  if (!d) { for (i = 0; i < n; ++i) ckc(sref(i)); fail("non-char argument"); }
+  sdrop(n); ac = string_obj(d);
   gonexti();
 }
 
@@ -1313,7 +1314,7 @@ define_instruction(smk) {
   int n, c; obj x = spop(); 
   ckk(ac); ckc(x);
   n = get_fixnum(ac), c = get_char(x);
-  ac = string_obj(allocstring(n, c)); 
+  ac = string_obj(makesdata(n, c)); 
   gonexti();
 }
 
@@ -1337,7 +1338,7 @@ define_instruction(sput) {
   cks(ac); ckk(x); ckc(y); 
   i = get_fixnum(x); 
   if (i >= string_len(ac)) failtype(x, "valid string index");
-  string_ref(ac, i) = get_char(y);
+  string_put(ac, i, get_char(y));
   gonexti();
 }
 
@@ -1347,63 +1348,68 @@ define_instruction(ssub) {
   is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start string index");
   if (ie > string_len(ac)) failtype(y, "valid end string index");
-  d = substring(stringdata(ac), is, ie);
+  d = subsdata(stringdata(ac), is, ie);
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(spos) {
-  obj x = ac, y = spop(); char *s, *p;
-  cks(y); s = stringchars(y);
+  const int *d; const char *s, *p; int spn;
+  obj x = ac, y = spop(); cks(y); 
+  d = stringdata(y); s = sdatachars(d); spn = sdatacspan(d); 
   if (is_string(x)) {
-    p = strstr(s, stringchars(x));
+    const int *xd = stringdata(x);
+    p = msearch(s, spn, sdatachars(xd), sdatacspan(xd));
   } else {
-    ckc(x); 
-    p = strchr(s, get_char(x));
+    int c; ckc(x); c = get_char(x);
+    p = umemchr(s, c, spn);
   }
-  ac = p ? fixnum_obj(p-s) : bool_obj(0);
+  ac = p ? fixnum_obj(udistance(s, p)) : bool_obj(0);
   gonexti();
 }
 
+define_instruction(ssto8) {
+  obj x = spop(), y = spop(); int is, ie, *d, *d1;
+  const char *ss, *se; 
+  cks(ac); ckk(x); ckk(y); 
+  is = get_fixnum(x), ie = get_fixnum(y);
+  if (is > ie) failtype(x, "valid start string index");
+  if (ie > string_len(ac)) failtype(y, "valid end string index");
+  d = (int *)stringdata(ac); ss = uadvance(sdatachars(d), is), se = uadvance(ss, ie-is);
+  d1 = newbytevector((unsigned char *)ss, (int)(se-ss)); /* no validation needed */
+  ac = bytevector_obj(d1);
+  gonexti();
+}
+
+
 define_instruction(supc) {
-  int *d; char *s; cks(ac);
-  d = dupstring(stringdata(ac)); 
-  for (s = sdatachars(d); *s; ++s) *s = toupper(*s);
+  int *d; cks(ac);
+  d = mapsdata(stringdata(ac), utoupper);
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(sdnc) {
-  int *d; char *s; cks(ac);
-  d = dupstring(stringdata(ac)); 
-  for (s = sdatachars(d); *s; ++s) *s = tolower(*s);
+  int *d; cks(ac);
+  d = mapsdata(stringdata(ac), utolower);  
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(sflc) {
-  int *d; char *s; cks(ac);
-  d = dupstring(stringdata(ac)); 
-  for (s = sdatachars(d); *s; ++s) *s = tolower(*s); /* stub */
+  int *d; cks(ac);
+  d = mapsdata(stringdata(ac), utofold);  
   ac = string_obj(d);
   gonexti();
 }
 
 define_instruction(sapp) {
-  int a, c, i, n, *d; obj o = *ip++;
+  int n, i, *d; obj o = *ip++;
   /* special arrangement for handcoded proc */
-  if (!o) o = ac; c = get_fixnum(o);
-  for (n = 0, a = 0; a < c; ++a) {
-    obj s = sref(a); cks(s);
-    n += string_len(s);
-  }
-  d = allocstring(n, ' ');
-  for (i = 0, a = 0; a < c; ++a) {
-    obj s = sref(a); n = string_len(s);
-    memcpy(sdatachars(d)+i, stringchars(s), n);
-    i += n;
-  }
-  sdrop(c); ac = string_obj(d);
+  if (!o) o = ac; n = get_fixnum(o);
+  d = stringrcat(n, sp-n);
+  if (!d) { for (i = 0; i < n; ++i) cks(sref(i)); fail("non-string argument"); }
+  sdrop(n); ac = string_obj(d);
   gonexti();
 }
 
@@ -1411,7 +1417,7 @@ define_instruction(sapp2) {
   /* specialized version of sapp; both args on stack */
   obj x = spop(), y = spop(); int *d; 
   cks(x); cks(y);
-  d = stringcat(stringdata(x), stringdata(y));
+  d = catsdata(stringdata(x), stringdata(y));
   ac = string_obj(d);
   gonexti();
 }
@@ -1474,6 +1480,19 @@ define_instruction(bsub) {
   if (ie > bytevector_len(ac)) failtype(y, "valid end bytevector index");
   d = subbytevector(bytevectordata(ac), is, ie);
   ac = bytevector_obj(d);
+  gonexti();
+}
+
+define_instruction(s8tos) {
+  obj x = spop(), y = spop(); int is, ie, *d, *d1;
+  const unsigned char *ss, *se; 
+  ckb(ac); ckk(x); ckk(y); 
+  is = get_fixnum(x), ie = get_fixnum(y);
+  if (is > ie) failtype(x, "valid start bytevector index");
+  if (ie > bytevector_len(ac)) failtype(y, "valid end bytevector index");
+  d = bytevectordata(ac); ss = bvdatabytes(d) + is, se = ss + (ie-is);
+  d1 = newsdatan((char *)ss, (int)(se-ss)); /* internal validation */
+  ac = string_obj(d1);
   gonexti();
 }
 
@@ -1882,10 +1901,10 @@ define_instruction(ltos) {
     obj x = pair_car(ac); ckc(x);
     ++n; 
   }
-  d = allocstring(n, ' ');
+  d = makesdata(n, ' ');
   for (i = 0; i < n; ac = pair_cdr(ac), ++i) {
     obj x = pair_car(ac);
-    sdatachars(d)[i] = get_char(x);
+    d = sdataput(d, i, get_char(x));
   }
   ac = string_obj(d);
   gonexti();
@@ -1894,13 +1913,13 @@ define_instruction(ltos) {
 
 define_instruction(ytos) {
   cky(ac);
-  ac = string_obj(newstring(symbolname(get_symbol(ac))));
+  ac = string_obj(dupsdata(symsdata(get_symbol(ac))));
   gonexti();
 }
 
 define_instruction(stoy) {
   cks(ac);
-  ac = mksymbol(internsym(stringchars(ac)));
+  ac = mksymbol(internsdata((int *)stringdata(ac), 1/*dup*/));
   gonexti();
 }
 
@@ -1915,12 +1934,12 @@ define_instruction(itos) {
   do { int d = num % radix; *--s = d < 10 ? d + '0' : d - 10 + 'a'; }
   while (num /= radix);
   if (neg) *--s = '-';
-  ac = string_obj(newstring(s));  
+  ac = string_obj(newsdata(s));  
   gonexti();
 }
 
 define_instruction(stoi) {
-  char *e, *s; long l, radix;
+  char *e; const char *s; long l, radix;
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
@@ -1949,9 +1968,9 @@ define_instruction(itoc) {
 define_instruction(jtos) {
   char buf[50], *s; double d; long pr = -1; 
   obj arg = spop(); ckj(ac); d = get_flonum(ac);
-  if (d != d) { ac = string_obj(newstring("+nan.0")); gonexti(); }
-  if (d <= -HUGE_VAL) { ac = string_obj(newstring("-inf.0")); gonexti(); }
-  if (d >= HUGE_VAL) { ac = string_obj(newstring("+inf.0")); gonexti(); }
+  if (d != d) { ac = string_obj(newsdata("+nan.0")); gonexti(); }
+  if (d <= -HUGE_VAL) { ac = string_obj(newsdata("-inf.0")); gonexti(); }
+  if (d >= HUGE_VAL) { ac = string_obj(newsdata("+inf.0")); gonexti(); }
   /* since double can't hold more than 17 decimal digits, limit fixed representation length */
   if (is_fixnum(arg) && fabs(d) <= 9007199254740992.0 && (pr = get_fixnum(arg)) >= 0 && pr < 18) 
     sprintf(buf, "%.*f", (int)pr, d); 
@@ -1968,12 +1987,12 @@ define_instruction(jtos) {
   } else if (*s == 0 && pr <= 0) { 
     *s++ = '.'; if (pr < 0) *s++ = '0'; *s = 0; 
   }
-  ac = string_obj(newstring(buf));
+  ac = string_obj(newsdata(buf));
   gonexti();
 }
 
 define_instruction(stoj) {
-  char *e = "", *s; double d; cks(ac);
+  char *e = ""; const char *s; double d; cks(ac);
   s = stringchars(ac); errno = 0;
   if (*s != '+' && *s != '-') d = strtod(s, &e);
   else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
@@ -1992,7 +2011,7 @@ define_instruction(ntos) {
 }
 
 define_instruction(ston) {
-  char *s; int radix; long l; double d;
+  const char *s; int radix; long l; double d;
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
@@ -3247,96 +3266,93 @@ define_instruction(cge) {
 
 define_instruction(cicmp) {
   obj x = ac, y = spop(); int cmp; ckc(x); ckc(y);
-  cmp = tolower(get_char(x)) - tolower(get_char(y));
+  cmp = utofold(get_char(x)) - utofold(get_char(y));
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(cieq) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) == tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) == utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cilt) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) < tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) < utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cigt) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) > tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) > utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cile) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) <= tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) <= utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cige) {
   obj x = ac, y = spop(); ckc(x); ckc(y);
-  ac = bool_obj(tolower(get_char(x)) >= tolower(get_char(y)));
+  ac = bool_obj(utofold(get_char(x)) >= utofold(get_char(y)));
   gonexti(); 
 }
 
 define_instruction(cwsp) {
   ckc(ac);
-  ac = bool_obj(isspace(get_char(ac)));
+  ac = bool_obj(uisspace(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(clcp) {
   ckc(ac);
-  ac = bool_obj(islower(get_char(ac)));
+  ac = bool_obj(uislower(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cucp) {
   ckc(ac);
-  ac = bool_obj(isupper(get_char(ac)));
+  ac = bool_obj(uisupper(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(calp) {
   ckc(ac);
-  ac = bool_obj(isalpha(get_char(ac)));
+  ac = bool_obj(uisalpha(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cnup) {
   ckc(ac);
-  ac = bool_obj(isdigit(get_char(ac)));
+  ac = bool_obj(uisdigit(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cupc) {
   ckc(ac);
-  ac = char_obj(toupper(get_char(ac)));
+  ac = char_obj(utoupper(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cdnc) {
   ckc(ac);
-  ac = char_obj(tolower(get_char(ac)));
+  ac = char_obj(utolower(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cflc) {
   ckc(ac);
-  ac = char_obj(tolower(get_char(ac))); /* stub */
+  ac = char_obj(utofold(get_char(ac)));
   gonexti(); 
 }
 
 define_instruction(cdgv) {
   int ch; ckc(ac);
   ch = get_char(ac);
-  if (likely('0' <= ch && ch <= '9')) ac = fixnum_obj(ch - '0');  
-  /* R7RS won't allow hex and any larger radix digits
-  else if (likely('a' <= ch && ch <= 'z')) ac = fixnum_obj(10 + ch - 'a');  
-  else if (likely('A' <= ch && ch <= 'Z')) ac = fixnum_obj(10 + ch - 'A'); */
+  if (likely(uisdigit(ch))) ac = fixnum_obj(udigitval(ch));  
   else ac = bool_obj(0);
   gonexti(); 
 }
@@ -3344,75 +3360,75 @@ define_instruction(cdgv) {
 
 define_instruction(scmp) {
   obj x = ac, y = spop(); int cmp; cks(x); cks(y);
-  cmp = strcmp(stringchars(x), stringchars(y));
+  cmp = sdatacmp(stringdata(x), stringdata(y));
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(seq) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) == 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) == 0);
   gonexti(); 
 }
 
 define_instruction(slt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) < 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) < 0);
   gonexti(); 
 }
 
 define_instruction(sgt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) > 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) > 0);
   gonexti(); 
 }
 
 define_instruction(sle) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) <= 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) <= 0);
   gonexti(); 
 }
 
 define_instruction(sge) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp(stringchars(x), stringchars(y)) >= 0);
+  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) >= 0);
   gonexti(); 
 }
 
 define_instruction(sicmp) {
   obj x = ac, y = spop(); int cmp; cks(x); cks(y);
-  cmp = strcmp_ci(stringchars(x), stringchars(y));
+  cmp = sdatacmp_ci(stringdata(x), stringdata(y));
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(sieq) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) == 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) == 0);
   gonexti(); 
 }
 
 define_instruction(silt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) < 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) < 0);
   gonexti(); 
 }
 
 define_instruction(sigt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) > 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) > 0);
   gonexti(); 
 }
 
 define_instruction(sile) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) <= 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) <= 0);
   gonexti(); 
 }
 
 define_instruction(sige) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(strcmp_ci(stringchars(x), stringchars(y)) >= 0);
+  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) >= 0);
   gonexti(); 
 }
 
@@ -3465,6 +3481,14 @@ define_instruction(void) {
   gonexti();
 }
 
+define_instruction(pp) {
+  int mask; cxtype_port_t *vt; obj m = spop(); 
+  ckk(m); mask = get_fixnum(m); vt = portvt(ac);
+  if (!vt) ac = bool_obj(0);
+  else ac = fixnum_obj((int)vt->spt & mask);
+  gonexti();
+}
+
 define_instruction(ipp) {
   ac = bool_obj(is_iport(ac));
   gonexti();
@@ -3476,8 +3500,14 @@ define_instruction(opp) {
 }
 
 define_instruction(ttyp) {
-  extern int is_tty_port(obj o); /* s.c */
+  extern int is_tty_port(obj o); /* n.c */
+#ifdef OPT_ENHTTY /* + tty */
+  int res = is_tty_port(ac);
+  if (res == 'a') ac = mksymbol(internsym("ansi"));
+  else ac = bool_obj(!!res);
+#else
   ac = bool_obj(is_tty_port(ac));
+#endif
   gonexti();
 }
 
@@ -3519,16 +3549,28 @@ define_instruction(setcerr) {
 }
 
 define_instruction(sip) {
+#ifdef OPT_ENHTTY /* + tty */
+  extern int is_tty(FILE *fp); /* n.c */
+  if (is_tty(stdin) && is_tty(stdout)) ac = iport_tty_obj(); else
+#endif
   ac = iport_file_obj(stdin, internsym("-"));
   gonexti();
 }
 
 define_instruction(sop) {
+#ifdef OPT_ENHTTY /* + tty */
+  extern int is_tty(FILE *fp); /* n.c */
+  if (is_tty(stdout)) ac = oport_tty_obj(); else
+#endif
   ac = oport_file_obj(stdout);
   gonexti();
 }
 
 define_instruction(sep) {
+#ifdef OPT_ENHTTY /* + tty */
+  extern int is_tty(FILE *fp); /* n.c */
+  if (is_tty(stderr)) ac = oport_tty_obj(); else
+#endif
   ac = oport_file_obj(stderr);
   gonexti();
 }
@@ -3548,37 +3590,37 @@ define_instruction(opop) {
 }
 
 define_instruction(oif) {
-  FILE *fp; char *fn; cks(ac);
-  fn = stringchars(ac); fp = fopen(fn, "r");
+  FILE *fp; const char *fn; cks(ac);
+  fn = stringchars(ac); fp = ufopen(fn, "r");
   ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp, internsym(fn));
   gonexti();
 }
 
 define_instruction(oof) {
   FILE *fp; cks(ac);
-  fp = fopen(stringchars(ac), "w");
+  fp = ufopen(stringchars(ac), "w");
   ac = (fp == NULL) ? bool_obj(0) : oport_file_obj(fp);
   gonexti();
 }
 
 define_instruction(obif) {
   FILE *fp; cks(ac);
-  fp = fopen(stringchars(ac), "rb");
+  fp = ufopen(stringchars(ac), "rb");
   ac = (fp == NULL) ? bool_obj(0) : iport_bytefile_obj(fp);
   gonexti();
 }
 
 define_instruction(obof) {
   FILE *fp; cks(ac);
-  fp = fopen(stringchars(ac), "wb");
+  fp = ufopen(stringchars(ac), "wb");
   ac = (fp == NULL) ? bool_obj(0) : oport_bytefile_obj(fp);
   gonexti();
 }
 
 define_instruction(ois) {
   int *d; cks(ac);
-  d = dupstring(stringdata(ac));
-  ac = iport_string_obj(sialloc(sdatachars(d), d));
+  d = dupsdata(stringdata(ac));
+  ac = iport_string_obj(sialloc(sdatachars(d), sdatacspan(d), d));
   gonexti();
 }
 
@@ -3653,14 +3695,14 @@ define_instruction(ploc) {
     if (lb) { 
       int *d, n = (int)(pf->cb.fill - pf->cb.buf); ckz(lb);
       if (n > 0 && pf->cb.buf[n-1] == '\n') --n;
-      d = newstringn(pf->cb.buf, n);
+      d = newsdatan(pf->cb.buf, n);
       tmp = string_obj(d); /* possible gc */
       pf = iportdata(ac); lb = sref(2); pb = sref(3); /* reload after possible gc */
       box_ref(lb) = tmp;
     } 
     if (pb) { 
       char *s; int *d, n = (int)(pf->next - pf->cb.buf); ckz(pb);
-      d = newstringn(pf->cb.buf, n);
+      d = newsdatan(pf->cb.buf, n);
       for (s = sdatachars(d); n > 0; --n, ++s) if (!isspace(*s)) *s = ' ';
       tmp = string_obj(d); /* possible gc */
       pb = sref(3); /* reload after possible gc */
@@ -3674,6 +3716,20 @@ define_instruction(ploc) {
   gonexti();
 }
 
+define_instruction(sppr) {
+#ifdef OPT_ENHTTY /* + tty */
+  cxtype_iport_t *vt; obj p = spop(); const int *d; int res; const char *s;
+  ckr(ac); cks(p); vt = iportvt(ac); assert(vt);
+  d = stringdata(p); s = sdatacspan(d) ? sdatachars(d) : NULL;
+  res = vt->ctl(CTLOP_SETPROMPT, iportdata(ac), s);
+  ac = bool_obj(res == 0);
+#else /* no prompt ports */
+  obj p = spop();
+  ac = bool_obj(0);
+#endif
+  gonexti();
+}
+
 define_instruction(gos) {
   cxtype_oport_t *vt; ckw(ac);
   vt = ckoportvt(ac);
@@ -3682,7 +3738,7 @@ define_instruction(gos) {
     ac = eof_obj();
   } else {
     cbuf_t *pcb = oportdata(ac);
-    ac = string_obj(newstring(cbdata(pcb)));
+    ac = string_obj(newsdatan(cbdata(pcb), (int)cblen(pcb)));
   }
   gonexti();
 }
@@ -3893,7 +3949,7 @@ define_instruction(igco) {
   int n; const char *cs; ckg(ac); ckk(sref(0));
   n = get_fixnum(spop());
   cs = integrable_code(integrabledata(ac), n);
-  ac = cs ? string_obj(newstring((char*)cs)) : bool_obj(0);
+  ac = cs ? string_obj(newsdata((char*)cs)) : bool_obj(0);
   gonexti(); 
 }
 
@@ -3937,7 +3993,7 @@ define_instruction(rdsx) {
 }
 
 define_instruction(rdsc) {
-  cks(ac); unload_ac(); /* ac->ra (string) */
+  cks(ac);
   unload_ac(); /* ac->ra (string) */
   unload_ip(); /* ip->rx */
   hp = rds_stoc(r, sp, hp);
@@ -4268,7 +4324,7 @@ define_instruction(pushsub) {
 
 define_instruction(fexis) {
   FILE *f; cks(ac);
-  f = fopen(stringchars(ac), "r"); /* todo: pile #ifdefs here */
+  f = ufopen(stringchars(ac), "r");
   if (f != NULL) fclose(f);
   ac = bool_obj(f != NULL);
   gonexti(); 
@@ -4276,31 +4332,31 @@ define_instruction(fexis) {
 
 define_instruction(frem) {
   int res; cks(ac);
-  res = remove(stringchars(ac));
+  res = uremove(stringchars(ac));
   ac = bool_obj(res == 0);
   gonexti(); 
 }
 
 define_instruction(fren) {
   int res; cks(ac); cks(sref(0));
-  res = rename(stringchars(ac), stringchars(sref(0)));
+  res = urename(stringchars(ac), stringchars(sref(0)));
   spop();
   ac = bool_obj(res == 0);
   gonexti(); 
 }
 
 define_instruction(getcwd) {
-  extern char *get_cwd(void);
-  char *s = get_cwd();
-  if (s) ac = string_obj(newstring(s));
+  extern const char *ugetcwd(void);
+  const char *s = ugetcwd();
+  if (s) ac = string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
 
 define_instruction(setcwd) {
-  extern int set_cwd(char *cwd);
+  extern int uchdir(const char *cwd);
   int res; cks(ac);
-  res = set_cwd(stringchars(ac));
+  res = uchdir(stringchars(ac));
   ac = bool_obj(res == 0);
   gonexti(); 
 }
@@ -4310,7 +4366,7 @@ define_instruction(argvref) {
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); /* todo: range-check */
   s = argv_ref(i);
-  if (s) ac = string_obj(newstring(s));
+  if (s) ac = string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
@@ -4318,7 +4374,7 @@ define_instruction(argvref) {
 define_instruction(getenv) {
   char *v; cks(ac);
   v = getenv(stringchars(ac));
-  if (v) ac = string_obj(newstring(v));
+  if (v) ac = string_obj(newsdata(v));
   else ac = bool_obj(0);
   gonexti(); 
 }
@@ -4328,7 +4384,7 @@ define_instruction(envvref) {
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); /* todo: range-check */
   s = envv_ref(i);
-  if (s) ac = string_obj(newstring(s));
+  if (s) ac = string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
@@ -4353,7 +4409,7 @@ define_instruction(cursec) {
 
 define_instruction(system) {
   int res; cks(ac);
-  res = system(stringchars(ac));
+  res = usystem(stringchars(ac));
   ac = fixnum_obj(res);
   gonexti(); 
 }
@@ -4385,7 +4441,7 @@ define_instruction(heapsz) {
 
 define_instruction(hostsig) {
   extern char* host_sig(void);
-  ac = string_obj(newstring(host_sig())); 
+  ac = string_obj(newsdata(host_sig())); 
   gonexti();
 }
 
@@ -4393,14 +4449,14 @@ define_instruction(hostfct) {
   extern char* host_facet(int fno);
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); s = (char *)host_facet(i);
-  if (s) ac = string_obj(newstring(s));
+  if (s) ac = string_obj(newsdata(s));
   else ac = bool_obj(0);
   gonexti();
 }
 
 define_instruction(libdir) {
   extern char *lib_dir;
-  ac = string_obj(newstring(lib_dir));
+  ac = string_obj(newsdata(lib_dir));
   gonexti();
 }
 
@@ -4522,8 +4578,18 @@ static int rds_char(obj port)
 {
   int c = iportgetc(port);
   if (c == '%') {
-    char buf[3];
+    char buf[10];
     buf[0] = iportgetc(port); buf[1] = iportgetc(port); buf[2] = 0;
+    if (buf[0] == 'u') {
+      buf[0] = buf[1]; buf[1] = iportgetc(port);
+      buf[2] = iportgetc(port); buf[3] = iportgetc(port); buf[4] = 0;
+    } else if (buf[0] == 'U') {
+      buf[0] = buf[1]; buf[1] = iportgetc(port);
+      buf[2] = iportgetc(port); buf[3] = iportgetc(port); 
+      buf[4] = iportgetc(port); buf[5] = iportgetc(port); 
+      buf[6] = iportgetc(port); buf[7] = iportgetc(port); 
+      buf[8] = 0;
+    }
     c = (int)strtol(buf, NULL, 16);
   }
   return c;
@@ -4604,7 +4670,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
     case 'n': ra = mknull(); break;
     case 'c': ra = obj_from_char(rds_char(port)); break;
     case 'i': ra = obj_from_fixnum(rds_int(port)); break; 
-    case 'j': ra = obj_from_flonum(sp-r, rds_real(port)); break;
+    case 'j': { double d = rds_real(port); ra = obj_from_flonum((int)(sp-r), d); break; }
     case 'p': {
       spush(port);
       ra = sref(0); hp = rds_elt(r, sp, hp); 
@@ -4650,10 +4716,10 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
       size_t n = rds_size(port), i;
       for (i = 0; i < n; ++i) {
         int x = rds_char(port);
-        cbputc(x, pcb);
+        ucbputc(x, pcb);
       }
-      if (c == 's') ra = hpushstr(sp-r, newstring(cbdata(pcb)));
-      else ra = mksymbol(internsym(cbdata(pcb)));
+      if (c == 's') ra = hpushstr(sp-r, newsdatan(cbdata(pcb), (int)cblen(pcb)));
+      else ra = mksymbol(internsdata(newsdatan(cbdata(pcb), (int)cblen(pcb)), 0));
       freecb(pcb);
     } break;
     case 'b': {
@@ -4710,8 +4776,8 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
 /* protects registers from r to sp, in: ra=str, out: ra=sexp/eof */
 static obj *rds_stox(obj *r, obj *sp, obj *hp)
 {
-  int *d = dupstring(stringdata(ra));
-  ra = mkiport_string(sp-r, sialloc(sdatachars(d), d));
+  int *d = dupsdata(stringdata(ra));
+  ra = mkiport_string(sp-r, sialloc(sdatachars(d), sdatacspan(d), d));
   hp = rds_sexp(r, sp, hp);  /* ra=port => ra=sexp/eof */
   return hp;
 }
@@ -5057,9 +5123,9 @@ out:
 /* protects registers from r to sp, in: ra=str, out: ra=codevec/eof */
 static obj *rds_stoc(obj *r, obj *sp, obj *hp)
 {
-  int *d = dupstring(stringdata(ra));
+  int *d = dupsdata(stringdata(ra));
   /* fprintf(stderr, "** rds_stoc(%s)\n", sdatachars(d)); */
-  ra = mkiport_string(sp-r, sialloc(sdatachars(d), d));
+  ra = mkiport_string(sp-r, sialloc(sdatachars(d), sdatacspan(d), d));
   hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
   if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
   return hp;
@@ -5145,7 +5211,7 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
     ra = mksymbol(internsym(pe->igname));
     hp = rds_global_loc(r, sp, hp); /* ra->ra */
     spush(ra); assert(isbox(ra));
-    ra = mkiport_string(sp-r, sialloc(lcode, NULL));
+    ra = mkiport_string(sp-r, sialloc(lcode, (int)strlen(lcode), NULL));
     hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
     if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
     if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
@@ -5180,7 +5246,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       ra = mksymbol(internsym((char*)name));
       hp = rds_global_loc(r, sp, hp); /* ra->ra */
       spush(ra); assert(isbox(ra));
-      ra = mkiport_string(sp-r, sialloc((char*)data, NULL));
+      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
@@ -5251,7 +5317,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       /* special entry for cx_continuation_2Dadapter_2Dcode */
       ent += 1; name = ent[0], data = ent[1];
       assert(name == 0); assert(data != 0);
-      ra = mkiport_string(sp-r, sialloc((char*)data, NULL));
+      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       assert(!iseof(ra));
@@ -5280,7 +5346,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       }
       /* sexp-decode data into the cdr of the binding */
       spush(bnd); /* protect from gc */
-      ra = mkiport_string(sp-r, sialloc((char*)data, NULL));
+      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_sexp(r, sp, hp);  /* ra=port => ra=sexp/eof */      
       bnd = spop();
       assert(ispair(bnd) && (ispair(ra) || issymbol(ra)));
@@ -5291,7 +5357,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
 #ifdef VM_AC_IN_REG
       obj ac;
 #endif      
-      ra = mkiport_string(sp-r, sialloc((char*)data, NULL));
+      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */

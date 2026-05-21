@@ -170,19 +170,31 @@
            (let () command ... 
              (loop (%do-step var step ...) ...))))]))
 
-
 (define-syntax quasiquote
-  (syntax-rules (unquote unquote-splicing quasiquote)
-    [(_ ,x) x]
-    [(_ (,@x)) x] ; popular extension/optimization
-    [(_ (,@x . y)) (append x `y)]
-    [(_ `x . d) (cons 'quasiquote (quasiquote (x) d))]
-    [(_ ,x   d) (cons 'unquote (quasiquote (x) . d))]
-    [(_ ,@x  d) (cons 'unquote-splicing (quasiquote (x) . d))]
-    [(_ (x . y) . d) (cons (quasiquote x . d) (quasiquote y . d))]
-    [(_ #(x ...) . d) (list->vector (quasiquote (x ...) . d))]
-    [(_ #&x . d) (box (quasiquote x . d))]
-    [(_ x . d) 'x]))
+  (syntax-rules (unquote unquote-splicing quasiquote quote)
+    [(_ x) (quasiquote 0 () x 7)]
+    [(_ 0 () ,x s . a*) (quasiquote s x . a*)]
+    [(_ 0 () (,@x) s . a*) (quasiquote s x . a*)] ; popular extension
+    [(_ 0 () (,@x . y) s . a*) (quasiquote 0 () y 1 x s . a*)]
+    [(_ 0 d `x s . a*) (quasiquote 0 (d) (x) 2 quasiquote s . a*)]
+    [(_ 0 (d) ,x s . a*) (quasiquote 0 d (x) 2 unquote s . a*)]
+    [(_ 0 (d) ,@x s . a*) (quasiquote 0 d (x) 2 unquote-splicing s . a*)]
+    [(_ 0 d (x . y) s . a*) (quasiquote 0 d x 3 d y s . a*)]
+    [(_ 0 d #(x ...) s . a*) (quasiquote 0 d (x ...) 5 s . a*)]
+    [(_ 0 d #&x s . a*) (quasiquote 0 d x 6 s . a*)]
+    [(_ 0 d x s . a*) (quasiquote s 'x . a*)]
+    [(_ 1 'y '(x ...) s . a*) (quasiquote s '(x ... . y) . a*)]
+    [(_ 1 y x s . a*) (quasiquote s (append x y) . a*)]
+    [(_ 2 'y c s . a*) (quasiquote s '(c . y) . a*)]
+    [(_ 2 y c s . a*) (quasiquote s (cons 'c y) . a*)]
+    [(_ 3 x d y s . a*) (quasiquote 0 d y 4 x s . a*)]
+    [(_ 4 'y 'x s . a*) (quasiquote s '(x . y) . a*)]
+    [(_ 4 y x s . a*) (quasiquote s (cons x y) . a*)]
+    [(_ 5 '(x ...) s . a*) (quasiquote s '#(x ...) . a*)]
+    [(_ 5 x s . a*) (quasiquote s (list->vector x) . a*)]
+    [(_ 6 'x s . a*) (quasiquote s '#&x . a*)]
+    [(_ 6 x s . a*) (quasiquote s (box x) . a*)]
+    [(_ 7 x) x]))
 
 (define-syntax when ; + body support
   (syntax-rules ()
@@ -271,14 +283,15 @@
 ; (record-ref r i)
 ; (record-set! r i v)
 
+(define *rtd-count* 0) 
 (define (new-record-type name fields)
   ; should be something like (cons name fields), but that would complicate procedure? 
   ; check that now relies on block tag being a non-immediate object, so we'll better put 
   ; some pseudo-unique immediate object here -- and we don't have to be fast doing that
-  (let loop ([fl (cons name fields)] [sl '("rtd://")]) 
-     (cond [(null? fl) (string->symbol (apply-to-list string-append (reverse sl)))]
-           [(null? (cdr fl)) (loop (cdr fl) (cons (symbol->string (car fl)) sl))]
-           [else (loop (cdr fl) (cons ":" (cons (symbol->string (car fl)) sl)))]))) 
+  ; NOTE: R7RS requires d-r-t records to be generative, so we have to "gensym" rtds
+  (set! *rtd-count* (+ *rtd-count* 1))
+  (string->symbol (string-append "rtd://" (symbol->string name) 
+                                 ":" (number->string *rtd-count*))))
   
 ; see http://okmij.org/ftp/Scheme/macro-symbol-p.txt
 (define-syntax %id-eq?? 
@@ -989,6 +1002,8 @@
 ; (list->bytevector l) +
 ; (subbytevector b from to) +
 ; (bytevector=? b1 b2 b ...)
+; (subutf8->string b from to) +
+; (substring->utf8 s from to) +
 
 (define (subbytevector->list bvec start end)
   (let loop ([i (fx- end 1)] [l '()])
@@ -1031,23 +1046,11 @@
      [(bvec b start) (subbytevector-fill! bvec b start (bytevector-length bvec))]
      [(bvec b start end) (subbytevector-fill! bvec b start end)]))
 
-(define (subutf8->string vec start end)
-  (let ([p (open-output-string)])
-    (write-subbytevector vec start end p)
-    ; todo: make a single operation: get-final-output-string (can reuse cbuf?)
-    (let ([s (get-output-string p)]) (close-output-port p) s)))
-
 (define utf8->string
   (case-lambda
     [(bvec) (subutf8->string bvec 0 (bytevector-length bvec))]
     [(bvec start) (subutf8->string bvec start (bytevector-length bvec))]
     [(bvec start end) (subutf8->string bvec start end)]))
-
-(define (substring->utf8 str start end)
-  (let ([p (open-output-bytevector)])
-    (write-substring str start end p)
-    ; todo: make a single operation: get-final-output-bytevector (can reuse cbuf?)
-    (let ([v (get-output-bytevector p)]) (close-output-port p) v)))
 
 (define string->utf8
   (case-lambda
@@ -1349,7 +1352,7 @@
 
 ; integrables:
 ;
-; (input-port? x)
+; (%port? x (andmask 7)) +
 ; (output-port? x)
 ; (input-port-open? p)
 ; (output-port-open? p)
@@ -1367,6 +1370,7 @@
 ; (%open-binary-input-file s) +
 ; (%open-output-file x) +
 ; (%open-binary-output-file x) +
+; (set-port-prompt! p str) +
 ; (close-input-port p)
 ; (close-output-port p)
 ; (open-input-string s)
@@ -1376,9 +1380,9 @@
 ; (open-output-bytevector)
 ; (get-output-bytevector p)
 
-(define (port? x) (or (input-port? x) (output-port? x)))
-(define textual-port? port?) ; all ports are bimodal
-(define binary-port? port?)  ; all ports are bimodal
+(define (port? x) (fixnum? (%port? x)))
+(define (textual-port? x) (eqv? (%port? x 4) 0))
+(define (binary-port? x) (eqv? (%port? x 4) 4))
 
 (define %current-input-port-parameter
   (case-lambda 
@@ -1556,10 +1560,12 @@
                (loop (fx+ i 1))))]
           [(box? form)
            (if (procedure? (unbox form))
-               (set-box! form (patch-shared! (unbox form)))
+               (set-box! form (patch-ref! (unbox form)))
                (patch-shared! (unbox form)))]))
-  (define (patch-shared form) (patch-shared! form) form)           
+  (define (patch-shared form) (patch-shared! form) form)
 
+  (define max-char-code (if opt-unicode #x10FFFF #xFF))
+  (define max-char-hex-digits (if opt-unicode 6 2))
   (define reader-token-marker #f)
   (define close-paren #f)
   (define close-bracket #f)
@@ -1584,7 +1590,8 @@
     (or (char-whitespace? c)
         (char=? c #\)) (char=? c #\()
         (char=? c #\]) (char=? c #\[)
-        (char=? c #\") (char=? c #\;)))
+        (char=? c #\") (char=? c #\|)
+        (char=? c #\;)))
 
   (define (sub-read-carefully p)
     (let ([form (sub-read p)])
@@ -1816,9 +1823,10 @@
 
   (define (sub-read-x-char-escape p in-string?)
     (define (rev-digits->char l)
-      (if (null? l)
-          (r-error p "\\x escape sequence is too short")
-          (integer->char (string->fixnum (list->string (reverse! l)) 16))))
+      (if (null? l) (r-error p "\\x escape sequence is too short")
+          (let ([n (string->fixnum (list->string (reverse! l)) 16)])
+            (if (> n max-char-code) (r-error p "\\x escape sequence overflow")
+                (integer->char n)))))
     (let loop ([c (peek-char p)] [l '()] [cc 0])
       (cond [(eof-object? c)
              (if in-string?
@@ -1831,11 +1839,9 @@
              (rev-digits->char l)]
             [(not (char-hex-digit? c))
              (r-error p "unexpected char in \\x escape sequence" c)]
-            [(> cc 2)
+            [(> cc max-char-hex-digits)
              (r-error p "\\x escape sequence is too long")]
-            [else
-             (read-char p)
-             (loop (peek-char p) (cons c l) (+ cc 1))])))
+            [else (read-char p) (loop (peek-char p) (cons c l) (+ cc 1))])))
             
   ; body of %read
   (let ([form (sub-read port)])
@@ -1925,11 +1931,14 @@
 (define (path-separator) (string-ref *host-sig* 7))
 (define c99-math-available (case (string-ref *host-sig* 8) [(#\9) 'c99-math] [else #f]))
 (define xsi-math-available (case (string-ref *host-sig* 9) [(#\x) 'xsi-math] [else #f]))
-(define skint-host-os (case (string-ref *host-sig* 0) [(#\w) 'windows] [(#\m) 'macosx] [(#\u) 'unix] [else #f]))
+(define skint-host-os (case (string-ref *host-sig* 0) [(#\w) 'windows] [(#\m) 'macosx] [(#\l) 'linux] [(#\u) 'unix] [else #f]))
 (define skint-host-endianness (case (string-ref *host-sig* 4) [(#\l) 'little-endian] [(#\b) 'big-endian] [else #f]))
+(define opt-unicode (case (string-ref *host-sig* 11) [(#\u) 'full-unicode] [else #f]))
+(define opt-enhtty (case (string-ref *host-sig* 12) [(#\e) 'enhanced-tty] [else #f]))
 (define current-language (make-parameter (string->symbol (substring *host-sig* 16 18))))
 (define current-country (make-parameter (string->symbol (substring *host-sig* 18 20))))
 (define current-locale-details (make-parameter (cond [(%host-facet 1) => (lambda (s) (list (string->symbol s)))] [else '()])))
+(define enhanced-tty-library (%host-facet 3))
 
 (define current-directory
   (case-lambda 
@@ -1951,6 +1960,8 @@
 (if skint-host-endianness (set! *features* (cons skint-host-endianness *features*)))
 (if c99-math-available (set! *features* (cons c99-math-available *features*)))
 (if xsi-math-available (set! *features* (cons xsi-math-available *features*)))
+(if opt-unicode (set! *features* (cons opt-unicode *features*)))
+(if opt-enhtty (set! *features* (cons opt-enhtty *features*)))
 (set! *features* (reverse *features*))
 
 (define features

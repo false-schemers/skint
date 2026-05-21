@@ -1318,8 +1318,13 @@
   (cond [(or (char=? x #\%) (char=? x #\") (char=? x #\\) (char<? x #\space) (char>? x #\~))
          (write-char #\% port)
          (let ([s (fixnum->string (char->integer x) 16)])
-           (if (fx=? (string-length s) 1) (write-char #\0 port))
-           (write-string s port))]
+           (case (string-length s)
+             [(1) (write-char #\0 port) (write-string s port)]
+             [(2) (write-string s port)]
+             [(3) (write-char #\u port) (write-char #\0 port) (write-string s port)]
+             [(4) (write-char #\u port) (write-string s port)]
+             [else (write-char #\U port) (write-string (make-string (- 8 (string-length s)) #\0) port) 
+                   (write-string s port)]))]
         [else (write-char x port)]))
 
 (define (write-serialized-byte x port)
@@ -1398,8 +1403,8 @@
   (if (and (number? arg) (exact? arg) (fx<=? 0 arg) (fx<=? arg 9))
       (write-char (string-ref "0123456789" arg) port)
       (begin (write-char #\( port)
-            (write-serialized-sexp arg port)
-            (write-char #\) port))))
+             (write-serialized-sexp arg port)
+             (write-char #\) port))))
 
 
 ;--------------------------------------------------------------------------------------------------
@@ -2086,6 +2091,10 @@
           (when (symbol? name) (name-lookup *root-name-registry* name (lambda (name) i)))))
       (loop (+ i 1))))) 
 
+; aux syntax keywords used by syntax-rules extension
+(name-lookup *root-name-registry* 'string->id  (lambda (n) (lambda (sexp env) (x-error "invalid syntax" sexp))))
+(name-lookup *root-name-registry* 'id->string  (lambda (n) (lambda (sexp env) (x-error "invalid syntax" sexp))))
+
 ; register initial define-syntax transformers coming from s.scm and this file
 (let loop ([l (initial-transformers)])
   (unless (null? l)
@@ -2103,7 +2112,7 @@
                (name-lookup *root-name-registry* k (lambda (name) sr-v))
                (loop l))]))))
 
-; register handcoded transformers
+; register handcoded transformers and auxiliary keywords
 (name-lookup *root-name-registry* 'include     (lambda (n) (make-include-transformer #f)))
 (name-lookup *root-name-registry* 'include-ci  (lambda (n) (make-include-transformer #t)))
 (name-lookup *root-name-registry* 'cond-expand (lambda (n) (make-cond-expand-transformer)))
@@ -2203,8 +2212,8 @@
     (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format) (fprintf) 
     (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
     ; skint extras go into repl and (skint) library; the rest goes to (skint hidden)
-    (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length)
-    (record?) (make-record) (record-length) (record-ref) (record-set!) (expand)
+    (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length) (expand)
+    (record?) (make-record) (record-length) (record-ref) (record-set!) (record-type-descriptor) 
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg) (fxabs) 
     (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
@@ -2223,7 +2232,7 @@
     (list->numvector) (standard-input-port) (standard-output-port) (standard-error-port) (tty-port?)
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
     (path-separator) (void) (void?) (implementation-name) (implementation-version) (version-alist)
-    (current-language) (current-country) (current-locale-details)
+    (current-language) (current-country) (current-locale-details) (id?) (string->id) (id->string)
     ; (skint c99-math) library is defined if host provides the corresponding functions
     (flcopysign . c99-math) (flsign-bit . c99-math) (fladjacent . c99-math) (flnormalized? . c99-math) 
     (fldenormalized? . c99-math) (flexponent . c99-math) (flilogb . c99-math) (fl+* . c99-math) 
@@ -2648,7 +2657,7 @@
     (for-each print vals)))
 
 (define (repl-read ip prompt op)
-  (when prompt  (format op "~%~a ~!" prompt))
+  (when prompt (newline op) (or (set-port-prompt! ip prompt) (format op "~a~!" prompt)))
   (read-code-sexp ip))
 
 (define (repl-exec-command cmd argstr op)
@@ -2688,6 +2697,7 @@
       [(cd <string>) (current-directory (car args))]
       [(sh <string>) (%system (car args))]
       [(si) (print-version!)
+       (when enhanced-tty-library (format #t "enhanced-tty library: ~a~%" enhanced-tty-library))
        (format #t "~d collections, ~d reallocs, heap size ~d words~%" 
          (%gc-count) (%bump-count) (%heap-size))]
       [(gc) (%gc) (retry '(si))]
@@ -2761,7 +2771,7 @@
 (define (repl)
   (define ip (current-input-port))
   (define op (current-output-port))
-  (define prompt (and (tty-port? ip) "skint]")) 
+  (define prompt (and (tty-port? ip) "skint] ")) 
   (set-current-file-stack! '())
   (when *repl-first-time*
     (set! *repl-first-time* #f)
@@ -2791,7 +2801,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.6.7")
+(define *skint-version* "0.7.0")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
@@ -2848,5 +2858,5 @@
   (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
     ; quick check for non-interactive use failed, greet
     (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
-    (format #t "Copyright (c) 2024-2025 False Schemers~%"))
+    (format #t "Copyright (c) 2024-2026 False Schemers~%"))
   #t) ; exited normally

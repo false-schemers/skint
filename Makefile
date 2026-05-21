@@ -1,8 +1,11 @@
--include  prefix.mk
-PREFIX    ?= /usr/local
+-include    config.mk
+PREFIX      ?= /usr/local
+USE_UNICODE ?= 0
+USE_ENHTTY  ?= 0
 LIBROOT   = $(PREFIX)/share/skint
 CFLAGS    = -O3 -DNDEBUG
-LDFLAGS   = 
+LDFLAGS   =
+LDLIBS    = -lm
 MKPATH    = install -d
 INSTALL   = install -m 755 -s
 INSTALLD  = install -D -m 644
@@ -18,9 +21,22 @@ DISTDIR   = dist/$(DISTNAME)
 
 $(info version is $(VERSION))
 $(info prefix is set to $(PREFIX))
+$(info use-unicode is set to $(USE_UNICODE))
+$(info use-enhanced-tty is set to $(USE_ENHTTY))
 
 ifneq ($(wildcard lib/.),)
   CFLAGS += -DLIBDIR=$(LIBROOT)/lib
+endif
+
+ifeq ($(USE_UNICODE),1)
+  CFLAGS += -DOPT_UNICODE
+endif
+
+ifeq ($(USE_ENHTTY),1)
+  CFLAGS += -DOPT_ENHTTY
+ifeq ($(shell uname -s),Linux)
+  LDLIBS += -ldl
+endif
 endif
 
 ifneq ($(shell which clang),)
@@ -121,7 +137,7 @@ clean:
 
 realclean:
 	$(RM) $(objects) $(exe) $(man)
-	$(RM) tmp1 prefix.mk
+	$(RM) tmp1 config.mk
 	$(RMR) dist
 
 distclean: realclean
@@ -146,7 +162,7 @@ libuninstall:
 	$(RMR) $(LIBROOT)
 
 $(exe): $(objects)
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objects) -lm
+	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objects) $(LDLIBS)
 
 $(objects): %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<

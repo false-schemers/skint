@@ -61,3 +61,5 @@ tmp2
 tmp3
 skint
 /skint-vs2022
+*.mk
+*.1

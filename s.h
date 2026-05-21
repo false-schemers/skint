@@ -27,7 +27,6 @@
 #include <locale.h>
 #include <stdarg.h>
 
-
 #if defined(_MSC_VER)
 #ifdef _POSIX_
 #undef _POSIX_
@@ -44,6 +43,7 @@
 #include <process.h> /* for getpid */
 #include <locale.h> /* for setlocale */
 #include <sys/stat.h> /* for _S_IREAD|_S_IWRITE */
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #if _MSC_VER >= 1600
 #include <crtversion.h>
@@ -76,7 +76,10 @@ typedef struct _stat stat_t;
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
+#include <termios.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -86,7 +89,10 @@ typedef struct stat stat_t;
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
+#include <termios.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #define setbmode(fp) /* nothing */
@@ -100,7 +106,10 @@ typedef struct stat stat_t;
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
+#include <termios.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fcntl.h>
 #define setbmode(fp) /* nothing */
@@ -118,6 +127,8 @@ typedef struct stat stat_t;
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
+#include <termios.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <fcntl.h>

@@ -18,3 +18,15 @@ nmake /f misc\nmakefile install
 The executable will be installed into the `skint\bin` subdirectory of your Home directory.
 If this is not what you want, just copy it manually wherever you wish.
 
+If you'd like to build a version of the Skint executable with additional options,
+you may replace the `nmake /f misc\nmakefile` with any of the following:
+
+```
+nmake /f nmakefile OPT_UNICODE=1
+nmake /f nmakefile OPT_UNICODE=1 OPT_ENHTTY=1
+```
+
+The first one adds Unicode support, the second one also adds support for Unicode
+input/output when using the console/terminal in REPL mode.
+
+

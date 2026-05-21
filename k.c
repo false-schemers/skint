@@ -69,9 +69,9 @@ jump:
   switch (case_from_obj(pc)) {
 
 case 0: /* load module */
-    cx__2312 = (hpushstr(0, newstring("K5")));
+    cx__2312 = (hpushstr(0, newsdata("K5")));
     { static char s[] = { 36, 123, 64, 40, 121, 52, 58, 114, 101, 112, 108, 41, 91, 48, 48, 125, 0 };
-    cx__2316 = (hpushstr(0, newstring(s))); }
+    cx__2316 = (hpushstr(0, newsdata(s))); }
     { /* make-vector */
     obj o; int i = 0, c = (+991);
     hreserve(hbsz(c+1), 0); /* 0 live regs */

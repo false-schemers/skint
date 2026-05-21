@@ -6,8 +6,6 @@ Generation is performed with the help of Skint scripts located here (they have t
 the skint directory tree, the following commands will do the trick:
 
 ```
-$ ./skint skint/pre/nsf2h.ssc skint/pre/n.sf skint/n.h
-$ ./skint skint/pre/nsf2c.ssc skint/pre/n.sf skint/n.c
 $ ./skint skint/pre/scm2c.ssc skint/pre/s.scm skint/s.c
 $ ./skint skint/pre/scm2c.ssc skint/pre/t.scm skint/t.c
 $ ./skint skint/pre/ksf2c.ssc ./sfc skint/pre/k.sf skint/k.c
