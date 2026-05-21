@@ -15,7 +15,7 @@ via index runs in O(1) constant time. However, for strings containing multibyte 
 resulting in O(N) asymptotic performance where N is the target character index. Modifying such a string may trigger reallocation
 of the associated storage unless UTF-8 lengths of the new and the old character match. 
 
-When compiled with the OPT_ENHTTY option, SKINT provides enhanced console interaction and line-editing capabilities 
+When compiled with the `OPT_ENHTTY` option, SKINT provides enhanced console interaction and line-editing capabilities 
 for the REPL across different operating systems. On Windows, the interpreter queries the original console code pages and 
 configures the input and output streams to UTF-8 (CP_UTF8) for proper rendering. Text input and output are translated to and 
 from wide characters via native console APIs (`ReadConsoleW` and `WriteConsoleW`), allowing standard console input operations. 
