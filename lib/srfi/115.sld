@@ -38,7 +38,7 @@
    ((library (srfi 151)) (import (srfi 151)))
    ((library (srfi 33)) (import (srfi 33)))
    (else (import (srfi 60))))
-  ;(import (srfi 115 boundary))
+  ;;[esl-] (import (srfi 115 boundary)) -- see below
   ;; Use string-cursors where available.
   (cond-expand
    (chibi
@@ -81,18 +81,179 @@
         (string-concatenate (reverse ls))))))
 
 (begin
-;;[esl] simplified/stub boundaries for Schemes with no Unicode support
-(define char-set:control 
-  (char-set-union 
-    (ucs-range->char-set 0 10) (ucs-range->char-set 11 13) (ucs-range->char-set 14 32) 
-    (ucs-range->char-set 127 160)))
-(define char-set:extend-or-spacing-mark (char-set-union))
-(define char-set:regional-indicator (char-set-union))
-(define char-set:hangul-l (char-set-union))
-(define char-set:hangul-v (char-set-union))
-(define char-set:hangul-t (char-set-union))
-(define char-set:hangul-lv (char-set-union))
-(define char-set:hangul-lvt (char-set-union))
+;;[esl**] boundaries depend on Unicode support
+(cond-expand 
+  [(and skint full-unicode) 
+   ; full Unicode support, uses Skint's extended ->char-set
+   (begin ; charsets generated via Chibi-derived pre/boundary.scm
+    (define char-set:control 
+      (->char-set
+       #(#x0 #x9 #xb #xc #xe #x1f #x7f #x9f #x600 #x604 #x200e #x200f
+         #x202a #x202e #x2060 #x2064 #x2066 #x206f #xfff0 #xfffb
+         #x1d173 #x1d17a #xe0002 #xe00ff #xe01f0 #xe0fff)))
+    (define char-set:extend-or-spacing-mark
+      (->char-set
+       #(#x300 #x36f #x483 #x489 #x591 #x5bd #x5c1 #x5c2 #x5c4 #x5c5
+         #x610 #x61a #x64b #x65f #x6d6 #x6dc #x6df #x6e4 #x6e7 #x6e8
+         #x6ea #x6ed #x730 #x74a #x7a6 #x7b0 #x7eb #x7f3 #x816 #x819
+         #x81b #x823 #x825 #x827 #x829 #x82d #x859 #x85b #x8e4 #x8fe
+         #x900 #x902 #x93e #x94c #x94e #x94f #x951 #x957 #x962 #x963
+         #x982 #x983 #x9bf #x9c4 #x9c7 #x9c8 #x9cb #x9cc #x9e2 #x9e3
+         #xa01 #xa02 #xa3e #xa42 #xa47 #xa48 #xa4b #xa4d #xa70 #xa71
+         #xa81 #xa82 #xabe #xac5 #xac7 #xac8 #xacb #xacc #xae2 #xae3
+         #xb02 #xb03 #xb41 #xb44 #xb47 #xb48 #xb4b #xb4c #xb62 #xb63
+         #xbc1 #xbc2 #xbc6 #xbc8 #xbca #xbcc #xc01 #xc03 #xc3e #xc44
+         #xc46 #xc48 #xc4a #xc4d #xc55 #xc56 #xc62 #xc63 #xc82 #xc83
+         #xcc0 #xcc1 #xcc3 #xcc4 #xcc7 #xcc8 #xcca #xccd #xcd5 #xcd6
+         #xce2 #xce3 #xd02 #xd03 #xd3f #xd44 #xd46 #xd48 #xd4a #xd4c
+         #xd62 #xd63 #xd82 #xd83 #xdd0 #xdd4 #xdd8 #xdde #xdf2 #xdf3
+         #xe34 #xe3a #xe47 #xe4e #xeb4 #xeb9 #xebb #xebc #xec8 #xecd
+         #xf18 #xf19 #xf3e #xf3f #xf71 #xf7e #xf80 #xf84 #xf86 #xf87
+         #xf8d #xf97 #xf99 #xfbc #x102d #x1030 #x1032 #x1037 #x1039
+         #x103e #x1056 #x1059 #x105e #x1060 #x1071 #x1074 #x1085
+         #x1086 #x135d #x135f #x1712 #x1714 #x1732 #x1734 #x1752
+         #x1753 #x1772 #x1773 #x17b4 #x17b5 #x17b7 #x17c5 #x17c7
+         #x17d3 #x180b #x180d #x1920 #x192b #x1930 #x1931 #x1933
+         #x193b #x19b5 #x19b7 #x1a17 #x1a1a #x1a58 #x1a5e #x1a65
+         #x1a7c #x1b00 #x1b03 #x1b36 #x1b3a #x1b3d #x1b41 #x1b43
+         #x1b44 #x1b6b #x1b73 #x1b80 #x1b81 #x1ba2 #x1ba9 #x1bac
+         #x1bad #x1be8 #x1bec #x1bef #x1bf3 #x1c24 #x1c37 #x1cd0
+         #x1cd2 #x1cd4 #x1ce0 #x1ce2 #x1ce8 #x1cf2 #x1cf3 #x1dc0
+         #x1de6 #x1dfc #x1dff #x200c #x200d #x20d0 #x20e0 #x20e2
+         #x20f0 #x2cef #x2cf1 #x2de0 #x2dff #x302a #x302f #x3099
+         #x309a #xa670 #xa672 #xa674 #xa67d #xa6f0 #xa6f1 #xa823
+         #xa826 #xa880 #xa881 #xa8b4 #xa8c3 #xa8e0 #xa8f1 #xa926
+         #xa92d #xa947 #xa953 #xa980 #xa982 #xa9b4 #xa9bb #xa9bd
+         #xa9c0 #xaa29 #xaa36 #xaab2 #xaab4 #xaab7 #xaab8 #xaabe
+         #xaabf #xaaec #xaaef #xabe3 #xabe4 #xabe6 #xabe7 #xabe9
+         #xabea #xfe00 #xfe0f #xfe20 #xfe26 #xff9e #xff9f #x10a01
+         #x10a03 #x10a05 #x10a06 #x10a0c #x10a0f #x10a38 #x10a3a
+         #x11038 #x11046 #x11080 #x11081 #x110b0 #x110ba #x11100
+         #x11102 #x11127 #x1112b #x1112d #x11134 #x11180 #x11181
+         #x111b3 #x111c0 #x116ae #x116b5 #x16f51 #x16f7e #x16f8f
+         #x16f92 #x1d167 #x1d169 #x1d16e #x1d172 #x1d17b #x1d182
+         #x1d185 #x1d18b #x1d1aa #x1d1ad #x1d242 #x1d244 #xe0100
+         #xe01ef)))
+    (define char-set:regional-indicator (->char-set #(#x1f1e6 #x1f1ff)))
+    (define char-set:hangul-l (->char-set #(#x1100 #x115f #xa960 #xa97c)))
+    (define char-set:hangul-v (->char-set #(#x1160 #x11a7 #xd7b0 #xd7c6)))
+    (define char-set:hangul-t (->char-set #(#x11a8 #x11ff #xd7cb #xd7fb)))
+    (define char-set:hangul-lv (->char-set #()))
+    (define char-set:hangul-lvt 
+      (->char-set
+       #(#xac01 #xac1b #xac1d #xac37 #xac39 #xac53 #xac55 #xac6f
+         #xac71 #xac8b #xac8d #xaca7 #xaca9 #xacc3 #xacc5 #xacdf
+         #xace1 #xacfb #xacfd #xad17 #xad19 #xad33 #xad35 #xad4f
+         #xad51 #xad6b #xad6d #xad87 #xad89 #xada3 #xada5 #xadbf
+         #xadc1 #xaddb #xaddd #xadf7 #xadf9 #xae13 #xae15 #xae2f
+         #xae31 #xae4b #xae4d #xae67 #xae69 #xae83 #xae85 #xae9f
+         #xaea1 #xaebb #xaebd #xaed7 #xaed9 #xaef3 #xaef5 #xaf0f
+         #xaf11 #xaf2b #xaf2d #xaf47 #xaf49 #xaf63 #xaf65 #xaf7f
+         #xaf81 #xaf9b #xaf9d #xafb7 #xafb9 #xafd3 #xafd5 #xafef
+         #xaff1 #xb00b #xb00d #xb027 #xb029 #xb043 #xb045 #xb05f
+         #xb061 #xb07b #xb07d #xb097 #xb099 #xb0b3 #xb0b5 #xb0cf
+         #xb0d1 #xb0eb #xb0ed #xb107 #xb109 #xb123 #xb125 #xb13f
+         #xb141 #xb15b #xb15d #xb177 #xb179 #xb193 #xb195 #xb1af
+         #xb1b1 #xb1cb #xb1cd #xb1e7 #xb1e9 #xb203 #xb205 #xb21f
+         #xb221 #xb23b #xb23d #xb257 #xb259 #xb273 #xb275 #xb28f
+         #xb291 #xb2ab #xb2ad #xb2c7 #xb2c9 #xb2e3 #xb2e5 #xb2ff
+         #xb301 #xb31b #xb31d #xb337 #xb339 #xb353 #xb355 #xb36f
+         #xb371 #xb38b #xb38d #xb3a7 #xb3a9 #xb3c3 #xb3c5 #xb3df
+         #xb3e1 #xb3fb #xb3fd #xb417 #xb419 #xb433 #xb435 #xb44f
+         #xb451 #xb46b #xb46d #xb487 #xb489 #xb4a3 #xb4a5 #xb4bf
+         #xb4c1 #xb4db #xb4dd #xb4f7 #xb4f9 #xb513 #xb515 #xb52f
+         #xb531 #xb54b #xb54d #xb567 #xb569 #xb583 #xb585 #xb59f
+         #xb5a1 #xb5bb #xb5bd #xb5d7 #xb5d9 #xb5f3 #xb5f5 #xb60f
+         #xb611 #xb62b #xb62d #xb647 #xb649 #xb663 #xb665 #xb67f
+         #xb681 #xb69b #xb69d #xb6b7 #xb6b9 #xb6d3 #xb6d5 #xb6ef
+         #xb6f1 #xb70b #xb70d #xb727 #xb729 #xb743 #xb745 #xb75f
+         #xb761 #xb77b #xb77d #xb797 #xb799 #xb7b3 #xb7b5 #xb7cf
+         #xb7d1 #xb7eb #xb7ed #xb807 #xb809 #xb823 #xb825 #xb83f
+         #xb841 #xb85b #xb85d #xb877 #xb879 #xb893 #xb895 #xb8af
+         #xb8b1 #xb8cb #xb8cd #xb8e7 #xb8e9 #xb903 #xb905 #xb91f
+         #xb921 #xb93b #xb93d #xb957 #xb959 #xb973 #xb975 #xb98f
+         #xb991 #xb9ab #xb9ad #xb9c7 #xb9c9 #xb9e3 #xb9e5 #xb9ff
+         #xba01 #xba1b #xba1d #xba37 #xba39 #xba53 #xba55 #xba6f
+         #xba71 #xba8b #xba8d #xbaa7 #xbaa9 #xbac3 #xbac5 #xbadf
+         #xbae1 #xbafb #xbafd #xbb17 #xbb19 #xbb33 #xbb35 #xbb4f
+         #xbb51 #xbb6b #xbb6d #xbb87 #xbb89 #xbba3 #xbba5 #xbbbf
+         #xbbc1 #xbbdb #xbbdd #xbbf7 #xbbf9 #xbc13 #xbc15 #xbc2f
+         #xbc31 #xbc4b #xbc4d #xbc67 #xbc69 #xbc83 #xbc85 #xbc9f
+         #xbca1 #xbcbb #xbcbd #xbcd7 #xbcd9 #xbcf3 #xbcf5 #xbd0f
+         #xbd11 #xbd2b #xbd2d #xbd47 #xbd49 #xbd63 #xbd65 #xbd7f
+         #xbd81 #xbd9b #xbd9d #xbdb7 #xbdb9 #xbdd3 #xbdd5 #xbdef
+         #xbdf1 #xbe0b #xbe0d #xbe27 #xbe29 #xbe43 #xbe45 #xbe5f
+         #xbe61 #xbe7b #xbe7d #xbe97 #xbe99 #xbeb3 #xbeb5 #xbecf
+         #xbed1 #xbeeb #xbeed #xbf07 #xbf09 #xbf23 #xbf25 #xbf3f
+         #xbf41 #xbf5b #xbf5d #xbf77 #xbf79 #xbf93 #xbf95 #xbfaf
+         #xbfb1 #xbfcb #xbfcd #xbfe7 #xbfe9 #xc003 #xc005 #xc01f
+         #xc021 #xc03b #xc03d #xc057 #xc059 #xc073 #xc075 #xc08f
+         #xc091 #xc0ab #xc0ad #xc0c7 #xc0c9 #xc0e3 #xc0e5 #xc0ff
+         #xc101 #xc11b #xc11d #xc137 #xc139 #xc153 #xc155 #xc16f
+         #xc171 #xc18b #xc18d #xc1a7 #xc1a9 #xc1c3 #xc1c5 #xc1df
+         #xc1e1 #xc1fb #xc1fd #xc217 #xc219 #xc233 #xc235 #xc24f
+         #xc251 #xc26b #xc26d #xc287 #xc289 #xc2a3 #xc2a5 #xc2bf
+         #xc2c1 #xc2db #xc2dd #xc2f7 #xc2f9 #xc313 #xc315 #xc32f
+         #xc331 #xc34b #xc34d #xc367 #xc369 #xc383 #xc385 #xc39f
+         #xc3a1 #xc3bb #xc3bd #xc3d7 #xc3d9 #xc3f3 #xc3f5 #xc40f
+         #xc411 #xc42b #xc42d #xc447 #xc449 #xc463 #xc465 #xc47f
+         #xc481 #xc49b #xc49d #xc4b7 #xc4b9 #xc4d3 #xc4d5 #xc4ef
+         #xc4f1 #xc50b #xc50d #xc527 #xc529 #xc543 #xc545 #xc55f
+         #xc561 #xc57b #xc57d #xc597 #xc599 #xc5b3 #xc5b5 #xc5cf
+         #xc5d1 #xc5eb #xc5ed #xc607 #xc609 #xc623 #xc625 #xc63f
+         #xc641 #xc65b #xc65d #xc677 #xc679 #xc693 #xc695 #xc6af
+         #xc6b1 #xc6cb #xc6cd #xc6e7 #xc6e9 #xc703 #xc705 #xc71f
+         #xc721 #xc73b #xc73d #xc757 #xc759 #xc773 #xc775 #xc78f
+         #xc791 #xc7ab #xc7ad #xc7c7 #xc7c9 #xc7e3 #xc7e5 #xc7ff
+         #xc801 #xc81b #xc81d #xc837 #xc839 #xc853 #xc855 #xc86f
+         #xc871 #xc88b #xc88d #xc8a7 #xc8a9 #xc8c3 #xc8c5 #xc8df
+         #xc8e1 #xc8fb #xc8fd #xc917 #xc919 #xc933 #xc935 #xc94f
+         #xc951 #xc96b #xc96d #xc987 #xc989 #xc9a3 #xc9a5 #xc9bf
+         #xc9c1 #xc9db #xc9dd #xc9f7 #xc9f9 #xca13 #xca15 #xca2f
+         #xca31 #xca4b #xca4d #xca67 #xca69 #xca83 #xca85 #xca9f
+         #xcaa1 #xcabb #xcabd #xcad7 #xcad9 #xcaf3 #xcaf5 #xcb0f
+         #xcb11 #xcb2b #xcb2d #xcb47 #xcb49 #xcb63 #xcb65 #xcb7f
+         #xcb81 #xcb9b #xcb9d #xcbb7 #xcbb9 #xcbd3 #xcbd5 #xcbef
+         #xcbf1 #xcc0b #xcc0d #xcc27 #xcc29 #xcc43 #xcc45 #xcc5f
+         #xcc61 #xcc7b #xcc7d #xcc97 #xcc99 #xccb3 #xccb5 #xcccf
+         #xccd1 #xcceb #xcced #xcd07 #xcd09 #xcd23 #xcd25 #xcd3f
+         #xcd41 #xcd5b #xcd5d #xcd77 #xcd79 #xcd93 #xcd95 #xcdaf
+         #xcdb1 #xcdcb #xcdcd #xcde7 #xcde9 #xce03 #xce05 #xce1f
+         #xce21 #xce3b #xce3d #xce57 #xce59 #xce73 #xce75 #xce8f
+         #xce91 #xceab #xcead #xcec7 #xcec9 #xcee3 #xcee5 #xceff
+         #xcf01 #xcf1b #xcf1d #xcf37 #xcf39 #xcf53 #xcf55 #xcf6f
+         #xcf71 #xcf8b #xcf8d #xcfa7 #xcfa9 #xcfc3 #xcfc5 #xcfdf
+         #xcfe1 #xcffb #xcffd #xd017 #xd019 #xd033 #xd035 #xd04f
+         #xd051 #xd06b #xd06d #xd087 #xd089 #xd0a3 #xd0a5 #xd0bf
+         #xd0c1 #xd0db #xd0dd #xd0f7 #xd0f9 #xd113 #xd115 #xd12f
+         #xd131 #xd14b #xd14d #xd167 #xd169 #xd183 #xd185 #xd19f
+         #xd1a1 #xd1bb #xd1bd #xd1d7 #xd1d9 #xd1f3 #xd1f5 #xd20f
+         #xd211 #xd22b #xd22d #xd247 #xd249 #xd263 #xd265 #xd27f
+         #xd281 #xd29b #xd29d #xd2b7 #xd2b9 #xd2d3 #xd2d5 #xd2ef
+         #xd2f1 #xd30b #xd30d #xd327 #xd329 #xd343 #xd345 #xd35f
+         #xd361 #xd37b #xd37d #xd397 #xd399 #xd3b3 #xd3b5 #xd3cf
+         #xd3d1 #xd3eb #xd3ed #xd407 #xd409 #xd423 #xd425 #xd43f
+         #xd441 #xd45b #xd45d #xd477 #xd479 #xd493 #xd495 #xd4af
+         #xd4b1 #xd4cb #xd4cd #xd4e7 #xd4e9 #xd503 #xd505 #xd51f
+         #xd521 #xd53b #xd53d #xd557 #xd559 #xd573 #xd575 #xd58f
+         #xd591 #xd5ab #xd5ad #xd5c7 #xd5c9 #xd5e3 #xd5e5 #xd5ff
+         #xd601 #xd61b #xd61d #xd637 #xd639 #xd653 #xd655 #xd66f
+         #xd671 #xd68b #xd68d #xd6a7 #xd6a9 #xd6c3 #xd6c5 #xd6df
+         #xd6e1 #xd6fb #xd6fd #xd717 #xd719 #xd733 #xd735 #xd74f
+         #xd751 #xd76b #xd76d #xd787 #xd789 #xd7a3))))]
+  [else ; no Unicode support
+   (begin
+    (define char-set:control 
+      (char-set-union 
+        (ucs-range->char-set 0 10) (ucs-range->char-set 11 13) (ucs-range->char-set 14 32) 
+        (ucs-range->char-set 127 127)))
+    (define char-set:extend-or-spacing-mark (char-set-union))
+    (define char-set:regional-indicator (char-set-union))
+    (define char-set:hangul-l (char-set-union))
+    (define char-set:hangul-v (char-set-union))
+    (define char-set:hangul-t (char-set-union))
+    (define char-set:hangul-lv (char-set-union))
+    (define char-set:hangul-lvt (char-set-union)))])
 
 ;;;; SPDX-FileCopyrightText: 2013 - 2016 Alex Shinn
 ;;;;

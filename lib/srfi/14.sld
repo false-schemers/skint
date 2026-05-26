@@ -40,7 +40,7 @@
     [full-unicode #x110000] 
     [else #x100]))
 
-;; basic ivsets
+;; basic ivsets (generated via pre/gencsets14.scm)
 
 (define ivs:empty #())
 
@@ -926,6 +926,9 @@
   (cond [(char-set? x) x]
         [(char? x) (char-set x)]
         [(string? x) (string->char-set x)]
+        ; extended to accept ivs sets (vectors)
+        ; this hack is used in other Skint SRFI implementations
+        [(vector? x) (ivs->char-set x)]
         [else (error "->char-set: coercion not supported for" x)]))
 
 ;; Set size
