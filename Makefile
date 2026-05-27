@@ -129,8 +129,7 @@ test:
 	$(exe) test/test.scm
 
 libtest:
-	$(exe) test/skint/all.scm
-	$(exe) test/srfi/all.scm
+	$(exe) test/all.scm
 
 clean:
 	$(RM) $(objects)
