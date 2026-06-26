@@ -87,7 +87,27 @@
     ;; Maximum size for random bytevector/list/string/symbol/vector generators.
     (define max-size 1001)
     ;; Maximum character supported by integer->char.
-    (define max-char 127) ;[esl*]
+    (define max-char ;[esl*] NB: upper bound is exclusive
+      (cond-expand [full-unicode  #x110000] [else 256]))
+    (define ivs:full ;[esl+] limit to real characters
+      (cond-expand
+        [full-unicode
+         #(#x0 #xd7ff #xe000 #xfdcf #xfdf0 #xfefe #xff00 #xfffd #x10000
+           #x1fffd #x20000 #x2fffd #x30000 #x3fffd #x40000 #x4fffd
+           #x50000 #x5fffd #x60000 #x6fffd #x70000 #x7fffd #x80000
+           #x8fffd #x90000 #x9fffd #xa0000 #xafffd #xb0000 #xbfffd
+           #xc0000 #xcfffd #xd0000 #xdfffd #xe0000 #xefffd #xf0000
+           #xffffd #x100000 #x10fffd)]
+        [else #(#x0 #xff)]))
+    (define (ivs-contains? ivs e) ;[esl+] extracted from (skint ivset)
+      (let ([n (quotient (vector-length ivs) 2)])
+        (let loop ([lo 0] [hi (- n 1)])
+          (and (<= lo hi)
+              (let ([mid (quotient (+ lo hi) 2)])
+                (cond [(< e (vector-ref ivs (* 2 mid))) (loop lo (- mid 1))]
+                      [(> e (vector-ref ivs (+ (* 2 mid) 1))) (loop (+ mid 1) hi)]
+                      [else #t]))))))
+
 
     ;; Omit values that are not distinguished in the implementation.
     (define special-number (list->generator
@@ -128,10 +148,9 @@
 
     (define (char-generator)
       (gcons* #\null
-              (gmap integer->char
-                    (gfilter (lambda (x) (or (>= x #x20) (= x #x9) (= x #xa)) ;[esl*]
-                               #;(or (< x #xD800) (> x #xDFFF)))
-                             (make-random-integer-generator 0 max-char)))))
+        (gmap integer->char
+          (gfilter (lambda (x) (ivs-contains? ivs:full x)) ;[esl*]
+            (make-random-integer-generator 0 max-char)))))
 
     (define (string-generator)
       (gcons* ""

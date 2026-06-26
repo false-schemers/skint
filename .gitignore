@@ -59,7 +59,7 @@ tests/r7rstest.ss
 tmp1
 tmp2
 tmp3
-skint
+/skint
 /skint-vs2022
 *.mk
 *.1

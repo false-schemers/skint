@@ -184,36 +184,61 @@
 (test-re #f '(* lower) "abcD")
 (test-re '("abcD") '(w/nocase (* lower)) "abcD")
 
-;;[esl]- systems not supporting full Unicode won't be able to even read this
-; Even when they could, we exclude unicode tests because Olin's SRFI-14 (charset) implementation
-; we currently use fails on chars with codes higher than 256. Need to replace it first!
-#|(cond-expand
-(full-unicode
-(test-re '("σζ") '(* lower) "σζ")
-(test-re '("Σ") '(* upper) "Σ")
-(test-re '("\x01C5;") '(* title) "\x01C5;")
-(test-re '("σζ\x01C5;") '(w/nocase (* lower)) "σζ\x01C5;")
-
-(test-re '("кириллица") '(* alpha) "кириллица")
-(test-re #f '(w/ascii (* alpha)) "кириллица")
-(test-re '("кириллица") '(w/nocase "КИРИЛЛИЦА") "кириллица")
-
-(test-re '("１２３４５") '(* numeric) "１２３４５")
-(test-re #f '(w/ascii (* numeric)) "１２３４５")
-
-(test-re '("한") 'grapheme "한")
-(test-re '("글") 'grapheme "글")
-
-(test-re '("한") '(: bog grapheme eog) "한")
-(test-re #f '(: "ᄒ" bog grapheme eog "ᆫ") "한")
-
-(test '("a" "b" "c") (regexp-extract 'grapheme "abc"))
-(test '("a" " " "b" " " "c") (regexp-extract 'grapheme "a b c"))
-(test '("a" "\n" "b" "\r\n" "c") (regexp-extract 'grapheme "a\nb\r\nc"))
-(test '("a\x0300;" "b\x0301;\x0302;" "c\x0303;\x0304;\x0305;")
-        (regexp-extract 'grapheme "a\x0300;b\x0301;\x0302;c\x0303;\x0304;\x0305;"))
-(test '("한" "글") (regexp-extract 'grapheme "한글")))
-(else))|#
+;;[esl]* make sure systems not supporting full Unicode are able to read this
+(cond-expand
+ (full-unicode
+  ;; Helpers for dynamically constructing the Unicode string values
+  (let ([sigma-zeta   (list->string (map integer->char '(#x03c3 #x03b6)))] ; "σζ"
+        [sigma-cap    (list->string (map integer->char '(#x03a3)))]        ; "Σ"
+        [dz-caron     (list->string (map integer->char '(#x01c5)))]        ; "\x01C5;"
+        [cyrillic-low (list->string (map integer->char '(#x043a #x0438 #x0440 #x0438 #x043b #x043b #x0438 #x0446 #x0430)))] ; "кириллица"
+        [cyrillic-up  (list->string (map integer->char '(#x041a #x0418 #x0420 #x0418 #x041b #x041b #x0418 #x0426 #x0410)))] ; "КИРИЛЛИЦА"
+        [fullwidth-num (list->string (map integer->char '(#xff11 #xff12 #xff13 #xff14 #xff15)))] ; "１２３４５"
+        [han          (list->string (map integer->char '(#x1112 #x1161 #x11ab)))] ; "한"
+        [geul         (list->string (map integer->char '(#x1100 #x1173 #x11af)))] ; "글"
+        [hieuh        (list->string (map integer->char '(#x1112)))]               ; "ᄒ"
+        [nieun        (list->string (map integer->char '(#x11ab)))])              ; "ᆫ"
+    ;; Original: (test-re '("σζ") '(* lower) "σζ")
+    (test-re (list sigma-zeta) '(* lower) sigma-zeta)
+    ;; Original: (test-re '("Σ") '(* upper) "Σ")
+    (test-re (list sigma-cap) '(* upper) sigma-cap)
+    ;; Original: (test-re '("\x01C5;") '(* title) "\x01C5;")
+    (test-re (list dz-caron) '(* title) dz-caron)
+    ;; Original: (test-re '("σζ\x01C5;") '(w/nocase (* lower)) "σζ\x01C5;")
+    (let ([sigma-zeta-dz (string-append sigma-zeta dz-caron)])
+      (test-re (list sigma-zeta-dz) '(w/nocase (* lower)) sigma-zeta-dz))
+    ;; Original: (test-re '("кириллица") '(* alpha) "кириллица")
+    (test-re (list cyrillic-low) '(* alpha) cyrillic-low)
+    ;; Original: (test-re #f '(w/ascii (* alpha)) "кириллица")
+    (test-re #f '(w/ascii (* alpha)) cyrillic-low)
+    ;; Original: (test-re '("кириллица") '(w/nocase "КИРИЛЛИЦА") "кириллица")
+    (test-re (list cyrillic-low) (list 'w/nocase cyrillic-up) cyrillic-low)
+    ;; Original: (test-re '("１２３４５") '(* numeric) "１２３４５")
+    (test-re (list fullwidth-num) '(* numeric) fullwidth-num)
+    ;; Original: (test-re #f '(w/ascii (* numeric)) "１２３４５")
+    (test-re #f '(w/ascii (* numeric)) fullwidth-num)
+    ;; Original: (test-re '("한") 'grapheme "한")
+    (test-re (list han) 'grapheme han)
+    ;; Original: (test-re '("글") 'grapheme "글")
+    (test-re (list geul) 'grapheme geul)
+    ;; Original: (test-re '("한") '(: bog grapheme eog) "한")
+    (test-re (list han) '(: bog grapheme eog) han)
+    ;; Original: (test-re #f '(: "ᄒ" bog grapheme eog "ᆫ") "한")
+    (test-re #f (list ': hieuh 'bog 'grapheme 'eog nieun) han)
+    ;; ASCII tests do not require modification
+    (test '("a" "b" "c") (regexp-extract 'grapheme "abc"))
+    (test '("a" " " "b" " " "c") (regexp-extract 'grapheme "a b c"))
+    (test '("a" "\n" "b" "\r\n" "c") (regexp-extract 'grapheme "a\nb\r\nc"))
+    ;; Original: (test '("a\x0300;" "b\x0301;\x0302;" "c\x0303;\x0304;\x0305;")
+    ;;                  (regexp-extract 'grapheme "a\x0300;b\x0301;\x0302;c\x0303;\x0304;\x0305;"))
+    (let ([g1 (list->string (list #\a (integer->char #x0300)))]
+          [g2 (list->string (list #\b (integer->char #x0301) (integer->char #x0302)))]
+          [g3 (list->string (list #\c (integer->char #x0303) (integer->char #x0304) (integer->char #x0305)))])
+      (test (list g1 g2 g3) (regexp-extract 'grapheme (string-append g1 g2 g3))))
+    ;; Original: (test '("한" "글") (regexp-extract 'grapheme "한글"))
+    (test (list han geul) (regexp-extract 'grapheme (string-append han geul)))
+    ))
+ (else))
 
 (test '("123" "456" "789") (regexp-extract '(+ numeric) "abc123def456ghi789"))
 (test '("123" "456" "789") (regexp-extract '(* numeric) "abc123def456ghi789"))
@@ -232,15 +257,22 @@
 (test '("abc" "123" "def" "456" "ghi" "789")
     (regexp-partition '(* numeric) "abc123def456ghi789"))
 
-#|(cond-expand
-(full-unicode
-(test '("한" "글")
-        (regexp-extract
-        'grapheme
-        (utf8->string '#u8(#xe1 #x84 #x92 #xe1 #x85 #xa1 #xe1 #x86 #xab
-                                #xe1 #x84 #x80 #xe1 #x85 #xb3 #xe1 #x86 #xaf)))))
-(else))
-|#
+;;[esl]* make sure systems not supporting full Unicode are able to read this
+(cond-expand
+ (full-unicode
+  ;; Original: (test '("한" "글")
+  ;;                  (regexp-extract
+  ;;                   'grapheme
+  ;;                   (utf8->string '#u8(#xe1 #x84 #x92 #xe1 #x85 #xa1 #xe1 #x86 #xab
+  ;;                                           #xe1 #x84 #x80 #xe1 #x85 #xb3 #xe1 #x86 #xaf)))))
+  (let ([han  (list->string (map integer->char '(#x1112 #x1161 #x11ab)))]
+        [geul (list->string (map integer->char '(#x1100 #x1173 #x11af)))])
+    (test (list han geul)
+          (regexp-extract
+           'grapheme
+           (utf8->string '#u8(#xe1 #x84 #x92 #xe1 #x85 #xa1 #xe1 #x86 #xab
+                              #xe1 #x84 #x80 #xe1 #x85 #xb3 #xe1 #x86 #xaf))))))
+ (else))
 
 (test "abc def" (regexp-replace '(+ space) "abc \t\n def" " "))
 (test "  abc-abc"

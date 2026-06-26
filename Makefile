@@ -127,9 +127,12 @@ $(man): $(man_in)
 
 test:
 	$(exe) test/test.scm
+ifeq ($(USE_UNICODE),1)
+	$(exe) test/test-unicode.scm
+endif
 
 libtest:
-	$(exe) test/srfi/all.scm
+	$(exe) test/test-libraries.scm
 
 clean:
 	$(RM) $(objects)
