@@ -979,13 +979,13 @@ char *t_code[] = {
   "ite-serialized-arg)[02}:5,'(c})W0]2},@(y13:apply-to-list)[72}'(y3:asm)"
   ",.1aq?{.0d,.6,.8,&2{%1${:0,.3,@(y12:write-string)[02}:1?{:0,'(c])W0:0,"
   ":1,@(y20:write-serialized-arg)[12}]1},@(y13:apply-to-list)[72}'(y4:onc"
-  "e),.1aq?{.0d,.7,.7,.7,.7,.7,.7,&6{%2:5,:4,:3,:2,:1,:0,n,n,.9c,n,n,tc,'"
-  "(y5:quote)cc,.9c,'(y5:gset!)cc,'(y5:begin)cc,n,'(y5:begin)cc,n,n,tc,'("
-  "y5:quote)cc,n,.9c,'(y4:gref)cc,'(y3:eq?)U5c,'(y10:integrable)cc,'(y2:i"
-  "f)c,@(y7:codegen)[27},@(y13:apply-to-list)[72}'(l4:y6:define;y13:defin"
-  "e-syntax;y14:define-library;y6:import;),.1aA0?{.0d,.1,&1{%!0:0,'(s25:m"
-  "isplaced definition form),@(y7:c-error)[12},@(y13:apply-to-list)[72}.0"
-  ",'(s22:unexpected <core> form),@(y7:c-error)[72",
+  "e),.1aq?{.0d,.7,.7,.7,.7,.7,.7,&6{%2:5,:4,:3,:2,:1,:0,n,n,.9c,'(l1:l2:"
+  "y5:quote;t;;),.9c,'(y5:gset!)cc,'(y5:begin)cc,'(l1:y5:begin;)c,'(l1:l2"
+  ":y5:quote;t;;),n,.9c,'(y4:gref)cc,'(y3:eq?)U5c,'(y10:integrable)cc,'(y"
+  "2:if)c,@(y7:codegen)[27},@(y13:apply-to-list)[72}'(l4:y6:define;y13:de"
+  "fine-syntax;y14:define-library;y6:import;),.1aA0?{.0d,.1,&1{%!0:0,'(s2"
+  "5:misplaced definition form),@(y7:c-error)[12},@(y13:apply-to-list)[72"
+  "}.0,'(s22:unexpected <core> form),@(y7:c-error)[72",
 
   "P", "compile-to-string",
   "%1P51,${.2,f,${n,.8,@(y9:find-free)[02},n,n,n,.9,@(y7:codegen)[07}.0P9"
@@ -1631,26 +1631,27 @@ char *t_code[] = {
 
   "P", "run-script",
   "%2,,,,#0#1#2#3${@(y23:interaction-environment)[00}.!0f.!1f.!2.5,.5c.!3"
-  ".1,.4,.2,.5,&4{%1${.2,@(y14:read-code-sexp)[01},#0.0^Y5?{.0^Y7X4,.0,'("
-  "s4:r7rs)S8,.0?{.0}{.1,'(s5:skint)S8,.0?{.0}{.2,'(s4:r5rs)S8?{${'5,@(y2"
-  "5:scheme-report-environment)[01}:!1t:!3}{${.4,'(s41:only scheme-r[57]r"
-  "s scripts are supported),@(y5:error)[02}}}_1}_1:3^?{t,.3P79}t:!0${.4,@"
-  "(y14:read-code-sexp)[01}.!1_1}@(y12:command-line),${f,:2^,.4[02},${.3["
-  "00},${.2,.5,&2{%0t,:1,:0[02},.6,.8,:1,&3{%0:2^,,#0:0,:1,.2,&3{%1.0R8~?"
-  "{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0"
-  "^_1[01},.5,.7,&2{%0t,:1,:0[02},@(y12:dynamic-wind)[03}_2_1:0^?{:1^,n,n"
-  ",:2^c,'(y5:quote)cc,'(y4:main)c,@(y4:eval)[22}t]2},.5,@(y28:call-with-"
-  "current-input-file)[62",
+  "${@(y5:reset),@(y17:set-repl-handler!)[01}.1,.4,.2,.5,&4{%1${.2,@(y14:"
+  "read-code-sexp)[01},#0.0^Y5?{.0^Y7X4,.0,'(s4:r7rs)S8,.0?{.0}{.1,'(s5:s"
+  "kint)S8,.0?{.0}{.2,'(s4:r5rs)S8?{${'5,@(y25:scheme-report-environment)"
+  "[01}:!1t:!3}{${.4,'(s41:only scheme-r[57]rs scripts are supported),@(y"
+  "5:error)[02}}}_1}_1:3^?{t,.3P79}t:!0${.4,@(y14:read-code-sexp)[01}.!1_"
+  "1}@(y12:command-line),${f,:2^,.4[02},${.3[00},${.2,.5,&2{%0t,:1,:0[02}"
+  ",.6,.8,:1,&3{%0:2^,,#0:0,:1,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1"
+  ",@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[01},.5,.7,&2{%0t,:1,:0[0"
+  "2},@(y12:dynamic-wind)[03}_2_1:0^?{:1^,n,n,:2^c,'(y5:quote)cc,'(y4:mai"
+  "n)c,@(y4:eval)[22}t]2},.5,@(y28:call-with-current-input-file)[62",
 
   "P", "run-program",
   "%2,,,,,,,#0#1#2#3#4#5#6${${.(i11),@(y20:path-strip-directory)[01},@(y2"
   "0:path-strip-extension)[01}X5.!0.0,&1{%1.0,'(y1:?),:0^,'(y7:prog://),@"
   "(y13:symbol-append)[14}.!1'(y6:import)b,'(y6:import)c,l1.!2${@(y20:*ro"
   "ot-name-registry*),@(y20:make-sld-environment)[01}.!3${.5^,.4^,.6^,@(y"
-  "27:make-controlled-environment)[03}.!4f.!5.8,.8c.!6${.6,.9,&2{%1${:0^,"
-  "@(y12:command-line)[01}${.2,@(y14:read-code-sexp)[01},,#0:1,.3,.2,&3{%"
-  "1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sexp)[01},:0^[11}]"
-  "1}.!0.0^_1[11},.(i10),@(y28:call-with-current-input-file)[02}t]9",
+  "27:make-controlled-environment)[03}.!4f.!5.8,.8c.!6${@(y5:reset),@(y17"
+  ":set-repl-handler!)[01}${.6,.9,&2{%1${:0^,@(y12:command-line)[01}${.2,"
+  "@(y14:read-code-sexp)[01},,#0:1,.3,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)["
+  "02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[11},.(i10),@(y28:"
+  "call-with-current-input-file)[02}t]9",
 
   "P", "repl-evaluate-top-form",
   "%3,,#0#1.!0${.2,&1{%!0.0:!0]1},.6,.6,&2{%0:1,:0,@(y17:evaluate-top-for"
@@ -1761,6 +1762,9 @@ char *t_code[] = {
   "{@(y10:skint-main)[00}}${k0,${.2,@(y18:set-reset-handler!)[01}${.6^,.8"
   "^,@(y16:repl-environment),.8^,@(y14:repl-from-port)[04}_3}t]3",
 
+  "P", "set-repl-handler!",
+  "%1.0@!(y4:repl)]1",
+
   "C", 0,
   "'(l12:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity"
   ";;l5:y5:quiet;s2:-q;s7:--quiet;f;s30:Suppress nonessential messages;;l"
@@ -1778,7 +1782,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.7.0)@!(y15:*skint-version*)",
+  "'(s5:0.7.1)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",
@@ -1792,8 +1796,8 @@ char *t_code[] = {
 
   "P", "version-alist",
   "%0n,@(y24:*library-directory-list*),'(y11:scheme.path)cc,@(y10:*featur"
-  "es*),'(y15:scheme.features)cc,n,'(y5:skint)c,'(y9:scheme.id)cc,n,@(y15"
-  ":*skint-version*)c,'(y7:version)cc]0",
+  "es*),'(y15:scheme.features)cc,'(l2:y9:scheme.id;y5:skint;)c,n,@(y15:*s"
+  "kint-version*)c,'(y7:version)cc]0",
 
   "P", "print-version!",
   "%0${@(y13:version-alist)[00},&0{%1Po,.1W5PoW6]1},@(y10:%25for-each1)[0"

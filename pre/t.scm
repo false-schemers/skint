@@ -2601,6 +2601,7 @@
   (define ci? #f) ; normal load-like behavior is the default
   (define callmain #f) ; got changed via first #! line
   (define main-args (cons filename args))
+  (set-repl-handler! reset) ; exit on hard errors too
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (let ([x0 (read-code-sexp port)])
@@ -2635,6 +2636,7 @@
   (define env (make-controlled-environment ial global pre))
   (define ci? #f) ; normal load-like behavior is the default
   (define main-args (cons filename args))
+  (set-repl-handler! reset) ; exit on hard errors too
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (command-line main-args)
@@ -2781,6 +2783,7 @@
     (repl-from-port ip repl-environment prompt op))
   #t) ; exited normally via end-of-input
 
+(define (set-repl-handler! fn) (set! repl fn))
 
 ;--------------------------------------------------------------------------------------------------
 ; Main
@@ -2801,7 +2804,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.7.0")
+(define *skint-version* "0.7.1")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
