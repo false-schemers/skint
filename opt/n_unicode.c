@@ -326,7 +326,7 @@ char *uungetch(int c, cbuf_t *pcb, char *next) {
     char *p;
 #endif    
     assert(pcb->buf <= prev);
-    assert((p = prev, udecode_check(&p)) == c && p == next); 
+    assert((p = prev, udecode_check((const char **)&p)) == c && p == next); 
     return prev;
   } else {
     char *prev = next - 1;
