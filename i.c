@@ -5164,48 +5164,55 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
         sprintf(lbuf, "%%4_!%s]0", pe->enc);
       } break;
       case '5': {
-        lcode = lbuf; assert(pe->enc); 
+        lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%5_!%s]0", pe->enc);
       } break;
+      /* fx+-like procedures, exactly two arguments */
       case 'p': {
-        lcode = lbuf; assert(pe->enc); 
+        lcode = lbuf; assert(pe->enc);
         pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
         sprintf(lbuf, "%%!0.0u?{%s]1}.0d,.1a,,#0.0,&1{%%2.1u?{.0]2}.1d,.2a,.2%s,:0^[22}.!0.0^_1[12", pe1, pe0);
       } break;
+      /* fx/-like procedures, one to two arguments */
       case 'm': {
-        lcode = lbuf; assert(pe->enc); 
+        lcode = lbuf; assert(pe->enc);
         pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
         sprintf(lbuf, "%%!1.0u?{.1%s]2}.0,.2,,#0.0,&1{%%2.1u?{.0]2}.1d,.2a,.2%s,:0^[22}.!0.0^_1[22", pe1, pe0);
       } break;
+      /* comparison procedures */
       case 'c': {
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%!0.0u,.0?{.0]2}.1d,.2a,,#0.0,&1{%%2.1u,.0?{.0]3}.2a,.0,.3%s?{.3d,.1,:0^[42}f]4}.!0.0^_1[22", pe->enc);
       } break;
+      /* min/max-like procedures */
       case 'x': {
         lcode = lbuf; assert(pe->enc);
         sprintf(lbuf, "%%!1.0,.2,,#0.0,&1{%%2.1u?{.0]2}.1d,.2a,.2%s,:0^[22}.!0.0^_1[22}", pe->enc);
       } break;
+      /* one optional argument, often happens in I/O procedures */
       case 'u': {
-        lcode = lbuf; assert(pe->enc); 
+        lcode = lbuf; assert(pe->enc);
         pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
         sprintf(lbuf, "%%!0.0u?{%s%s]1}.0du?{.0a%s]1}%%%%", pe1, pe0, pe0);
       } break;
+      /* one required argument, one optional */
       case 'b': {
-        lcode = lbuf; assert(pe->enc); 
+        lcode = lbuf; assert(pe->enc);
         pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
         sprintf(lbuf, "%%!1.0u?{%s,.2%s]2}.0du?{.0a,.2%s]2}%%%%", pe1, pe0, pe0);
       } break;
       case 't': {
-        lcode = lbuf; assert(pe->enc); 
+        lcode = lbuf; assert(pe->enc);
         pe0 = pe->enc; pe1 = pe0 + strlen(pe0) + 1; assert(*pe1);
         sprintf(lbuf, "%%!2.0u?{%s,.3,.3%s]3}.0du?{.0a,.3,.3%s]3}%%%%", pe1, pe0, pe0);
       } break;
+      /* list-like (constructor) procedures, unrestricted args */
       case '#': /* must have explicit lcode */
-        assert(0); 
+        assert(0);
       case '@': /* must have explicit lcode */
-        assert(0); 
+        assert(0);
       default:
-        assert(0); 
+        assert(0);
     }
     if (!lcode || *lcode == 0) continue;
     ra = mksymbol(internsym(pe->igname));
