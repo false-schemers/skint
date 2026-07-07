@@ -142,6 +142,23 @@ do not rely on any external .sld files.
 The optional external library in the `lib` subtree contains SKINT ports of more than 100 SRFIs. Please check 
 the `lib/README.md` file for details.
 
+## Project structure
+
+- s.c: Definitions of many standard / built-in operators and procedures
+  - s.h: Formalities and vital C headers
+  - pre/s.scm is the source for that, with pretty and readable code
+- k.c: Project startup
+  - Generated from pre/k.sf
+- i.c: Definitions of all stack operations
+  - i.h: contains a listing of all stack operators and their serialized form
+- n.c: Functions implementing / underlying many standard procedures
+- t.c: Precompiled bytecode for pre/t.scm
+- pre/scm2c.ssc: Generates actual files from #F definitions. k.c and s.c were generated with it, in particular.
+  - See the pre/README.md for details
+- lib/srfi: Contains SRFIs. Installable with `make libinstall`.
+  - All SRFIs are single `.sld` library definition files.
+- test/: Tests for Skint itself and for all the contributed SRFIs.
+
 ## Origins
 
 Parts of SKINT's run-time system and startup code are written in [#F](https://github.com/false-schemers/sharpF), 
