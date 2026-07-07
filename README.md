@@ -153,6 +153,7 @@ the `lib/README.md` file for details.
   - i.h: contains a listing of all stack operators and their serialized form
 - n.c: Functions implementing / underlying many standard procedures
 - t.c: Precompiled bytecode for pre/t.scm
+  - pre/t.scm symbols are all exported from `(skint hidden)` library and can be imported in SRFIs.
 - pre/scm2c.ssc: Generates actual files from #F definitions. k.c and s.c were generated with it, in particular.
   - See the pre/README.md for details
 - lib/srfi: Contains SRFIs. Installable with `make libinstall`.
