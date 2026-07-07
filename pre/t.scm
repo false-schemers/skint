@@ -2172,7 +2172,7 @@
     (newline v b) (not v b) (null? v b) (number->string v b) (number? v b) (numerator v b) (odd? v b)
     (open-input-bytevector b) (open-input-string b) (open-output-bytevector b) (open-output-string b)
     (or v u b) (output-port-open? b) (output-port? v b) (pair? v b) (parameterize b) (peek-char v b)
-    (peek-u8 b) (port? b) (positive? v b) (procedure? v b) (quasiquote v u b) (quote v u b)
+    (peek-u8 b) (port? b) (positive? v b) (procedure? v b) (procedure-minimum-arity) (quasiquote v u b) (quote v u b)
     (quotient v b) (raise b) (raise-continuable b) (rational? v b) (rationalize v b) (read-bytevector b)
     (read-bytevector! b) (read-char v b) (read-error? b) (read-line b) (read-string b) (read-u8 b)
     (real? v b) (remainder v b) (reverse v b) (round v b) (set! v b) (set-car! v b) (set-cdr! v b)
@@ -2594,38 +2594,61 @@
   (define env (if (pair? ?env) (car ?env) (interaction-environment)))
   (xpand #t expr env)) ; allow it to return any expressed value
 
+(define (procedure-minimum-arity sym)
+  ;; TODO: Rest argument support
+  ;; TODO: Optionals / case-lambda support
+  ;; TODO: Figure out a better way to implement it than reversing
+  ;; compiled procedures
+  (if (lookup-integrable sym)
+      (case (integrable-type (lookup-integrable sym))
+        ((#\0 #\u) 0)
+        ((#\1 #\m #\x #\b) 1)
+        ((#\2 #\t) 2)
+        ((#\3) 3)
+        ((#\4) 4)
+        ((#\5) 5)
+        ;; Variadic
+        ((#\c #\# #\@) 0)
+        (else #f))
+      (let ((fst (closure-code (eval sym (interaction-environment)) 0)))
+        (if (and (vector? fst)
+                 (> (vector-length fst) 1)
+                 (integer? (vector-ref fst 1)))
+            (vector-ref fst 1)
+            #f))))
+
 
 ; srfi-22 - like script processor (args is list of strings)
 (define (run-script filename args)
   (define env (interaction-environment))
-  (define ci? #f) ; normal load-like behavior is the default
-  (define callmain #f) ; got changed via first #! line
+  (define ci? #f)           ; normal load-like behavior is the default
+  (define callmain #f)      ; got changed via first #! line
   (define main-args (cons filename args))
-  (set-repl-handler! reset) ; exit on hard errors too
+  (set-repl-handler! reset)              ; exit on hard errors too
   (call-with-current-input-file filename ;=>
-    (lambda (port) 
-      (let ([x0 (read-code-sexp port)])
-        (when (shebang? x0)
-          (let ([shs (symbol->string (shebang->symbol x0))])
-            (cond [(string-position "r7rs" shs)] ; skint env will do
-                  [(string-position "skint" shs)] ; ditto
-                  [(string-position "r5rs" shs)
-                   (set! env (scheme-report-environment 5))
-                   (set! ci? #t)]
-                  [else (error "only scheme-r[57]rs scripts are supported" shs)]) 
-            (when ci? (set-port-fold-case! port #t))
-            (set! callmain #t)
-            (set! x0 (read-code-sexp port))))
-        (parameterize ([command-line main-args])
-          (let loop ([x x0])
-            (unless (eof-object? x)
-              (eval x env)
-              (loop (read-code-sexp port)))))
-        (if callmain
-          ; if it is a real script, call main and return its value
-          (eval `(main (quote ,main-args)) env)
-          ; otherwise return #t -- it will be used as exit value
-          #t)))))
+                                (lambda (port) 
+                                  (let ([x0 (read-code-sexp port)])
+                                    (when (shebang? x0)
+                                      (let ([shs (symbol->string (shebang->symbol x0))])
+                                        (cond [(string-position "r7rs" shs)] ; skint env will do
+                                              [(string-position "skint" shs)] ; ditto
+                                              [(string-position "r5rs" shs)
+                                               (set! env (scheme-report-environment 5))
+                                               (set! ci? #t)]
+                                              [else (error "only scheme-r[57]rs scripts are supported" shs)]) 
+                                        (when ci? (set-port-fold-case! port #t))
+                                        (set! callmain #t)
+                                        (set! x0 (read-code-sexp port))))
+                                    (parameterize ([command-line main-args])
+                                      (let loop ([x x0])
+                                        (unless (eof-object? x)
+                                          (eval x env)
+                                          (loop (read-code-sexp port)))))
+                                    (if callmain
+                                        ; if it is a real script, call main and return its value
+                                        (eval `(main (quote ,main-args)) env)
+                                        ; otherwise return #t -- it will be used as exit value
+                                        #t)))))
 
 ; r7rs scheme program processor (args is list of strings)
 (define (run-program filename args)

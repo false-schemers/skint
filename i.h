@@ -607,6 +607,7 @@ declare_instruction(igty,       "U6",           0,  "integrable-type",          
 declare_instruction(iggl,       "U7",           0,  "integrable-global",        '1', AUTOGL)
 declare_instruction(igco,       "U8",           0,  "integrable-code",          '2', AUTOGL)
 declare_instruction(vmclo,      "U9",           1,  "closure",                  '#', INLINED)
+declare_instruction(vmcloco,    "Ug",           0,  "closure-code",             '2', AUTOGL)
 
 /* inlined integrables (no custom instructions) */               
 declare_integrable(NULL,        "N0",           0,  "complex?",                 '1', AUTOGL)

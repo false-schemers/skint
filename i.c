@@ -3963,6 +3963,14 @@ define_instruction(vmclo) {
   gonexti();
 }
 
+define_instruction(vmcloco) {
+  int n; obj cs; ckx(ac); ckk(sref(0));
+  n = get_fixnum(spop());
+  cs = vmcloref(ac, n);
+  ac = cs ? cs : bool_obj(0);
+  gonexti();
+}
+
 define_instruction(hshim) {
   unsigned long long v = (unsigned long long)ac, base = 0; obj b = spop(); 
   if (b) { ckk(b); base = get_fixnum(b); } 
