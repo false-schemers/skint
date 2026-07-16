@@ -163,11 +163,15 @@ the `lib/README.md` file for details.
 
 `pre`: Sources for generated files, with scripts to generate them
 
+`doc`: Documentation (Man file and Skint `syntax-rules` extensions)
+
 `lib`: Optional Scheme libraries installable with `make libinstall`  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`lib/srfi`: Implementations of supported SRFIs  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`lib/skint`: Skint-specific libraries
 
 `test`: Tests for Skint itself and supported libraries
+
+`misc`: Miscellanea (Windows make file, benchmarking wrappers etc.)
 
 ## Origins
 
