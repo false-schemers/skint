@@ -144,28 +144,28 @@ the `lib/README.md` file for details.
 
 ## Project structure
 
+`s.h`: Standard and system-dependent headers  
+`s.c`: Bytecode definitions of many standard and internal procedures  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/s.scm`  
+
 `k.c`: Skint startup code  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/k.sf`
 
+`i.h`: A list of all VM instructions and their bytecode serialization  
 `i.c`: Definitions of all VM instructions  
-`i.h`: A list of all VM instructions and their bytecode serialization
 
 `n.c`: Internal machinery for memory management, data types, and instructions
 
-`s.c`: Bytecode definitions of many standard and internal procedures  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/s.scm`  
-`s.h`: Standard and system-dependent headers
-
-`t.c`: Bytecode definitions for the internal expander, compiler, library, and REPL procedures  
+`t.c`: Bytecode definitions for the internal expander, compiler, library, and REPL procedures    
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/t.scm`
 
-`pre/`: Sources for generated files, with scripts to generate them
+`pre`: Sources for generated files, with scripts to generate them
 
-`lib/`: Optional Scheme libraries installable with `make libinstall`  
-`lib/srfi`: Implementations of supported SRFIs  
-`lib/skint`: Implementations of Skint-specific libraries
+`lib`: Optional Scheme libraries installable with `make libinstall`  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`lib/srfi`: Implementations of supported SRFIs  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`lib/skint`: Skint-specific libraries
 
-`test/`: Tests for Skint itself and supported libraries
+`test`: Tests for Skint itself and supported libraries
 
 ## Origins
 
