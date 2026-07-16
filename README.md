@@ -144,21 +144,28 @@ the `lib/README.md` file for details.
 
 ## Project structure
 
-- s.c: Definitions of many standard / built-in operators and procedures
-  - s.h: Formalities and vital C headers
-  - pre/s.scm is the source for that, with pretty and readable code
-- k.c: Project startup
-  - Generated from pre/k.sf
-- i.c: Definitions of all stack operations
-  - i.h: contains a listing of all stack operators and their serialized form
-- n.c: Functions implementing / underlying many standard procedures
-- t.c: Precompiled bytecode for pre/t.scm
-  - pre/t.scm symbols are all exported from `(skint hidden)` library and can be imported in SRFIs.
-- pre/scm2c.ssc: Generates actual files from #F definitions. k.c and s.c were generated with it, in particular.
-  - See the pre/README.md for details
-- lib/srfi: Contains SRFIs. Installable with `make libinstall`.
-  - All SRFIs are single `.sld` library definition files.
-- test/: Tests for Skint itself and for all the contributed SRFIs.
+`k.c`: Skint startup code  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/k.sf`
+
+`i.c`: Definitions of all VM instructions  
+`i.h`: A list of all VM instructions and their bytecode serialization
+
+`n.c`: Internal machinery for memory management, data types, and instructions
+
+`s.c`: Bytecode definitions of many standard and internal procedures  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/s.scm`  
+`s.h`: Standard and system-dependent headers
+
+`t.c`: Bytecode definitions for the internal expander, compiler, library, and REPL procedures  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/t.scm`
+
+`pre/`: Sources for generated files, with scripts to generate them
+
+`lib/`: Optional Scheme libraries installable with `make libinstall`  
+`lib/srfi`: Implementations of supported SRFIs  
+`lib/skint`: Implementations of Skint-specific libraries
+
+`test/`: Tests for Skint itself and supported libraries
 
 ## Origins
 
