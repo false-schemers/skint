@@ -159,6 +159,8 @@ the `lib/README.md` file for details.
 `t.c`: Bytecode definitions for the internal expander, compiler, library, and REPL procedures    
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/t.scm`
 
+`opt`: Sources for optional features (Unicode, Enhanced TTY)
+
 `pre`: Sources for generated files, with scripts to generate them
 
 `lib`: Optional Scheme libraries installable with `make libinstall`  
