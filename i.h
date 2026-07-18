@@ -419,6 +419,12 @@ declare_instruction(angl,       "Ga",           0,  "angle",                    
 declare_instruction(conj,       "Gg",           0,  "conjugate",                '1', AUTOGL)
 declare_instruction(mkrec,      "Gc",           0,  "make-rectangular",         '2', AUTOGL)
 declare_instruction(mkpol,      "Gp",           0,  "make-polar",               '2', AUTOGL)
+declare_instruction(gsqrt,      "Gt\0f",        0,  "%gsqrt",                   'b', AUTOGL)
+declare_instruction(gnot,       "G0",           0,  "lognot",                   '1', AUTOGL)
+declare_instruction(gand,       "G1\0'(i-1)",   0,  "logand",                   'p', AUTOGL)
+declare_instruction(gior,       "G2\0'0",       0,  "logior",                   'p', AUTOGL)
+declare_instruction(gxor,       "G3\0'0",       0,  "logxor",                   'p', AUTOGL)
+declare_instruction(gash,       "G4",           0,  "ash",                      '2', AUTOGL)
 /* aliased integrables (no custom instructions) */               
 declare_integrable(NULL,        "N0",           0,  "complex?",                 '1', AUTOGL)
 declare_integrable(NULL,        "Nm",           0,  "modulo",                   '2', AUTOGL)
@@ -428,15 +434,9 @@ declare_integrable(NULL,        "Ni",           0,  "inexact->exact",           
 declare_integrable(NULL,        "Nj",           0,  "exact->inexact",           '1', AUTOGL)
 #if 0
 /* future instructions */
-declare_instruction(gnot,       "G0",           0,  "lognot",                   '1', AUTOGL)
-declare_instruction(gand,       "G1\0'(i-1)",   0,  "logand",                   'p', AUTOGL)
-declare_instruction(gior,       "G2\0'0",       0,  "logior",                   'p', AUTOGL)
-declare_instruction(gxor,       "G3\0'0",       0,  "logxor",                   'p', AUTOGL)
-declare_instruction(gash,       "G4",           0,  "ash",                      '2', AUTOGL)
 declare_instruction(glen,       "G7",           0,  "loglen",                   '1', AUTOGL)
 declare_instruction(gbitc,      "G8",           0,  "logbitc",                  '1', AUTOGL)
 declare_instruction(lcm,        "Gl\0'1",       0,  "lcm",                      'p', AUTOGL)
-declare_instruction(gsqrt,      "Gt\0f",        0,  "%eisqrt",                  'b', AUTOGL)
 declare_instruction(sinh,       "T03",          0,  "sinh",                     '1', AUTOGL)
 declare_instruction(cosh,       "T04",          0,  "cosh",                     '1', AUTOGL)
 declare_instruction(tanh,       "T05",          0,  "tanh",                     '1', AUTOGL)

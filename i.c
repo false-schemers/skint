@@ -3262,6 +3262,30 @@ define_instruction(mkpol) {
   gonexti();
 }
 
+/* fixnum redirects in standard build */
+define_instruction(gsqrt) { goi(isqrt); }
+define_instruction(gnot) { goi(inot); }
+define_instruction(gand) { goi(iand); }
+define_instruction(gior) { goi(iior); }
+define_instruction(gxor) { goi(ixor); }
+
+define_instruction(gash) {
+  long ix, iy, iz; 
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ix = get_fixnum(x); iy = get_fixnum(y);
+  if (iy < 0) { 
+    if (-iy >= FIXNUM_WIDTH) iz = (ix >= 0 ? 0 : -1);
+    else iz = fxasr(ix, -iy);
+  } else {
+    iz = (ix == 0 || iy < FIXNUM_WIDTH) ? fxasl(ix, iy) : FIXNUM_MAX+1;
+    if (iz < FIXNUM_MIN || iz > FIXNUM_MAX || fxasr(iz, iy) != ix)
+      fail("result cannot be represented as Skint exact");
+  }
+  ac = fixnum_obj(iz);
+  gonexti();
+}
+
+
 
 /* pair/list instructions */
 
