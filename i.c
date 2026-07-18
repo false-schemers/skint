@@ -3278,8 +3278,10 @@ define_instruction(gash) {
     else iz = fxasr(ix, -iy);
   } else {
     iz = (ix == 0 || iy < FIXNUM_WIDTH) ? fxasl(ix, iy) : FIXNUM_MAX+1;
-    if (iz < FIXNUM_MIN || iz > FIXNUM_MAX || fxasr(iz, iy) != ix)
-      fail("result cannot be represented as Skint exact");
+    if (iz < FIXNUM_MIN || iz > FIXNUM_MAX || fxasr(iz, iy) != ix) {
+      ac = flonum_obj((double)ix * pow(2.0, (double)iy));
+      gonexti();
+    }
   }
   ac = fixnum_obj(iz);
   gonexti();

@@ -2224,8 +2224,9 @@
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
     (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
     (flmax) (flremainder) (flmodulo) (flquotient) (flmodquo) (flonum->fixnum) (flonum->string)
-    (flldexp) (flmodf) (flfrexp) (flsinh) (flcosh) (fltanh) (fllog10)
-    (string->flonum) (list-cat) (last-pair) (list-head) (meme) (asse) (memp) (assp) (reverse!) 
+    (flldexp) (flmodf) (flfrexp) (flsinh) (flcosh) (fltanh) (fllog10) (string->flonum) 
+    (lognot) (logand) (logior) (logxor) (ash) (bignum?) (ratnum?) (compnum?) (rectnum?)
+    (list-cat) (last-pair) (list-head) (meme) (asse) (memp) (assp) (reverse!) 
     (circular?) (cons*) (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) 
     (string-cmp) (string-ci-cmp) (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) 
     (subbytevector) (numvector?) (make-numvector) (numvector-length) (numvector-ref) (numvector-set!)
@@ -2804,7 +2805,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.7.1")
+(define *skint-version* "0.7.2")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

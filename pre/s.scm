@@ -410,7 +410,7 @@
 ; (fxabs x)
 ; (fxgcd x y)
 ; (fxexpt x y)
-; (fxsqrt x (box #f))
+; (%fxsqrt x (box #f))
 ; (fxnot x)
 ; (fxand x ...)
 ; (fxior x ...)
@@ -549,12 +549,18 @@
 ; (angle x)
 ; (make-rectangular r i)
 ; (make-polar m a)
-; (number->string x (radix 10))
-; (string->number x (radix 10))
+; (%gsqrt x (box #f)) +
+; (lognot x) +
+; (logand x ...) +
+; (logior x ...) +
+; (logxor x ...) +
+; (ash x y) +
 ; (bignum? x) +
 ; (ratnum? x) +
 ; (compnum? x) +
 ; (rectnum? x) +
+; (number->string x (radix 10))
+; (string->number x (radix 10))
 
 (define (floor/ x y)
   (values (floor-quotient x y) (floor-remainder x y)))
@@ -574,7 +580,7 @@
 (define (square x) (* x x))
 
 (define (exact-integer-sqrt x)
-  (let* ([rem 0] [srt (%fxsqrt x (set& rem))])
+  (let* ([rem 0] [srt (%gsqrt x (set& rem))])
     (values srt rem)))
 
 
