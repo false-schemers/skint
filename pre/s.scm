@@ -427,8 +427,6 @@
 ;fx-width
 ;fx-greatest
 ;fx-least
-;fxarithmetic-shift-right
-;fxarithmetic-shift-left
 ;fxlength cf. integer-length (+ 1 (integer-length i)) 
 ;  is the number of bits needed to represent i in a signed twos-complement representation
 ;  0 => 0, 1 => 1, -1 => 0, 7 => 3, -7 => 3, 8 => 4, -8 => 3

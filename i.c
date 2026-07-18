@@ -2028,6 +2028,14 @@ define_instruction(not) {
   gonexti();
 }
 
+
+/* fixnum math instructions */
+
+define_instruction(fixp) {
+  ac = bool_obj(is_fixnum(ac));
+  gonexti(); 
+}
+
 define_instruction(izerop) {
   cki(ac);
   ac = bool_obj(ac == fixnum_obj(0));
@@ -2076,6 +2084,13 @@ define_instruction(imul) {
   gonexti();
 }
 
+define_instruction(idiv) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  if (y == fixnum_obj(0)) fail("division by zero");
+  ac = fixnum_obj(fxdiv(get_fixnum(x), get_fixnum(y)));
+  gonexti();
+}
+
 define_instruction(iquo) {
   obj x = ac, y = spop(); cki(x); cki(y);
   if (y == fixnum_obj(0)) fail("division by zero");
@@ -2087,43 +2102,6 @@ define_instruction(irem) {
   obj x = ac, y = spop(); cki(x); cki(y);
   if (y == fixnum_obj(0)) fail("division by zero");
   ac = fixnum_obj(fxrem(get_fixnum(x), get_fixnum(y)));
-  gonexti();
-}
-
-define_instruction(imin) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ac = get_fixnum(x) < get_fixnum(y) ? x : y;
-  gonexti(); 
-}
-
-define_instruction(imax) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ac = get_fixnum(x) > get_fixnum(y) ? x : y;
-  gonexti(); 
-}
-
-define_instruction(ineg) {
-  cki(ac);
-  ac = fixnum_obj(fxneg(get_fixnum(ac)));
-  gonexti();
-}
-
-define_instruction(iabs) {
-  cki(ac);
-  ac = fixnum_obj(fxabs(get_fixnum(ac)));
-  gonexti();
-}
-
-define_instruction(itoj) {
-  cki(ac);
-  ac = flonum_obj((double)get_fixnum(ac));
-  gonexti();
-}
-
-define_instruction(idiv) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  if (y == fixnum_obj(0)) fail("division by zero");
-  ac = fixnum_obj(fxdiv(get_fixnum(x), get_fixnum(y)));
   gonexti();
 }
 
@@ -2155,6 +2133,66 @@ define_instruction(ieur) {
   gonexti();
 }
 
+define_instruction(ilt) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ac = bool_obj(get_fixnum(x) < get_fixnum(y));
+  gonexti(); 
+}
+
+define_instruction(igt) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ac = bool_obj(get_fixnum(x) > get_fixnum(y));
+  gonexti(); 
+}
+
+define_instruction(ile) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ac = bool_obj(get_fixnum(x) <= get_fixnum(y));
+  gonexti(); 
+}
+
+define_instruction(ige) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ac = bool_obj(get_fixnum(x) >= get_fixnum(y));
+  gonexti(); 
+}
+
+define_instruction(ieq) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ac = bool_obj(x == y);
+  gonexti(); 
+}
+
+define_instruction(ine) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ac = bool_obj(x != y);
+  gonexti(); 
+}
+
+define_instruction(imin) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ac = get_fixnum(x) < get_fixnum(y) ? x : y;
+  gonexti(); 
+}
+
+define_instruction(imax) {
+  obj x = ac, y = spop(); cki(x); cki(y);
+  ac = get_fixnum(x) > get_fixnum(y) ? x : y;
+  gonexti(); 
+}
+
+define_instruction(ineg) {
+  cki(ac);
+  ac = fixnum_obj(fxneg(get_fixnum(ac)));
+  gonexti();
+}
+
+define_instruction(iabs) {
+  cki(ac);
+  ac = fixnum_obj(fxabs(get_fixnum(ac)));
+  gonexti();
+}
+
 define_instruction(igcd) {
   obj x = ac, y = spop(); cki(x); cki(y);
   ac = fixnum_obj(fxgcd(get_fixnum(x), get_fixnum(y)));
@@ -2173,6 +2211,12 @@ define_instruction(isqrt) {
   lx = get_fixnum(ac); if (lx < 0) fail("square root of a negative fixnum");
   lr = fxsqrt(lx); ac = fixnum_obj(lr);
   if (b) { ckz(b); box_ref(b) = fixnum_obj(lx-lr*lr); }
+  gonexti();
+}
+
+define_instruction(itoj) {
+  cki(ac);
+  ac = flonum_obj((double)get_fixnum(ac));
   gonexti();
 }
 
@@ -2257,42 +2301,41 @@ define_instruction(ifmar) {
   gonexti();
 }
 
-define_instruction(ilt) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(get_fixnum(x) < get_fixnum(y));
+
+/* flonum math instructions */
+
+define_instruction(flop) { 
+  ac = bool_obj(is_flonum(ac)); 
   gonexti(); 
 }
 
-define_instruction(igt) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(get_fixnum(x) > get_fixnum(y));
+define_instruction(jintp) {
+  double f; ckj(ac);
+  f = get_flonum(ac);
+  ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL && f == floor(f));
   gonexti(); 
 }
 
-define_instruction(ile) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(get_fixnum(x) <= get_fixnum(y));
+define_instruction(jnanp) {
+  double f; ckj(ac);
+  f = get_flonum(ac);
+  ac = bool_obj(f != f);
   gonexti(); 
 }
 
-define_instruction(ige) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(get_fixnum(x) >= get_fixnum(y));
+define_instruction(jfinp) {
+  double f; ckj(ac);
+  f = get_flonum(ac);
+  ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
   gonexti(); 
 }
 
-define_instruction(ieq) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(x == y);
+define_instruction(jinfp) {
+  double f; ckj(ac);
+  f = get_flonum(ac);
+  ac = bool_obj(f <= -HUGE_VAL || f >= HUGE_VAL);
   gonexti(); 
 }
-
-define_instruction(ine) {
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ac = bool_obj(x != y);
-  gonexti(); 
-}
-
 
 define_instruction(jzerop) {
   ckj(ac);
@@ -2326,34 +2369,6 @@ define_instruction(joddp) {
   gonexti(); 
 }
 
-define_instruction(jintp) {
-  double f; ckj(ac);
-  f = get_flonum(ac);
-  ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL && f == floor(f));
-  gonexti(); 
-}
-
-define_instruction(jnanp) {
-  double f; ckj(ac);
-  f = get_flonum(ac);
-  ac = bool_obj(f != f);
-  gonexti(); 
-}
-
-define_instruction(jfinp) {
-  double f; ckj(ac);
-  f = get_flonum(ac);
-  ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
-  gonexti(); 
-}
-
-define_instruction(jinfp) {
-  double f; ckj(ac);
-  f = get_flonum(ac);
-  ac = bool_obj(f <= -HUGE_VAL || f >= HUGE_VAL);
-  gonexti(); 
-}
-
 define_instruction(jadd) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) + get_flonum(spop())); gonexti(); }
 
 define_instruction(jsub) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) - get_flonum(spop())); gonexti(); }
@@ -2361,6 +2376,19 @@ define_instruction(jsub) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac)
 define_instruction(jmul) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) * get_flonum(spop())); gonexti(); }
 
 define_instruction(jdiv) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) / get_flonum(spop())); gonexti(); }
+
+define_instruction(jquo) {
+  obj x = ac, y = spop(); double n, d, i; ckj(x); ckj(y);
+  n = get_flonum(x), d = get_flonum(y); modf(n/d,  &i);
+  ac = flonum_obj(i);
+  gonexti(); 
+}
+
+define_instruction(jrem) { ckj(ac); ckj(sref(0)); ac = flonum_obj(fmod(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+
+define_instruction(jmqu) { ckj(ac); ckj(sref(0)); ac = flonum_obj(flmqu(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+
+define_instruction(jmlo) { ckj(ac); ckj(sref(0)); ac = flonum_obj(flmlo(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
 define_instruction(jlt) {
   obj x = ac, y = sref(0); ckj(x); ckj(y);
@@ -2420,29 +2448,6 @@ define_instruction(jpow)  { ckj(ac); ckj(sref(0)); ac = flonum_obj(pow(get_flonu
 
 define_instruction(jsqrt) { ckj(ac); ac = flonum_obj(sqrt(get_flonum(ac))); gonexti(); }
 
-define_instruction(jtoi)  { ckj(ac); ac = fixnum_obj(fxflo(get_flonum(ac))); gonexti(); }
-
-define_instruction(jquo) {
-  obj x = ac, y = spop(); double n, d, i; ckj(x); ckj(y);
-  n = get_flonum(x), d = get_flonum(y); modf(n/d,  &i);
-  ac = flonum_obj(i);
-  gonexti(); 
-}
-
-define_instruction(jrem) { ckj(ac); ckj(sref(0)); ac = flonum_obj(fmod(get_flonum(ac), get_flonum(spop()))); gonexti(); }
-
-define_instruction(jmqu) { ckj(ac); ckj(sref(0)); ac = flonum_obj(flmqu(get_flonum(ac), get_flonum(spop()))); gonexti(); }
-
-define_instruction(jmlo) { ckj(ac); ckj(sref(0)); ac = flonum_obj(flmlo(get_flonum(ac), get_flonum(spop()))); gonexti(); }
-
-define_instruction(jfloor) { ckj(ac); ac = flonum_obj(floor(get_flonum(ac))); gonexti(); }
-
-define_instruction(jceil)  { ckj(ac); ac = flonum_obj(ceil(get_flonum(ac))); gonexti(); }
-
-define_instruction(jtrunc) { double i; ckj(ac); modf(get_flonum(ac), &i); ac = flonum_obj(i); gonexti(); }
-
-define_instruction(jround) { ckj(ac); ac = flonum_obj(flround(get_flonum(ac))); gonexti(); }
-
 define_instruction(jexp) { ckj(ac); ac = flonum_obj(exp(get_flonum(ac))); gonexti(); }
 
 define_instruction(jlog) {
@@ -2478,6 +2483,16 @@ define_instruction(jatan) {
   }
   gonexti(); 
 }
+
+define_instruction(jfloor) { ckj(ac); ac = flonum_obj(floor(get_flonum(ac))); gonexti(); }
+
+define_instruction(jceil)  { ckj(ac); ac = flonum_obj(ceil(get_flonum(ac))); gonexti(); }
+
+define_instruction(jtrunc) { double i; ckj(ac); modf(get_flonum(ac), &i); ac = flonum_obj(i); gonexti(); }
+
+define_instruction(jround) { ckj(ac); ac = flonum_obj(flround(get_flonum(ac))); gonexti(); }
+
+define_instruction(jtoi)  { ckj(ac); ac = fixnum_obj(fxflo(get_flonum(ac))); gonexti(); }
 
 define_instruction(jldexp)  { ckj(ac); cki(sref(0)); ac = flonum_obj(ldexp(get_flonum(ac), get_fixnum(spop()))); gonexti(); }
 
@@ -2570,6 +2585,78 @@ define_instruction(jyn) { cki(ac); ckj(sref(0)); ac = flonum_obj(yn(get_fixnum(a
 
 #endif
 
+/* generic math instructions */
+
+define_instruction(nump) {
+  ac = bool_obj(is_fixnum(ac) || is_flonum(ac));
+  gonexti(); 
+}
+
+define_instruction(realp) {
+  ac = bool_obj(is_fixnum(ac) || is_flonum(ac));
+  gonexti(); 
+}
+
+define_instruction(ratp) {
+  if (likely(is_fixnum(ac))) {
+    ac = bool_obj(1);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
+    ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
+  } else {
+    ac = bool_obj(0);
+  }
+  gonexti(); 
+}
+
+define_instruction(intp) {
+  if (likely(is_fixnum(ac))) {
+    ac = bool_obj(1);
+  } else { /* accepts any object! */
+    ac = bool_obj(is_flonum(ac) && flisint(get_flonum(ac)));
+  }
+  gonexti(); 
+}
+
+define_instruction(exip) {
+  if (likely(is_fixnum(ac))) {
+    ac = bool_obj(1);
+  } else { 
+    ac = bool_obj(0);
+  }
+  gonexti(); 
+}
+
+define_instruction(nanp) {
+  if (unlikely(is_fixnum(ac))) {
+    ac = bool_obj(0);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
+    ac = bool_obj(f != f);
+  } else failactype("number");
+  gonexti(); 
+}
+
+define_instruction(finp) {
+  if (unlikely(is_fixnum(ac))) {
+    ac = bool_obj(1);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
+    ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
+  } else failactype("number");
+  gonexti(); 
+}
+
+define_instruction(infp) {
+  if (unlikely(is_fixnum(ac))) {
+    ac = bool_obj(0);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
+    ac = bool_obj(f <= -HUGE_VAL || f >= HUGE_VAL);
+  } else failactype("number");
+  gonexti(); 
+}
+
 define_instruction(zerop) {
   obj x = ac;
   if (likely(is_fixnum(x))) {
@@ -2591,6 +2678,26 @@ define_instruction(negp) {
   if (likely(is_fixnum(ac))) ac = bool_obj(get_fixnum(ac) < 0);
   else if (likely(is_flonum(ac))) ac = bool_obj(get_flonum(ac) < 0.0);
   else failactype("number");
+  gonexti(); 
+}
+
+define_instruction(evnp) {
+  if (likely(is_fixnum(ac))) {
+    ac = bool_obj((get_fixnum(ac) & 1) == 0);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
+    ac = bool_obj(flisint(f / 2.0));
+  } else failactype("number");
+  gonexti(); 
+}
+
+define_instruction(oddp) {
+  if (likely(is_fixnum(ac))) {
+    ac = bool_obj((get_fixnum(ac) & 1) != 0);
+  } else if (likely(is_flonum(ac))) {
+    double f = get_flonum(ac);
+    ac = bool_obj(flisint((f + 1.0) / 2.0));
+  } else failactype("number");
   gonexti(); 
 }
 
@@ -2751,7 +2858,6 @@ define_instruction(mlo) {
   gonexti(); 
 }
 
-
 define_instruction(lt) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
@@ -2885,6 +2991,24 @@ define_instruction(max) {
     else failtype(y, "number");
     ac = dx > dy ? flonum_obj(dx) : flonum_obj(dy);
   }
+  gonexti(); 
+}
+
+define_instruction(neg) {
+  if (likely(is_fixnum(ac))) {
+    ac = fixnum_obj(-get_fixnum(ac));
+  } else if (likely(is_flonum(ac))) {
+    ac = flonum_obj(-get_flonum(ac));
+  } else failactype("number");
+  gonexti(); 
+}
+
+define_instruction(abs) {
+  if (likely(is_fixnum(ac))) {
+    ac = fixnum_obj(fxabs(get_fixnum(ac)));
+  } else if (likely(is_flonum(ac))) {
+    ac = flonum_obj(fabs(get_flonum(ac)));
+  } else failactype("number");
   gonexti(); 
 }
 
@@ -3039,24 +3163,6 @@ define_instruction(atan) {
   gonexti(); 
 }
 
-define_instruction(neg) {
-  if (likely(is_fixnum(ac))) {
-    ac = fixnum_obj(-get_fixnum(ac));
-  } else if (likely(is_flonum(ac))) {
-    ac = flonum_obj(-get_flonum(ac));
-  } else failactype("number");
-  gonexti(); 
-}
-
-define_instruction(abs) {
-  if (likely(is_fixnum(ac))) {
-    ac = fixnum_obj(fxabs(get_fixnum(ac)));
-  } else if (likely(is_flonum(ac))) {
-    ac = flonum_obj(fabs(get_flonum(ac)));
-  } else failactype("number");
-  gonexti(); 
-}
-
 define_instruction(floor) {
   if (likely(is_flonum(ac))) {
     ac = flonum_obj(floor(get_flonum(ac)));
@@ -3095,94 +3201,6 @@ define_instruction(round) {
   gonexti(); 
 }
 
-
-define_instruction(nump) {
-  ac = bool_obj(is_fixnum(ac) || is_flonum(ac));
-  gonexti(); 
-}
-
-define_instruction(fixp) {
-  ac = bool_obj(is_fixnum(ac));
-  gonexti(); 
-}
-
-define_instruction(flop) {
-  ac = bool_obj(is_flonum(ac));
-  gonexti(); 
-}
-
-define_instruction(intp) {
-  if (likely(is_fixnum(ac))) {
-    ac = bool_obj(1);
-  } else { /* accepts any object! */
-    ac = bool_obj(is_flonum(ac) && flisint(get_flonum(ac)));
-  }
-  gonexti(); 
-}
-
-define_instruction(ratp) {
-  if (likely(is_fixnum(ac))) {
-    ac = bool_obj(1);
-  } else if (likely(is_flonum(ac))) {
-    double f = get_flonum(ac);
-    ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
-  } else {
-    ac = bool_obj(0);
-  }
-  gonexti(); 
-}
-
-
-define_instruction(nanp) {
-  if (unlikely(is_fixnum(ac))) {
-    ac = bool_obj(0);
-  } else if (likely(is_flonum(ac))) {
-    double f = get_flonum(ac);
-    ac = bool_obj(f != f);
-  } else failactype("number");
-  gonexti(); 
-}
-
-define_instruction(finp) {
-  if (unlikely(is_fixnum(ac))) {
-    ac = bool_obj(1);
-  } else if (likely(is_flonum(ac))) {
-    double f = get_flonum(ac);
-    ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
-  } else failactype("number");
-  gonexti(); 
-}
-
-define_instruction(infp) {
-  if (unlikely(is_fixnum(ac))) {
-    ac = bool_obj(0);
-  } else if (likely(is_flonum(ac))) {
-    double f = get_flonum(ac);
-    ac = bool_obj(f <= -HUGE_VAL || f >= HUGE_VAL);
-  } else failactype("number");
-  gonexti(); 
-}
-
-define_instruction(evnp) {
-  if (likely(is_fixnum(ac))) {
-    ac = bool_obj((get_fixnum(ac) & 1) == 0);
-  } else if (likely(is_flonum(ac))) {
-    double f = get_flonum(ac);
-    ac = bool_obj(flisint(f / 2.0));
-  } else failactype("number");
-  gonexti(); 
-}
-
-define_instruction(oddp) {
-  if (likely(is_fixnum(ac))) {
-    ac = bool_obj((get_fixnum(ac) & 1) != 0);
-  } else if (likely(is_flonum(ac))) {
-    double f = get_flonum(ac);
-    ac = bool_obj(flisint((f + 1.0) / 2.0));
-  } else failactype("number");
-  gonexti(); 
-}
-
 define_instruction(ntoi) {
   if (likely(is_flonum(ac))) {
     double d = get_flonum(ac); long l;
@@ -3200,6 +3218,18 @@ define_instruction(ntoj) {
   gonexti(); 
 }
 
+/* trivial definitions in standard build */
+define_instruction(isip) { ac = is_fixnum(ac); gonexti(); }
+define_instruction(isjp) { ac = is_flonum(ac); gonexti(); }
+
+/* stubs in standard build */
+define_instruction(bigp) { ac = bool_obj(0); gonexti(); }
+define_instruction(rtnp) { ac = bool_obj(0); gonexti(); }
+define_instruction(comp) { ac = bool_obj(0); gonexti(); }
+define_instruction(rctp) { ac = bool_obj(0); gonexti(); }
+
+
+/* pair/list instructions */
 
 define_instruction(lcat) {
   obj t, l, *p, *d; int c;
