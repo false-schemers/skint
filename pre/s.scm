@@ -486,19 +486,19 @@
 
 
 ;---------------------------------------------------------------------------------------------
-; Numbers (fixnums or flonums)
+; Numbers (fixnums, flonums, ...)
 ;---------------------------------------------------------------------------------------------
 
 ; integrables:
 ;
 ; (number? x)
-; (complex? x) == number? what about inf and nan?
-; (real? x) == number? what about inf and nan?
+; (complex? x)
+; (real? x)
 ; (rational? x)
 ; (integer? x)
 ; (exact? x)
 ; (inexact? x)
-; (exact-integer? x) == fixnum?
+; (exact-integer? x)
 ; (finite? x)
 ; (infinite? x)
 ; (nan? x)
@@ -543,8 +543,18 @@
 ; (expt x y)
 ; (inexact x)
 ; (exact x)
+; (numerator x)
+; (denominator x)
+; (magnitude x)
+; (angle x)
+; (make-rectangular r i)
+; (make-polar m a)
 ; (number->string x (radix 10))
 ; (string->number x (radix 10))
+; (bignum? x) +
+; (ratnum? x) +
+; (compnum? x) +
+; (rectnum? x) +
 
 (define (floor/ x y)
   (values (floor-quotient x y) (floor-remainder x y)))
@@ -554,14 +564,10 @@
 
 (define (lcm . args)
   (if (null? args) 1
-      (let loop ([x (car args)] [args (cdr args)])
+      (let loop ([x (abs (car args))] [args (cdr args)])
         (if (null? args) x
-            (let* ([y (car args)] [g (gcd x y)])
-              (loop (if (zero? g) g (* (quotient (abs x) g) (abs y))) (cdr args)))))))
-
-(define (numerator n) n)
-
-(define (denominator n) 1)
+            (let* ([y (abs (car args))] [g (gcd x y)])
+              (loop (if (zero? g) g (* (quotient x g) y)) (cdr args)))))))
 
 (define (rationalize n d) n)
 
@@ -570,22 +576,6 @@
 (define (exact-integer-sqrt x)
   (let* ([rem 0] [srt (%fxsqrt x (set& rem))])
     (values srt rem)))
-
-(define (make-rectangular r i)
-  (if (= i 0) r (error "make-rectangular: nonzero imag part not supported" i)))
-
-(define (make-polar m a)
-  (cond [(= a 0) m]
-        [(= a 3.141592653589793238462643) (- m)]
-        [else (error "make-polar: angle not supported" a)]))
-
-(define (real-part x) x)
-
-(define (imag-part x) 0)
-
-(define (magnitude x) (abs x))
-
-(define (angle x) (if (negative? x) 3.141592653589793238462643 0))
 
 
 ;---------------------------------------------------------------------------------------------

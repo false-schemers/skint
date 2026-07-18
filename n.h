@@ -21,6 +21,10 @@
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
+/* useful math constants */
+#ifndef M_PI
+#define M_PI 3.141592653589793238462643383279502884
+#endif
 
 /* standard definitions */
 #ifdef NAN_BOXING

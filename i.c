@@ -3228,6 +3228,40 @@ define_instruction(rtnp) { ac = bool_obj(0); gonexti(); }
 define_instruction(comp) { ac = bool_obj(0); gonexti(); }
 define_instruction(rctp) { ac = bool_obj(0); gonexti(); }
 
+/* trivial definitions in standard build */
+define_instruction(numer) { cki(ac); gonexti(); }
+define_instruction(denom) { cki(ac); ac = fixnum_obj(1); gonexti(); }
+define_instruction(rpart) { ckn(ac); gonexti(); }
+define_instruction(ipart) { ckn(ac); ac = fixnum_obj(0); gonexti(); }
+
+define_instruction(magn) { 
+  goi(abs); 
+}
+define_instruction(angl) {
+  int isneg = 0; 
+  if (likely(is_fixnum(ac))) isneg = (get_fixnum(ac) < 0);
+  else if (likely(is_flonum(ac))) isneg = (get_flonum(ac) < 0.0);
+  else failactype("number");
+  ac = isneg ? flonum_obj(M_PI) : fixnum_obj(0);
+  gonexti(); 
+}
+define_instruction(conj) { ckn(ac); gonexti(); }
+
+define_instruction(mkrec) {
+  obj i = spop();
+  ckn(ac);
+  if (!is_fixnum(i) || get_fixnum(i) != 0) 
+    fail("result cannot be represented as a Skint number");
+  gonexti();
+}
+define_instruction(mkpol) {
+  obj a = spop();
+  ckn(ac);
+  if (!is_fixnum(a) || get_fixnum(a) != 0)
+    fail("result cannot be represented as a Skint number");
+  gonexti();
+}
+
 
 /* pair/list instructions */
 
