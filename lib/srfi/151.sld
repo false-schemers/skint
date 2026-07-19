@@ -2,15 +2,8 @@
 (define-library (srfi 151)
   (import (scheme base) (scheme case-lambda))
   ; NB: in Skint, all exact integers are fixnums
-  (import (rename (skint)
-          (fxnot bitwise-not)
-          (fxand bitwise-and)
-          (fxior bitwise-ior)
-          (fxxor bitwise-xor)
-          (fxeqv bitwise-eqv)))
+  (import (skint))
   (import (rename (srfi 143)
-          (fxbit-count bit-count)
-          (fxlength integer-length)
           (fxif bitwise-if) 
           (fxfirst-set-bit first-set-bit)))
   (export bitwise-not bitwise-and bitwise-ior bitwise-xor bitwise-eqv
@@ -36,8 +29,8 @@
         [(fx>=? count fx-width) 0] ; << overflow
         [else (fxsll i count)]))
 
-;;; [esl] checked for overflow
-(define (arithmetic-shift i count)
+;;; [esl] builtin now
+#;(define (arithmetic-shift i count)
   (cond [(fxnegative? count)
          (let ([count (fxneg count)])
            (if (fx>=? count fx-width) ; >> overflow
@@ -77,14 +70,14 @@
 ;;;
 ;;; SPDX-License-Identifier: LicenseRef-Public-Domain
 ;;; Parts by John Cowan; public domain.
-;;; modified by [esl] to use fx functions directly
+;;; modified by [esl] 
 
-(define (bitwise-nand  i j)  (fxnot (fxand i j)))
-(define (bitwise-nor   i j)  (fxnot (fxior i j)))
-(define (bitwise-andc1 i j)  (fxand (fxnot i) j))	
-(define (bitwise-andc2 i j)  (fxand i (fxnot j)))	
-(define (bitwise-orc1  i j)  (fxior (fxnot i) j))
-(define (bitwise-orc2  i j)  (fxior i (fxnot j)))
+(define (bitwise-nand  i j)  (bitwise-not (bitwise-and i j)))
+(define (bitwise-nor   i j)  (bitwise-not (bitwise-ior i j)))
+(define (bitwise-andc1 i j)  (bitwise-and (bitwise-not i) j))	
+(define (bitwise-andc2 i j)  (bitwise-and i (bitwise-not j)))	
+(define (bitwise-orc1  i j)  (bitwise-ior (bitwise-not i) j))
+(define (bitwise-orc2  i j)  (bitwise-ior i (bitwise-not j)))
 
 ;;; [esl] made syntax for guaranteed inlining
 (define-syntax mask ; local

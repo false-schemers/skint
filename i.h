@@ -418,7 +418,6 @@ declare_instruction(rpart,      "Gr",           0,  "real-part",                
 declare_instruction(ipart,      "Gi",           0,  "imag-part",                '1', AUTOGL)
 declare_instruction(magn,       "Gm",           0,  "magnitude",                '1', AUTOGL)
 declare_instruction(angl,       "Ga",           0,  "angle",                    '1', AUTOGL)
-declare_instruction(conj,       "Gg",           0,  "conjugate",                '1', AUTOGL)
 declare_instruction(mkrec,      "Gc",           0,  "make-rectangular",         '2', AUTOGL)
 declare_instruction(mkpol,      "Gp",           0,  "make-polar",               '2', AUTOGL)
 declare_instruction(gsqrt,      "Gt\0f",        0,  "%gsqrt",                   'b', AUTOGL)
@@ -427,6 +426,7 @@ declare_instruction(gand,       "G1\0'(i-1)",   0,  "bitwise-and",              
 declare_instruction(gior,       "G2\0'0",       0,  "bitwise-ior",              'p', AUTOGL)
 declare_instruction(gxor,       "G3\0'0",       0,  "bitwise-xor",              'p', AUTOGL)
 declare_instruction(gash,       "G4",           0,  "arithmetic-shift",         '2', AUTOGL)
+declare_instruction(geqv,       "G7\0'(i-1)",   0,  "bitwise-eqv",              'p', AUTOGL)
 declare_instruction(glen,       "G8",           0,  "integer-length",           '1', AUTOGL)
 declare_instruction(gbtc,       "G8!",          0,  "bit-count",                '1', AUTOGL)
 /* aliased integrables (no custom instructions) */               
@@ -436,19 +436,6 @@ declare_integrable(NULL,        "Nq",           0,  "quotient",                 
 declare_integrable(NULL,        "Nr",           0,  "remainder",                '2', AUTOGL)
 declare_integrable(NULL,        "Ni",           0,  "inexact->exact",           '1', AUTOGL)
 declare_integrable(NULL,        "Nj",           0,  "exact->inexact",           '1', AUTOGL)
-#if 0
-/* future instructions */
-declare_instruction(glen,       "G7",           0,  "loglen",                   '1', AUTOGL)
-declare_instruction(gbitc,      "G8",           0,  "logbitc",                  '1', AUTOGL)
-declare_instruction(lcm,        "Gl\0'1",       0,  "lcm",                      'p', AUTOGL)
-declare_instruction(sinh,       "T03",          0,  "sinh",                     '1', AUTOGL)
-declare_instruction(cosh,       "T04",          0,  "cosh",                     '1', AUTOGL)
-declare_instruction(tanh,       "T05",          0,  "tanh",                     '1', AUTOGL)
-declare_instruction(log10,      "T06",          0,  "fllog10",                  '1', AUTOGL)
-declare_instruction(asinh,      "T25",          0,  "asinh",                    '1', AUTOGL)
-declare_instruction(acosh,      "T26",          0,  "acosh",                    '1', AUTOGL)
-declare_instruction(atanh,      "T27",          0,  "atanh",                    '1', AUTOGL)
-#endif
 
 /* pair/list instructions */
 declare_instruction(listp,      "L0",           0,  "list?",                    '1', AUTOGL)

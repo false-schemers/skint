@@ -3257,7 +3257,6 @@ define_instruction(angl) {
   ac = isneg ? flonum_obj(M_PI) : fixnum_obj(0);
   gonexti(); 
 }
-define_instruction(conj) { ckn(ac); gonexti(); }
 
 define_instruction(mkrec) {
   obj i = spop();
@@ -3280,8 +3279,6 @@ define_instruction(gnot) { goi(inot); }
 define_instruction(gand) { goi(iand); }
 define_instruction(gior) { goi(iior); }
 define_instruction(gxor) { goi(ixor); }
-define_instruction(glen) { goi(ilen); }
-define_instruction(gbtc) { goi(ibtc); }
 
 define_instruction(gash) {
   long ix, iy, iz; 
@@ -3301,6 +3298,9 @@ define_instruction(gash) {
   gonexti();
 }
 
+define_instruction(geqv) { goi(ieqv); }
+define_instruction(glen) { goi(ilen); }
+define_instruction(gbtc) { goi(ibtc); }
 
 
 /* pair/list instructions */

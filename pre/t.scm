@@ -2225,7 +2225,7 @@
     (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
     (flmax) (flremainder) (flmodulo) (flquotient) (flmodquo) (flonum->fixnum) (flonum->string)
     (flldexp) (flmodf) (flfrexp) (flsinh) (flcosh) (fltanh) (fllog10) (string->flonum) 
-    (bitwise-not) (bitwise-and) (bitwise-ior) (bitwise-xor) (arithmetic-shift) 
+    (bitwise-not) (bitwise-and) (bitwise-ior) (bitwise-xor) (arithmetic-shift) (bitwise-eqv) 
     (integer-length) (bit-count) (bignum?) (ratnum?) (compnum?) (rectnum?)
     (list-cat) (last-pair) (list-head) (meme) (asse) (memp) (assp) (reverse!) 
     (circular?) (cons*) (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) 

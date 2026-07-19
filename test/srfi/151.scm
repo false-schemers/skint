@@ -7,6 +7,13 @@
     [(_) #t]
     [(_ e => r . more) (begin (test 'r e) (check . more))]))
 
+(define-syntax test-overflow
+  (syntax-rules ()
+    ((test-overflow name expr) 
+     (test-overflow expr))
+    ((test-overflow expr)
+     (test #t (inexact? expr))))) 
+
 ;; tests from the SRFI doc (some modified for range)
 (check
 (bitwise-ior 3  10) =>  11
@@ -120,8 +127,8 @@
 (test -1 (arithmetic-shift -42 -1000000))
 (test 0 (arithmetic-shift 42 -1000000))
 (test 0 (arithmetic-shift 0 1000000))
-(test-error (arithmetic-shift -42 1000000))
-(test-error (arithmetic-shift 42 1000000))
+(test-overflow (arithmetic-shift -42 1000000))
+(test-overflow (arithmetic-shift 42 1000000))
 (test -1 (bit-field -42 1000000 1000100))
 (test 0 (bit-field 42 1000000 1000100))
 (test #t (bit-field-any? -42 1000000 1000100))
