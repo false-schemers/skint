@@ -418,21 +418,16 @@
 ; (fxsll x y)
 ; (fxsra x y)
 ; (fxsrl x y)
+; (fxlength x)
+; (fxbit-count x)
 ; (fixnum->flonum x)
 ; (fixnum->string x (radix 10))
 ; (string->fixnum s (radix 10))
 
 ;TBD:
 ;
-;fx-width
 ;fx-greatest
 ;fx-least
-;fxlength cf. integer-length (+ 1 (integer-length i)) 
-;  is the number of bits needed to represent i in a signed twos-complement representation
-;  0 => 0, 1 => 1, -1 => 0, 7 => 3, -7 => 3, 8 => 4, -8 => 3
-;fxbit-count cf. bit-count
-;  Returns the population count of 1's (i >= 0) or 0's (i < 0)
-;  0 => 0, -1 => 0, 7 => 3, 13 => 3, -13 => 2  
 
 
 ;---------------------------------------------------------------------------------------------
@@ -550,11 +545,13 @@
 ; (make-rectangular r i)
 ; (make-polar m a)
 ; (%gsqrt x (box #f)) +
-; (lognot x) +
-; (logand x ...) +
-; (logior x ...) +
-; (logxor x ...) +
-; (ash x y) +
+; (bitwise-not x) +
+; (bitwise-and x ...) +
+; (bitwise-ior x ...) +
+; (bitwise-xor x ...) +
+; (arithmetic-shift x y) +
+; (integer-length x) +
+; (bit-count) +
 ; (bignum? x) +
 ; (ratnum? x) +
 ; (compnum? x) +

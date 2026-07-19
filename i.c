@@ -2268,6 +2268,18 @@ define_instruction(ieqv) {
   gonexti();
 }
 
+define_instruction(ilen) {
+  cki(ac);
+  ac = fixnum_obj(fxlen(get_fixnum(ac)));
+  gonexti();
+}
+
+define_instruction(ibtc) {
+  cki(ac);
+  ac = fixnum_obj(fxbtc(get_fixnum(ac)));
+  gonexti();
+}
+
 define_instruction(iaddc) {
   obj x = ac, y = spop(), b = spop(), c; long quo, rem; 
   cki(x); cki(y); ckz(b); c = box_ref(b); cki(c); 
@@ -3268,6 +3280,8 @@ define_instruction(gnot) { goi(inot); }
 define_instruction(gand) { goi(iand); }
 define_instruction(gior) { goi(iior); }
 define_instruction(gxor) { goi(ixor); }
+define_instruction(glen) { goi(ilen); }
+define_instruction(gbtc) { goi(ibtc); }
 
 define_instruction(gash) {
   long ix, iy, iz; 

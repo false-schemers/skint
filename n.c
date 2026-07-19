@@ -220,6 +220,24 @@ int fxifdv(long x, long y, long *pi, double *pd) {
   else { *pd = (double)x / (double)y; return 0; }  
 }
 
+int fxlen(long x) {
+  int t = 0;
+  for (;;) switch (x) {
+    case 0: case -1: return t;
+    case 1: case -2: return t + 1;
+    case 2: case 3: case -3: case -4: return t + 2;
+    case 4: case 5: case 6: case 7:
+    case -5: case -6: case -7: case -8: return t + 3;
+    default: x /= 16; t += 4;
+  }
+}
+
+int fxbtc(long x) {
+  int neg = (x < 0), c;
+  for (c = 0, x &= FIXNUM_MASK; x != 0; x &= x-1) ++c;
+  return neg ? FIXNUM_WIDTH - c : c;
+}
+
 double flquo(double x, double y) {
   double z; ASSERT(y != 0.0 && flisint(x) && flisint(y));
   modf(x / y,  &z);

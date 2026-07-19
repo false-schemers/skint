@@ -247,6 +247,8 @@ extern long fxpow(long x, long y);
 /* returns 0 if result is not representable as a fixnum */
 extern long fxsqrt(long x);
 extern int fxifdv(long x, long y, long *pi, double *pd);
+extern int fxlen(long x); /* srfi-143 fxlength */
+extern int fxbtc(long x); /* srfi-143 fxfxbit-count */
 extern double flquo(double x, double y);
 extern double flrem(double x, double y);
 extern double flmqu(double x, double y);
