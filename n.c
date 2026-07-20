@@ -98,6 +98,8 @@ obj* typedref(obj o, int i) {
 }
 #endif
 
+/* numbers */
+
 #ifndef NDEBUG
 long fxneg(long x) { 
   ASSERT(x != FIXNUM_MIN);
@@ -305,10 +307,7 @@ int strtofxfl(const char *s, int radix, long *pl, double *pd) {
   return (errno = eno, (conv == 'e') ? (*pl = fxflo(d), 'e') : (*pd = d, 'i'));
 }
 
-#ifndef FLONUMS_BOXED
-
-#else
-
+#ifdef FLONUMS_BOXED
 static cxtype_t cxt_flonum = { "flonum", free };
 
 cxtype_t *FLONUM_NTAG = &cxt_flonum;
@@ -317,8 +316,9 @@ flonum_t *dupflonum(flonum_t f) {
   flonum_t *pf = cxm_cknull(malloc(sizeof(flonum_t)), "malloc(flonum)");
   *pf = f; return pf;
 }
-
 #endif
+
+/* strings */
 
 static cxtype_t cxt_string = { "string", free };
 
@@ -481,6 +481,9 @@ int strcmp_ci(const char *s1, const char *s2) { /* s1 or s2 should be ascii */
   return d;
 }
 
+
+/* bytevectors */
+
 static cxtype_t cxt_bytevector = { "bytevector", free };
 
 cxtype_t *BYTEVECTOR_NTAG = &cxt_bytevector;
@@ -527,6 +530,8 @@ int *subbytevector(int *d0, int from, int to) {
   memcpy(s1, s0+from, n); return d1;
 }
 
+/* pairs/lists */
+
 int islist(obj l) {
   obj s = l;
   for (;;) {
@@ -539,6 +544,8 @@ int islist(obj l) {
     else s = cdr(s); 
   }
 }
+
+/* symbols */
 
 /* symbol table */
 static struct { int **a; int ***v; size_t sz; size_t u; size_t maxu; } symt;
@@ -591,6 +598,7 @@ const char *symbolname(int sym) {
   return sdatachars(symt.a[sym]);
 }
 
+/* procedures/closures */
 
 int isprocedure(obj o) {
   if (!o) return 0;
@@ -920,6 +928,8 @@ cxtype_t *IPORT_TTY_NTAG = (cxtype_t *)&cxt_port_types[IPORT_TTY_PTINDEX];
 cxtype_t *OPORT_TTY_NTAG = (cxtype_t *)&cxt_port_types[OPORT_TTY_PTINDEX];
 #endif
 
+/* circularity/sharing helpers */
+
 /* eq hash table for circular/sharing checks and safe equal? */
 typedef struct { obj *v; obj *r; size_t sz; size_t u, maxu, c; } stab_t;
 static stab_t *staballoc(void) {
@@ -1057,6 +1067,8 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
   if (i == n-1) { x = hblkref(x, i); y = hblkref(y, i); goto loop; } else return fuel;
 }
 
+/* base predicates */
+
 int iscircular(obj x) {
   if (!x || notaptr(x) || notobjptr(x)) return 0;
   else { stab_t *p = staballoc(); stabcircular(x, p); p = stabend(p); stabfree(p); return p != NULL; }
@@ -1161,6 +1173,8 @@ static int is_delimiter(int c) {
 #endif
 }
 
+/* read */
+
 /* internal read-ahead procedure; returns 'o', 'i', 'e', 0, 1, 2 */
 int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), 
          void *in, obj *po, long *pl, double *pd, int **pp) {
@@ -1219,6 +1233,8 @@ in_bitvec:
 err:
   return 2;
 }
+
+/* write */
 
 /* internal recursive write procedure */
 typedef struct { stab_t *pst; int disp; cxtype_oport_t *vt; void *pp; } wenv_t;

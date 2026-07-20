@@ -1474,6 +1474,7 @@
 ; (port-fold-case? p)
 ; (eof-object? x)
 ; (eof-object)
+; (%read-ahead fold-case? p) +
 
 (define (read-substring! str start end p)
   (let loop ([i start])

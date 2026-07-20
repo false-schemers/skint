@@ -2003,26 +2003,6 @@ define_instruction(stoj) {
   gonexti();
 }
 
-define_instruction(ntos) {
-  if (is_fixnum(ac)) goi(itos);
-  if (unlikely(spop() != fixnum_obj(10))) fail("non-10 radix in flonum conversion");
-  spush(0); /* #f: use default precision */
-  goi(jtos);
-}
-
-define_instruction(ston) {
-  const char *s; int radix; long l; double d;
-  obj x = ac, y = spop(); cks(x); ckk(y);
-  s = stringchars(x); radix = get_fixnum(y);
-  if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
-  switch (strtofxfl(s, radix, &l, &d)) {
-    case 'e': ac = fixnum_obj(l); break;
-    case 'i': ac = flonum_obj(d); break;
-    default : ac = bool_obj(0); break;
-  }
-  gonexti();
-}
-
 define_instruction(not) {
   ac = bool_obj(ac == 0);
   gonexti();
@@ -3301,6 +3281,28 @@ define_instruction(gash) {
 define_instruction(geqv) { goi(ieqv); }
 define_instruction(glen) { goi(ilen); }
 define_instruction(gbtc) { goi(ibtc); }
+
+/* generic number <-> string conversions */
+
+define_instruction(ntos) {
+  if (is_fixnum(ac)) goi(itos);
+  if (unlikely(spop() != fixnum_obj(10))) fail("non-10 radix in flonum conversion");
+  spush(0); /* #f: use default precision */
+  goi(jtos);
+}
+
+define_instruction(ston) {
+  const char *s; int radix; long l; double d;
+  obj x = ac, y = spop(); cks(x); ckk(y);
+  s = stringchars(x); radix = get_fixnum(y);
+  if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
+  switch (strtofxfl(s, radix, &l, &d)) {
+  case 'e': ac = fixnum_obj(l); break;
+  case 'i': ac = flonum_obj(d); break;
+  default : ac = bool_obj(0); break;
+  }
+  gonexti();
+}
 
 
 /* pair/list instructions */

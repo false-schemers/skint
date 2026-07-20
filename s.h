@@ -41,7 +41,6 @@
 #include <direct.h>
 #include <sys/types.h>
 #include <process.h> /* for getpid */
-#include <locale.h> /* for setlocale */
 #include <sys/stat.h> /* for _S_IREAD|_S_IWRITE */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>

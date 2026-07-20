@@ -429,6 +429,9 @@ declare_instruction(gash,       "G4",           0,  "arithmetic-shift",         
 declare_instruction(geqv,       "G7\0'(i-1)",   0,  "bitwise-eqv",              'p', AUTOGL)
 declare_instruction(glen,       "G8",           0,  "integer-length",           '1', AUTOGL)
 declare_instruction(gbtc,       "G8!",          0,  "bit-count",                '1', AUTOGL)
+/* generic number <-> string conversions */
+declare_instruction(ntos,       "E8\0'(i10)",   0,  "number->string",           'b', AUTOGL)
+declare_instruction(ston,       "E9\0'(i10)",   0,  "string->number",           'b', AUTOGL)
 /* aliased integrables (no custom instructions) */               
 declare_integrable(NULL,        "N0",           0,  "complex?",                 '1', AUTOGL)
 declare_integrable(NULL,        "Nm",           0,  "modulo",                   '2', AUTOGL)
@@ -457,6 +460,8 @@ declare_instruction(ltail,      "A6",           0,  "list-tail",                
 declare_instruction(lpair,      "A7",           0,  "last-pair",                '1', AUTOGL)
 declare_instruction(lrev,       "A8",           0,  "reverse",                  '1', AUTOGL)
 declare_instruction(lrevi,      "A9",           0,  "reverse!",                 '1', AUTOGL)
+
+/* char instructions */
 declare_instruction(charp,      "C0",           0,  "char?",                    '1', AUTOGL)
 declare_instruction(cwsp,       "C1",           0,  "char-whitespace?",         '1', AUTOGL)
 declare_instruction(clcp,       "C2",           0,  "char-lower-case?",         '1', AUTOGL)
@@ -479,6 +484,8 @@ declare_instruction(cilt,       "Ci<",          0,  "char-ci<?",                
 declare_instruction(cigt,       "Ci>",          0,  "char-ci>?",                'c', AUTOGL)
 declare_instruction(cile,       "Ci>!",         0,  "char-ci<=?",               'c', AUTOGL)
 declare_instruction(cige,       "Ci<!",         0,  "char-ci>=?",               'c', AUTOGL)
+
+/* string instructions */
 declare_instruction(strp,       "S0",           0,  "string?",                  '1', AUTOGL)
 declare_instruction(str,        "S1",           1,  "string",                   '#', "S1(f)]0")
 declare_instruction(smk,        "S2\0'(c )",    0,  "make-string",              'b', AUTOGL)
@@ -505,6 +512,8 @@ declare_instruction(silt,       "Si<",          0,  "string-ci<?",              
 declare_instruction(sigt,       "Si>",          0,  "string-ci>?",              'c', AUTOGL)
 declare_instruction(sile,       "Si>!",         0,  "string-ci<=?",             'c', AUTOGL)
 declare_instruction(sige,       "Si<!",         0,  "string-ci>=?",             'c', AUTOGL)
+
+/* vector instructions */
 declare_instruction(vecp,       "V0",           0,  "vector?",                  '1', AUTOGL)
 declare_instruction(vec,        "V1",           1,  "vector",                   '#', "V1(f)]0")
 declare_instruction(vmk,        "V2\0f",        0,  "make-vector",              'b', AUTOGL)
@@ -513,6 +522,8 @@ declare_instruction(vget,       "V4",           0,  "vector-ref",               
 declare_instruction(vput,       "V5",           0,  "vector-set!",              '3', AUTOGL)
 declare_instruction(vapp,       "Va",           1,  "vector-append",            '#', "Va(f)]0")
 declare_instruction(vapp2,      "Va2",          0,  NULL,                        0,  NULL)
+
+/* bytevector instructions */
 declare_instruction(bvecp,      "B0",           0,  "bytevector?",              '1', AUTOGL)
 declare_instruction(bvec,       "B1",           1,  "bytevector",               '#', "B1(f)]0")
 declare_instruction(bmk,        "B2\0'0",       0,  "make-bytevector",          'b', AUTOGL)
@@ -523,6 +534,8 @@ declare_instruction(bsub,       "B7",           0,  "subbytevector",            
 declare_instruction(s8tos,      "B9",           0,  "subutf8->string",          '3', AUTOGL)
 declare_instruction(bapp,       "Ba",           1,  "bytevector-append",        '#', "Ba(f)]0")
 declare_instruction(beq,        "B=",           0,  "bytevector=?",             'c', AUTOGL)
+
+/* numerical vector instructions */
 declare_instruction(nvecp,      "H0\0f",        0,  "numvector?",               'b', AUTOGL)
 declare_instruction(nmk,        "H2",           0,  "make-numvector",           '2', AUTOGL)
 declare_instruction(nlen,       "H3",           0,  "numvector-length",         '1', AUTOGL)
@@ -530,10 +543,14 @@ declare_instruction(nget,       "H4",           0,  "numvector-ref",            
 declare_instruction(nput,       "H5",           0,  "numvector-set!",           '3', AUTOGL)
 declare_instruction(recp,       "O0\0Y9",       0,  "record?",                  'b', AUTOGL)
 declare_instruction(rmk,        "O2\0f",        0,  "make-record",              't', AUTOGL)
+
+/* record instructions */
 declare_instruction(rlen,       "O3",           0,  "record-length",            '1', AUTOGL)
 declare_instruction(rget,       "O4",           0,  "record-ref",               '2', AUTOGL)
 declare_instruction(rput,       "O5",           0,  "record-set!",              '3', AUTOGL)
 declare_instruction(rrtd,       "O6",           0,  "record-type-descriptor",   '1', AUTOGL)
+
+/* conversion instructions */
 declare_instruction(vtol,       "X0",           0,  "%vector->list1",           '1', AUTOGL)
 declare_instruction(ltov,       "X1",           0,  "list->vector",             '1', AUTOGL)
 declare_instruction(stol,       "X2",           0,  "%string->list1",           '1', AUTOGL)
@@ -548,8 +565,8 @@ declare_instruction(ltob,       "E1",           0,  "list->bytevector",         
 declare_instruction(lton,       "E2\0'0",       0,  "list->numvector",          'b', AUTOGL)
 declare_instruction(jtos,       "E6\0f",        0,  "flonum->string",           'b', AUTOGL)
 declare_instruction(stoj,       "E7",           0,  "string->flonum",           '1', AUTOGL)
-declare_instruction(ntos,       "E8\0'(i10)",   0,  "number->string",           'b', AUTOGL)
-declare_instruction(ston,       "E9\0'(i10)",   0,  "string->number",           'b', AUTOGL)
+
+/* misc types instructions */
 declare_instruction(symp,       "Y0",           0,  "symbol?",                  '1', AUTOGL)
 declare_instruction(boolp,      "Y1",           0,  "boolean?",                 '1', AUTOGL)
 declare_instruction(boxp,       "Y2",           0,  "box?",                     '1', AUTOGL)
@@ -559,6 +576,8 @@ declare_instruction(sbtoy,      "Y7",           0,  "shebang->symbol",          
 declare_instruction(voidp,      "Y8",           0,  "void?",                    '1', AUTOGL)
 declare_instruction(void,       "Y9",           0,  "void",                     '0', AUTOGL)
 declare_instruction(funp,       "K0",           0,  "procedure?",               '1', AUTOGL)
+
+/* port instructions */
 declare_instruction(pp,         "Pp\0'7",       0,  "%port?",                   'b', AUTOGL)
 declare_instruction(cin,        "Pi",           0,  "%current-input-port",      '0', AUTOGL)
 declare_instruction(cout,       "Po",           0,  "%current-output-port",     '0', AUTOGL)
@@ -591,6 +610,8 @@ declare_instruction(ploc,       "P80",          0,  "%port-location",           
 declare_instruction(sppr,       "P81",          0,  "set-port-prompt!",         '2', AUTOGL)
 declare_instruction(gos,        "P90",          0,  "get-output-string",        '1', AUTOGL)
 declare_instruction(gob,        "P91",          0,  "get-output-bytevector",    '1', AUTOGL)
+
+/* read instructions */
 declare_instruction(rdc,        "R0\0Pi",       0,  "read-char",                'u', AUTOGL)
 declare_instruction(rdac,       "R1\0Pi",       0,  "peek-char",                'u', AUTOGL)
 declare_instruction(rdcr,       "R2\0Pi",       0,  "char-ready?",              'u', AUTOGL)
@@ -601,6 +622,8 @@ declare_instruction(rdln,       "R6\0Pi",       0,  "read-line",                
 declare_instruction(rdah,       "Ra\0Pi",       0,  "%read-ahead",              'b', AUTOGL)
 declare_instruction(eofp,       "R8",           0,  "eof-object?",              '1', AUTOGL)
 declare_instruction(eof,        "R9",           0,  "eof-object",               '0', AUTOGL)
+
+/* write instructions */
 declare_instruction(wrc,        "W0\0Po",       0,  "write-char",               'b', AUTOGL)
 declare_instruction(wrs,        "W1",           0,  "%write-string1",           '2', AUTOGL)
 declare_instruction(wr8,        "W2\0Po",       0,  "write-u8",                 'b', AUTOGL)
@@ -610,6 +633,8 @@ declare_instruction(wrcw,       "W5\0Po",       0,  "write",                    
 declare_instruction(wrnl,       "W6\0Po",       0,  "newline",                  'u', AUTOGL)
 declare_instruction(wrhw,       "W7\0Po",       0,  "write-shared",             'b', AUTOGL)
 declare_instruction(wriw,       "W8\0Po",       0,  "write-simple",             'b', AUTOGL)
+
+/* file and system instructions */
 declare_instruction(fexis,      "F0",           0,  "file-exists?",             '1', AUTOGL)
 declare_instruction(frem,       "F1",           0,  "delete-file",              '1', AUTOGL)
 declare_instruction(fren,       "F2",           0,  "rename-file",              '2', AUTOGL)
