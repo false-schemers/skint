@@ -20,10 +20,29 @@
 #include <errno.h>
 #include <ctype.h>
 #include <string.h>
+#include <float.h>
 #include <time.h>
 /* useful math constants */
 #ifndef M_PI
 #define M_PI 3.141592653589793238462643383279502884
+#endif
+#ifndef M_PI_2
+#define M_PI_2 1.570796326794896619231321691639751442
+#endif
+#ifndef M_PI_4
+#define M_PI_4 0.785398163397448309615660845819875721
+#endif
+#ifndef M_SQRT2
+#define M_SQRT2 1.414213562373095048801688724209698079
+#endif
+#ifndef M_LN2
+#define M_LN2 0.693147180559945309417232121458176568
+#endif
+#ifndef M_PI_LN2
+#define M_PI_LN2 4.53236014182719380962768294571666681
+#endif
+#ifndef M_PI_LN10
+#define M_PI_LN10 1.36437635384184134748578362543135577
 #endif
 
 /* standard definitions */
@@ -316,6 +335,11 @@ typedef long long flobits_t; /* has to be the same size as flonum_t! */
 #define void_from_flonum(l, f) (void)(f)
 #define obj_from_flonum(l, f) hpushptr(dupflonum(f), FLONUM_NTAG, l)
 extern flonum_t *dupflonum(flonum_t f);
+#endif
+
+/* other numbers */
+#ifdef OPT_TOWER
+#include "opt/n_tower.h"
 #endif
 
 /* characters */

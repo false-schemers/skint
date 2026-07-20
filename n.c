@@ -1566,7 +1566,12 @@ extern char* host_sig(void)
 #else
   sig[12] = '0';
 #endif
-  /* 13..15 are reserved */
+#ifdef OPT_TOWER
+  sig[13] = 't';
+#else
+  sig[13] = '0';
+#endif
+  /* 14..15 are reserved */
   loc = setlocale(LC_ALL, NULL); if (!loc) loc = "en_US";
   sig[16] = loc[0] ? loc[0] : '?';
   sig[17] = (loc[0] && loc[1]) ? loc[1] : '?';
@@ -1606,4 +1611,7 @@ extern const char* host_facet(int fno)
 #include "opt/n_enhtty.c"
 #endif
 
+#ifdef OPT_TOWER
+#include "opt/n_tower.c"
+#endif
 
