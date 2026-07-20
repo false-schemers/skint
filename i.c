@@ -3292,14 +3292,15 @@ define_instruction(ntos) {
 }
 
 define_instruction(ston) {
-  const char *s; int radix; long l; double d;
+  const char *s; int radix; nump_t np[NUMP_MAX];
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
-  switch (strtofxfl(s, radix, &l, &d)) {
-  case 'e': ac = fixnum_obj(l); break;
-  case 'i': ac = flonum_obj(d); break;
-  default : ac = bool_obj(0); break;
+  switch (strtonum(np, s, NULL, radix)) {
+    case NUMT_FIX: ac = fixnum_obj(np[0].fix); break;
+    case NUMT_FLO: ac = flonum_obj(np[0].flo); break;
+    /* no big/fat numbers here */
+    default : ac = bool_obj(0); break;
   }
   gonexti();
 }

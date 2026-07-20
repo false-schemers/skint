@@ -274,7 +274,6 @@ extern double flmqu(double x, double y);
 extern double flmlo(double x, double y);
 extern double flgcd(double x, double y);
 extern double flround(double x);
-extern int strtofxfl(const char *s, int radix, long *pl, double *pd);
 
 /* fixnums */
 typedef long fixnum_t;
@@ -336,6 +335,34 @@ typedef long long flobits_t; /* has to be the same size as flonum_t! */
 #define obj_from_flonum(l, f) hpushptr(dupflonum(f), FLONUM_NTAG, l)
 extern flonum_t *dupflonum(flonum_t f);
 #endif
+
+/* part of a number */
+typedef union nump { 
+  long fix; 
+  double flo;
+#ifdef OPT_TOWER
+  struct bignum *big;
+#endif
+} nump_t;
+
+#ifndef OPT_TOWER
+#define NUMP_MAX (1)
+#else
+#define NUMP_MAX (4)
+#endif
+
+/* numerical type */
+typedef unsigned short numt_t;
+
+#define NUMT_NONE (0)
+#define NUMT_FIX  (1)
+#define NUMT_FLO  (2)
+
+#ifdef OPT_TOWER
+#endif
+
+/* returns NUMT_NONE and sets errno on failure */
+extern numt_t strtonum(nump_t np[NUMP_MAX], const char *s, char **endp, int radix);
 
 /* other numbers */
 #ifdef OPT_TOWER
@@ -435,6 +462,7 @@ extern int *stringrcat(int sc, obj pso[]);
 #define usystem system
 #endif /* end of !OPT_UNICODE block */
 extern int strcmp_ci(const char *s1, const char *s2);
+extern int strncmp_ci(const char *s1, const char *s2, size_t n);
 #define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)
 
 /* vectors */
