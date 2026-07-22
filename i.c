@@ -248,6 +248,16 @@ static void _sck(obj *s) {
 #define is_flonum(o) is_flonum_obj(o)
 #define get_flonum(o) flonum_from_obj(o)
 #endif
+/* NB: x referenced multiple times! */
+#ifdef OPT_TOWER
+#define is_bignum(o) is_bignum_obj(o)
+#define get_bignum(o) bignum_from_obj(o)
+#define is_fatnum(o) is_fatnum_obj(o)
+#define get_fatnum(o) fatnum_from_obj(o)
+#define is_number(o) (is_fixnum(o) || is_flonum(o) || is_bignum(o) || is_fatnum(o))
+#else
+#define is_number(o) (is_fixnum(o) || is_flonum(o)) 
+#endif
 #define is_symbol(o) issymbol(o)
 #define get_symbol(o) getsymbol(o)
 #define symbol_obj(i) mksymbol(i)
@@ -569,7 +579,7 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckj(x) do { obj _x = (x); if (unlikely(!is_flonum(_x))) \
   { ac = _x; spush((obj)"flonum"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckn(x) do { obj _x = (x); if (unlikely(!is_fixnum(_x) && !is_flonum(_x))) \
+#define ckn(x) do { obj _x = (x); if (unlikely(!is_number(_x))) \
   { ac = _x; spush((obj)"number"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckk(x) do { obj _x = (x); if (unlikely(!is_fixnum(_x) || get_fixnum(_x) < 0)) \
   { ac = _x; spush((obj)"nonnegative fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
@@ -2578,6 +2588,8 @@ define_instruction(jyn) { cki(ac); ckj(sref(0)); ac = flonum_obj(yn(get_fixnum(a
 #endif
 
 /* generic math instructions */
+#ifndef OPT_TOWER 
+/* fixnum/flonum versions */
 
 define_instruction(nump) {
   ac = bool_obj(is_fixnum(ac) || is_flonum(ac));
@@ -3305,6 +3317,9 @@ define_instruction(ston) {
   gonexti();
 }
 
+#else
+#include "opt/i_tower.c"
+#endif
 
 /* pair/list instructions */
 

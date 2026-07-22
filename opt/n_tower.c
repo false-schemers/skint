@@ -628,7 +628,7 @@ char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar)
   return buf;
 }
 
-#define FN_BIN_BUFSIZE GN_BUFSIZE
+#define DN_BIN_BUFSIZE GN_BUFSIZE
 #define dtobin(x, buf, buflen) po2b_dtoa(x, buf, buflen, 1, 'e')
 #define dtooct(x, buf, buflen) po2b_dtoa(x, buf, buflen, 3, 'e')
 #define dtohex(x, buf, buflen) po2b_dtoa(x, buf, buflen, 4, 'p')
@@ -831,7 +831,7 @@ static char *check_number(const char *s, int *pradix, int *pie, int *pflags)
 /* double <-> string conversions */
 
 /* clears errno and sets it to EDOM or ERANGE on error */
-double strtofn(const char *str, int radix, char **ep)
+double strtodn(const char *str, int radix, char **ep)
 {
   double x; char *e = (char *)str; errno = 0;
   switch (radix) {
@@ -849,7 +849,7 @@ double strtofn(const char *str, int radix, char **ep)
 }
 
 /* check if x is not normally printed with a sign */
-int fnsignless(double x)
+int dnsignless(double x)
 {
   if (x != x || x <= -HUGE_VAL || HUGE_VAL <= x) return 0;
   if (x == 0.0 && 1.0/x < 0.0) return 0;
@@ -857,22 +857,22 @@ int fnsignless(double x)
 }
 
 /* add safety margin for "0.", "e-", etc. */
-#define FN_DEC_BUFSIZE (DBL_DIG+20)
+#define DN_DEC_BUFSIZE (DBL_DIG+20)
 
 /* measure max. size of the buffer needed for printing */
-size_t fnfmtsize(int radix)
+size_t dnfmtsize(int radix)
 {
   assert(radix == 2 || radix == 8 || radix == 10 || radix == 16);
-  if (radix == 10) return FN_DEC_BUFSIZE; /* estimated up */
-  else return FN_BIN_BUFSIZE; /* largest of 2/8/16 estimated up */
+  if (radix == 10) return DN_DEC_BUFSIZE; /* estimated up */
+  else return DN_BIN_BUFSIZE; /* largest of 2/8/16 estimated up */
 }
 
 /* format finite x into buffer; len should be at least as calculated by 
- * fnfmtsize; returns buffer (prints left-to-right) or NULL on wrong radix */
-char *fntostr(char *buf, size_t len, double x, int radix)
+ * dnfmtsize; returns buffer (prints left-to-right) or NULL on wrong radix */
+char *dntostr(char *buf, size_t len, double x, int radix)
 {
   char *res = buf;
-  assert(len >= fnfmtsize(radix));
+  assert(len >= dnfmtsize(radix));
   switch (radix) {
     case 10: {
       /* make sure either . or e is always there */
@@ -891,12 +891,12 @@ char *fntostr(char *buf, size_t len, double x, int radix)
   return res;
 }
 
-static void fnprint(FILE *fp, double x, int radix)
+static void dnprint(FILE *fp, double x, int radix)
 {
   switch (radix) {
     case 10: {
       /* make sure either . or e is always there */
-      char buffer[FN_DEC_BUFSIZE], *buf = buffer; int eordot = 0;
+      char buffer[DN_DEC_BUFSIZE], *buf = buffer; int eordot = 0;
       sprintf(buffer, "%.*g", DBL_DIG+2, x);
       for (; *buf != 0; buf++) if (*buf == 'e' || *buf == 'E' || *buf == '.') eordot = 1;
       if (!eordot) *buf++ = '.', *buf++ = '0';
@@ -904,17 +904,17 @@ static void fnprint(FILE *fp, double x, int radix)
       fputs(buffer, fp); 
     } break;
     case 2: {
-      char buffer[FN_BIN_BUFSIZE], *buf = dtobin(x, buffer, FN_BIN_BUFSIZE);
+      char buffer[DN_BIN_BUFSIZE], *buf = dtobin(x, buffer, DN_BIN_BUFSIZE);
       assert(buffer == buf);
       fputs(buf, fp); 
     } break;
     case 8: {
-      char buffer[FN_BIN_BUFSIZE], *buf = dtooct(x, buffer, FN_BIN_BUFSIZE);
+      char buffer[DN_BIN_BUFSIZE], *buf = dtooct(x, buffer, DN_BIN_BUFSIZE);
       assert(buffer == buf);
       fputs(buf, fp); 
     } break;
     case 16: {
-      char buffer[FN_BIN_BUFSIZE], *buf = dtohex(x, buffer, FN_BIN_BUFSIZE);
+      char buffer[DN_BIN_BUFSIZE], *buf = dtohex(x, buffer, DN_BIN_BUFSIZE);
       assert(buffer == buf);
       fputs(buf, fp); 
     } break;
@@ -963,7 +963,7 @@ struct bignum {
   size_t  size;
   int     dupcount;
   int     isneg;
-  limb_t  limb[1];
+  limb_t  limb[1]; /* alloc as many limbs as needed */
 };
 
 /* operations on limbs */
@@ -3168,7 +3168,7 @@ long bnbitc(const bignum_t *n)
 nump_t numfix_0 = { 0 }, numfix_1 = { 1 };
 
 /* free memory taken by a number */
-static void numfini(numt_t xt, nump_t *xp)
+void numfini(numt_t xt, nump_t *xp)
 {
   /* only bignums need freeing */
   if ((xt & NUMT_SS_MASK) == NUMT_BIG) bnfree(xp->big); 
@@ -3213,9 +3213,6 @@ numt_t nummove(nump_t *yp, numt_t xt, const nump_t *xp)
   *yp = *xp;
   return yt;
 }
-
-/* numerical comparisons (needed for inexacts) */
-typedef enum { NCMP_LT, NCMP_LE, NCMP_EQ, NCMP_GE, NCMP_GT } ncmp_t;
 
 
 /* generic integer arithmetics */
@@ -5007,7 +5004,7 @@ numt_t strtoflo(nump_t *zp, const char *str, char **endptr, int radix)
   }
   /* not a ratio: either intnum or inexact (b,o,x)decimal */
   if (radix == 2 || radix == 8 || radix == 10 || radix == 16) {
-    d = strtofn(str, radix, endptr); /* will handle ints too */
+    d = strtodn(str, radix, endptr); /* will handle ints too */
     if (errno == ERANGE) errno = 0; /* overflows and underflows are ok */
     if (errno) return setfail(EDOM); 
   } else { /* intnum only, arbitrary radix */
@@ -5083,7 +5080,7 @@ size_t compfmtsize(numt_t xt, const nump_t *xp, int radix)
 {
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
-  return isflo(xt) ? fnfmtsize(radix) : fnfmtsize(radix)*2 + 2;
+  return isflo(xt) ? dnfmtsize(radix) : dnfmtsize(radix)*2 + 2;
 }
 
 /* returns buf on success, NULL on wrong radix */
@@ -5093,7 +5090,7 @@ char *flotostr(char *buf, size_t len, double x, int radix)
   if (x != x) return strcpy(buf, "+nan.0");
   if (x > DBL_MAX) return strcpy(buf, "+inf.0");
   if (x < -DBL_MAX) return strcpy(buf, "-inf.0");
-  return fntostr(buf, len, x, radix);  
+  return dntostr(buf, len, x, radix);  
 }
 
 /* format x into buffer; len should be as calculated by compfmtsize;
@@ -5109,7 +5106,7 @@ char *comptostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix
     char *sep = buf ? buf + strlen(buf) : NULL;
     assert(!buf || buf == buffer);
     if (!buf) return NULL;
-    if (fnsignless(getflo(xp+2))) *sep++ = '+';
+    if (dnsignless(getflo(xp+2))) *sep++ = '+';
     buf = flotostr(sep, len/2, getflo(xp+2), radix);
     assert(!buf || buf == sep);
     if (!buf) return NULL;
@@ -5125,7 +5122,7 @@ void floprint(FILE *fp, double x, int radix)
   if (x != x) fputs("+nan.0", fp);
   else if (x > DBL_MAX) fputs("+inf.0", fp);
   else if (x < -DBL_MAX) fputs("-inf.0", fp);
-  else fnprint(fp, x, radix);  
+  else dnprint(fp, x, radix);  
 }
 
 /* print x in radix; use a-z if radix > 10; return -1 if radix != 10 */
@@ -5137,7 +5134,7 @@ void compprint(FILE *fp, numt_t xt, const nump_t *xp, int radix)
     floprint(fp, getflo(xp), radix);
   } else {
     floprint(fp, getflo(xp), radix);
-    if (fnsignless(getflo(xp+2))) fputc('+', fp);
+    if (dnsignless(getflo(xp+2))) fputc('+', fp);
     floprint(fp, getflo(xp+2), radix);
     fputc('i', fp);
   }
@@ -5480,8 +5477,8 @@ size_t realfmtsize(numt_t xt, const nump_t *xp, int radix)
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   if (isflo(xt)) {
-    if (radix == 10) return FN_DEC_BUFSIZE;
-    return FN_BIN_BUFSIZE; /* 2, 8, 16 */
+    if (radix == 10) return DN_DEC_BUFSIZE;
+    return DN_BIN_BUFSIZE; /* 2, 8, 16 */
   } else {
     return ratfmtsize(xt, xp, radix);
   }
@@ -5648,7 +5645,7 @@ numt_t gnumneg(nump_t *zp, numt_t xt, const nump_t *xp)
   }
 }
 
-/* z = conjugate(x) */
+/* z = conjugate(x)
 numt_t gnumconj(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
@@ -5659,7 +5656,7 @@ numt_t gnumconj(nump_t *zp, numt_t xt, const nump_t *xp)
   } else {
     return compconj(zp, xt, xp);
   }
-}
+} */
 
 /* z = x + y */
 numt_t gnumadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
@@ -6861,4 +6858,234 @@ int gnumprint(FILE *fp, numt_t xt, const nump_t *xp, int radix)
 
 static cxtype_t cxt_bignum = { "bignum", bnfree };
 cxtype_t *BIGNUM_NTAG = &cxt_bignum;
+
+
+/* fatnums as skint objects */
+
+void fnfree(fatnum_t *n)
+{
+  if (n == NULL) return;
+  numfini(n->t, n->p);
+  free(n);
+}
+
+int fneqn(const fatnum_t *fx, const fatnum_t *fy)
+  { return gnumeqn(fx->t, fx->p, fy->t, fy->p); }
+
+int fneqv(const fatnum_t *fx, const fatnum_t *fy)
+  { return gnumeqv(fx->t, fx->p, fy->t, fy->p); }
+
+int fnless(const fatnum_t *fx, const fatnum_t *fy)
+  { return gnumless(fx->t, fx->p, fy->t, fy->p); }
+
+int fncmp(const fatnum_t *fx, const fatnum_t *fy, ncmp_t c)
+  { return gnumcmp(fx->t, fx->p, fy->t, fy->p, c); }
+
+int fnisodd(const fatnum_t *fx)
+  { return gnumodd(fx->t, fx->p); }
+
+int fniseven(const fatnum_t *fx)
+  { return gnumeven(fx->t, fx->p); }
+
+int fniszero(const fatnum_t *fx)
+  { return gnumzero(fx->t, fx->p); }
+
+int fnispos(const fatnum_t *fx)
+  { return gnumpositive(fx->t, fx->p); }
+
+int fnisneg(const fatnum_t *fx)
+  { return gnumnegative(fx->t, fx->p); }
+
+int fnisex(const fatnum_t *fx)
+  { return gnumexactp(fx->t, fx->p); }
+
+int fnisinex(const fatnum_t *fx)
+  { return gnuminexactp(fx->t, fx->p); }
+
+int fnisint(const fatnum_t *fx)
+  { return gnumintegerp(fx->t, fx->p); }
+
+int fnisrat(const fatnum_t *fx)
+  { return gnumrationalp(fx->t, fx->p); }
+
+int fnisreal(const fatnum_t *fx)
+  { return gnumrealp(fx->t, fx->p); }
+
+int fniscomp(const fatnum_t *fx)
+  { return gnumcomplexp(fx->t, fx->p); }
+
+int fnisfin(const fatnum_t *fx)
+  { return gnumfinitep(fx->t, fx->p); }
+
+int fnisinf(const fatnum_t *fx)
+  { return gnuminfinitep(fx->t, fx->p); }
+
+int fnisnan(const fatnum_t *fx)
+  { return gnumnanp(fx->t, fx->p); }
+
+int fnabs(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumabs(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnneg(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumneg(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fntoe(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumtoe(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fntoi(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumtoi(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnfloor(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumfloor(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnceil(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumceil(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fntrunc(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumtrunc(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnround(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumround(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnnumer(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumnumer(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fndenom(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumdenom(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnreal(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumreal(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnimag(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumimag(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnmagn(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnummagn(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnangle(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumangle(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnexp(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumexp(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnlog(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumlog(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnsin(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumsin(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fncos(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumcos(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fntan(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumtan(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnasin(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumasin(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnacos(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumacos(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnatan(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumatan(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnsqrt(fatnum_t *fz, const fatnum_t *fx)
+  { numt_t zt = gnumsqrt(fz->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnmax(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnummax(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnmin(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnummin(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnadd(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumadd(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnsub(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumsub(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnmul(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnummul(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fndiv(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumdiv(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fngcd(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumgcd(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fntquo(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumtquo(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fntrem(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumtrem(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnfquo(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumfquo(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnfrem(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumfrem(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnlogn(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumlogn(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnexpt(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnumexpt(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnatan2(fatnum_t *fz, const fatnum_t *fy, const fatnum_t *fx)
+  { numt_t zt = gnumatan2(fz->p, fy->t, fy->p, fx->t, fx->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnmaker(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnummakerect(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnmakep(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = gnummakepolar(fz->p, fx->t, fx->p, fy->t, fy->p);
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnsqrti(fatnum_t *fq, fatnum_t *fr, const fatnum_t *fx)
+  { numt_t qt, rt;
+    gnumsqrti(&qt, fq->p, &rt, fr->p, fx->t, fx->p);
+    fq->t = qt; fr->t = rt;
+    return qt != NUMT_NONE; }
+
+
+static cxtype_t cxt_fatnum = { "fatnum", fnfree };
+cxtype_t *FATNUM_NTAG = &cxt_fatnum;
 

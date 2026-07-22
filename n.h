@@ -353,13 +353,9 @@ typedef union nump {
 
 /* numerical type */
 typedef unsigned short numt_t;
-
 #define NUMT_NONE (0)
 #define NUMT_FIX  (1)
 #define NUMT_FLO  (2)
-
-#ifdef OPT_TOWER
-#endif
 
 /* returns NUMT_NONE and sets errno on failure */
 extern numt_t strtonum(nump_t np[NUMP_MAX], const char *s, char **endp, int radix);

@@ -11,6 +11,9 @@
 #define NUMT_SS_MASK  (3)                   /* types of single-slot numbers (or parts) */
 #define NUMT_DS_MASK  (15)                  /* types of double-slot numbers (or parts) */
 
+/* numerical comparisons (needed for inexacts) */
+typedef enum { NCMP_LT, NCMP_LE, NCMP_EQ, NCMP_GE, NCMP_GT } ncmp_t;
+
 /* bignums (avp) */
 typedef struct bignum bignum_t;
 
@@ -53,5 +56,75 @@ extern cxtype_t *BIGNUM_NTAG;
 #define obj_from_bignum(l, b) hpushptr(b, BIGNUM_NTAG, l)
 
 /* fatnums -- compound tower numbers (ratnums, compnums, rectnums) */
+typedef struct fatnum {
+  numt_t t;
+  nump_t p[1]; /* alloc 1..4 parts */
+} fatnum_t;
 
+/* return values for predicates: 1 = true, 0 = false */
+/* non-predicates: 1 = success, 0 = domain/range error */
+extern int fneqn(const fatnum_t *fx, const fatnum_t *fy);
+extern int fneqv(const fatnum_t *fx, const fatnum_t *fy);
+extern int fnless(const fatnum_t *fx, const fatnum_t *fy);
+extern int fncmp(const fatnum_t *fx, const fatnum_t *fy, ncmp_t c);
+extern int fnisodd(const fatnum_t *fx);
+extern int fniseven(const fatnum_t *fx);
+extern int fniszero(const fatnum_t *fx);
+extern int fnispos(const fatnum_t *fx);
+extern int fnisneg(const fatnum_t *fx);
+extern int fnisex(const fatnum_t *fx);
+extern int fnisinex(const fatnum_t *fx);
+extern int fnisint(const fatnum_t *fx);
+extern int fnisrat(const fatnum_t *fx);
+extern int fnisreal(const fatnum_t *fx);
+extern int fniscomp(const fatnum_t *fx);
+extern int fnisfin(const fatnum_t *fx);
+extern int fnisinf(const fatnum_t *fx);
+extern int fnisnan(const fatnum_t *fx);
+extern int fnabs(fatnum_t *fz, const fatnum_t *fx);
+extern int fnneg(fatnum_t *fz, const fatnum_t *fx);
+extern int fntoe(fatnum_t *fz, const fatnum_t *fx);
+extern int fntoi(fatnum_t *fz, const fatnum_t *fx);
+extern int fnfloor(fatnum_t *fz, const fatnum_t *fx);
+extern int fnceil(fatnum_t *fz, const fatnum_t *fx);
+extern int fntrunc(fatnum_t *fz, const fatnum_t *fx);
+extern int fnround(fatnum_t *fz, const fatnum_t *fx);
+extern int fnnumer(fatnum_t *fz, const fatnum_t *fx);
+extern int fndenom(fatnum_t *fz, const fatnum_t *fx);
+extern int fnreal(fatnum_t *fz, const fatnum_t *fx);
+extern int fnimag(fatnum_t *fz, const fatnum_t *fx);
+extern int fnmagn(fatnum_t *fz, const fatnum_t *fx);
+extern int fnangle(fatnum_t *fz, const fatnum_t *fx);
+extern int fnexp(fatnum_t *fz, const fatnum_t *fx);
+extern int fnlog(fatnum_t *fz, const fatnum_t *fx);
+extern int fnsin(fatnum_t *fz, const fatnum_t *fx);
+extern int fncos(fatnum_t *fz, const fatnum_t *fx);
+extern int fntan(fatnum_t *fz, const fatnum_t *fx);
+extern int fnasin(fatnum_t *fz, const fatnum_t *fx);
+extern int fnacos(fatnum_t *fz, const fatnum_t *fx);
+extern int fnatan(fatnum_t *fz, const fatnum_t *fx);
+extern int fnsqrt(fatnum_t *fz, const fatnum_t *fx);
+extern int fnmax(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnmin(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnadd(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnsub(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnmul(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fndiv(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fngcd(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fntquo(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fntrem(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnfquo(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnfrem(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnlogn(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnexpt(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnatan2(fatnum_t *fz, const fatnum_t *fy, const fatnum_t *fx);
+extern int fnmaker(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnmakep(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnsqrti(fatnum_t *fq, fatnum_t *fr, const fatnum_t *fx);
+
+extern cxtype_t *FATNUM_NTAG;
+#define is_fatnum_obj(o) (isnative(o, FATNUM_NTAG))
+#define fatnum_from_obj(o) ((fatnum_t*)getnative(o, FATNUM_NTAG))
+#define obj_from_fatnum(l, f) hpushptr(f, BIGNUM_NTAG, l)
+#define fntype(o) (fatnum_from_obj(o)->type)
 
