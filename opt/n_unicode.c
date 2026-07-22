@@ -133,7 +133,7 @@ int *sdataput(int *pb, int i, int c)
   oldbc  = pb[1]; bc = oldbc + len - oldlen; e = s + oldbc;
   if (bc < oldbc) memmove(si+len, sip1, e-sip1+1);
   ioff = (int)(si - s); ipoff = (int)(sip1 - s); eoff = (int)(e - s);
-  pb = realloc(pb, sizeof(int)*2 + bc + 1); assert(pb);
+  pb = cxm_cknull(realloc(pb, sizeof(int)*2 + bc + 1), "realloc(sdataput)");
   s = sdatachars(pb); 
   si = s + ioff; sip1 = s + ipoff; e = s + eoff;
   if (bc > oldbc) memmove(si+len, sip1, e-sip1+1); 

@@ -250,8 +250,10 @@ static void _sck(obj *s) {
 #endif
 /* NB: x referenced multiple times! */
 #ifdef OPT_TOWER
+#define bignum_obj(b) hp_pushptr(b, BIGNUM_NTAG)
 #define is_bignum(o) is_bignum_obj(o)
 #define get_bignum(o) bignum_from_obj(o)
+#define fatnum_obj(f) hp_pushptr(f, FATNUM_NTAG)
 #define is_fatnum(o) is_fatnum_obj(o)
 #define get_fatnum(o) fatnum_from_obj(o)
 #define is_number(o) (is_fixnum(o) || is_flonum(o) || is_bignum(o) || is_fatnum(o))
@@ -576,7 +578,8 @@ define_instrhelper(cxi_failactype) {
 #define ckb(x) do { obj _x = (x); if (unlikely(!is_bytevector(_x))) \
   { ac = _x; spush((obj)"bytevector"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cki(x) do { obj _x = (x); if (unlikely(!is_fixnum(_x))) \
-  { ac = _x; spush((obj)"fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
+  { ac = _x; \
+  spush((obj)"fixnum"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckj(x) do { obj _x = (x); if (unlikely(!is_flonum(_x))) \
   { ac = _x; spush((obj)"flonum"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckn(x) do { obj _x = (x); if (unlikely(!is_number(_x))) \
@@ -3223,14 +3226,14 @@ define_instruction(ntoj) {
 }
 
 /* trivial definitions in standard build */
-define_instruction(isip) { ac = is_fixnum(ac); gonexti(); }
-define_instruction(isjp) { ac = is_flonum(ac); gonexti(); }
+define_instruction(exnp) { ckn(ac); ac = bool_obj(is_fixnum(ac)); gonexti(); }
+define_instruction(innp) { ckn(ac); ac = bool_obj(is_flonum(ac)); gonexti(); }
 
 /* stubs in standard build */
 define_instruction(bigp) { ac = bool_obj(0); gonexti(); }
-define_instruction(rtnp) { ac = bool_obj(0); gonexti(); }
-define_instruction(comp) { ac = bool_obj(0); gonexti(); }
-define_instruction(rctp) { ac = bool_obj(0); gonexti(); }
+define_instruction(ranp) { ac = bool_obj(0); gonexti(); }
+define_instruction(conp) { ac = bool_obj(0); gonexti(); }
+define_instruction(renp) { ac = bool_obj(0); gonexti(); }
 
 /* trivial definitions in standard build */
 define_instruction(numer) { cki(ac); gonexti(); }
@@ -3304,13 +3307,13 @@ define_instruction(ntos) {
 }
 
 define_instruction(ston) {
-  const char *s; int radix; nump_t np[NUMP_MAX];
+  const char *s; int radix; fatnum4_t f4;
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
-  switch (strtonum(np, s, NULL, radix)) {
-    case NUMT_FIX: ac = fixnum_obj(np[0].fix); break;
-    case NUMT_FLO: ac = flonum_obj(np[0].flo); break;
+  switch (strtonum(&f4, s, NULL, radix)) {
+    case NUMT_FIX: ac = fixnum_obj(f4.p[0].fix); break;
+    case NUMT_FLO: ac = flonum_obj(f4.p[0].flo); break;
     /* no big/fat numbers here */
     default : ac = bool_obj(0); break;
   }
@@ -3933,12 +3936,17 @@ define_instruction(rdln) {
 
 define_instruction(rdah) {
   cxtype_iport_t *vt; int fold = (ac != bool_obj(0));
-  obj o = bool_obj(0); long l; double d; int *p; ac = spop();
+  obj o = bool_obj(0); fatnum4_t f4; int *p; 
+  ac = spop();
   ckr(ac); vt = iportvt(ac); assert(vt);
-  switch (rdah(fold, vt->getch, vt->ungetch, iportdata(ac), &o, &l, &d, &p)) {
+  switch (rdah(fold, vt->getch, vt->ungetch, iportdata(ac), &o, &f4, &p)) {
     case 'o': ac = o; break;
-    case 'e': ac = fixnum_obj(l); break;
-    case 'i': ac = flonum_obj(d); break;
+    case 'e': ac = fixnum_obj(f4.p[0].fix); break;
+    case 'i': ac = flonum_obj(f4.p[0].flo); break;
+#ifdef OPT_TOWER
+    case 'g': ac = bignum_obj(f4.p[0].big); break;
+    case 'f': ac = fatnum_obj(dupfatnum((fatnum_t*)&f4)); break;
+#endif
     case 'b': ac = bytevector_obj(p); break;
     case  0 : ac = obj_from_char('n'); break; /* unsupported number */
     case  1 : ac = obj_from_char('d'); break; /* invalid delimiter */
@@ -4793,6 +4801,22 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
     case 'c': ra = obj_from_char(rds_char(port)); break;
     case 'i': ra = obj_from_fixnum(rds_int(port)); break; 
     case 'j': { double d = rds_real(port); ra = obj_from_flonum((int)(sp-r), d); break; }
+#ifdef OPT_TOWER
+    case 'x': {
+      cbuf_t *pcb = newcb(); fatnum4_t f4; char *s;
+      cxtype_iport_t *vt = iportvt(port); assert(vt);     
+      s = rdns(vt->getch, vt->ungetch, iportdata(port), pcb);
+      switch (strtonum(&f4, s, NULL, 16)) {
+        case NUMT_FIX:  ra = obj_from_fixnum(f4.p[0].fix); break;
+        case NUMT_FLO:  ra = obj_from_flonum((int)(sp-r), f4.p[0].flo); break;
+        case NUMT_BIG:  ra = obj_from_bignum((int)(sp-r), f4.p[0].big); break;
+        case NUMT_NONE: ra = mkeof(); break;
+        /* fat numbers are the default */
+        default: ra = obj_from_fatnum((int)(sp-r), dupfatnum((fatnum_t*)&f4));
+      }
+      freecb(pcb);
+    } break;
+#endif    
     case 'p': {
       spush(port);
       ra = sref(0); hp = rds_elt(r, sp, hp); 

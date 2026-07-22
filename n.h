@@ -345,20 +345,20 @@ typedef union nump {
 #endif
 } nump_t;
 
-#ifndef OPT_TOWER
-#define NUMP_MAX (1)
-#else
-#define NUMP_MAX (4)
-#endif
-
 /* numerical type */
 typedef unsigned short numt_t;
 #define NUMT_NONE (0)
 #define NUMT_FIX  (1)
 #define NUMT_FLO  (2)
+/* .. extended in n_tower.h" */
+
+typedef struct fatnum4 { 
+  numt_t t; 
+  nump_t p[4]; 
+} fatnum4_t;
 
 /* returns NUMT_NONE and sets errno on failure */
-extern numt_t strtonum(nump_t np[NUMP_MAX], const char *s, char **endp, int radix);
+extern numt_t strtonum(fatnum4_t *f4, const char *s, char **endp, int radix);
 
 /* other numbers */
 #ifdef OPT_TOWER
@@ -598,8 +598,9 @@ static int iportpeekc(obj o) {
   cxtype_iport_t *vt = iportvt(o); void *pp = iportdata(o); int c;
   assert(vt); c = vt->getch(pp); if (c != EOF) vt->ungetch(c, pp); return c;
 }
-int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), 
-         void *in, obj *po, long *pl, double *pd, int **pp);
+extern char *rdns(int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, cbuf_t *pcb);
+extern int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, 
+  obj *po, fatnum4_t *pf, int **pp);
 /* file input ports */
 typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
 typedef struct tifile { cbuf_t cb; char *next; FILE *fp; int lno, fns; tiflags_t flags; } tifile_t;

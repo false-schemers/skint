@@ -274,8 +274,8 @@ double flround(double x) {
   else return (d < u) ? f : c;
 }
 
-#if 1
-numt_t strtonum(nump_t np[NUMP_MAX], const char *s, char **endp, int radix) {
+#ifndef OPT_TOWER
+numt_t strtonum(fatnum4_t *fn, const char *s, char **endp, int radix) {
   const char *e; int conv = 0, eno = errno; long l; double d;
   if (!endp) endp = (char**)&e;
   for (; s[0] == '#'; s += 2) {
@@ -286,72 +286,39 @@ numt_t strtonum(nump_t np[NUMP_MAX], const char *s, char **endp, int radix) {
       case 'x': case 'X': radix = 16; break;
       case 'e': case 'E': conv = 'e'; break;
       case 'i': case 'I': conv = 'i'; break;
-      default: return 0;
+      default: return fn->t = NUMT_NONE;
     }
   }
-  if (isspace(*s)) return 0;
+  if (isspace(*s)) return fn->t = NUMT_NONE;
   for (e = s; *e; ++e) { if (strchr(".eEiInN", *e)) break; }
   if (!*e || radix != 10) { /* s is not a syntax for an inexact number */
     l = (errno = 0, strtol(s, (char**)&e, radix));
     if (errno || *e || e == s) { 
       if (conv == 'i') goto fl; 
-      return (errno = eno, *endp = (char *)s, NUMT_NONE); 
+      return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE); 
     } else if (conv == 'i') {
-      return (errno = eno, *endp = (char *)e, np[0].flo = l, NUMT_FLO);
+      return (errno = eno, *endp = (char *)e, fn->p[0].flo = l, fn->t = NUMT_FLO);
     }
     if (FIXNUM_MIN <= l && l <= FIXNUM_MAX) {
-      return (errno = eno, *endp = (char *)e, np[0].fix = l, NUMT_FIX);
+      return (errno = eno, *endp = (char *)e, fn->p[0].fix = l, fn->t = NUMT_FIX);
     } else { /* can't represent as an exact */
-      return (errno = eno, *endp = (char *)s, NUMT_NONE);
+      return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE);
     }
   } 
-  fl: if (radix != 10) return (errno = eno, *endp = (char *)s, NUMT_NONE); 
+  fl: if (radix != 10) return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE); 
   e = "", errno = 0; if (*s != '+' && *s != '-') d = strtod(s, (char**)&e);
   else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
   else if (strcmp_ci(s+1, "nan.0") == 0) d = HUGE_VAL - HUGE_VAL;
   else d = strtod(s, (char**)&e);
   if (errno || *e || e == s) {
-    return (errno = eno, *endp = (char *)s, NUMT_NONE);
+    return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE);
   } else if ((conv == 'e') && ((l=(long)d) < FIXNUM_MIN || l > FIXNUM_MAX || (double)l != d)) {
-    return (errno = eno, *endp = (char *)s, NUMT_NONE); /* conv to exact failed */
+    return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE); /* conv to exact failed */
   } else if (conv == 'e') {
-    return (errno = eno, *endp = (char *)e, np[0].fix = fxflo(d), NUMT_FIX);
+    return (errno = eno, *endp = (char *)e, fn->p[0].fix = fxflo(d), fn->t = NUMT_FIX);
   } else {
-    return (errno = eno, *endp = (char *)e, np[0].flo = d, NUMT_FLO);
+    return (errno = eno, *endp = (char *)e, fn->p[0].flo = d, fn->t = NUMT_FLO);
   }
-}
-#else
-int strtofxfl(const char *s, int radix, long *pl, double *pd) {
-  const char *e; int conv = 0, eno = errno; long l; double d;
-  for (; s[0] == '#'; s += 2) {
-    switch (s[1]) {
-      case 'b': case 'B': radix = 2; break;
-      case 'o': case 'O': radix = 8; break;
-      case 'd': case 'D': radix = 10; break;
-      case 'x': case 'X': radix = 16; break;
-      case 'e': case 'E': conv = 'e'; break;
-      case 'i': case 'I': conv = 'i'; break;
-      default: return 0;
-    }
-  }
-  if (isspace(*s)) return 0;
-  for (e = s; *e; ++e) { if (strchr(".eEiInN", *e)) break; }
-  if (!*e || radix != 10) { /* s is not a syntax for an inexact number */
-    l = (errno = 0, strtol(s, (char**)&e, radix));
-    if (errno || *e || e == s) { if (conv == 'i') goto fl; return (errno = eno, 0); }
-    if (conv == 'i') return (errno = eno, *pd = (double)l, 'i');
-    if (FIXNUM_MIN <= l && l <= FIXNUM_MAX) return (errno = eno, *pl = l, 'e');
-    return (errno = eno, 0); /* can't represent as an exact */
-  } 
-  fl: if (radix != 10) return (errno = eno, 0); 
-  e = "", errno = 0; if (*s != '+' && *s != '-') d = strtod(s, (char**)&e);
-  else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
-  else if (strcmp_ci(s+1, "nan.0") == 0) d = HUGE_VAL - HUGE_VAL;
-  else d = strtod(s, (char**)&e);
-  if (errno || *e || e == s) return (errno = eno, 0);
-  if ((conv == 'e') && ((l=(long)d) < FIXNUM_MIN || l > FIXNUM_MAX || (double)l != d))
-    return (errno = eno, 0); /* can't be converted to an exact number */
-  return (errno = eno, (conv == 'e') ? (*pl = fxflo(d), 'e') : (*pd = d, 'i'));
 }
 #endif
 
@@ -1230,9 +1197,19 @@ static int is_delimiter(int c) {
 
 /* read */
 
+/* internal numsym reader */
+char *rdns(int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, cbuf_t *pcb)
+{
+  int c = in_getc(in);
+  while (isnumsym(c)) { ucbputc(c, pcb); c = in_getc(in); }
+  in_ungetc(c, in);
+  return cbdata(pcb);
+} 
+
 /* internal read-ahead procedure; returns 'o', 'i', 'e', 0, 1, 2 */
 int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), 
-         void *in, obj *po, long *pl, double *pd, int **pp) {
+         void *in, obj *po, fatnum4_t *pf, int **pp) 
+{
   int c, xc; cbuf_t *pcb; char *s; unsigned char *b; 
 next: 
   switch (c = in_getc(in)) {
@@ -1274,12 +1251,19 @@ in_numsym:
   } else if (s[0] == '.' && s[1] == 0) {
     *po = obj_from_char('.'); xc = 'o';
   } else { 
-    nump_t np[NUMP_MAX];
-    switch (strtonum(np, cbdata(pcb), NULL, 10)) {
-      case NUMT_FIX: *pl = np[0].fix; xc = 'e'; break;
-      case NUMT_FLO: *pd = np[0].flo; xc = 'i'; break;
+    errno = 0;
+    switch (strtonum(pf, cbdata(pcb), NULL, 10)) {
+      case NUMT_FIX: xc = 'e'; break;
+      case NUMT_FLO: xc = 'i'; break;
+#ifdef OPT_TOWER
+      case NUMT_BIG: xc = 'g'; break;
+      case NUMT_NONE: xc = 0; break;
+      /* fat numbers are the default */
+      default: xc = 'f'; break;
+#else
       /* no big/fat numbers here */
-      default : xc = 0; break;
+      default: xc = 0; break;
+#endif
     }
   }
   freecb(pcb); return xc; /* 'o', 'i', 'e', or 0 */
@@ -1340,6 +1324,12 @@ static void wrdatum(obj o, wenv_t *e) {
     char buf[30]; sprintf(buf, "%ld", fixnum_from_obj(o)); wrs(buf, e);
   } else if (is_flonum_obj(o)) {
     wrd(flonum_from_obj(o), 16, e);
+#ifdef OPT_TOWER
+  } else if (is_bignum_obj(o)) {
+    wrbn(bignum_from_obj(o), 10, e->vt->putch, e->pp);
+  } else if (is_fatnum_obj(o)) {
+    wrfn(fatnum_from_obj(o), 10, e->vt->putch, e->pp);
+#endif
   } else if (iseof(o)) {
     wrs("#<eof>", e);
   } else if (isvoid(o)) {

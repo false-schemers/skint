@@ -764,27 +764,28 @@ char *t_code[] = {
   "%2f,.1q?{.1,'(cf)W0]2}t,.1q?{.1,'(ct)W0]2}n,.1q?{.1,'(cn)W0]2}.0C0?{.1"
   ",'(cc)W0.1,.1,@(y21:write-serialized-char)[22}.0J0?{.1,'(cj)W0.1,t,.2E"
   "6,@(y12:write-string)[22}.0I0?{.1,'(ci)W0.1,'(i10),.2X6,@(y12:write-st"
-  "ring)[22}.0L0?{.1,'(cl)W0${.3,.3g,@(y21:write-serialized-size)[02}.0,,"
-  "#0.0,.4,&2{%1.0u?{]1}${:0,.3a,@(y24:write-serialized-element)[02}.0d,:"
-  "1^[11}.!0.0^_1[21}.0p?{.1,'(cp)W0${.3,.3a,@(y24:write-serialized-eleme"
-  "nt)[02}.1,.1d,@(y24:write-serialized-element)[22}.0V0?{.1,'(cv)W0${.3,"
-  ".3V3,@(y21:write-serialized-size)[02}'0,,#0.0,.3,.5,&3{%1:1V3,.1I=?{]1"
-  "}${:0,.3,:1V4,@(y24:write-serialized-element)[02}'1,.1I+,:2^[11}.!0.0^"
-  "_1[21}.0S0?{.1,'(cs)W0${.3,.3S3,@(y21:write-serialized-size)[02}'0,,#0"
-  ".0,.3,.5,&3{%1:1S3,.1I=?{]1}${:0,.3,:1S4,@(y21:write-serialized-char)["
-  "02}'1,.1I+,:2^[11}.!0.0^_1[21}f,.1H0,.0?{.0,,,#0#1'(i39),.3,,'(i32)>!;"
-  ">!?{.4B3}{.4H3}.!0'(i39),.3,,'(i32)>!;>!?{@(y17:bytevector-u8-ref)}{@("
-  "y13:numvector-ref)}.!1.5,.3I=0?{'(cb)}{'(ch)}W0${.7,.3^,@(y21:write-se"
-  "rialized-size)[02}.2I=0~?{${.7,.5,@(y21:write-serialized-size)[02}}'0,"
-  ",#0.0,.7,.5,.7,.(i11),.7,&6{%1:0^,.1I=?{]1}${:1,:2,${.6,:4,:3^[02},@(y"
-  "34:write-serialized-numvector-element)[03}'1,.1I+,:5^[11}.!0.0^_1[61}."
-  "1Y0?{.2,'(cy)W0.1X4,${.5,.3S3,@(y21:write-serialized-size)[02}'0,,#0.0"
-  ",.3,.7,&3{%1:1S3,.1I=?{]1}${:0,.3,:1S4,@(y21:write-serialized-char)[02"
-  "}'1,.1I+,:2^[11}.!0.0^_1[41}.1Y2?{.2,'(cz)W0.2,.2z,@(y24:write-seriali"
-  "zed-element)[32}.1,'(s21:cannot encode literal),@(y7:c-error)[32",
+  "ring)[22}.0N0?{.1,'(cx)W0.1,'(i16),.2E8,@(y12:write-string)[22}.0L0?{."
+  "1,'(cl)W0${.3,.3g,@(y21:write-serialized-size)[02}.0,,#0.0,.4,&2{%1.0u"
+  "?{]1}${:0,.3a,@(y24:write-serialized-element)[02}.0d,:1^[11}.!0.0^_1[2"
+  "1}.0p?{.1,'(cp)W0${.3,.3a,@(y24:write-serialized-element)[02}.1,.1d,@("
+  "y24:write-serialized-element)[22}.0V0?{.1,'(cv)W0${.3,.3V3,@(y21:write"
+  "-serialized-size)[02}'0,,#0.0,.3,.5,&3{%1:1V3,.1I=?{]1}${:0,.3,:1V4,@("
+  "y24:write-serialized-element)[02}'1,.1I+,:2^[11}.!0.0^_1[21}.0S0?{.1,'"
+  "(cs)W0${.3,.3S3,@(y21:write-serialized-size)[02}'0,,#0.0,.3,.5,&3{%1:1"
+  "S3,.1I=?{]1}${:0,.3,:1S4,@(y21:write-serialized-char)[02}'1,.1I+,:2^[1"
+  "1}.!0.0^_1[21}f,.1H0,.0?{.0,,,#0#1'(i39),.3,,'(i32)>!;>!?{.4B3}{.4H3}."
+  "!0'(i39),.3,,'(i32)>!;>!?{@(y17:bytevector-u8-ref)}{@(y13:numvector-re"
+  "f)}.!1.5,.3I=0?{'(cb)}{'(ch)}W0${.7,.3^,@(y21:write-serialized-size)[0"
+  "2}.2I=0~?{${.7,.5,@(y21:write-serialized-size)[02}}'0,,#0.0,.7,.5,.7,."
+  "(i11),.7,&6{%1:0^,.1I=?{]1}${:1,:2,${.6,:4,:3^[02},@(y34:write-seriali"
+  "zed-numvector-element)[03}'1,.1I+,:5^[11}.!0.0^_1[61}.1Y0?{.2,'(cy)W0."
+  "1X4,${.5,.3S3,@(y21:write-serialized-size)[02}'0,,#0.0,.3,.7,&3{%1:1S3"
+  ",.1I=?{]1}${:0,.3,:1S4,@(y21:write-serialized-char)[02}'1,.1I+,:2^[11}"
+  ".!0.0^_1[41}.1Y2?{.2,'(cz)W0.2,.2z,@(y24:write-serialized-element)[32}"
+  ".1,'(s21:cannot encode literal),@(y7:c-error)[32",
 
   "P", "write-serialized-arg",
-  "%2.0N0?{.0Ti?{.0,'0I>!?{'9,.1I>!}{f}}{f}}{f}?{.1,.1,'(s10:0123456789)S"
+  "%2.0N0?{.0I0?{.0,'0I>!?{'9,.1I>!}{f}}{f}}{f}?{.1,.1,'(s10:0123456789)S"
   "4W0]2}.1,'(c()W0${.3,.3,@(y21:write-serialized-sexp)[02}.1,'(c))W0]2",
 
   "P", "c-error",
@@ -1785,7 +1786,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.7.2)@!(y15:*skint-version*)",
+  "'(s5:0.7.3)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",

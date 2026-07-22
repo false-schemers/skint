@@ -91,7 +91,7 @@ define_instruction(zerop) {
   } else if (likely(is_bignum(ac))) {
     ac = bool_obj(0); /* normalization */
   } else if (likely(is_fatnum(ac))) {
-    ac = bool_obj(fniszero(get_fatnum(ac)));
+    ac = bool_obj(fnzero(get_fatnum(ac)));
   } else failactype("number");
   gonexti();
 }
@@ -116,15 +116,17 @@ define_instruction(negp) {
   gonexti(); 
 }
 
-///////////////////////// TODO:
-
 define_instruction(evnp) {
   if (likely(is_fixnum(ac))) {
     ac = bool_obj((get_fixnum(ac) & 1) == 0);
   } else if (likely(is_flonum(ac))) {
     double f = get_flonum(ac);
     ac = bool_obj(flisint(f / 2.0));
-  } else failactype("number");
+  } else if (likely(is_bignum(ac))) {
+    ac = bool_obj(bneven(get_bignum(ac)));
+  } else if (likely(is_fatnum(ac)) && fnisint(get_fatnum(ac))) {
+    ac = bool_obj(fneven(get_fatnum(ac)));
+  } else failactype("integer");
   gonexti(); 
 }
 
@@ -134,9 +136,16 @@ define_instruction(oddp) {
   } else if (likely(is_flonum(ac))) {
     double f = get_flonum(ac);
     ac = bool_obj(flisint((f + 1.0) / 2.0));
-  } else failactype("number");
+  } else if (likely(is_bignum(ac))) {
+    ac = bool_obj(bnodd(get_bignum(ac)));
+  } else if (likely(is_fatnum(ac)) && fnisint(get_fatnum(ac))) {
+    ac = bool_obj(fnodd(get_fatnum(ac)));
+  } else failactype("integer");
   gonexti(); 
 }
+
+///////////////////////// TODO:
+
 
 define_instruction(add) {
   obj x = ac, y = spop();
@@ -144,15 +153,15 @@ define_instruction(add) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
     long long llz = (long long)lx + (long long)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
-    else ac = flonum_obj((double)lx + (double)ly);
+    else ac = flonum_obj((double)lx + (double)ly); // fixme
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else failtype(x, "number");
+    else failtype(x, "number"); // fixme
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else failtype(y, "number");
+    else failtype(y, "number"); // fixme
     ac = flonum_obj(dx + dy);
   }
   gonexti(); 
@@ -473,15 +482,15 @@ define_instruction(pow) {
     long fx = get_fixnum(x), fy = get_fixnum(y), fz;
     if (unlikely(fx == 0 && fy < 0)) fail("division by zero");
     fz = ((fx | fy)) ? fxpow(fx, fy) : 1; /* 0^0 == 1! */
-    ac = (!fz && fx) ? flonum_obj(pow((double)fx, (double)fy)) : fixnum_obj(fz);
+    ac = (!fz && fx) ? flonum_obj(pow((double)fx, (double)fy)) : fixnum_obj(fz); // fixme
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else failtype(x, "number");
+    else failtype(x, "number"); // fixme
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else failtype(y, "number");
+    else failtype(y, "number"); // fixme
     ac = flonum_obj(pow(dx, dy));
   }
   gonexti(); 
@@ -655,15 +664,45 @@ define_instruction(ntoj) {
   gonexti(); 
 }
 
-/* trivial definitions in standard build */
-define_instruction(isip) { ac = is_fixnum(ac); gonexti(); }
-define_instruction(isjp) { ac = is_flonum(ac); gonexti(); }
+/* tower definitions */
+define_instruction(exnp) { /* exact? */
+  if (likely(is_fixnum(ac))) ac = bool_obj(1);
+  else if (likely(is_flonum(ac))) ac = bool_obj(0);
+  else if (likely(is_bignum(ac))) ac = bool_obj(1);
+  else if (likely(is_fatnum(ac))) ac = bool_obj(fnisexn(get_fatnum(ac)));
+  else failactype("number");
+  gonexti(); 
+}
 
-/* stubs in standard build */
-define_instruction(bigp) { ac = bool_obj(0); gonexti(); }
-define_instruction(rtnp) { ac = bool_obj(0); gonexti(); }
-define_instruction(comp) { ac = bool_obj(0); gonexti(); }
-define_instruction(rctp) { ac = bool_obj(0); gonexti(); }
+define_instruction(innp) { /* inexact? */
+  if (likely(is_fixnum(ac))) ac = bool_obj(0);
+  else if (likely(is_flonum(ac))) ac = bool_obj(1);
+  else if (likely(is_bignum(ac))) ac = bool_obj(0);
+  else if (likely(is_fatnum(ac))) ac = bool_obj(fnisinn(get_fatnum(ac)));
+  else failactype("number");
+  gonexti(); 
+}
+
+define_instruction(bigp) { /* bignum? */
+  if (likely(is_bignum(ac))) ac = bool_obj(1);
+  else ac = bool_obj(0); 
+  gonexti(); 
+}
+define_instruction(ranp) { /* ratnum? */
+  if (likely(is_fatnum(ac))) ac = bool_obj(fnisran(get_fatnum(ac)));
+  else ac = bool_obj(0); 
+  gonexti(); 
+}
+define_instruction(conp) { /* compnum? */
+  if (likely(is_fatnum(ac))) ac = bool_obj(fniscon(get_fatnum(ac)));
+  else ac = bool_obj(0); 
+  gonexti(); 
+}
+define_instruction(renp) { /* rectnum? */
+  if (likely(is_fatnum(ac))) ac = bool_obj(fnisren(get_fatnum(ac)));
+  else ac = bool_obj(0); 
+  gonexti(); 
+}
 
 /* trivial definitions in standard build */
 define_instruction(numer) { cki(ac); gonexti(); }
@@ -730,22 +769,40 @@ define_instruction(gbtc) { goi(ibtc); }
 /* generic number <-> string conversions */
 
 define_instruction(ntos) {
-  if (is_fixnum(ac)) goi(itos);
-  if (unlikely(spop() != fixnum_obj(10))) fail("non-10 radix in flonum conversion");
-  spush(0); /* #f: use default precision */
-  goi(jtos);
+  if (is_fixnum(ac)) {
+    goi(itos);
+  } else if (is_flonum(ac)) {
+    if (unlikely(spop() != fixnum_obj(10))) fail("non-10 radix in flonum conversion");
+    spush(0); /* #f: use default precision */
+    goi(jtos);
+  } else {
+    int radix; cbuf_t *pcb; char *s;
+    int (*pf)(int, void*) = cbputc;
+    obj x = ac, y = spop(); ckn(x); ckk(y);
+    radix = get_fixnum(y);
+    if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
+    pcb = newcb();
+    if (is_bignum(x)) wrbn(get_bignum(x), radix, pf, pcb);
+    else if (is_fatnum(x)) wrfn(get_fatnum(x), radix, pf, pcb);
+    else failtype(x, "known number");
+    s = cbdata(pcb);
+    ac = string_obj(newsdata(s));
+    gonexti();
+  }
 }
 
 define_instruction(ston) {
-  const char *s; int radix; nump_t np[NUMP_MAX];
+  const char *s; int radix; fatnum4_t f4;
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
-  switch (strtonum(np, s, NULL, radix)) {
-  case NUMT_FIX: ac = fixnum_obj(np[0].fix); break;
-  case NUMT_FLO: ac = flonum_obj(np[0].flo); break;
-    /* no big/fat numbers here */
-  default : ac = bool_obj(0); break;
+  errno = 0;
+  switch (strtonum(&f4, s, NULL, radix)) {
+    case NUMT_NONE: ac = bool_obj(0); break;
+    case NUMT_FIX:  ac = fixnum_obj(f4.p[0].fix); break;
+    case NUMT_FLO:  ac = flonum_obj(f4.p[0].flo); break;
+    case NUMT_BIG:  ac = bignum_obj(f4.p[0].big); break;
+    default: ac = fatnum_obj(dupfatnum((fatnum_t*)&f4)); break;
   }
   gonexti();
 }

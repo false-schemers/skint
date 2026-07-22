@@ -1361,6 +1361,9 @@
         [(fixnum? x)
          (write-char #\i port)
          (write-string (fixnum->string x) port)]
+        [(number? x)
+         (write-char #\x port)
+         (write-string (number->string x 16) port)]
         [(list? x)
          (write-char #\l port)
          (write-serialized-size (length x) port)
@@ -1400,7 +1403,7 @@
         [else (c-error "cannot encode literal" x)]))
 
 (define (write-serialized-arg arg port)
-  (if (and (number? arg) (exact? arg) (fx<=? 0 arg) (fx<=? arg 9))
+  (if (and (number? arg) (fixnum? arg) (fx<=? 0 arg) (fx<=? arg 9))
       (write-char (string-ref "0123456789" arg) port)
       (begin (write-char #\( port)
              (write-serialized-sexp arg port)
@@ -2806,7 +2809,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.7.2")
+(define *skint-version* "0.7.3")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
