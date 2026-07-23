@@ -1011,6 +1011,10 @@ char *s_code[] = {
   "opt-enhtty)",
 
   "C", 0,
+  "'(i13),@(y10:*host-sig*)S4,'(ct),.1v?{'(y18:full-numeric-tower)}{f}_1@"
+  "!(y9:opt-tower)",
+
+  "C", 0,
   "${'(i18),'(i16),@(y10:*host-sig*)S7X5,@(y14:make-parameter)[01}@!(y16:"
   "current-language)",
 
@@ -1055,6 +1059,23 @@ char *s_code[] = {
   "C", 0,
   "@(y18:xsi-math-available)?{@(y10:*features*),@(y18:xsi-math-available)"
   "c@!(y10:*features*)}",
+
+  "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),'(y6:ratios)c@!(y10:*features*)}",
+
+  "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),'(y7:complex)c@!(y10:*features*)}",
+
+  "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),'(y13:exact-complex)c@!(y10:*featur"
+  "es*)}",
+
+  "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),'(y12:exact-closed)c@!(y10:*feature"
+  "s*)}",
+
+  "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),@(y9:opt-tower)c@!(y10:*features*)}",
 
   "C", 0,
   "@(y11:opt-unicode)?{@(y10:*features*),@(y11:opt-unicode)c@!(y10:*featu"

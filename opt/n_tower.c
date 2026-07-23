@@ -1026,7 +1026,7 @@ typedef struct bignum_ll { /* DO NOT ALLOC */
   limb_t limb[INT64_LIMBS];
 } bignumll_t;
 
-static void bnfree(bignum_t *pn);
+void bnfree(bignum_t *pn);
 
 static bignum_t *bny_dupll(const bignum_t *lla);
 static bignum_t *bndup(const bignum_t *a);
@@ -2071,7 +2071,7 @@ bignum_t *bnsub(const bignum_t *a, const bignum_t *b)
   return_NORMALIZE(r, "bnsub");
 }
 
-static bignum_t *bnashl(const bignum_t *a, long long sh)
+bignum_t *bnashl(const bignum_t *a, long long sh)
 {
   bignum_t *r = bn0;
   assert(a != NULL);
@@ -2211,7 +2211,7 @@ bignum_t *bnmull(const bignum_t *n, long long v)
   return_NORMALIZE(r, "bnmull");
 }
 
-static bignum_t *bnexpt(const bignum_t *a, unsigned long long n)
+bignum_t *bnexpt(const bignum_t *a, unsigned long long n)
 {
   bignum_t *b = bn1;
   bignum_t *an;
@@ -2521,7 +2521,7 @@ bignum_t *bngcd(const bignum_t *x, const bignum_t *y)
 */
 
 /* # of bits needed for unsigned representation of |n| */
-static size_t bnwidthu(const bignum_t *n)
+size_t bnwidthu(const bignum_t *n)
 {
   int64_t wd;
   limb_t h;

@@ -21,6 +21,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <float.h>
+#include <limits.h>
 #include <time.h>
 /* useful math constants */
 #ifndef M_PI
