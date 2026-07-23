@@ -777,7 +777,7 @@ define_instruction(ntos) {
     goi(jtos);
   } else {
     int radix; cbuf_t *pcb; char *s;
-    int (*pf)(int, void*) = cbputc;
+    int (*pf)(int, void*) = (int (*)(int, void*))cbputc;
     obj x = ac, y = spop(); ckn(x); ckk(y);
     radix = get_fixnum(y);
     if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");

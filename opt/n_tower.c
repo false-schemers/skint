@@ -6889,7 +6889,7 @@ void gnumwrite(numt_t xt, const nump_t *xp, int radix, int (*pf)(int, void*), vo
 
 /* bignums as skint objects */
 
-static cxtype_t cxt_bignum = { "bignum", bnfree };
+static cxtype_t cxt_bignum = { "bignum", (void (*)(void *))bnfree };
 cxtype_t *BIGNUM_NTAG = &cxt_bignum;
 
 
@@ -7128,7 +7128,7 @@ int fnmkpol(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
     fz->t = zt; return zt != NUMT_NONE; }
 
 
-static cxtype_t cxt_fatnum = { "fatnum", fnfree };
+static cxtype_t cxt_fatnum = { "fatnum", (void (*)(void *))fnfree };
 cxtype_t *FATNUM_NTAG = &cxt_fatnum;
 
 fatnum_t *dupfatnum(fatnum_t *fn) /* shallow copy! */

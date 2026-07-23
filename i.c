@@ -45,10 +45,12 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define regcall
 #define noalias
 #endif
-/* #pragma GCC optimize ("align-functions=16") */
 #define nochecks    __attribute__((no_stack_protector, aligned(8)))
-/* __attribute__((nocf_check)) */
 #define VM_INS_CODE_ALIGNED
+#ifdef _WIN64 /* clang-cl under Windows? */
+/* not possible under Win64 calling conventions */
+#undef VM_AC_IN_REG
+#endif
 #else
 #define unlikely(x) (x)
 #define likely(x)   (x)
