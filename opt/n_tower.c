@@ -3218,6 +3218,11 @@ numt_t numdup(nump_t *yp, numt_t xt, const nump_t *xp)
   return yt;
 }
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable:4789)
+#endif
+
 /* move number in memory (ownership goes with it) */
 numt_t nummove(nump_t *yp, numt_t xt, const nump_t *xp)
 {
@@ -3230,6 +3235,9 @@ numt_t nummove(nump_t *yp, numt_t xt, const nump_t *xp)
   return yt;
 }
 
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 /* generic integer arithmetics */
 
