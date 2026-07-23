@@ -61,5 +61,6 @@ tmp2
 tmp3
 /skint
 /skint-vs2022
+/skint-vs2026
 *.mk
 *.1
