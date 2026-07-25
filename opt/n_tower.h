@@ -62,6 +62,9 @@ extern cxtype_t *BIGNUM_NTAG;
 /* fatnums -- compound tower numbers (ratnums, compnums, rectnums) */
 /* make sure fatnum_t is compatible with fatnum4_t! */
 typedef struct fatnum { numt_t t; nump_t p[1]; } fatnum_t; /* alloc 1..4 parts */
+/* result struct with space for error message, compatible with fatnum_t */
+typedef struct fatnum4r { numt_t t; union { nump_t p[4]; char msg[80]; } u; } fatnum4r_t; 
+
 
 /* return values: 1 = true, 0 = false */
 extern int fneqn(const fatnum_t *fx, const fatnum_t *fy);
@@ -86,46 +89,46 @@ extern int fnisfin(const fatnum_t *fx);
 extern int fnisinf(const fatnum_t *fx);
 extern int fnisnan(const fatnum_t *fx);
 /* return values: 1 = success, 0 = domain/range error */
-extern int fnabs(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnneg(fatnum4_t *fz, const fatnum_t *fx);
-extern int fntoe(fatnum4_t *fz, const fatnum_t *fx);
-extern int fntoi(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnfloor(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnceil(fatnum4_t *fz, const fatnum_t *fx);
-extern int fntrunc(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnround(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnnumer(fatnum4_t *fz, const fatnum_t *fx);
-extern int fndenom(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnrpart(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnipart(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnmagn(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnangl(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnexp(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnlog(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnsin(fatnum4_t *fz, const fatnum_t *fx);
-extern int fncos(fatnum4_t *fz, const fatnum_t *fx);
-extern int fntan(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnasin(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnacos(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnatan(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnsqrt(fatnum4_t *fz, const fatnum_t *fx);
-extern int fnisqrt(fatnum4_t *fz, fatnum4_t *fr, const fatnum_t *fx);
-extern int fnmax(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnmin(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnadd(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnsub(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnmul(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fndiv(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fngcd(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fntquo(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fntrem(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnfquo(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnfrem(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnlogn(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnexpt(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnatan2(fatnum4_t *fz, const fatnum_t *fy, const fatnum_t *fx);
-extern int fnmkrec(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
-extern int fnmkpol(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnabs(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnneg(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fntoex(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fntoin(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnfloor(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnceil(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fntrunc(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnround(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnnumer(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fndenom(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnrpart(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnipart(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnmagn(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnangl(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnexp(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnlog(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnsin(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fncos(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fntan(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnasin(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnacos(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnatan(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnsqrt(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnisqrt(fatnum4r_t *fz, fatnum4r_t *fr, const fatnum_t *fx);
+extern int fnmax(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnmin(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnadd(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnsub(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnmul(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fndiv(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fngcd(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fntquo(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fntrem(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnfquo(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnfrem(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnlogn(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnexpt(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnatan2(fatnum4r_t *fz, const fatnum_t *fy, const fatnum_t *fx);
+extern int fnmkrec(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnmkpol(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
 
 /* 'generic' writer for fatnums */
 extern void wrfn(const fatnum_t *n, int radix, int (*pf)(int, void*), void *pd);
