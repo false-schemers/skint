@@ -479,7 +479,7 @@ int cleansymname(const char *s, int blen) {
   if (s[0] == '+' || s[0] == '-') {
     if (blen == 1) return 1;
     if (blen == 2 && (s[1] == 'i' || s[1] == 'I')) return 0;
-    if (blen == 6 && (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0)) return 0;
+    if (blen >= 6 && (strncmp_ci(s+1, "inf.0", 5) == 0 || strncmp_ci(s+1, "nan.0", 5) == 0)) return 0;
     if (blen >= 2 && s[1] == '.' && !isdigit(s[2])) return 1; 
     if (s[1] != '.' && !isdigit(s[1])) return 1;
     return 0;
