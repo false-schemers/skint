@@ -454,7 +454,23 @@ define_instruction(abs) {
     ac = fixnum_obj(fxabs(get_fixnum(ac)));
   } else if (likely(is_flonum(ac))) {
     ac = flonum_obj(fabs(get_flonum(ac)));
-  } else failactype("number");
+  } else if (likely(is_bignum(ac))) {
+    ac = bignum_obj(bnabs(get_bignum(ac)));
+  } else { /* slow path */
+    fatnum4_t z4; fatnum_t *fx = NULL;
+    if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
+    if (fx && fnabs(&z4, fx)) {
+      switch (z4.t) {
+        case NUMT_NONE: assert(0); break; 
+        case NUMT_FIX: ac = fixnum_obj(z4.p[0].fix); break;
+        case NUMT_FLO: ac = flonum_obj(z4.p[0].flo); break;
+        case NUMT_BIG: ac = bignum_obj(z4.p[0].big); break;
+        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      }
+      gonexti();
+    }
+  } 
+  failactype("number");
   gonexti(); 
 }
 
@@ -704,21 +720,148 @@ define_instruction(renp) { /* rectnum? */
   gonexti(); 
 }
 
-/* trivial definitions in standard build */
-define_instruction(numer) { cki(ac); gonexti(); }
-define_instruction(denom) { cki(ac); ac = fixnum_obj(1); gonexti(); }
-define_instruction(rpart) { ckn(ac); gonexti(); }
-define_instruction(ipart) { ckn(ac); ac = fixnum_obj(0); gonexti(); }
+define_instruction(numer) {
+  if (likely(is_fixnum(ac))) gonexti();
+  else if (likely(is_bignum(ac))) gonexti();
+  else { /* slow path */
+    fatnum4_t z4, x4; fatnum_t *fx = NULL;
+    if (is_flonum(ac)) { x4.t = NUMT_FLO; x4.p[0].flo = get_flonum(ac); fx = (fatnum_t*)&x4; } 
+    else if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
+    if (fx && fnnumer(&z4, fx)) {
+      switch (z4.t) {
+        case NUMT_NONE: assert(0); break; 
+        case NUMT_FIX: ac = fixnum_obj(z4.p[0].fix); break;
+        case NUMT_FLO: ac = flonum_obj(z4.p[0].flo); break;
+        case NUMT_BIG: ac = bignum_obj(z4.p[0].big); break;
+        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      }
+      gonexti();
+    }
+  } 
+  failactype("rational number");
+  gonexti(); 
+}
+
+define_instruction(denom) {
+  if (likely(is_fixnum(ac))) { ac = fixnum_obj(1); gonexti(); }
+  else if (likely(is_bignum(ac))) { ac = fixnum_obj(1); gonexti(); }
+  else { /* slow path */
+    fatnum4_t z4, x4; fatnum_t *fx = NULL;
+    if (is_flonum(ac)) { x4.t = NUMT_FLO; x4.p[0].flo = get_flonum(ac); fx = (fatnum_t*)&x4; } 
+    else if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
+    if (fx && fndenom(&z4, fx)) {
+      switch (z4.t) {
+        case NUMT_NONE: assert(0); break; 
+        case NUMT_FIX: ac = fixnum_obj(z4.p[0].fix); break;
+        case NUMT_FLO: ac = flonum_obj(z4.p[0].flo); break;
+        case NUMT_BIG: ac = bignum_obj(z4.p[0].big); break;
+        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      }
+      gonexti();
+    }
+  } 
+  failactype("rational number");
+  gonexti(); 
+}
+
+define_instruction(rpart) { 
+  if (likely(is_fixnum(ac))) gonexti();
+  else if (likely(is_flonum(ac))) gonexti();
+  else if (likely(is_bignum(ac))) gonexti();
+  else { /* slow path */
+    fatnum4_t z4; fatnum_t *fx = NULL;
+    if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
+    if (fx && fnrpart(&z4, fx)) {
+      switch (z4.t) {
+        case NUMT_NONE: assert(0); break; 
+        case NUMT_FIX: ac = fixnum_obj(z4.p[0].fix); break;
+        case NUMT_FLO: ac = flonum_obj(z4.p[0].flo); break;
+        case NUMT_BIG: ac = bignum_obj(z4.p[0].big); break;
+        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      }
+      gonexti();
+    }
+  } 
+  failactype("number");
+  gonexti(); 
+}
+
+define_instruction(ipart) { 
+  if (likely(is_fixnum(ac))) { ac = fixnum_obj(0); gonexti(); }
+  else if (likely(is_flonum(ac))) { ac = fixnum_obj(0); gonexti(); }
+  else if (likely(is_bignum(ac))) { ac = fixnum_obj(0); gonexti(); }
+  else { /* slow path */
+    fatnum4_t z4; fatnum_t *fx = NULL;
+    if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
+    if (fx && fnipart(&z4, fx)) {
+      switch (z4.t) {
+        case NUMT_NONE: assert(0); break; 
+        case NUMT_FIX: ac = fixnum_obj(z4.p[0].fix); break;
+        case NUMT_FLO: ac = flonum_obj(z4.p[0].flo); break;
+        case NUMT_BIG: ac = bignum_obj(z4.p[0].big); break;
+        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      }
+      gonexti();
+    }
+  } 
+  failactype("number");
+  gonexti(); 
+}
 
 define_instruction(magn) { 
-  goi(abs); 
+  if (likely(is_fixnum(ac))) {
+    ac = fixnum_obj(fxabs(get_fixnum(ac))); 
+    gonexti();
+  } else if (likely(is_flonum(ac))) {
+    ac = flonum_obj(fabs(get_flonum(ac))); 
+    gonexti();
+  } else if (likely(is_bignum(ac))) {
+    ac = bignum_obj(bnabs(get_bignum(ac))); 
+    gonexti();
+  } else { /* slow path */
+    fatnum4_t z4; fatnum_t *fx = NULL;
+    if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
+    if (fx && fnmagn(&z4, fx)) {
+      switch (z4.t) {
+        case NUMT_NONE: assert(0); break; 
+        case NUMT_FIX: ac = fixnum_obj(z4.p[0].fix); break;
+        case NUMT_FLO: ac = flonum_obj(z4.p[0].flo); break;
+        case NUMT_BIG: ac = bignum_obj(z4.p[0].big); break;
+        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      }
+      gonexti();
+    }
+  } 
+  failactype("number");
+  gonexti(); 
 }
+
 define_instruction(angl) {
-  int isneg = 0; 
-  if (likely(is_fixnum(ac))) isneg = (get_fixnum(ac) < 0);
-  else if (likely(is_flonum(ac))) isneg = (get_flonum(ac) < 0.0);
-  else failactype("number");
-  ac = isneg ? flonum_obj(M_PI) : fixnum_obj(0);
+  if (likely(is_fixnum(ac))) { 
+    ac = (get_fixnum(ac) < 0) ? flonum_obj(M_PI) : fixnum_obj(0); 
+    gonexti(); 
+  } else if (likely(is_flonum(ac))) {
+    double d = get_flonum(ac);
+    ac = (d < 0.0 || (d == 0.0 && 1.0/d < 0)) ? flonum_obj(M_PI) : fixnum_obj(0); 
+    gonexti(); 
+  } else if (likely(is_bignum(ac))) { 
+    ac = (bnsign(get_bignum(ac)) < 0) ? flonum_obj(M_PI) : fixnum_obj(0); 
+    gonexti(); 
+  } else { /* slow path */
+    fatnum4_t z4; fatnum_t *fx = NULL;
+    if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
+    if (fx && fnangl(&z4, fx)) {
+      switch (z4.t) {
+        case NUMT_NONE: assert(0); break; 
+        case NUMT_FIX: ac = fixnum_obj(z4.p[0].fix); break;
+        case NUMT_FLO: ac = flonum_obj(z4.p[0].flo); break;
+        case NUMT_BIG: ac = bignum_obj(z4.p[0].big); break;
+        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      }
+      gonexti();
+    }
+  } 
+  failactype("number");
   gonexti(); 
 }
 

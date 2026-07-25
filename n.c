@@ -1103,6 +1103,10 @@ int iseqv(obj x, obj y) {
 #ifdef FLONUMS_BOXED /* NB: compare as bits to make sure two nans are eqv */
   if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y); 
 #endif
+#ifdef OPT_TOWER
+  if (h == (obj)BIGNUM_NTAG) return bneq(bignum_from_obj(x), bignum_from_obj(y));
+  if (h == (obj)FATNUM_NTAG) return fneqv(fatnum_from_obj(x), fatnum_from_obj(y));
+#endif
   return 0;
 }
 

@@ -6965,165 +6965,165 @@ int fnisinf(const fatnum_t *fx)
 int fnisnan(const fatnum_t *fx)
   { return gnumnanp(fx->t, fx->p); }
 
-int fnabs(fatnum_t *fz, const fatnum_t *fx)
+int fnabs(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumabs(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnneg(fatnum_t *fz, const fatnum_t *fx)
+int fnneg(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumneg(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fntoe(fatnum_t *fz, const fatnum_t *fx)
+int fntoe(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumtoe(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fntoi(fatnum_t *fz, const fatnum_t *fx)
+int fntoi(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumtoi(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnfloor(fatnum_t *fz, const fatnum_t *fx)
+int fnfloor(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumfloor(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnceil(fatnum_t *fz, const fatnum_t *fx)
+int fnceil(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumceil(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fntrunc(fatnum_t *fz, const fatnum_t *fx)
+int fntrunc(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumtrunc(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnround(fatnum_t *fz, const fatnum_t *fx)
+int fnround(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumround(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnnumer(fatnum_t *fz, const fatnum_t *fx)
+int fnnumer(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumnumer(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fndenom(fatnum_t *fz, const fatnum_t *fx)
+int fndenom(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumdenom(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnreal(fatnum_t *fz, const fatnum_t *fx)
+int fnrpart(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumreal(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnimag(fatnum_t *fz, const fatnum_t *fx)
+int fnipart(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumimag(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnmagn(fatnum_t *fz, const fatnum_t *fx)
+int fnmagn(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnummagn(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnangl(fatnum_t *fz, const fatnum_t *fx)
+int fnangl(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumangle(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnexp(fatnum_t *fz, const fatnum_t *fx)
+int fnexp(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumexp(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnlog(fatnum_t *fz, const fatnum_t *fx)
+int fnlog(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumlog(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnsin(fatnum_t *fz, const fatnum_t *fx)
+int fnsin(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumsin(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fncos(fatnum_t *fz, const fatnum_t *fx)
+int fncos(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumcos(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fntan(fatnum_t *fz, const fatnum_t *fx)
+int fntan(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumtan(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnasin(fatnum_t *fz, const fatnum_t *fx)
+int fnasin(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumasin(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnacos(fatnum_t *fz, const fatnum_t *fx)
+int fnacos(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumacos(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnatan(fatnum_t *fz, const fatnum_t *fx)
+int fnatan(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumatan(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnsqrt(fatnum_t *fz, const fatnum_t *fx)
+int fnsqrt(fatnum4_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumsqrt(fz->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnisqrt(fatnum_t *fz, fatnum_t *fr, const fatnum_t *fx)
+int fnisqrt(fatnum4_t *fz, fatnum4_t *fr, const fatnum_t *fx)
   { numt_t zt, rt;
     gnumsqrti(&zt, fz->p, &rt, fr->p, fx->t, fx->p);
     fz->t = zt; fr->t = rt;
     return zt != NUMT_NONE; }
 
-int fnmax(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnmax(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummax(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnmin(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnmin(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummin(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnadd(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnadd(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumadd(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnsub(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnsub(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumsub(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnmul(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnmul(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummul(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fndiv(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fndiv(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumdiv(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fngcd(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fngcd(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumgcd(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fntquo(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fntquo(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumtquo(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fntrem(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fntrem(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumtrem(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnfquo(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnfquo(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumfquo(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnfrem(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnfrem(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumfrem(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnlogn(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnlogn(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumlogn(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnexpt(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnexpt(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumexpt(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnatan2(fatnum_t *fz, const fatnum_t *fy, const fatnum_t *fx)
+int fnatan2(fatnum4_t *fz, const fatnum_t *fy, const fatnum_t *fx)
   { numt_t zt = gnumatan2(fz->p, fy->t, fy->p, fx->t, fx->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnmkrec(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnmkrec(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummakerect(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnmkpol(fatnum_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnmkpol(fatnum4_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummakepolar(fz->p, fx->t, fx->p, fy->t, fy->p);
     fz->t = zt; return zt != NUMT_NONE; }
 
