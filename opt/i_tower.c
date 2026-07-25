@@ -605,109 +605,74 @@ define_instruction(sqrt) {
   goih(tower_unary);
 }
 
-///////////////////////// TODO:
-
-
 define_instruction(exp) {
-  double x;
-  if (unlikely(is_fixnum(ac))) x = (double)get_fixnum(ac);
-  else if (likely(is_flonum(ac))) x = get_flonum(ac);
-  else failactype("number");
-  ac = flonum_obj(exp(x));
+  if (likely(is_flonum(ac))) ac = flonum_obj(exp(get_flonum(ac)));
+  else if (unlikely(ac == fixnum_obj(0))) ac = fixnum_obj(1);
+  else if (unlikely(is_fixnum(ac))) ac = flonum_obj(exp(get_fixnum(ac)));
+  else { spush(ac); ac = (obj)&fnexp; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(log) {
-  double x; obj y = spop();
-  if (unlikely(is_fixnum(ac))) x = (double)get_fixnum(ac);
-  else if (likely(is_flonum(ac))) x = get_flonum(ac);
-  else failactype("number");
-  if (likely(!y)) {
-    ac = flonum_obj(log(x));
-  } else if (likely(y == fixnum_obj(10))) {
-    ac = flonum_obj(log10(x));
+  /* no useful fast path */
+  obj x = ac, y = spop();
+  if (y == bool_obj(0)) {
+    spush(x); ac = (obj)&fnlog; goih(tower_unary);
   } else {
-    double b; 
-    if (unlikely(is_fixnum(y))) b = (double)get_fixnum(y);
-    else if (likely(is_flonum(y))) b = get_flonum(y);
-    else failtype(y, "number");
-    if (likely(b == 10.0)) ac = flonum_obj(log10(x));
-    else ac = flonum_obj(log(x)/log(b));
+    spush(x); spush(y); ac = (obj)&fnlogn; goih(tower_binary);
   }
-  gonexti(); 
 }
 
 define_instruction(sin) {
-  double x;
-  if (unlikely(is_fixnum(ac))) {
-    x = (double)get_fixnum(ac);
-  } else if (likely(is_flonum(ac))) {
-    x = get_flonum(ac);
-  } else failactype("number");
-  ac = flonum_obj(sin(x));
+  if (likely(is_flonum(ac))) ac = flonum_obj(sin(get_flonum(ac)));
+  else if (unlikely(ac == fixnum_obj(0))) ac = fixnum_obj(0);
+  else if (unlikely(is_fixnum(ac))) ac = flonum_obj(sin(get_fixnum(ac)));
+  else { spush(ac); ac = (obj)&fnsin; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(cos) {
-  double x;
-  if (unlikely(is_fixnum(ac))) {
-    x = (double)get_fixnum(ac);
-  } else if (likely(is_flonum(ac))) {
-    x = get_flonum(ac);
-  } else failactype("number");
-  ac = flonum_obj(cos(x));
+  if (likely(is_flonum(ac))) ac = flonum_obj(cos(get_flonum(ac)));
+  else if (unlikely(ac == fixnum_obj(0))) ac = fixnum_obj(1);
+  else if (unlikely(is_fixnum(ac))) ac = flonum_obj(cos(get_fixnum(ac)));
+  else { spush(ac); ac = (obj)&fncos; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(tan) {
-  double x;
-  if (unlikely(is_fixnum(ac))) {
-    x = (double)get_fixnum(ac);
-  } else if (likely(is_flonum(ac))) {
-    x = get_flonum(ac);
-  } else failactype("number");
-  ac = flonum_obj(tan(x));
+  if (likely(is_flonum(ac))) ac = flonum_obj(tan(get_flonum(ac)));
+  else if (unlikely(ac == fixnum_obj(0))) ac = fixnum_obj(0);
+  else if (unlikely(is_fixnum(ac))) ac = flonum_obj(tan(get_fixnum(ac)));
+  else { spush(ac); ac = (obj)&fntan; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(asin) {
-  double x;
-  if (unlikely(is_fixnum(ac))) {
-    x = (double)get_fixnum(ac);
-  } else if (likely(is_flonum(ac))) {
-    x = get_flonum(ac);
-  } else failactype("number");
-  ac = flonum_obj(asin(x));
-  gonexti(); 
+  /* no useful fast path */
+  spush(ac); 
+  ac = (obj)&fnasin; 
+  goih(tower_unary);
 }
 
 define_instruction(acos) {
-  double x;
-  if (unlikely(is_fixnum(ac))) {
-    x = (double)get_fixnum(ac);
-  } else if (likely(is_flonum(ac))) {
-    x = get_flonum(ac);
-  } else failactype("number");
-  ac = flonum_obj(acos(x));
-  gonexti(); 
+  /* no useful fast path */
+  spush(ac); 
+  ac = (obj)&fnacos; 
+  goih(tower_unary);
 }
 
 define_instruction(atan) {
-  double x; obj y = spop();
-  if (unlikely(is_fixnum(ac))) x = (double)get_fixnum(ac);
-  else if (likely(is_flonum(ac))) x = get_flonum(ac);
-  else failactype("number");
-  if (likely(!y)) {
-    ac = flonum_obj(atan(x));
+  /* no useful fast path */
+  obj x = ac, y = spop();
+  if (y == bool_obj(0)) {
+    spush(x); ac = (obj)&fnatan; goih(tower_unary);
   } else {
-    double b; 
-    if (unlikely(is_fixnum(y))) b = (double)get_fixnum(y);
-    else if (likely(is_flonum(y))) b = get_flonum(y);
-    else failtype(y, "number");
-    ac = flonum_obj(atan2(x, b));
+    spush(x); spush(y); ac = (obj)&fnatan2; goih(tower_binary);
   }
-  gonexti(); 
 }
+
+
+///////////////////////// TODO:
 
 define_instruction(floor) {
   if (likely(is_flonum(ac))) {
