@@ -3210,7 +3210,7 @@ define_instruction(round) {
   gonexti(); 
 }
 
-define_instruction(ntoi) {
+define_instruction(ntoex) {
   if (likely(is_flonum(ac))) {
     double d = get_flonum(ac); long l;
     if (flisint(d) && (l = fxflo(d)) >= FIXNUM_MIN && l <= FIXNUM_MAX) ac = fixnum_obj(l);
@@ -3220,7 +3220,7 @@ define_instruction(ntoi) {
   gonexti(); 
 }
 
-define_instruction(ntoj) {
+define_instruction(ntoin) {
   if (likely(is_fixnum(ac))) ac = flonum_obj((flonum_t)get_fixnum(ac));
   else if (likely(is_flonum(ac))) /* keep ac as-is */ ;
   else failactype("number");

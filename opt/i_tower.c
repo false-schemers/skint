@@ -616,11 +616,8 @@ define_instruction(exp) {
 define_instruction(log) {
   /* no useful fast path */
   obj x = ac, y = spop();
-  if (y == bool_obj(0)) {
-    spush(x); ac = (obj)&fnlog; goih(tower_unary);
-  } else {
-    spush(x); spush(y); ac = (obj)&fnlogn; goih(tower_binary);
-  }
+  if (y == bool_obj(0)) { spush(x); ac = (obj)&fnlog; goih(tower_unary); } 
+  else { spush(x); spush(y); ac = (obj)&fnlogn; goih(tower_binary); }
 }
 
 define_instruction(sin) {
@@ -649,87 +646,61 @@ define_instruction(tan) {
 
 define_instruction(asin) {
   /* no useful fast path */
-  spush(ac); 
-  ac = (obj)&fnasin; 
-  goih(tower_unary);
+  spush(ac); ac = (obj)&fnasin; goih(tower_unary);
 }
 
 define_instruction(acos) {
   /* no useful fast path */
-  spush(ac); 
-  ac = (obj)&fnacos; 
-  goih(tower_unary);
+  spush(ac); ac = (obj)&fnacos; goih(tower_unary);
 }
 
 define_instruction(atan) {
   /* no useful fast path */
   obj x = ac, y = spop();
-  if (y == bool_obj(0)) {
-    spush(x); ac = (obj)&fnatan; goih(tower_unary);
-  } else {
-    spush(x); spush(y); ac = (obj)&fnatan2; goih(tower_binary);
-  }
+  if (y == bool_obj(0)) { spush(x); ac = (obj)&fnatan; goih(tower_unary); } 
+  else { spush(x); spush(y); ac = (obj)&fnatan2; goih(tower_binary); }
 }
 
-
-///////////////////////// TODO:
-
 define_instruction(floor) {
-  if (likely(is_flonum(ac))) {
-    ac = flonum_obj(floor(get_flonum(ac)));
-  } else if (unlikely(!is_fixnum(ac))) {
-    failactype("number");
-  }
+  if (likely(is_flonum(ac))) { ac = flonum_obj(floor(get_flonum(ac))); } 
+  else if (likely(is_fixnum(ac))) { /* ac is integer */ } 
+  else { spush(ac); ac = (obj)&fnfloor; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(ceil) {
-  if (likely(is_flonum(ac))) {
-    ac = flonum_obj(ceil(get_flonum(ac)));
-  } else if (unlikely(!is_fixnum(ac))) {
-    failactype("number");
-  }
+  if (likely(is_flonum(ac))) { ac = flonum_obj(ceil(get_flonum(ac))); } 
+  else if (likely(is_fixnum(ac))) { /* ac is integer */ } 
+  else { spush(ac); ac = (obj)&fnceil; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(trunc) {
-  if (likely(is_flonum(ac))) {
-    double x = get_flonum(ac);
-    double i; modf(x,  &i);
-    ac = flonum_obj(i);
-  } else if (unlikely(!is_fixnum(ac))) {
-    failactype("number");
-  }
+  if (likely(is_flonum(ac))) { double i; modf(get_flonum(ac), &i); ac = flonum_obj(i); } 
+  else if (likely(is_fixnum(ac))) { /* ac is integer */ } 
+  else { spush(ac); ac = (obj)&fntrunc; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(round) {
-  if (likely(is_flonum(ac))) {
-    ac = flonum_obj(flround(get_flonum(ac)));
-  } else if (unlikely(!is_fixnum(ac))) {
-    failactype("number");
-  }
+  if (likely(is_flonum(ac))) { ac = flonum_obj(flround(get_flonum(ac))); } 
+  else if (likely(is_fixnum(ac))) { /* ac is integer */ } 
+  else { spush(ac); ac = (obj)&fnround; goih(tower_unary); }
   gonexti(); 
 }
 
-define_instruction(ntoi) {
-  if (likely(is_flonum(ac))) {
-    double d = get_flonum(ac); long l;
-    if (flisint(d) && (l = fxflo(d)) >= FIXNUM_MIN && l <= FIXNUM_MAX) ac = fixnum_obj(l);
-    else failactype("flonum integer in fixnum range");  
-  } else if (likely(is_fixnum(ac))) /* keep ac as-is */ ;
-  else failactype("number");
-  gonexti(); 
+define_instruction(ntoex) {
+  if (likely(is_fixnum(ac))) gonexti();
+  else { spush(ac); ac = (obj)&fntoex; goih(tower_unary); }
 }
 
-define_instruction(ntoj) {
+define_instruction(ntoin) {
   if (likely(is_fixnum(ac))) ac = flonum_obj((flonum_t)get_fixnum(ac));
   else if (likely(is_flonum(ac))) /* keep ac as-is */ ;
-  else failactype("number");
+  else { spush(ac); ac = (obj)&fntoin; goih(tower_unary); }
   gonexti(); 
 }
 
-/* tower definitions */
 define_instruction(exnp) { /* exact? */
   if (likely(is_fixnum(ac))) ac = bool_obj(1);
   else if (likely(is_flonum(ac))) ac = bool_obj(0);
@@ -768,6 +739,8 @@ define_instruction(renp) { /* rectnum? */
   else ac = bool_obj(0); 
   gonexti(); 
 }
+
+/// FIXME
 
 define_instruction(numer) {
   if (likely(is_fixnum(ac))) gonexti();
