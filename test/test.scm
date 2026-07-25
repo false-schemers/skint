@@ -45,6 +45,10 @@
     ((test-values vals expr) 
      (test (call-with-values (lambda () vals) list) (call-with-values (lambda () expr) list)))))
 
+(define-syntax test=
+  (syntax-rules ()
+    ((test= val expr) (test #t (= expr val)))))
+
 (define-syntax test~=
   (syntax-rules ()
     ((test~= val expr) (test (number->string val) (number->string expr)))))
@@ -58,7 +62,7 @@
   (display " out of ")
   (write *tests-run*)
   (display " passed (")
-  (write (/ (floor (* (/ *tests-passed* *tests-run*) 10000)) 100))
+  (write (/ (floor (* (/ *tests-passed* *tests-run*) 10000.0)) 100))
   (display "%)")
   (newline))
 
@@ -1537,8 +1541,8 @@
 (test 27 (expt 3 3))
 (test 1 (expt 0 0))
 (test 0 (expt 0 1))
-(test 1.0 (expt 0.0 0))
-(test 0.0 (expt 0 1.0))
+(test= 1.0 (expt 0.0 0))
+(test= 0.0 (expt 0 1.0))
 
 ;(test 1+2i (make-rectangular 1 2))
 
@@ -3081,14 +3085,14 @@
 (test #f (eq? (string-append s) s))
 (test #f (eq? (vector-append v) v))
 
-; expt should overflow
+; expt may overflow into flonum
 (test 1 (expt 0 0))
-(test 0.1 (expt 10 -1))
-(test 0.0009765625 (expt 2 -10))
+(test= 0.0625 (expt 16 -1))
+(test= 0.0009765625 (expt 2 -10))
 (test -32768 (expt -2 15))
 (test -536870912 (expt -2 29))
-(test 536870912.0 (expt 2 29))
-(test 6.80564733841877e+038 (expt 2 129))
+(test= 536870912.0 (expt 2 29))
+(test= 6.80564733841877e+038 (expt 2 129))
 
 ; fixnum ops shouldn't fail on overflow, but may return whatever
 (test #t (fixnum? (fx- -536870912 1)))

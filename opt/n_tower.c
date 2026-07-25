@@ -7149,7 +7149,7 @@ int fnlogn(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
     if (zt == NUMT_NONE) setmsg(fz, "log: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnexpt(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnpow(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumexpt(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "expt: domain error");
     fz->t = zt; return zt != NUMT_NONE; }

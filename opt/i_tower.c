@@ -549,8 +549,6 @@ define_instruction(abs) {
   gonexti(); 
 }
 
-///////////////////////// TODO:
-
 define_instruction(gcd) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
@@ -559,10 +557,10 @@ define_instruction(gcd) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else failtype(x, "number");
+    else { spush(x); spush(y); ac = (obj)&fngcd; goih(tower_binary); }
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else failtype(y, "number");
+    else { spush(x); spush(y); ac = (obj)&fngcd; goih(tower_binary); }
     ac = flonum_obj(flgcd(dx, dy));
   }
   gonexti(); 
@@ -571,35 +569,44 @@ define_instruction(gcd) {
 define_instruction(pow) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
-    /* if fxpow fails or overflows, it returns 0 */
     long fx = get_fixnum(x), fy = get_fixnum(y), fz;
     if (unlikely(fx == 0 && fy < 0)) fail("division by zero");
     fz = ((fx | fy)) ? fxpow(fx, fy) : 1; /* 0^0 == 1! */
-    ac = (!fz && fx) ? flonum_obj(pow((double)fx, (double)fy)) : fixnum_obj(fz); // fixme
-  } else {
-    double dx, dy;
-    if (likely(is_flonum(x))) dx = get_flonum(x);
-    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else failtype(x, "number"); // fixme
+    /* if fxpow fails or overflows, it returns 0 */
+    if (!fz && fx) goto tower;
+    ac = fixnum_obj(fz);
+    gonexti();
+  } else if (is_flonum(x)) {
+    double dx = get_flonum(x), dy;
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else failtype(y, "number"); // fixme
-    ac = flonum_obj(pow(dx, dy));
+    else goto tower;
+    if (dx > 0 && dy > 0) { /* no foul play */
+      ac = flonum_obj(pow(dx, dy));
+      gonexti();
+    }
   }
-  gonexti(); 
+tower:
+  spush(x); spush(y); 
+  ac = (obj)&fnpow; 
+  goih(tower_binary);
 }
 
 define_instruction(sqrt) {
   if (likely(is_flonum(ac))) {
-    ac = flonum_obj(sqrt(get_flonum(ac)));
-  } else if (likely(is_fixnum(ac))) {
-    long x = get_fixnum(ac), y;
-    if (x < 0) ac = flonum_obj((HUGE_VAL - HUGE_VAL));   
-    else if (y = fxsqrt(x), y*y == x) ac = fixnum_obj(y);
-    else ac = flonum_obj(sqrt((double)x));
-  } else failactype("number");
-  gonexti(); 
+    double d = get_flonum(ac);
+    if (d > 0.0) {
+      ac = flonum_obj(sqrt(d));
+      gonexti();
+    }
+  }
+  spush(ac);
+  ac = (obj)&fnsqrt; 
+  goih(tower_unary);
 }
+
+///////////////////////// TODO:
+
 
 define_instruction(exp) {
   double x;
