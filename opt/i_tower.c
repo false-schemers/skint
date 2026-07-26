@@ -197,6 +197,36 @@ define_instrhelper(tower_binary) {
   }
 }
 
+define_instrhelper(tower_binary_push) {
+  fatnum4r_t z4; fatnum4_t x4, y4; fatnum_t *fx = NULL, *fy = NULL;
+  int (*fnop)(fatnum4r_t *, const fatnum_t *, const fatnum_t *) =
+  (int (*)(fatnum4r_t *, const fatnum_t *, const fatnum_t *)) ac;
+  obj y = spop(), x = spop();
+  if (is_fixnum(x)) { x4.t = NUMT_FIX; x4.p[0].fix = get_fixnum(x); fx = (fatnum_t*)&x4; } 
+  else if (is_flonum(x)) { x4.t = NUMT_FLO; x4.p[0].flo = get_flonum(x); fx = (fatnum_t*)&x4; } 
+  else if (is_bignum(x)) { x4.t = NUMT_BIG; x4.p[0].big = get_bignum(x); fx = (fatnum_t*)&x4; } 
+  else if (is_fatnum(x)) { fx = get_fatnum(x); } 
+  if (is_fixnum(y)) { y4.t = NUMT_FIX; y4.p[0].fix = get_fixnum(y); fy = (fatnum_t*)&y4; } 
+  else if (is_flonum(y)) { y4.t = NUMT_FLO; y4.p[0].flo = get_flonum(y); fy = (fatnum_t*)&y4; } 
+  else if (is_bignum(y)) { y4.t = NUMT_BIG; y4.p[0].big = get_bignum(y); fy = (fatnum_t*)&y4; } 
+  else if (is_fatnum(y)) { fy = get_fatnum(y); } 
+  if (!fx) failtype(x, "number");
+  if (!fy) failtype(y, "number");
+  if (fnop(&z4, fx, fy)) {
+    switch (z4.t) {
+      case NUMT_NONE: assert(0); break; 
+      case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
+      case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
+      case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
+      default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+    }
+    spush(ac);
+    gonexti();
+  } else {
+    fail(z4.u.msg);
+  }
+}
+
 define_instruction(add) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
@@ -972,4 +1002,23 @@ define_instruction(ston) {
   gonexti();
 }
 
-
+define_instruction(pushsub) {
+  obj x = ac, y = spop();
+  if (likely(are_fixnums(x, y))) {
+    long lx = get_fixnum(x), ly = get_fixnum(y);   
+    long long llz = (long long)lx - (long long)ly;
+    if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
+    else { spush(x); spush(y); ac = (obj)&fnsub; goih(tower_binary_push); }
+  } else {
+    double dx, dy;
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
+    else { spush(x); spush(y); ac = (obj)&fnsub; goih(tower_binary_push); }
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
+    else { spush(x); spush(y); ac = (obj)&fnsub; goih(tower_binary_push); }
+    ac = flonum_obj(dx - dy);
+  }
+  spush(ac);
+  gonexti(); 
+}

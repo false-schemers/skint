@@ -3322,6 +3322,27 @@ define_instruction(ston) {
   gonexti();
 }
 
+define_instruction(pushsub) {
+  obj x = ac, y = spop();
+  if (likely(are_fixnums(x, y))) {
+    long lx = get_fixnum(x), ly = get_fixnum(y);   
+    long long llz = (long long)lx - (long long)ly;
+    if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
+    else ac = flonum_obj((double)lx - (double)ly);
+  } else {
+    double dx, dy;
+    if (likely(is_flonum(x))) dx = get_flonum(x);
+    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
+    else failtype(x, "number");
+    if (likely(is_flonum(y))) dy = get_flonum(y);
+    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
+    else failtype(y, "number");
+    ac = flonum_obj(dx - dy);
+  }
+  spush(ac);
+  gonexti(); 
+}
+
 #else
 #include "opt/i_tower.c"
 #endif
@@ -4430,28 +4451,6 @@ define_instruction(scall44) {
   ckx(ac); rd = ac; rx = fixnum_obj(0); ac = fixnum_obj(4);
   sref(7) = sref(3); sref(6) = sref(2); sref(5) = sref(1); sref(4) = sref(0);
   sdrop(4); callsubi();
-}
-
-
-define_instruction(pushsub) {
-  obj x = ac, y = spop();
-  if (likely(are_fixnums(x, y))) {
-    long lx = get_fixnum(x), ly = get_fixnum(y);   
-    long long llz = (long long)lx - (long long)ly;
-    if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
-    else ac = flonum_obj((double)lx - (double)ly);
-  } else {
-    double dx, dy;
-    if (likely(is_flonum(x))) dx = get_flonum(x);
-    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else failtype(x, "number");
-    if (likely(is_flonum(y))) dy = get_flonum(y);
-    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else failtype(y, "number");
-    ac = flonum_obj(dx - dy);
-  }
-  spush(ac);
-  gonexti(); 
 }
 
 define_instruction(fexis) {

@@ -191,7 +191,6 @@ declare_instruction(atest1,     "%1",           0,  NULL,                       
 declare_instruction(atest2,     "%2",           0,  NULL,                        0,  NULL) 
 declare_instruction(atest3,     "%3",           0,  NULL,                        0,  NULL) 
 declare_instruction(atest4,     "%4",           0,  NULL,                        0,  NULL) 
-declare_instruction(pushsub,    "-,",           0,  NULL,                        0,  NULL) 
 
 /* type checks: integrables but no globals  */
 declare_instruction(ckp,        "%p",           0,  "%ckp",                     '1', INLINED)
@@ -432,6 +431,8 @@ declare_instruction(gbtc,       "G8!",          0,  "bit-count",                
 /* generic number <-> string conversions */
 declare_instruction(ntos,       "E8\0'(i10)",   0,  "number->string",           'b', AUTOGL)
 declare_instruction(ston,       "E9\0'(i10)",   0,  "string->number",           'b', AUTOGL)
+/* popular fused combos */
+declare_instruction(pushsub,    "-,",           0,  NULL,                        0,  NULL) 
 /* aliased integrables (no custom instructions) */               
 declare_integrable(NULL,        "N0",           0,  "complex?",                 '1', AUTOGL)
 declare_integrable(NULL,        "Nm",           0,  "modulo",                   '2', AUTOGL)

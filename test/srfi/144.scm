@@ -198,7 +198,7 @@
 ;[esl]- replace rationals with / results
 ;(define posfracs (map flonum '(1/1000 1/10 1/3 1/2))) ;[esl] replace rationals with / results
 ;[esl]+
-(define posfracs (list (/ 1 1000) (/ 1 10) (/ 1 3) (/ 1 2)))
+(define posfracs (list (/ 1. 1000) (/ 1. 10) (/ 1. 3) (/ 1. 2)))
 (define extremes
   (list (fl- fl-greatest) (fl- fl-least) fl-least fl-greatest))
 (define infinities (map flonum (list -inf.0 +inf.0)))
