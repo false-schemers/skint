@@ -1,5 +1,6 @@
 -include    config.mk
 PREFIX      ?= /usr/local
+USE_TOWER   ?= 0
 USE_UNICODE ?= 0
 USE_ENHTTY  ?= 0
 LIBROOT   = $(PREFIX)/share/skint
@@ -21,11 +22,16 @@ DISTDIR   = dist/$(DISTNAME)
 
 $(info version is $(VERSION))
 $(info prefix is set to $(PREFIX))
+$(info use-tower is set to $(USE_TOWER))
 $(info use-unicode is set to $(USE_UNICODE))
 $(info use-enhanced-tty is set to $(USE_ENHTTY))
 
 ifneq ($(wildcard lib/.),)
   CFLAGS += -DLIBDIR=$(LIBROOT)/lib
+endif
+
+ifeq ($(USE_TOWER),1)
+  CFLAGS += -DOPT_TOWER
 endif
 
 ifeq ($(USE_UNICODE),1)
