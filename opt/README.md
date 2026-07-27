@@ -1,5 +1,11 @@
-This directory contains option-specific implementations of parts of `n.h` and `n.c` source files to be used when the
-`OPT_UNICODE` and/or `OPT_ENHTTY` options are set.
+This directory contains option-specific implementations of parts of `i.c`, `n.h` and `n.c` source files to be used when the
+`OPT_TOWER`, `OPT_UNICODE` and/or `OPT_ENHTTY` options are set.
+
+When compiled with the `OPT_TOWER` option, SKINT supports the full R7RS Scheme numerical tower. Internally, numbers are
+represented as fixnums (30-bit immediate integers), flonums (double-precision floats), bignums (dynamically allocated integers),
+and fatnums (compound numbers), further differentiated into ratnums (exact rationals), rectnums (exact complex), and
+compnums (inexact complex) numbers. These types are disjoint; numbers are always kept in the simplest
+form possible, and the results of all generic arithmetic procedures are normalized automatically.
 
 When compiled with the `OPT_UNICODE` option, SKINT represents strings internally as UTF-8 encoded byte sequences prefixed 
 by metadata headers containing both the logical character count and the total byte length. File I/O, file system paths, 
