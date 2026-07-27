@@ -65,7 +65,6 @@ typedef struct fatnum { numt_t t; nump_t p[1]; } fatnum_t; /* alloc 1..4 parts *
 /* result struct with space for error message, compatible with fatnum_t */
 typedef struct fatnum4r { numt_t t; union { nump_t p[4]; char msg[80]; } u; } fatnum4r_t; 
 
-
 /* return values: 1 = true, 0 = false */
 extern int fneqn(const fatnum_t *fx, const fatnum_t *fy);
 extern int fneqv(const fatnum_t *fx, const fatnum_t *fy);
@@ -129,6 +128,15 @@ extern int fnlogn(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
 extern int fnatan2(fatnum4r_t *fz, const fatnum_t *fy, const fatnum_t *fx);
 extern int fnmkrec(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
 extern int fnmkpol(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+/* bitwise ops; return values: 1 = success, 0 = domain/range error */
+extern int fnnot(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnand(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnior(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnxor(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnash(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy);
+extern int fnlen(fatnum4r_t *fz, const fatnum_t *fx);
+extern int fnbtc(fatnum4r_t *fz, const fatnum_t *fx);
+
 
 /* 'generic' writer for fatnums */
 extern void wrfn(const fatnum_t *n, int radix, int (*pf)(int, void*), void *pd);
@@ -139,3 +147,4 @@ extern cxtype_t *FATNUM_NTAG;
 #define obj_from_fatnum(l, f) hpushptr(f, FATNUM_NTAG, l)
 #define fntype(o) (fatnum_from_obj(o)->type)
 extern fatnum_t *dupfatnum(fatnum_t *fn); /* shallow copy! */
+extern void fnfini(fatnum_t *fx);

@@ -3867,7 +3867,7 @@ numt_t intlen(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = bit-count(x); always returns fixnum */
-numt_t intbitc(nump_t *zp, numt_t xt, const nump_t *xp)
+numt_t intbtc(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   long cnt = 0;
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -4766,7 +4766,7 @@ numt_t strtorect(nump_t *zp, const char *str, char **endptr, int radix)
     ep = (char*)str + 2; /* skip '-i' */
   } else {
     zt = strtorat(zp, str, &ep, radix);
-    if (isflo(zt) && errno == ERANGE) errno = 0; /* ok here */
+    if (isflo(zt) && errno == ERANGE) errno = 0; 
     if (!zt || errno) {
       numfini(zt, zp);
       zt = setfail(EDOM);
@@ -5990,13 +5990,12 @@ numt_t gnumfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t
 }
 
 /* q = integer-sqrt(x), r = x - q*q  [non-negative integer real numbers only] */
-void gnumsqrti(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp,
-               numt_t xt, const nump_t *xp)
+void gnumsqrti(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
-  assert(isreal(xt) && "gnumsqrti: complex number");
-  assert(gnumcmp0(xt, xp, NCMP_GE) && "gnumsqrti: negative number");
-  if (isflo(xt)) {
+  if (!isreal(xt) || !realcmp0(xt, xp, NCMP_GE)) {
+    *pqt = *prt = NUMT_NONE;
+  } if (isflo(xt)) {
     double x = getflo(xp), q = floor(sqrt(x));
     /* adjust for floating-point rounding near perfect squares */
     while ((q+1)*(q+1) <= x) q += 1.0;
@@ -6826,13 +6825,14 @@ numt_t strtognum(nump_t *zp, const char *str, char **endptr, int radix)
   } else if (forceie > 0) { /* as exact */
     zt = strtorect(zp, str, endptr, radix);
     /* catch polar -> inexact */
-    if (iscomp(zt)) zt = setfail(ERANGE); 
+    if (!isrect(zt)) zt = (numfini(zt, zp), setfail(EDOM)); 
   } else if (flags & CNF_DOTEXP) { /* has elements of inexact notation */
     zt = strtocomp(zp, str, endptr, radix);
   } else { /* no elements of inexact notation */
     zt = strtorect(zp, str, endptr, radix);
     /* polar -> inexact is ok */
-    if (iscomp(zt) && errno == ERANGE) errno = 0; 
+    if (iscomp(zt) && errno == ERANGE) errno = 0;
+    if (errno) zt = (numfini(zt, zp), setfail(EDOM));
   }
   return zt;
 }
@@ -6895,6 +6895,10 @@ cxtype_t *BIGNUM_NTAG = &cxt_bignum;
 
 /* fatnums as skint objects */
 
+void fnfini(fatnum_t *n)
+{
+  if (n != NULL) numfini(n->t, n->p);
+}
 void fnfree(fatnum_t *n)
 {
   if (n == NULL) return;
@@ -7086,7 +7090,7 @@ int fnisqrt(fatnum4r_t *fz, fatnum4r_t *fr, const fatnum_t *fx)
   { numt_t zt, rt;
     gnumsqrti(&zt, fz->u.p, &rt, fr->u.p, fx->t, fx->p);
     fz->t = zt; fr->t = rt;
-    if (zt == NUMT_NONE) setmsg(fz, "integer-sqrt: domain error");
+    if (zt == NUMT_NONE) setmsg(fz, "exact-integer-sqrt: domain error");
     return zt != NUMT_NONE; }
 
 int fnmax(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
@@ -7167,6 +7171,48 @@ int fnmkrec(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
 int fnmkpol(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummakepolar(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "make-polar: domain error");
+    fz->t = zt; return zt != NUMT_NONE; }
+    
+int fnnot(fatnum4r_t *fz, const fatnum_t *fx)
+  { numt_t zt = NUMT_NONE;
+    if (isint(fx->t)) zt = intnot(fz->u.p, fx->t, fx->p);
+    if (zt == NUMT_NONE) setmsg(fz, "bitwise-not: domain error");
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnand(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = NUMT_NONE;
+    if (isint(fx->t) && isint(fy->t)) zt = intand(fz->u.p, fx->t, fx->p, fy->t, fy->p);
+    if (zt == NUMT_NONE) setmsg(fz, "bitwise-and: domain error");
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnior(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = NUMT_NONE;
+    if (isint(fx->t) && isint(fy->t)) zt = intior(fz->u.p, fx->t, fx->p, fy->t, fy->p);
+    if (zt == NUMT_NONE) setmsg(fz, "bitwise-ior: domain error");
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnxor(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = NUMT_NONE;
+    if (isint(fx->t) && isint(fy->t)) zt = intxor(fz->u.p, fx->t, fx->p, fy->t, fy->p);
+    if (zt == NUMT_NONE) setmsg(fz, "bitwise-xor: domain error");
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnash(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+  { numt_t zt = NUMT_NONE;
+    if (isint(fx->t) && isint(fy->t)) zt = intash(fz->u.p, fx->t, fx->p, fy->t, fy->p);
+    if (zt == NUMT_NONE) setmsg(fz, "arithmetic-shift: domain error");
+    fz->t = zt; return zt != NUMT_NONE; }
+
+int fnlen(fatnum4r_t *fz, const fatnum_t *fx)
+  { numt_t zt = NUMT_NONE;
+    if (isint(fx->t)) zt = intlen(fz->u.p, fx->t, fx->p);
+    if (zt == NUMT_NONE) setmsg(fz, "integer-length: domain error");
+    fz->t = zt; return zt != NUMT_NONE; }
+    
+int fnbtc(fatnum4r_t *fz, const fatnum_t *fx)
+  { numt_t zt = NUMT_NONE;
+    if (isint(fx->t)) zt = intbtc(fz->u.p, fx->t, fx->p);
+    if (zt == NUMT_NONE) setmsg(fz, "bit-count: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
 

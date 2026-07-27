@@ -205,10 +205,14 @@ long fxmulc(long x, long y, long *pc) {
 
 long fxpow(long x, long y) { 
   if (y < 0 || x == 0) return 0;
-  retry: if (y == 0) return 1; if (y == 1) return x;
-  if (y % 2 == 1) { x *= fxpow(x, y-1); if (!(FIXNUM_MIN <= x && x <= FIXNUM_MAX)) return 0; }
-  else { x *= x; y /= 2; if (!(FIXNUM_MIN <= x && x <= FIXNUM_MAX)) return 0; goto retry; }
-  return (FIXNUM_MIN <= x && x <= FIXNUM_MAX) ? x : 0;
+  else if (y == 0) return 1; else if (y == 1) return x;
+  else { long long lx = x, ly = y, lz = 1;
+    while (ly > 0) {
+      if (ly & 1) { lz *= lx; if (lz < FIXNUM_MIN || lz > FIXNUM_MAX) return 0; }
+      if ((ly >>= 1) > 0) { lx *= lx; if (lx < FIXNUM_MIN || lx > FIXNUM_MAX) return 0; }
+    }
+    return (long)lz;  
+  }
 }
 
 long fxsqrt(long x) { 
@@ -1067,6 +1071,10 @@ static int stabequal(obj x, obj y, stab_t *p) {
 #ifdef FLONUMS_BOXED
   if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y); 
 #endif
+#ifdef OPT_TOWER
+  if (h == (obj)BIGNUM_NTAG) return bneq(bignum_from_obj(x), bignum_from_obj(y));
+  if (h == (obj)FATNUM_NTAG) return fneqv(fatnum_from_obj(x), fatnum_from_obj(y));
+#endif
   if (h == (obj)STRING_NTAG) return sdatacmp(stringdata(x), stringdata(y)) == 0;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)); 
   if (isaptr(h) || !(n = size_from_obj(h)) || hblkref(x, 0) != hblkref(y, 0)) return 0;
@@ -1080,6 +1088,10 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return -1;
 #ifdef FLONUMS_BOXED
   if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y) ? fuel-1 : -1; 
+#endif
+#ifdef OPT_TOWER
+  if (h == (obj)BIGNUM_NTAG) return bneq(bignum_from_obj(x), bignum_from_obj(y)) ? fuel-1 : -1;
+  if (h == (obj)FATNUM_NTAG) return fneqv(fatnum_from_obj(x), fatnum_from_obj(y)) ? fuel-1 : -1;
 #endif
   if (h == (obj)STRING_NTAG) return sdatacmp(stringdata(x), stringdata(y)) == 0 ? fuel-1 : -1;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)) ? fuel-1 : -1;
@@ -1118,6 +1130,16 @@ obj ismemv(obj x, obj l) {
     flobits_t fx = flobits_from_obj(x); 
     for (; l != mknull(); l = cdr(l)) 
       { obj y = car(l); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return l; }
+#ifdef OPT_TOWER
+  } else if (is_bignum_obj(x)) {
+    bignum_t *fx = bignum_from_obj(x); 
+    for (; l != mknull(); l = cdr(l)) 
+      { obj y = car(l); if (is_bignum_obj(y) && bneq(fx, bignum_from_obj(y))) return l; }
+  } else if (is_fatnum_obj(x)) {
+    fatnum_t *fx = fatnum_from_obj(x); 
+    for (; l != mknull(); l = cdr(l)) 
+      { obj y = car(l); if (is_fatnum_obj(y) && fneqv(fx, fatnum_from_obj(y))) return l; }
+#endif
   } else { /* for others, memv == memq */
     for (; l != mknull(); l = cdr(l)) 
       { if (car(l) == x) return l; }
@@ -1132,6 +1154,16 @@ obj isassv(obj x, obj l) {
     flobits_t fx = flobits_from_obj(x); 
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return p; }
+#ifdef OPT_TOWER
+  } else if (is_bignum_obj(x)) {
+    bignum_t *fx = bignum_from_obj(x); 
+    for (; l != mknull(); l = cdr(l)) 
+      { obj p = car(l), y = car(p); if (is_bignum_obj(y) && bneq(fx, bignum_from_obj(y))) return p; }
+  } else if (is_fatnum_obj(x)) {
+    fatnum_t *fx = fatnum_from_obj(x); 
+    for (; l != mknull(); l = cdr(l)) 
+      { obj p = car(l), y = car(p); if (is_fatnum_obj(y) && fneqv(fx, fatnum_from_obj(y))) return p; }
+#endif
   } else { /* for others, assv == assq */
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l); if (car(p) == x) return p; }
@@ -1155,6 +1187,16 @@ obj ismember(obj x, obj l) {
     flobits_t fx = flobits_from_obj(x); 
     for (; l != mknull(); l = cdr(l)) 
       { obj y = car(l); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return l; }
+#ifdef OPT_TOWER
+  } else if (is_bignum_obj(x)) {
+    bignum_t *fx = bignum_from_obj(x); 
+    for (; l != mknull(); l = cdr(l)) 
+      { obj y = car(l); if (is_bignum_obj(y) && bneq(fx, bignum_from_obj(y))) return l; }
+  } else if (is_fatnum_obj(x)) {
+    fatnum_t *fx = fatnum_from_obj(x); 
+    for (; l != mknull(); l = cdr(l)) 
+      { obj y = car(l); if (is_fatnum_obj(y) && fneqv(fx, fatnum_from_obj(y))) return l; }
+#endif
   } else if (isstring(x)) {
     const int *xd = stringdata(x);
     for (; l != mknull(); l = cdr(l)) 
@@ -1173,6 +1215,16 @@ obj isassoc(obj x, obj l) {
     flobits_t fx = flobits_from_obj(x); 
     for (; l != mknull(); l = cdr(l)) 
       { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return p; }
+#ifdef OPT_TOWER
+  } else if (is_bignum_obj(x)) {
+    bignum_t *fx = bignum_from_obj(x); 
+    for (; l != mknull(); l = cdr(l)) 
+      { obj p = car(l), y = car(p); if (is_bignum_obj(y) && bneq(fx, bignum_from_obj(y))) return p; }
+  } else if (is_fatnum_obj(x)) {
+    fatnum_t *fx = fatnum_from_obj(x); 
+    for (; l != mknull(); l = cdr(l)) 
+      { obj p = car(l), y = car(p); if (is_fatnum_obj(y) && fneqv(fx, fatnum_from_obj(y))) return p; }
+#endif
   } else if (isstring(x)) {
     const int *xd = stringdata(x);
     for (; l != mknull(); l = cdr(l)) 

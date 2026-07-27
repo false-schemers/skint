@@ -275,14 +275,14 @@ define_instruction(mul) {
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else { spush(x); spush(y); ac = (obj)&fnmul; goih(tower_binary); }
   } else {
-    double dx, dy;
+    double dx, dy; long lx = -1, ly = -1;
     if (likely(is_flonum(x))) dx = get_flonum(x);
-    else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
+    else if (likely(is_fixnum(x))) dx = (double)(lx = get_fixnum(x));
     else { spush(x); spush(y); ac = (obj)&fnmul; goih(tower_binary); }
     if (likely(is_flonum(y))) dy = get_flonum(y);
-    else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
+    else if (likely(is_fixnum(y))) dy = (double)(ly = get_fixnum(y));
     else { spush(x); spush(y); ac = (obj)&fnmul; goih(tower_binary); }
-    ac = flonum_obj(dx * dy);
+    ac = (lx && ly) ? flonum_obj(dx * dy) : fixnum_obj(0);
   }
   gonexti(); 
 }
@@ -415,10 +415,10 @@ define_instruction(lt) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = (obj)NCMP_LT; goih(tower_cmp); }
+    else { spush(x); spush(y); ac = fixnum_obj(NCMP_LT); goih(tower_cmp); }
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = (obj)NCMP_LT; goih(tower_cmp); }
+    else { spush(x); spush(y); ac = fixnum_obj(NCMP_LT); goih(tower_cmp); }
     ac = bool_obj(dx < dy);
   }
   gonexti(); 
@@ -432,10 +432,10 @@ define_instruction(gt) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = (obj)NCMP_GT; goih(tower_cmp); }
+    else { spush(x); spush(y); ac = fixnum_obj(NCMP_GT); goih(tower_cmp); }
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = (obj)NCMP_GT; goih(tower_cmp); }
+    else { spush(x); spush(y); ac = fixnum_obj(NCMP_GT); goih(tower_cmp); }
     ac = bool_obj(dx > dy);
   }
   gonexti(); 
@@ -449,10 +449,10 @@ define_instruction(le) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = (obj)NCMP_LE; goih(tower_cmp); }
+    else { spush(x); spush(y); ac = fixnum_obj(NCMP_LE); goih(tower_cmp); }
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = (obj)NCMP_LE; goih(tower_cmp); }
+    else { spush(x); spush(y); ac = fixnum_obj(NCMP_LE); goih(tower_cmp); }
     ac = bool_obj(dx <= dy);
   }
   gonexti(); 
@@ -466,10 +466,10 @@ define_instruction(ge) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = (obj)NCMP_GE; goih(tower_cmp); }
+    else { spush(x); spush(y); ac = fixnum_obj(NCMP_GE); goih(tower_cmp); }
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = (obj)NCMP_GE; goih(tower_cmp); }
+    else { spush(x); spush(y); ac = fixnum_obj(NCMP_GE); goih(tower_cmp); }
     ac = bool_obj(dx >= dy);
   }
   gonexti(); 
@@ -497,34 +497,44 @@ define_instruction(eq) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     ac = bool_obj(x == y);
+    gonexti(); 
   } else if (is_flonum(x) || is_flonum(y)) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = bool_obj(1); goih(tower_eq); }
+    else goto tower;
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = bool_obj(1); goih(tower_eq); }
+    else goto tower;
     ac = bool_obj(dx == dy);
-  } else ac = bool_obj(0);
-  gonexti(); 
+    gonexti();
+  }
+tower:
+  spush(x); spush(y); 
+  ac = bool_obj(1); 
+  goih(tower_eq);
 }
 
 define_instruction(ne) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     ac = bool_obj(x != y);
+    gonexti(); 
   } else if (is_flonum(x) || is_flonum(y)) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = bool_obj(0); goih(tower_eq); }
+    else goto tower;
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = bool_obj(0); goih(tower_eq); }
+    else goto tower;
     ac = bool_obj(dx != dy);
-  } else ac = bool_obj(1);
-  gonexti(); 
+    gonexti(); 
+  }
+tower:
+  spush(x); spush(y); 
+  ac = bool_obj(0); 
+  goih(tower_eq);
 }
 
 define_instruction(min) {
@@ -820,146 +830,158 @@ define_instruction(rpart) {
   if (likely(is_fixnum(ac))) gonexti();
   else if (likely(is_flonum(ac))) gonexti();
   else if (likely(is_bignum(ac))) gonexti();
-  else { /* slow path */
-    fatnum4r_t z4; fatnum_t *fx = NULL;
-    if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
-    if (fx && fnrpart(&z4, fx)) {
-      switch (z4.t) {
-        case NUMT_NONE: assert(0); break; 
-        case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-        case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-        case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
-        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
-      }
-      gonexti();
-    }
-  } 
-  failactype("number");
-  gonexti(); 
+  else { spush(ac); ac = (obj)&fnrpart; goih(tower_unary); }
 }
 
 define_instruction(ipart) { 
   if (likely(is_fixnum(ac))) { ac = fixnum_obj(0); gonexti(); }
   else if (likely(is_flonum(ac))) { ac = fixnum_obj(0); gonexti(); }
   else if (likely(is_bignum(ac))) { ac = fixnum_obj(0); gonexti(); }
-  else { /* slow path */
-    fatnum4r_t z4; fatnum_t *fx = NULL;
-    if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
-    if (fx && fnipart(&z4, fx)) {
-      switch (z4.t) {
-        case NUMT_NONE: assert(0); break; 
-        case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-        case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-        case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
-        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
-      }
-      gonexti();
-    }
-  } 
-  failactype("number");
-  gonexti(); 
+  else { spush(ac); ac = (obj)&fnipart; goih(tower_unary); }
 }
 
 define_instruction(magn) { 
-  if (likely(is_fixnum(ac))) {
-    ac = fixnum_obj(fxabs(get_fixnum(ac))); 
-    gonexti();
-  } else if (likely(is_flonum(ac))) {
-    ac = flonum_obj(fabs(get_flonum(ac))); 
-    gonexti();
-  } else if (likely(is_bignum(ac))) {
-    ac = bignum_obj(bnabs(get_bignum(ac))); 
-    gonexti();
-  } else { /* slow path */
-    fatnum4r_t z4; fatnum_t *fx = NULL;
-    if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
-    if (fx && fnmagn(&z4, fx)) {
-      switch (z4.t) {
-        case NUMT_NONE: assert(0); break; 
-        case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-        case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-        case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
-        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
-      }
-      gonexti();
-    }
-  } 
-  failactype("number");
-  gonexti(); 
+  if (likely(is_fixnum(ac))) { ac = fixnum_obj(fxabs(get_fixnum(ac))); gonexti(); } 
+  else if (likely(is_flonum(ac))) { ac = flonum_obj(fabs(get_flonum(ac))); gonexti(); } 
+  else if (likely(is_bignum(ac))) { ac = bignum_obj(bnabs(get_bignum(ac))); gonexti(); } 
+  else { spush(ac); ac = (obj)&fnmagn; goih(tower_unary); }
 }
 
 define_instruction(angl) {
-  if (likely(is_fixnum(ac))) { 
+  if (likely(is_fixnum(ac))) {
     ac = (get_fixnum(ac) < 0) ? flonum_obj(M_PI) : fixnum_obj(0); 
     gonexti(); 
   } else if (likely(is_flonum(ac))) {
-    double d = get_flonum(ac);
-    ac = (d < 0.0 || (d == 0.0 && 1.0/d < 0)) ? flonum_obj(M_PI) : fixnum_obj(0); 
+    double x = get_flonum(ac);
+    int neg = (x == 0.0) ? 1.0/x < 0.0 : x < 0.0;
+    ac = flonum_obj(neg ? M_PI : 0.0);
     gonexti(); 
   } else if (likely(is_bignum(ac))) { 
     ac = (bnsign(get_bignum(ac)) < 0) ? flonum_obj(M_PI) : fixnum_obj(0); 
     gonexti(); 
-  } else { /* slow path */
-    fatnum4r_t z4; fatnum_t *fx = NULL;
-    if (is_fatnum(ac)) { fx = get_fatnum(ac); } 
-    if (fx && fnangl(&z4, fx)) {
-      switch (z4.t) {
-        case NUMT_NONE: assert(0); break; 
-        case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-        case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-        case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
-        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
-      }
-      gonexti();
-    }
-  } 
-  failactype("number");
-  gonexti(); 
+  } else {
+    spush(ac); ac = (obj)&fnangl; 
+    goih(tower_unary); 
+  }
 }
 
 define_instruction(mkrec) {
-  obj i = spop();
-  ckn(ac);
-  if (!is_fixnum(i) || get_fixnum(i) != 0) 
-    fail("result cannot be represented as a Skint number");
-  gonexti();
+  obj x = ac, y = spop();
+  if (y == fixnum_obj(0)) { ckn(x); gonexti(); }
+  else { spush(x); spush(y); ac = (obj)&fnmkrec; goih(tower_binary); }
 }
 define_instruction(mkpol) {
-  obj a = spop();
-  ckn(ac);
-  if (!is_fixnum(a) || get_fixnum(a) != 0)
-    fail("result cannot be represented as a Skint number");
+  obj x = ac, y = spop();
+  if (y == fixnum_obj(0)) { ckn(x); gonexti(); }
+  else { spush(x); spush(y); ac = (obj)&fnmkpol; goih(tower_binary); }
+}
+
+define_instrhelper(tower_isqrt) {
+  fatnum4r_t z4, r4; fatnum4_t x4; fatnum_t *fx = NULL;
+  obj x = ac, b = sref(0); /* keep b in stack for now to save it from gc */
+  if (is_fixnum(x)) { x4.t = NUMT_FIX; x4.p[0].fix = get_fixnum(x); fx = (fatnum_t*)&x4; } 
+  else if (is_flonum(x)) { x4.t = NUMT_FLO; x4.p[0].flo = get_flonum(x); fx = (fatnum_t*)&x4; } 
+  else if (is_bignum(x)) { x4.t = NUMT_BIG; x4.p[0].big = get_bignum(x); fx = (fatnum_t*)&x4; } 
+  if (!fx || !fnisqrt(&z4, &r4, fx)) failtype(x, "nonnegative integer");
+  switch (z4.t) {
+    case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
+    case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
+    case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
+    default: assert(0); break;
+  }
+  if (b && is_box(b)) {
+    switch (r4.t) {
+      case NUMT_FIX: box_ref(b) = fixnum_obj(r4.u.p[0].fix); break;
+      case NUMT_FLO: box_ref(b) = flonum_obj(r4.u.p[0].flo); break;
+      case NUMT_BIG: box_ref(b) = bignum_obj(r4.u.p[0].big); break;
+      default: assert(0); break; 
+    }
+  } else {
+    fnfini((fatnum_t*)&r4);
+    if (b) ckz(b);
+  }
+  sdrop(1); /* b can go now */
   gonexti();
 }
 
-/* fixnum redirects in standard build */
-define_instruction(gsqrt) { goi(isqrt); }
-define_instruction(gnot) { goi(inot); }
-define_instruction(gand) { goi(iand); }
-define_instruction(gior) { goi(iior); }
-define_instruction(gxor) { goi(ixor); }
+define_instruction(gsqrt) {
+  if (likely(is_fixnum(ac))) goi(isqrt);
+  goih(tower_isqrt);
+}
+  
+define_instruction(gnot) { 
+  if (likely(is_fixnum(ac))) {
+    ac = fixnum_obj(~get_fixnum(ac));
+    gonexti();
+  }
+  spush(ac); ac = (obj)&fnnot; 
+  goih(tower_unary); 
+}
+
+define_instruction(gand) { 
+  obj x = ac, y = spop();
+  if (likely(are_fixnums(x, y))) {
+    ac = fixnum_obj(get_fixnum(x) & get_fixnum(y));
+    gonexti();
+  }
+  spush(x); spush(y); ac = (obj)&fnand; 
+  goih(tower_unary); 
+}
+
+define_instruction(gior) { 
+  obj x = ac, y = spop();
+  if (likely(are_fixnums(x, y))) {
+    ac = fixnum_obj(get_fixnum(x) | get_fixnum(y));
+    gonexti();
+  }
+  spush(x); spush(y); ac = (obj)&fnior; 
+  goih(tower_unary); 
+}
+
+define_instruction(gxor) { 
+  obj x = ac, y = spop();
+  if (likely(are_fixnums(x, y))) {
+    ac = fixnum_obj(get_fixnum(x) ^ get_fixnum(y));
+    gonexti();
+  }
+  spush(x); spush(y); ac = (obj)&fnxor; 
+  goih(tower_unary); 
+}
 
 define_instruction(gash) {
-  long ix, iy, iz; 
-  obj x = ac, y = spop(); cki(x); cki(y);
-  ix = get_fixnum(x); iy = get_fixnum(y);
-  if (iy < 0) { 
-    if (-iy >= FIXNUM_WIDTH) iz = (ix >= 0 ? 0 : -1);
-    else iz = fxasr(ix, -iy);
-  } else {
-    iz = (ix == 0 || iy < FIXNUM_WIDTH) ? fxasl(ix, iy) : FIXNUM_MAX+1;
-    if (iz < FIXNUM_MIN || iz > FIXNUM_MAX || fxasr(iz, iy) != ix) {
-      ac = flonum_obj((double)ix * pow(2.0, (double)iy));
-      gonexti();
+  obj x = ac, y = spop();
+  if (likely(are_fixnums(x, y))) {
+    long ix = get_fixnum(x), iy = get_fixnum(y), iz; 
+    if (iy < 0) { 
+      if (-iy >= FIXNUM_WIDTH) iz = (ix >= 0 ? 0 : -1);
+      else iz = fxasr(ix, -iy);
+    } else {
+      iz = (ix == 0 || iy < FIXNUM_WIDTH) ? fxasl(ix, iy) : FIXNUM_MAX+1;
+      if (iz < FIXNUM_MIN || iz > FIXNUM_MAX || fxasr(iz, iy) != ix) goto tower;
     }
+    ac = fixnum_obj(iz);
+    gonexti();
   }
-  ac = fixnum_obj(iz);
-  gonexti();
+tower:
+  spush(x); spush(y); 
+  ac = (obj)&fnash; 
+  goih(tower_binary);
 }
 
+// FIXME?
 define_instruction(geqv) { goi(ieqv); }
-define_instruction(glen) { goi(ilen); }
-define_instruction(gbtc) { goi(ibtc); }
+
+define_instruction(glen) { 
+  if (likely(is_fixnum(ac))) goi(ilen);
+  spush(ac); ac = (obj)&fnlen;
+  goih(tower_unary); 
+}
+
+define_instruction(gbtc) { 
+  if (likely(is_fixnum(ac))) goi(ibtc);
+  spush(ac); ac = (obj)&fnbtc;
+  goih(tower_unary); 
+}
 
 /* generic number <-> string conversions */
 
@@ -991,9 +1013,8 @@ define_instruction(ston) {
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
-  errno = 0;
   switch (strtonum(&f4, s, NULL, radix)) {
-    case NUMT_NONE: ac = bool_obj(0); break;
+    case NUMT_NONE: ac = bool_obj(0);  errno = 0; break;
     case NUMT_FIX:  ac = fixnum_obj(f4.p[0].fix); break;
     case NUMT_FLO:  ac = flonum_obj(f4.p[0].flo); break;
     case NUMT_BIG:  ac = bignum_obj(f4.p[0].big); break;
