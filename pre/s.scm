@@ -572,7 +572,22 @@
             (let* ([y (abs (car args))] [g (gcd x y)])
               (loop (if (zero? g) g (* (quotient x g) y)) (cdr args)))))))
 
-(define (rationalize n d) n)
+(define rationalize ; Alan Bawden's algorithm
+  (letrec
+    ([rat1 (lambda (x y)
+             (cond [(> x 0) (rat2 x y)]
+                   [(< y 0) (- (rat2 (- y) (- x)))]
+                   [else (if (and (exact? x) (exact? y)) 0 0.0)]))]
+     [rat2 (lambda (x y)
+             (let ([fx (floor x)] [fy (floor y)])
+               (cond [(= fx x) fx]
+                     [(= fx fy) (+ fx (/ (rat2 (/ (- y fy)) (/ (- x fx)))))]
+                     [else (+ fx 1)])))])
+    (lambda (x e)
+      (unless (real? x) (error "rationalize: not a real number" x))
+      (unless (real? e) (error "rationalize: not a real number" e))
+      (let ([x (- x e)] [y (+ x e)])
+        (cond [(< x y) (rat1 x y)] [(< y x) (rat1 y x)] [else x])))))
 
 (define (square x) (* x x))
 
