@@ -49,7 +49,7 @@ define_instruction(exip) {
   } else if (likely(is_flonum(ac))) {
     ac = bool_obj(0);
   } else if (is_fatnum(ac)) {
-    ac = bool_obj(fnisexn(get_fatnum(ac)));
+    ac = bool_obj(fnisex(get_fatnum(ac)));
   } else failactype("number");
   gonexti(); 
 }
@@ -322,16 +322,16 @@ define_instruction(quo) {
   if (likely(are_fixnums(x, y))) {
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
     if (unlikely(x == fixnum_obj(FIXNUM_MIN) && y == fixnum_obj(-1)))
-      { spush(x); spush(y); ac = (obj)&fntquo; goih(tower_binary); }
+      { spush(x); spush(y); ac = (obj)&fnquo; goih(tower_binary); }
     ac = fixnum_obj(fxquo(get_fixnum(x), get_fixnum(y)));
   } else {
     double dx, dy, dz;
     if (likely(is_flonum(x) && flisint(dx = get_flonum(x)))) /* ok */;
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = (obj)&fntquo; goih(tower_binary); }
+    else { spush(x); spush(y); ac = (obj)&fnquo; goih(tower_binary); }
     if (likely(is_flonum(y) && flisint(dy = get_flonum(y)))) /* ok */;
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = (obj)&fntquo; goih(tower_binary); }
+    else { spush(x); spush(y); ac = (obj)&fnquo; goih(tower_binary); }
     modf(dx / dy,  &dz);
     ac = flonum_obj(dz);
   }
@@ -347,10 +347,10 @@ define_instruction(rem) {
     double dx, dy, dz;
     if (likely(is_flonum(x) && flisint(dx = get_flonum(x)))) /* ok */;
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = (obj)&fntrem; goih(tower_binary); }
+    else { spush(x); spush(y); ac = (obj)&fnrem; goih(tower_binary); }
     if (likely(is_flonum(y) && flisint(dy = get_flonum(y)))) /* ok */;
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = (obj)&fntrem; goih(tower_binary); }
+    else { spush(x); spush(y); ac = (obj)&fnrem; goih(tower_binary); }
     dz = fmod(dx, dy);
     /* keep zero positive: (remainder -10.0 2.0) => 0.0, not -0.0 */
     ac = flonum_obj((dz == 0.0) ? 0.0 : dz);
@@ -363,16 +363,16 @@ define_instruction(mqu) {
   if (likely(are_fixnums(x, y))) {
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
     if (unlikely(x == fixnum_obj(FIXNUM_MIN) && y == fixnum_obj(-1)))
-     { spush(x); spush(y); ac = (obj)&fnfquo; goih(tower_binary); }
+     { spush(x); spush(y); ac = (obj)&fnmqu; goih(tower_binary); }
     ac = fixnum_obj(fxmqu(get_fixnum(x), get_fixnum(y)));
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = (obj)&fnfquo; goih(tower_binary); }
+    else { spush(x); spush(y); ac = (obj)&fnmqu; goih(tower_binary); }
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = (obj)&fnfquo; goih(tower_binary); }
+    else { spush(x); spush(y); ac = (obj)&fnmqu; goih(tower_binary); }
     ac = flonum_obj(flmqu(dx, dy));
   }
   gonexti(); 
@@ -387,10 +387,10 @@ define_instruction(mlo) {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
     else if (likely(is_fixnum(x))) dx = (double)get_fixnum(x);
-    else { spush(x); spush(y); ac = (obj)&fnfrem; goih(tower_binary); }
+    else { spush(x); spush(y); ac = (obj)&fnmlo; goih(tower_binary); }
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
-    else { spush(x); spush(y); ac = (obj)&fnfrem; goih(tower_binary); }
+    else { spush(x); spush(y); ac = (obj)&fnmlo; goih(tower_binary); }
     ac = flonum_obj(flmlo(dx, dy));
   }
   gonexti(); 
@@ -753,7 +753,7 @@ define_instruction(exnp) { /* exact? */
   if (likely(is_fixnum(ac))) ac = bool_obj(1);
   else if (likely(is_flonum(ac))) ac = bool_obj(0);
   else if (likely(is_bignum(ac))) ac = bool_obj(1);
-  else if (likely(is_fatnum(ac))) ac = bool_obj(fnisexn(get_fatnum(ac)));
+  else if (likely(is_fatnum(ac))) ac = bool_obj(fnisex(get_fatnum(ac)));
   else failactype("number");
   gonexti(); 
 }
@@ -762,7 +762,7 @@ define_instruction(innp) { /* inexact? */
   if (likely(is_fixnum(ac))) ac = bool_obj(0);
   else if (likely(is_flonum(ac))) ac = bool_obj(1);
   else if (likely(is_bignum(ac))) ac = bool_obj(0);
-  else if (likely(is_fatnum(ac))) ac = bool_obj(fnisinn(get_fatnum(ac)));
+  else if (likely(is_fatnum(ac))) ac = bool_obj(fnisin(get_fatnum(ac)));
   else failactype("number");
   gonexti(); 
 }

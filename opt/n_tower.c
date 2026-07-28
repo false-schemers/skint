@@ -2496,10 +2496,6 @@ bignum_t *bngcd(const bignum_t *x, const bignum_t *y)
   b = bnabs(y);
 
   while (b != bn0) {
-#if 0
-    fputs("a = ", stdout); bnprint(stdout, a, 10); fputs("\n", stdout);
-    fputs("b = ", stdout); bnprint(stdout, b, 10); fputs("\n", stdout);
-#endif    
     r = bnmod(a, b);
     bnfree(a);
     a = b;
@@ -2810,32 +2806,6 @@ size_t bnfmtsize(const bignum_t *n, int radix)
     return (errno = ERANGE, 0);
 
   return xr;
-}
-
-int bnprint(FILE *f, const bignum_t *n, int radix)
-{
-  size_t len;
-  char *buffer;
-  char *ptr;
-  int size;
-  int status;
-
-  assert(n != NULL);
-  CHECKSIGN(n);
-  assert(f != NULL);
-
-  len = bnfmtsize(n, radix);
-  if (len == 0)
-    return 0;
-  buffer = bnrealloc(NULL, len); // use regular alloc???
-  ptr = bntostr(buffer, len, n, radix);
-  size = (int)strlen(ptr);
-  status = fputs(ptr, f);
-  bnrealloc(buffer, 0);
-  if (status != 0)
-    return 0;
-  else
-    return size;
 }
 
 /* [esl++] 'generic' writer for bignums */
@@ -3184,7 +3154,7 @@ long bnbitc(const bignum_t *n)
 nump_t numfix_0 = { 0 }, numfix_1 = { 1 };
 
 /* free memory taken by a number */
-void numfini(numt_t xt, nump_t *xp)
+static void numfini(numt_t xt, nump_t *xp)
 {
   /* only bignums need freeing */
   if ((xt & NUMT_SS_MASK) == NUMT_BIG) bnfree(xp->big); 
@@ -3203,7 +3173,7 @@ void numfini(numt_t xt, nump_t *xp)
  * so the caller later should either take ownership of it or numfini() it */
 
 /* duplicate a number and return a fresh copy owhed by the caller */
-numt_t numdup(nump_t *yp, numt_t xt, const nump_t *xp)
+static numt_t numdup(nump_t *yp, numt_t xt, const nump_t *xp)
 {
   numt_t yt = xt;
   assert(xt && "NONE number");
@@ -3224,7 +3194,7 @@ numt_t numdup(nump_t *yp, numt_t xt, const nump_t *xp)
 #endif
 
 /* move number in memory (ownership goes with it) */
-numt_t nummove(nump_t *yp, numt_t xt, const nump_t *xp)
+static numt_t nummove(nump_t *yp, numt_t xt, const nump_t *xp)
 {
   numt_t yt = xt;
   assert(xt && "NONE number");
@@ -3246,7 +3216,7 @@ numt_t nummove(nump_t *yp, numt_t xt, const nump_t *xp)
 #define NUMT_IS_INTNUM(nt) ((nt) == NUMT_FIX || (nt) == NUMT_BIG)
 
 /* x == y */
-int inteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static int inteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
@@ -3260,7 +3230,7 @@ int inteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* x < y */
-int intless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static int intless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
@@ -3276,7 +3246,7 @@ int intless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 #define bneql(b, l) (0 == bncmpl(b, l))
 
 /* odd(x) */
-int intodd(numt_t xt, const nump_t *xp)
+static int intodd(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   if (isfix(xt)) return (getfix(xp) & 1) != 0;
@@ -3284,7 +3254,7 @@ int intodd(numt_t xt, const nump_t *xp)
 }
 
 /* z = -x */
-numt_t intneg(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t intneg(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   numt_t zt = NUMT_NONE;
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -3301,7 +3271,7 @@ numt_t intneg(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = |x| */
-numt_t intabs(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t intabs(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   numt_t zt = NUMT_NONE;
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -3316,7 +3286,7 @@ numt_t intabs(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* sign(x) (-1 0 +1) */
-int intsign(numt_t xt, const nump_t *xp)
+static int intsign(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   if (isfix(xt)) return getfix(xp) ? (getfix(xp) < 0 ? -1 : 1) : 0;
@@ -3324,7 +3294,7 @@ int intsign(numt_t xt, const nump_t *xp)
 }
 
 /* z = x + y */
-numt_t intadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   numt_t zt = NUMT_NONE;
   bignum_t *bz;
@@ -3349,7 +3319,7 @@ numt_t intadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x - y */
-numt_t intsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   numt_t zt = NUMT_NONE;
   bignum_t *bz;
@@ -3376,7 +3346,7 @@ numt_t intsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x * y */
-numt_t intmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   numt_t zt = NUMT_NONE;
   bignum_t *bz;
@@ -3401,7 +3371,7 @@ numt_t intmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = truncate(x/y) (truncate-quotient, a.k.a. quotient) */
-numt_t intquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   numt_t zt = NUMT_NONE;
   bignum_t *bz;
@@ -3431,7 +3401,7 @@ numt_t intquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x-truncate(x/y) (truncate-remainder, a.k.a. remainder) */
-numt_t intrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   numt_t zt = NUMT_NONE;
   bignum_t *bz;
@@ -3463,6 +3433,7 @@ numt_t intrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
   return zt;
 }
 
+#if 0 /* not used yet */
 /* q = truncate(x/y), r = x-truncate(x/y) (truncate/, a.k.a. quotient&remainder) */
 void intquorem(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
@@ -3502,9 +3473,10 @@ void intquorem(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, cons
     }
   }
 }
+#endif
 
 /* z = floor(x/y)  (floor-quotient, pair for modulo) */
-numt_t intfquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intfquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   numt_t zt = NUMT_NONE;
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -3547,7 +3519,7 @@ numt_t intfquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x-floor(x/y)  (floor-remainder, a.k.a. modulo) */
-numt_t intfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   numt_t zt = NUMT_NONE;
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -3584,6 +3556,7 @@ numt_t intfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
   return zt;
 }
 
+#if 0 /* not used yet */
 /* q = floor(x/y), r = x-floor(x/y) (floor/, r a.k.a. modulo) */
 void intfquorem(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
@@ -3632,9 +3605,10 @@ void intfquorem(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, con
     }
   }
 }
+#endif
 
 /* q = floor(sqrt(x)), r = x-floor(sqrt(x)) x >= 0 */
-void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp)
+static void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_INTNUM(xt) && getfix(xp) >= 0 && "non-natural number");
   if (isfix(xt)) {
@@ -3666,7 +3640,7 @@ void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const 
 }
 
 /* z = gcd(x, y) */
-numt_t intgcd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intgcd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   numt_t zt = NUMT_NONE;
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -3692,7 +3666,7 @@ numt_t intgcd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x^y, y >= 0 */
-numt_t intexptu(nump_t *zp, numt_t xt, const nump_t *xp, unsigned long long y)
+static numt_t intexptu(nump_t *zp, numt_t xt, const nump_t *xp, unsigned long long y)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   /* x^0 = 1 (for all x, including 0) */
@@ -3733,7 +3707,7 @@ numt_t intexptu(nump_t *zp, numt_t xt, const nump_t *xp, unsigned long long y)
 }
 
 /* z = ~x */
-numt_t intnot(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t intnot(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   if (isfix(xt)) {
@@ -3749,7 +3723,7 @@ numt_t intnot(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = x & y */
-numt_t intand(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intand(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
@@ -3771,7 +3745,7 @@ numt_t intand(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x | y */
-numt_t intior(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intior(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
@@ -3793,7 +3767,7 @@ numt_t intior(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x ^ y */
-numt_t intxor(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intxor(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
@@ -3815,7 +3789,7 @@ numt_t intxor(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x << y, right on negative y */
-numt_t intash(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t intash(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
@@ -3851,7 +3825,7 @@ numt_t intash(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = integer-length(x); always returns fixnum */
-numt_t intlen(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t intlen(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
 
@@ -3864,7 +3838,7 @@ numt_t intlen(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = bit-count(x); always returns fixnum */
-numt_t intbtc(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t intbtc(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   long cnt = 0;
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -3879,7 +3853,7 @@ numt_t intbtc(nump_t *zp, numt_t xt, const nump_t *xp)
 
 
 /* returns NUMT_NONE and sets errno on failure */
-numt_t strtoint(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtoint(nump_t *zp, const char *str, char **endptr, int radix)
 {
   long l; char *ep = NULL;
   numt_t zt = NUMT_NONE;
@@ -3906,7 +3880,7 @@ numt_t strtoint(nump_t *zp, const char *str, char **endptr, int radix)
 
 
 /* # of chars needed for x in radix, including '-' for negs and '\0' */
-size_t intfmtsize(numt_t xt, const nump_t *xp, int radix)
+static size_t intfmtsize(numt_t xt, const nump_t *xp, int radix)
 {
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -3932,7 +3906,7 @@ size_t intfmtsize(numt_t xt, const nump_t *xp, int radix)
 /* format x into buffer; len should be as calculated by intfmtsize or 1 
  * shorter for negative x if the sign needs to be omitted; returns first 
  * char of the zero-terminated result in buffer (prints right-to-left) */
-char *inttostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
+static char *inttostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
 {
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -3952,50 +3926,14 @@ char *inttostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
   }
 }
 
-/* print x in radix; use a-z if radix > 10; add - if negative */
-void intprint(FILE *fp, numt_t xt, const nump_t *xp, int radix)
-{
-  assert(radix >= 2 && radix <= 36);
-  assert(NUMT_IS_INTNUM(xt) && "non-integer number");
-  if (isfix(xt)) {
-    long lx = labs(getfix(xp));
-    if (lx == 0) {
-      fputc('0', fp);
-      return;
-    } else {
-      char buf[FIXNUM_WIDTH+2], *pc = buf + sizeof(buf);
-      for (*--pc = 0; lx > 0; lx /= radix) {
-        int d = (int)(lx % radix);
-        *--pc = d < 10 ? '0' + d : 'a' + d;
-      }
-      if (getfix(xp) < 0) *--pc = '-';
-      fputs(pc, fp);
-    }
-  } else {
-    bnprint(fp, getbig(xp), radix);
-  }
-}
-
 /* (double)x */
-double inttod(numt_t xt, const nump_t *xp)
+static double inttod(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   if (isfix(xt)) return (double)getfix(xp);
   return bntod(getbig(xp));
 }
 
-/* |x| < |y| */
-int intlessabs(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  if (isfix(xt)) {
-    if (isfix(yt)) return labs(getfix(xp)) < labs(getfix(yp));
-    else if (getfix(xp) == FIXNUM_MIN && bneql(getbig(yp), FIXNUM_MAX+1)) return 0;
-    else return 1;
-  } else {
-    if (isbig(yt)) return bncmpabs(getbig(xp), getbig(yp)) < 0;
-    else return 0;
-  }
-}
 
 /* generic rational arithmetics */
 
@@ -4009,7 +3947,7 @@ int intlessabs(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 #define isint(xt)     (NUMT_IS_INTNUM(xt))
 
 /* x == y */
-int rateq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static int rateq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   assert(NUMT_IS_RATNUM(yt) && "non-rational number");
@@ -4023,7 +3961,7 @@ int rateq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* x < y */
-int ratless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static int ratless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   int xs, ys;
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
@@ -4052,7 +3990,7 @@ int ratless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* z = -x */
-numt_t ratneg(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t ratneg(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   if (isint(xt)) {
@@ -4063,7 +4001,7 @@ numt_t ratneg(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = 1/x */
-numt_t ratrcp(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t ratrcp(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   /* shortcuts */
@@ -4089,7 +4027,7 @@ numt_t ratrcp(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = |x| */
-numt_t ratabs(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t ratabs(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   if (isint(xt)) {
@@ -4102,14 +4040,14 @@ numt_t ratabs(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* sign(x) (-1 0 +1) */
-int ratsign(numt_t xt, const nump_t *xp)
+static int ratsign(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   return intsign(NUMT_RAT_N(xt), xp);
 }
 
 /* z = x + y */
-numt_t ratadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t ratadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   assert(NUMT_IS_RATNUM(yt) && "non-rational number");
@@ -4156,7 +4094,7 @@ numt_t ratadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x - y */
-numt_t ratsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t ratsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   assert(NUMT_IS_RATNUM(yt) && "non-rational number");
@@ -4203,7 +4141,7 @@ numt_t ratsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x * y */
-numt_t ratmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t ratmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   assert(NUMT_IS_RATNUM(yt) && "non-rational number");
@@ -4241,7 +4179,7 @@ numt_t ratmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = x / y */
-numt_t ratdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t ratdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   assert(NUMT_IS_RATNUM(yt) && "non-rational number");
@@ -4285,7 +4223,7 @@ numt_t ratdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *
 }
 
 /* z = floor(x) */
-numt_t ratfloor(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t ratfloor(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   if (isint(xt)) {
@@ -4304,7 +4242,7 @@ numt_t ratfloor(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = ceiling(x) */
-numt_t ratceil(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t ratceil(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   if (isint(xt)) {
@@ -4323,7 +4261,7 @@ numt_t ratceil(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = truncate(x) */
-numt_t rattrunc(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t rattrunc(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   if (isint(xt)) {
@@ -4334,7 +4272,7 @@ numt_t rattrunc(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = round(x) */
-numt_t ratround(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t ratround(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   if (isint(xt)) {
@@ -4362,7 +4300,7 @@ numt_t ratround(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = x * (b ^ e) */
-numt_t ratscale(nump_t *zp, numt_t xt, const nump_t *xp, long b, long e)
+static numt_t ratscale(nump_t *zp, numt_t xt, const nump_t *xp, long b, long e)
 {
   assert(b > 0 && b <= FIXNUM_MAX && e < FIXNUM_MAX);
   if (!e) {
@@ -4380,7 +4318,7 @@ numt_t ratscale(nump_t *zp, numt_t xt, const nump_t *xp, long b, long e)
 }
 
 /* returns NUMT_NONE and sets errno on failure */
-numt_t strtorat(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtorat(nump_t *zp, const char *str, char **endptr, int radix)
 {
   numt_t zt = NUMT_NONE; char *ep = NULL;
   int decimal = (radix == 2 || radix == 8 || radix == 10 || radix == 16);
@@ -4468,7 +4406,7 @@ numt_t strtorat(nump_t *zp, const char *str, char **endptr, int radix)
 }
 
 /* # of chars needed for x in radix, including '/', '-' for negs and '\0' */
-size_t ratfmtsize(numt_t xt, const nump_t *xp, int radix)
+static size_t ratfmtsize(numt_t xt, const nump_t *xp, int radix)
 {
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
@@ -4482,7 +4420,7 @@ size_t ratfmtsize(numt_t xt, const nump_t *xp, int radix)
 
 /* format x into buffer; len should be as calculated by ratfmtsize;
  * returns char of the zero-terminated result in buffer. */
-char *rattostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
+static char *rattostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
 {
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
@@ -4496,22 +4434,8 @@ char *rattostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
   }
 }
 
-/* print x in radix; use a-z if radix > 10; add - if negative */
-void ratprint(FILE *fp, numt_t xt, const nump_t *xp, int radix)
-{
-  assert(radix >= 2 && radix <= 36);
-  assert(NUMT_IS_RATNUM(xt) && "non-rational number");
-  if (isint(xt)) {
-    intprint(fp, xt, xp, radix);
-  } else {
-    intprint(fp, NUMT_RAT_N(xt), xp, radix);
-    fputc('/', fp);
-    intprint(fp, NUMT_RAT_D(xt), xp+1, radix);
-  }  
-}
-
 /* (double)x */
-double rattod(numt_t xt, const nump_t *xp)
+static double rattod(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   if (isint(xt)) return inttod(xt, xp);
@@ -4529,8 +4453,8 @@ double rattod(numt_t xt, const nump_t *xp)
   }
 }
 
-/* strtod via strtorat, rattod */
-double strtoratd(const char *str, char **endptr, int radix)
+/* strtod via strtorat, rattod (not used?) */
+static double strtoratd(const char *str, char **endptr, int radix)
 {
   double res;
   nump_t tp[2]; numt_t tt = strtorat(tp, str, endptr, radix);
@@ -4541,7 +4465,7 @@ double strtoratd(const char *str, char **endptr, int radix)
 }
 
 /* (rat)d -- returns NUMT_NONE and sets errno on failure */
-numt_t dtorat(nump_t *zp, double x)
+static numt_t dtorat(nump_t *zp, double x)
 {
   if (x != x || fabs(x) >= HUGE_VAL) { /* exclude nans, infinities */
     return setfail(EDOM);
@@ -4579,7 +4503,7 @@ numt_t dtorat(nump_t *zp, double x)
 #define israt(xt)     (NUMT_IS_RATNUM(xt))
 
 /* x == y */
-int recteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static int recteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
   assert(NUMT_IS_RECTNUM(yt) && "non-exact-complex number");
@@ -4593,7 +4517,7 @@ int recteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* z = -x */
-numt_t rectneg(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t rectneg(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
   if (israt(xt)) {
@@ -4603,19 +4527,8 @@ numt_t rectneg(nump_t *zp, numt_t xt, const nump_t *xp)
   }
 }
 
-/* z = conjugate(x) */
-numt_t rectconj(nump_t *zp, numt_t xt, const nump_t *xp)
-{
-  assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
-  if (israt(xt)) {
-    return numdup(zp, xt, xp); /* must be fresh! */
-  } else {
-    return NUMT_MKCOM(numdup(zp, NUMT_COM_R(xt), xp), ratneg(zp+2, NUMT_COM_I(xt), xp+2));
-  }
-}
-
 /* z = x + y */
-numt_t rectadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t rectadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
   assert(NUMT_IS_RECTNUM(yt) && "non-exact-complex number");
@@ -4641,7 +4554,7 @@ numt_t rectadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x - y */
-numt_t rectsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t rectsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
   assert(NUMT_IS_RECTNUM(yt) && "non-exact-complex number");
@@ -4667,7 +4580,7 @@ numt_t rectsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x * y */
-numt_t rectmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t rectmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
   assert(NUMT_IS_RECTNUM(yt) && "non-exact-complex number");
@@ -4702,7 +4615,7 @@ numt_t rectmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x / y */
-numt_t rectdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t rectdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
   assert(NUMT_IS_RECTNUM(yt) && "non-exact-complex number");
@@ -4749,7 +4662,7 @@ numt_t rectdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* returns NUMT_NONE and sets errno on failure (ERANGE is special!) */
-numt_t strtorect(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtorect(nump_t *zp, const char *str, char **endptr, int radix)
 {
   numt_t zt = NUMT_NONE; char *ep = NULL;
   assert(str); assert(radix >= 2 && radix <= 36);
@@ -4825,7 +4738,7 @@ numt_t strtorect(nump_t *zp, const char *str, char **endptr, int radix)
 }
 
 /* # of chars needed for x in radix, including '+', '-', 'i', and '\0' */
-size_t rectfmtsize(numt_t xt, const nump_t *xp, int radix)
+static size_t rectfmtsize(numt_t xt, const nump_t *xp, int radix)
 {
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
@@ -4839,7 +4752,7 @@ size_t rectfmtsize(numt_t xt, const nump_t *xp, int radix)
 
 /* format x into buffer; len should be as calculated by rectfmtsize;
  * returns ptr to first char of zero-terminated result in buffer. */
-char *recttostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
+static char *recttostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
 {
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
@@ -4861,33 +4774,8 @@ char *recttostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix
   }
 }
 
-/* print x in radix; use a-z if radix > 10; add - if negative */
-void rectprint(FILE *fp, numt_t xt, const nump_t *xp, int radix)
-{
-  assert(radix >= 2 && radix <= 36);
-  assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
-  if (israt(xt)) {
-    ratprint(fp, xt, xp, radix);
-  } else if (isfix(NUMT_COM_R(xt)) && getfix(xp) == 0) {
-    if (ratsign(NUMT_COM_I(xt), xp+2) < 0) ; /* - added automatically */
-    else fputc('+', fp); /* + won't be added, so we do it here */
-    if (isfix(NUMT_COM_I(xt)) && getfix(xp+2) == 1) ; /* skip 1 */
-    else if (isfix(NUMT_COM_I(xt)) && getfix(xp+2) == -1) fputc('-', fp); /* skip 1 */
-    else ratprint(fp, NUMT_COM_I(xt), xp+2, radix);
-    fputc('i', fp);
-  } else {
-    ratprint(fp, NUMT_COM_R(xt), xp, radix);
-    if (ratsign(NUMT_COM_I(xt), xp+2) < 0) ; /* - added automatically */
-    else fputc('+', fp); /* + won't be added, so we do it here */
-    if (isfix(NUMT_COM_I(xt)) && getfix(xp+2) == 1) ; /* skip 1 */
-    else if (isfix(NUMT_COM_I(xt)) && getfix(xp+2) == -1) fputc('-', fp); /* skip 1 */
-    else ratprint(fp, NUMT_COM_I(xt), xp+2, radix);
-    fputc('i', fp);
-  }  
-}
-
 /* (double,double)x */
-void recttodd(numt_t xt, const nump_t *xp, double *prd, double *pid)
+static void recttodd(numt_t xt, const nump_t *xp, double *prd, double *pid)
 {
   assert(NUMT_IS_RECTNUM(xt) && "non-exact-complex number");
   assert(prd && pid);
@@ -4908,7 +4796,7 @@ void recttodd(numt_t xt, const nump_t *xp, double *prd, double *pid)
 #define iscomp(nt) (NUMT_COM_R(nt) == NUMT_FLO && NUMT_COM_I(nt) == NUMT_FLO)
 
 /* x == y */
-int compeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static int compeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-inexact-complex number");
   assert(NUMT_IS_COMPNUM(yt) && "non-inexact-complex number");
@@ -4922,7 +4810,7 @@ int compeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* z = -x */
-numt_t compneg(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t compneg(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-inexact-complex number");
   if (isflo(xt)) {
@@ -4932,19 +4820,10 @@ numt_t compneg(nump_t *zp, numt_t xt, const nump_t *xp)
   }
 }
 
-/* z = conjugate(x) */
-numt_t compconj(nump_t *zp, numt_t xt, const nump_t *xp)
-{
-  assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
-  if (isflo(xt)) {
-    return NUMT_MKCOM(setflo(zp, getflo(xp)), setflo(zp+2, -0.0));
-  } else {
-    return NUMT_MKCOM(setflo(zp, getflo(xp)), setflo(zp+2, -getflo(xp+2)));
-  }
-}
+#if 0 /* cfl ops candidates */
 
 /* z = x + y */
-numt_t compadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t compadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
   assert(NUMT_IS_COMPNUM(yt) && "non-exact-complex number");
@@ -4958,7 +4837,7 @@ numt_t compadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x - y */
-numt_t compsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t compsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
   assert(NUMT_IS_COMPNUM(yt) && "non-exact-complex number");
@@ -4972,7 +4851,7 @@ numt_t compsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x * y */
-numt_t compmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t compmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
   assert(NUMT_IS_COMPNUM(yt) && "non-exact-complex number");
@@ -4986,7 +4865,7 @@ numt_t compmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x / y */
-numt_t compdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t compdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
   assert(NUMT_IS_COMPNUM(yt) && "non-exact-complex number");
@@ -5000,9 +4879,10 @@ numt_t compdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
   }
 }
 
+#endif /* cfl ops candidates */
 
 /* returns NUMT_NONE and sets errno on failure */
-numt_t strtoflo(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtoflo(nump_t *zp, const char *str, char **endptr, int radix)
 {
   double d; char *e, *t; numt_t zt = NUMT_NONE;
   errno = 0; 
@@ -5039,7 +4919,7 @@ numt_t strtoflo(nump_t *zp, const char *str, char **endptr, int radix)
 }
 
 /* returns NUMT_NONE and sets errno on failure */
-numt_t strtocomp(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtocomp(nump_t *zp, const char *str, char **endptr, int radix)
 {
   numt_t zt = NUMT_NONE; char *ep = NULL;
   assert(str); assert(radix >= 2 && radix <= 36);
@@ -5096,7 +4976,7 @@ numt_t strtocomp(nump_t *zp, const char *str, char **endptr, int radix)
 }
 
 /* # of chars needed for x in radix; return 0 if radix != 10  */
-size_t compfmtsize(numt_t xt, const nump_t *xp, int radix)
+static size_t compfmtsize(numt_t xt, const nump_t *xp, int radix)
 {
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
@@ -5104,7 +4984,7 @@ size_t compfmtsize(numt_t xt, const nump_t *xp, int radix)
 }
 
 /* returns buf on success, NULL on wrong radix */
-char *flotostr(char *buf, size_t len, double x, int radix)
+static char *flotostr(char *buf, size_t len, double x, int radix)
 {
   assert(len >= 7);
   if (x != x) return strcpy(buf, "+nan.0");
@@ -5116,7 +4996,7 @@ char *flotostr(char *buf, size_t len, double x, int radix)
 /* format x into buffer; len should be as calculated by compfmtsize;
  * returns ptr to first char of zero-terminated result in buffer
  * or NULL if an inexact number is printed in non-10 radix. */
-char *comptostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
+static char *comptostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
   if (isflo(xt)) { /* may return NULL on wrong radix */
@@ -5137,31 +5017,8 @@ char *comptostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix
   }
 }
 
-void floprint(FILE *fp, double x, int radix)
-{
-  if (x != x) fputs("+nan.0", fp);
-  else if (x > DBL_MAX) fputs("+inf.0", fp);
-  else if (x < -DBL_MAX) fputs("-inf.0", fp);
-  else dnprint(fp, x, radix);  
-}
-
-/* print x in radix; use a-z if radix > 10; return -1 if radix != 10 */
-void compprint(FILE *fp, numt_t xt, const nump_t *xp, int radix)
-{
-  assert(radix == 10 || radix == 16);
-  assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
-  if (isflo(xt)) {
-    floprint(fp, getflo(xp), radix);
-  } else {
-    floprint(fp, getflo(xp), radix);
-    if (dnsignless(getflo(xp+2))) fputc('+', fp);
-    floprint(fp, getflo(xp+2), radix);
-    fputc('i', fp);
-  }
-}
-
 /* (double,double)x */
-void comptodd(numt_t xt, const nump_t *xp, double *prd, double *pid)
+static void comptodd(numt_t xt, const nump_t *xp, double *prd, double *pid)
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
   assert(prd && pid);
@@ -5181,7 +5038,7 @@ void comptodd(numt_t xt, const nump_t *xp, double *prd, double *pid)
 #define isreal(nt) NUMT_IS_REALNUM(nt) 
 
 /* x == y */
-int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   long lx, ly; double dx, dy; nump_t xp1[2], yp1[2];
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
@@ -5211,39 +5068,8 @@ int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
   }
 }
 
-/* x < y */
-int realless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  long lx, ly; double dx, dy; nump_t xp1[2], yp1[2];
-  assert(NUMT_IS_REALNUM(xt) && "non-real number");
-  assert(NUMT_IS_REALNUM(yt) && "non-real number");
-  if (isfix(xt) && isfix(yt)) { /* fast track */
-    lx = getfix(xp), ly = getfix(yp); 
-    return lx < ly;
-  } else if (isflo(xt) && isflo(yt)) { /* fast track */
-    dx = getflo(xp), dy = getflo(yp); 
-    return dx < dy;
-  } else if (isflo(xt) || isflo(yt)) {
-    if (isfix(xt) || isfix(yt)) { /* fast track */
-      dx = isfix(xt) ? getfix(xp) : getflo(xp); 
-      dy = isfix(yt) ? getfix(yp) : getflo(yp);
-      return dx < dy;
-    } else { /* slow track */
-      int res;
-      if (isflo(xt)) xt = dtorat(xp1, getflo(xp)), xp = xp1;
-      if (isflo(yt)) yt = dtorat(yp1, getflo(yp)), yp = yp1;
-      res = ratless(xt, xp, yt, yp);
-      if (xp == xp1) numfini(xt, xp1);
-      if (yp == yp1) numfini(yt, yp1);
-      return res;
-    }
-  } else {
-    return ratless(xt, xp, yt, yp);
-  }
-}
-
 /* cmp(x, y) == c */
-int realcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
+static int realcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
 {
   long lx, ly; double dx, dy; int res;
   nump_t xp1[2], yp1[2]; numt_t xt1 = NUMT_NONE, yt1 = NUMT_NONE;
@@ -5301,7 +5127,7 @@ cmpr:
 }
 
 /* cmp(x, 0) == c */
-int realcmp0(numt_t xt, const nump_t *xp, ncmp_t c)
+static int realcmp0(numt_t xt, const nump_t *xp, ncmp_t c)
 {
   long lx; double dx;
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
@@ -5336,7 +5162,7 @@ cmpl:
 }
 
 /* z = -x */
-numt_t realneg(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t realneg(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   if (isflo(xt)) return setflo(zp, -getflo(xp));
@@ -5344,7 +5170,7 @@ numt_t realneg(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = |x| */
-numt_t realabs(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t realabs(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   if (isflo(xt)) return setflo(zp, fabs(getflo(xp)));
@@ -5352,7 +5178,7 @@ numt_t realabs(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* sign(x) (-1 0 +1) */
-int realsign(numt_t xt, const nump_t *xp)
+static int realsign(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   if (isflo(xt)) {
@@ -5366,7 +5192,7 @@ int realsign(numt_t xt, const nump_t *xp)
 
 
 /* z = x + y */
-numt_t realadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t realadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   assert(NUMT_IS_REALNUM(yt) && "non-real number");
@@ -5380,7 +5206,7 @@ numt_t realadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x - y */
-numt_t realsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t realsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   assert(NUMT_IS_REALNUM(yt) && "non-real number");
@@ -5394,7 +5220,7 @@ numt_t realsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x * y */
-numt_t realmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t realmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   assert(NUMT_IS_REALNUM(yt) && "non-real number");
@@ -5408,7 +5234,7 @@ numt_t realmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x / y */
-numt_t realdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t realdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   assert(NUMT_IS_REALNUM(yt) && "non-real number");
@@ -5422,7 +5248,7 @@ numt_t realdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = floor(x) */
-numt_t realfloor(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t realfloor(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   if (isflo(xt)) return setflo(zp, floor(getflo(xp)));
@@ -5430,7 +5256,7 @@ numt_t realfloor(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = ceiling(x) */
-numt_t realceil(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t realceil(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   if (isflo(xt)) return setflo(zp, ceil(getflo(xp)));
@@ -5448,7 +5274,7 @@ numt_t realtrunc(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = round(x) */
-numt_t realround(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t realround(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   if (isflo(xt)) {
@@ -5459,79 +5285,6 @@ numt_t realround(nump_t *zp, numt_t xt, const nump_t *xp)
   } else return ratround(zp, xt, xp);
 }
 
-/* returns NUMT_NONE and sets errno on failure */
-numt_t strtoreal(nump_t *zp, const char *str, char **endptr, int radix)
-{
-  numt_t zt = NUMT_NONE; char *cp;
-  int forceie = 0; /* -1=#i 1=#e */
-  int flags = 0; /* CNF_XXX|... */
-  assert(str); assert(radix >= 2 && radix <= 36);
-  /* returns start of complex part and sets radix/ie; returns NULL on errors */
-  if ((cp = check_number(str, &radix, &forceie, &flags)) == NULL
-   || (flags & (CNF_IMPART|CNF_POLAR)) != 0) { 
-    /* invalid real syntax */
-    if (endptr) *endptr = (char*)str;
-    return setfail(EDOM);
-  }
-  /* positon at the start of complex */
-  str = (const char *)cp;
-  if (forceie < 0) { /* as inexact */
-    zt = strtoflo(zp, str, endptr, radix);
-  } else if (forceie > 0) { /* as exact */
-    zt = strtorat(zp, str, endptr, radix);
-    /* catch inexact, e.g. 1/0 -> +inf.0 */
-    if (isflo(zt)) zt = setfail(ERANGE); 
-  } else if (flags & CNF_DOTEXP) { /* has elements of inexact notation */
-    zt = strtoflo(zp, str, endptr, radix);
-  } else { /* no elements of inexact notation */
-    zt = strtorat(zp, str, endptr, radix);
-    /* catch inexact, e.g. 1/0 -> +inf.0 */
-    if (isflo(zt)) zt = setfail(ERANGE); 
-  }
-  return zt;
-}
-
-/* # of chars needed for x in radix; assumes decimal if inexact by default */
-size_t realfmtsize(numt_t xt, const nump_t *xp, int radix)
-{
-  assert(radix >= 2 && radix <= 36);
-  assert(NUMT_IS_REALNUM(xt) && "non-real number");
-  if (isflo(xt)) {
-    if (radix == 10) return DN_DEC_BUFSIZE;
-    return DN_BIN_BUFSIZE; /* 2, 8, 16 */
-  } else {
-    return ratfmtsize(xt, xp, radix);
-  }
-}
-
-/* format x into buffer; len should be as calculated by realfmtsize;
- * returns ptr to first char of zero-terminated result in buffer
- * or NULL if an inexact number is printed in wrong radix. */
-char *realtostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
-{
-  assert(radix >= 2 && radix <= 36);
-  assert(NUMT_IS_REALNUM(xt) && "non-real number");
-  if (isflo(xt)) {
-    return flotostr(buffer, len, getflo(xp), radix);
-  } else {
-    return rattostr(buffer, len, xt, xp, radix);
-  }
-}
-
-/* print x in radix; use a-z if radix > 10; return -1 if x is inexact and radix != 10 */
-int realprint(FILE *fp, numt_t xt, const nump_t *xp, int radix)
-{
-  assert(radix >= 2 && radix <= 36);
-  assert(NUMT_IS_REALNUM(xt) && "non-real number");
-  if (isflo(xt)) {
-    floprint(fp, getflo(xp), radix);
-  } else {
-    ratprint(fp, xt, xp, radix);
-  }
-  return 0;  
-}
-
-
 /* generic mixed-exactness numbers */
 
 /* take from 1 to 4 slots */
@@ -5539,7 +5292,7 @@ int realprint(FILE *fp, numt_t xt, const nump_t *xp, int radix)
 #define NUMT_IS_VALID(xt) (NUMT_IS_COMPNUM(xt) || NUMT_IS_RECTNUM(xt))
 
 /* x == y */
-int gnumeqn(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static int gnumeqn(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5561,7 +5314,7 @@ int gnumeqn(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* eqv(x,y) */
-int gnumeqv(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static int gnumeqv(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5586,17 +5339,8 @@ int gnumeqv(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
   return 1; 
 }
 
-/* x < y  [real numbers only] */
-int gnumless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  assert(NUMT_IS_VALID(xt) && "unsupported number type");
-  assert(NUMT_IS_VALID(yt) && "unsupported number type");
-  if (!isreal(xt) || !isreal(yt)) return -1;
-  return realless(xt, xp, yt, yp);
-}
-
 /* cmp(x, y) == c  [real numbers only] */
-int gnumcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
+static int gnumcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5605,7 +5349,7 @@ int gnumcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
 }
 
 /* cmp(x, 0) == c  [internal, real numbers only] */
-int gnumcmp0(numt_t xt, const nump_t *xp, ncmp_t c)
+static int gnumcmp0(numt_t xt, const nump_t *xp, ncmp_t c)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return -1;
@@ -5613,7 +5357,7 @@ int gnumcmp0(numt_t xt, const nump_t *xp, ncmp_t c)
 }
 
 /* z = max(x, y)  [real numbers only; result is inexact if either arg is] */
-numt_t gnummax(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnummax(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5629,7 +5373,7 @@ numt_t gnummax(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = min(x, y)  [real numbers only; result is inexact if either arg is] */
-numt_t gnummin(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnummin(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5645,7 +5389,7 @@ numt_t gnummin(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = |x| */
-numt_t gnumabs(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumabs(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return setfail(EDOM);
@@ -5653,7 +5397,7 @@ numt_t gnumabs(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = -x */
-numt_t gnumneg(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumneg(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isrect(xt)) {
@@ -5665,21 +5409,8 @@ numt_t gnumneg(nump_t *zp, numt_t xt, const nump_t *xp)
   }
 }
 
-/* z = conjugate(x)
-numt_t gnumconj(nump_t *zp, numt_t xt, const nump_t *xp)
-{
-  assert(NUMT_IS_VALID(xt) && "unsupported number type");
-  if (isreal(xt)) {
-    return numdup(zp, xt, xp);
-  } else if (isrect(xt)) {
-    return rectconj(zp, xt, xp);
-  } else {
-    return compconj(zp, xt, xp);
-  }
-} */
-
 /* z = x + y */
-numt_t gnumadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5696,7 +5427,7 @@ numt_t gnumadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x - y */
-numt_t gnumsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5713,7 +5444,7 @@ numt_t gnumsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x * y */
-numt_t gnummul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnummul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5732,7 +5463,7 @@ numt_t gnummul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = x / y */
-numt_t gnumdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5754,7 +5485,7 @@ numt_t gnumdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
 }
 
 /* z = (exact)x; may return NUMT_NONE if conversion fails */
-numt_t gnumtoe(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumtoex(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   numt_t zt;
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
@@ -5771,7 +5502,7 @@ numt_t gnumtoe(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = (inexact)x */
-numt_t gnumtoi(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumtoin(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   numt_t zt;
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
@@ -5787,7 +5518,7 @@ numt_t gnumtoi(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = floor(x)  [real numbers only] */
-numt_t gnumfloor(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumfloor(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return setfail(EDOM);
@@ -5795,7 +5526,7 @@ numt_t gnumfloor(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = ceiling(x)  [real numbers only] */
-numt_t gnumceil(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumceil(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return setfail(EDOM);
@@ -5803,7 +5534,7 @@ numt_t gnumceil(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = truncate(x)  [real numbers only] */
-numt_t gnumtrunc(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumtrunc(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return setfail(EDOM);
@@ -5811,7 +5542,7 @@ numt_t gnumtrunc(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = round(x)  [real numbers only] */
-numt_t gnumround(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumround(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return setfail(EDOM);
@@ -5819,7 +5550,7 @@ numt_t gnumround(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = numerator(x)  [rational/real numbers only] */
-numt_t gnumnumer(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumnumer(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return setfail(EDOM);
@@ -5841,7 +5572,7 @@ numt_t gnumnumer(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = denominator(x)  [rational/real numbers only] */
-numt_t gnumdenom(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumdenom(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return setfail(EDOM);
@@ -5864,7 +5595,7 @@ numt_t gnumdenom(nump_t *zp, numt_t xt, const nump_t *xp)
 
 /* z = gcd(x, y)  [integer numbers only; result is always non-negative] */
 /* NB: gnumgcd(0,0)=0; result is inexact if either arg is inexact */
-numt_t gnumgcd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumgcd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5889,42 +5620,8 @@ numt_t gnumgcd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t 
   }
 }
 
-/* z = lcm(x, y)  [integer numbers only; result is always non-negative] */
-/* NB: lcm(0,y)=lcm(x,0)=0; result is inexact if either arg is inexact */
-numt_t gnumlcm(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  assert(NUMT_IS_VALID(xt) && "unsupported number type");
-  assert(NUMT_IS_VALID(yt) && "unsupported number type");
-  if (!isreal(xt) || !isreal(yt)) return setfail(EDOM);
-  if (isflo(xt) || isflo(yt)) {
-    double xd = isflo(xt) ? getflo(xp) : rattod(xt, xp);
-    double yd = isflo(yt) ? getflo(yp) : rattod(yt, yp);
-    double ax = fabs(xd), ay = fabs(yd), g, tmp;
-    if (ax != floor(ax) || ay != floor(ay)) return setfail(EDOM);
-    if (ax == 0.0 || ay == 0.0) return setflo(zp, 0.0);
-    g = ax; tmp = ay; 
-    while (tmp != 0.0) { double t = fmod(g, tmp); g = tmp; tmp = t; }
-    return setflo(zp, (ax / g) * ay);
-  } else {
-    /* lcm(x,y) = |x*y| / gcd(x,y) */
-    nump_t axp[1]; numt_t axt = intabs(axp, xt, xp);
-    nump_t ayp[1]; numt_t ayt = intabs(ayp, yt, yp);
-    nump_t gp[1], qp[1]; numt_t gt, qt, zt;
-    if ((isfix(axt) && getfix(axp) == 0) || (isfix(ayt) && getfix(ayp) == 0)) {
-      numfini(axt, axp); numfini(ayt, ayp);
-      return setfix(zp, 0);
-    }
-    gt = intgcd(gp, axt, axp, ayt, ayp);
-    qt = intquo(qp, axt, axp, gt, gp);
-    zt = intmul(zp, qt, qp, ayt, ayp);
-    numfini(axt, axp); numfini(ayt, ayp);
-    numfini(gt, gp); numfini(qt, qp);
-    return zt;
-  }
-}
-
 /* z = truncate-quotient(x, y)  [integer real numbers only] */
-numt_t gnumtquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumtquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5940,7 +5637,7 @@ numt_t gnumtquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t
 }
 
 /* z = truncate-remainder(x, y)  [integer real numbers only] */
-numt_t gnumtrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumtrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5956,7 +5653,7 @@ numt_t gnumtrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t
 }
 
 /* z = floor-quotient(x, y)  [integer real numbers only] */
-numt_t gnumfquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumfquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5971,7 +5668,7 @@ numt_t gnumfquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t
 }
 
 /* z = floor-remainder(x, y)  [integer real numbers only] */
-numt_t gnumfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -5986,7 +5683,7 @@ numt_t gnumfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t
 }
 
 /* q = integer-sqrt(x), r = x - q*q  [non-negative integer real numbers only] */
-void gnumsqrti(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp)
+static void gnumisqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt) || !realcmp0(xt, xp, NCMP_GE)) {
@@ -6003,26 +5700,8 @@ void gnumsqrti(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, cons
   }
 }
 
-/* q = integer-sqrt(x) [non-negative integer real numbers only] */
-numt_t gnumsqrtiq(nump_t *qp, numt_t xt, const nump_t *xp)
-{
-  nump_t rp[4]; numt_t rt, qt;
-  gnumsqrti(&qt, qp, &rt, rp, xt, xp);
-  numfini(rt, rp);
-  return qt;
-}
-
-/* r = x - integer-sqrt(x)^2 [non-negative integer real numbers only] */
-numt_t gnumsqrtir(nump_t *rp, numt_t xt, const nump_t *xp)
-{
-  nump_t qp[4]; numt_t qt, rt;
-  gnumsqrti(&qt, qp, &rt, rp, xt, xp);
-  numfini(qt, qp);
-  return rt;
-}
-
 /* z = sqrt(x)  [generic; result may be inexact complex] */
-numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isrect(xt)) {
@@ -6091,11 +5770,11 @@ numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
   }
 }
 
-int gnumodd(numt_t xt, const nump_t *xp); /* see below */
+static int gnumodd(numt_t xt, const nump_t *xp); /* see below */
 
 /* z = expt(x, y)  [generic] */
 /* exact base with exact integer exponent stays exact; may go inexact otherwise */
-numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -6215,7 +5894,7 @@ numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t
     if (getflo(yp) == 0.0) return setflo(zp, 1.0);
     /* x^1.0 = (inexact)x for all x */
     if (getflo(yp) == 1.0)
-      return gnumtoi(zp, xt, xp);
+      return gnumtoin(zp, xt, xp);
     /* x^-1.0 = 1.0/x for all x */
     if (getflo(yp) == -1.0) {
       nump_t tp[1]; numt_t tt = setflo(tp, 1.0);  
@@ -6305,7 +5984,7 @@ numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t
 }
 
 /* z = real-part(x) */
-numt_t gnumreal(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumreal(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isreal(xt)) {
@@ -6319,7 +5998,7 @@ numt_t gnumreal(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = imag-part(x) */
-numt_t gnumimag(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumimag(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isreal(xt)) {
@@ -6334,7 +6013,7 @@ numt_t gnumimag(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = magnitude(x) [a.k.a. abs for reals] */
-numt_t gnummagn(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnummagn(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isreal(xt)) {
@@ -6356,7 +6035,7 @@ numt_t gnummagn(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = angle(x)  [always inexact] */
-numt_t gnumangle(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumangle(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt) && getfix(xp) == 0) return setfail(EDOM);
@@ -6377,7 +6056,7 @@ numt_t gnumangle(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = make-rectangular(x, y)  [x, y must be real] */
-numt_t gnummakerect(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnummakerect(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -6399,7 +6078,7 @@ numt_t gnummakerect(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nu
 }
 
 /* z = make-polar(r, theta)  [always inexact] */
-numt_t gnummakepolar(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnummakepolar(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -6416,7 +6095,7 @@ numt_t gnummakepolar(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
 /* inexact transcendental functions: all return inexact (compnum if needed) */
 
 /* z = exp(x) */
-numt_t gnumexp(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumexp(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt) && getfix(xp) == 0) {
@@ -6433,7 +6112,7 @@ numt_t gnumexp(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = log(x)  [natural log; may produce complex for negative reals] */
-numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt) && getfix(xp) == 0) {
@@ -6455,7 +6134,7 @@ numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = log(x, y)  [log base y] */
-numt_t gnumlogn(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnumlogn(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -6483,7 +6162,7 @@ numt_t gnumlogn(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t
 }
 
 /* z = sin(x) */
-numt_t gnumsin(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumsin(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt) && getfix(xp) == 0) {
@@ -6500,7 +6179,7 @@ numt_t gnumsin(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = cos(x) */
-numt_t gnumcos(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumcos(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt) && getfix(xp) == 0) {
@@ -6517,7 +6196,7 @@ numt_t gnumcos(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = tan(x) */
-numt_t gnumtan(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumtan(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt) && getfix(xp) == 0) {
@@ -6534,7 +6213,7 @@ numt_t gnumtan(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = asin(x) */
-numt_t gnumasin(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumasin(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   double rx, ix, re, im;
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
@@ -6566,7 +6245,7 @@ numt_t gnumasin(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = acos(x) */
-numt_t gnumacos(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumacos(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   double rx, ix, re, im;
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
@@ -6598,7 +6277,7 @@ numt_t gnumacos(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = atan(x) [1-argument] */
-numt_t gnumatan(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumatan(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   double rx, ix, re, im;
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
@@ -6619,7 +6298,7 @@ numt_t gnumatan(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = atan(y, x) [2-argument, real only] */
-numt_t gnumatan2(nump_t *zp, numt_t yt, const nump_t *yp, numt_t xt, const nump_t *xp)
+static numt_t gnumatan2(nump_t *zp, numt_t yt, const nump_t *yp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -6656,7 +6335,7 @@ numt_t gnumatan2(nump_t *zp, numt_t yt, const nump_t *yp, numt_t xt, const nump_
 }
 
 /* odd?(x) and even?(x)  [integer real numbers only] */
-int gnumodd(numt_t xt, const nump_t *xp)
+static int gnumodd(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return -1;
@@ -6669,7 +6348,7 @@ int gnumodd(numt_t xt, const nump_t *xp)
   return -1;
 }
 
-int gnumeven(numt_t xt, const nump_t *xp)
+static int gnumeven(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return -1;
@@ -6682,7 +6361,7 @@ int gnumeven(numt_t xt, const nump_t *xp)
   return -1;
 }
 
-int gnumzero(numt_t xt, const nump_t *xp)
+static int gnumzero(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt)) return getfix(xp) == 0;
@@ -6691,14 +6370,14 @@ int gnumzero(numt_t xt, const nump_t *xp)
   return 0;
 }
 
-int gnumpositive(numt_t xt, const nump_t *xp)
+static int gnumpositive(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return -1;
   return realcmp0(xt, xp, NCMP_GT);
 }
 
-int gnumnegative(numt_t xt, const nump_t *xp)
+static int gnumnegative(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return -1;
@@ -6706,28 +6385,28 @@ int gnumnegative(numt_t xt, const nump_t *xp)
 }
 
 /* exact?(x) and inexact?(x) */
-int gnumexactp(numt_t xt, const nump_t *xp)
+static int gnumexactp(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   (void)xp;
   return isrect(xt);
 }
 
-int gnuminexactp(numt_t xt, const nump_t *xp)
+static int gnuminexactp(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   (void)xp;
   return !isrect(xt);
 }
 
-int gnumintegerp(numt_t xt, const nump_t *xp)
+static int gnumintegerp(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return 0;
   return isflo(xt) ? flisint(getflo(xp)) : isint(xt);
 }
 
-int gnumrationalp(numt_t xt, const nump_t *xp)
+static int gnumrationalp(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (!isreal(xt)) return 0;
@@ -6738,26 +6417,13 @@ int gnumrationalp(numt_t xt, const nump_t *xp)
   return 1;  /* all exact reals are rational */
 }
 
-int gnumrealp(numt_t xt, const nump_t *xp)
+static int gnumrealp(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   return isreal(xt);
 }
 
-int gnumcomplexp(numt_t xt, const nump_t *xp)
-{
-  assert(NUMT_IS_VALID(xt) && "unsupported number type");
-  (void)xp;
-  return 1;  /* all generic numbers are complex */
-}
-
-int gnumnumberp(numt_t xt, const nump_t *xp)
-{
-  (void)xp;
-  return NUMT_IS_VALID(xt); /* whatever */
-}
-
-int gnumfinitep(numt_t xt, const nump_t *xp)
+static int gnumfinitep(numt_t xt, const nump_t *xp)
 {
   if (isrect(xt)) return 1;  /* all exact numbers are finite */
   if (NUMT_COM_R(xt) == NUMT_FLO) {
@@ -6771,7 +6437,7 @@ int gnumfinitep(numt_t xt, const nump_t *xp)
   return 1;
 }
 
-int gnuminfinitep(numt_t xt, const nump_t *xp)
+static int gnuminfinitep(numt_t xt, const nump_t *xp)
 {
   if (isrect(xt)) return 0;  /* all exact numbers are finite */
   if (NUMT_COM_R(xt) == NUMT_FLO) {
@@ -6785,7 +6451,7 @@ int gnuminfinitep(numt_t xt, const nump_t *xp)
   return 0;
 }
 
-int gnumnanp(numt_t xt, const nump_t *xp)
+static int gnumnanp(numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isrect(xt)) return 0;
@@ -6845,7 +6511,7 @@ size_t gnumfmtsize(numt_t xt, const nump_t *xp, int radix)
   }
 }
 
-/* format x into buffer; len should be as calculated by realfmtsize;
+/* format x into buffer; len should be as calculated by gnumfmtsize;
  * returns ptr to first char of zero-terminated result in buffer
  * or NULL if an inexact number is printed in wrong radix. */
 char *gnumtostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
@@ -6857,19 +6523,6 @@ char *gnumtostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix
   } else {
     return comptostr(buffer, len, xt, xp, radix);
   }
-}
-
-/* print x in radix; use a-z if radix > 10; return -1 if x is inexact and radix != 10 */
-int gnumprint(FILE *fp, numt_t xt, const nump_t *xp, int radix)
-{
-  assert(radix >= 2 && radix <= 36);
-  assert(NUMT_IS_VALID(xt) && "unsupported number type");
-  if (isrect(xt)) {
-    rectprint(fp, xt, xp, radix);
-  } else {
-    compprint(fp, xt, xp, radix);
-  }
-  return 0;
 }
 
 /* 'generic' writer for gnums */
@@ -6908,9 +6561,6 @@ int fneqn(const fatnum_t *fx, const fatnum_t *fy)
 int fneqv(const fatnum_t *fx, const fatnum_t *fy)
   { return gnumeqv(fx->t, fx->p, fy->t, fy->p); }
 
-int fnless(const fatnum_t *fx, const fatnum_t *fy)
-  { return gnumless(fx->t, fx->p, fy->t, fy->p); }
-
 int fncmp(const fatnum_t *fx, const fatnum_t *fy, ncmp_t c)
   { return gnumcmp(fx->t, fx->p, fy->t, fy->p, c); }
 
@@ -6919,6 +6569,12 @@ int fnodd(const fatnum_t *fx)
 
 int fneven(const fatnum_t *fx)
   { return gnumeven(fx->t, fx->p); }
+
+int fnisex(const fatnum_t *fx)
+  { return gnumexactp(fx->t, fx->p); }
+
+int fnisin(const fatnum_t *fx)
+  { return gnuminexactp(fx->t, fx->p); }
 
 int fnzero(const fatnum_t *fx)
   { return gnumzero(fx->t, fx->p); }
@@ -6929,12 +6585,6 @@ int fnispos(const fatnum_t *fx)
 int fnisneg(const fatnum_t *fx)
   { return gnumnegative(fx->t, fx->p); }
 
-int fnisexn(const fatnum_t *fx)
-  { return gnumexactp(fx->t, fx->p); }
-
-int fnisinn(const fatnum_t *fx)
-  { return gnuminexactp(fx->t, fx->p); }
-
 int fnisint(const fatnum_t *fx)
   { return gnumintegerp(fx->t, fx->p); }
 
@@ -6944,9 +6594,6 @@ int fnisrat(const fatnum_t *fx)
 int fnisreal(const fatnum_t *fx)
   { return gnumrealp(fx->t, fx->p); }
 
-int fniscomp(const fatnum_t *fx)
-  { return gnumcomplexp(fx->t, fx->p); }
-  
 int fnisran(const fatnum_t *fx)
   { return !NUMT_COM_I(fx->t) && NUMT_RAT_D(fx->t); }
 
@@ -6978,12 +6625,12 @@ int fnneg(fatnum4r_t *fz, const fatnum_t *fx)
     fz->t = zt; return zt != NUMT_NONE; }
 
 int fntoex(fatnum4r_t *fz, const fatnum_t *fx)
-  { numt_t zt = gnumtoe(fz->u.p, fx->t, fx->p);
+  { numt_t zt = gnumtoex(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "exact: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
 int fntoin(fatnum4r_t *fz, const fatnum_t *fx)
-  { numt_t zt = gnumtoi(fz->u.p, fx->t, fx->p);
+  { numt_t zt = gnumtoin(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "inexact: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
@@ -7084,7 +6731,7 @@ int fnsqrt(fatnum4r_t *fz, const fatnum_t *fx)
 
 int fnisqrt(fatnum4r_t *fz, fatnum4r_t *fr, const fatnum_t *fx)
   { numt_t zt, rt;
-    gnumsqrti(&zt, fz->u.p, &rt, fr->u.p, fx->t, fx->p);
+    gnumisqrt(&zt, fz->u.p, &rt, fr->u.p, fx->t, fx->p);
     fz->t = zt; fr->t = rt;
     if (zt == NUMT_NONE) setmsg(fz, "exact-integer-sqrt: domain error");
     return zt != NUMT_NONE; }
@@ -7124,22 +6771,22 @@ int fngcd(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
     if (zt == NUMT_NONE) setmsg(fz, "gcd: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fntquo(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnquo(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumtquo(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "truncate-quotient: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fntrem(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnrem(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumtrem(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "truncate-remainder: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnfquo(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnmqu(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumfquo(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "floor-quotient: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
-int fnfrem(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
+int fnmlo(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumfrem(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "floor-remainder: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
