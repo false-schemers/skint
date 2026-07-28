@@ -46,9 +46,11 @@ define_instruction(intp) {
 define_instruction(exip) {
   if (likely(is_fixnum(ac) || is_bignum(ac))) {
     ac = bool_obj(1);
-  } else { 
+  } else if (likely(is_flonum(ac))) {
     ac = bool_obj(0);
-  }
+  } else if (is_fatnum(ac)) {
+    ac = bool_obj(fnisexn(get_fatnum(ac)));
+  } else failactype("number");
   gonexti(); 
 }
 
@@ -56,8 +58,10 @@ define_instruction(nanp) {
   if (likely(is_flonum(ac))) {
     double f = get_flonum(ac);
     ac = bool_obj(f != f);
-  } else if (likely(is_fixnum(ac) || is_bignum(ac) || is_fatnum(ac))) {
+  } else if (likely(is_fixnum(ac) || is_bignum(ac))) {
     ac = bool_obj(0);
+  } else if (is_fatnum(ac)) {
+    ac = bool_obj(fnisnan(get_fatnum(ac)));
   } else failactype("number");
   gonexti(); 
 }
@@ -66,8 +70,10 @@ define_instruction(finp) {
   if (likely(is_flonum(ac))) {
     double f = get_flonum(ac);
     ac = bool_obj(f > -HUGE_VAL && f < HUGE_VAL);
-  } else if (likely(is_fixnum(ac) || is_bignum(ac) || is_fatnum(ac))) {
+  } else if (likely(is_fixnum(ac) || is_bignum(ac))) {
     ac = bool_obj(1);
+  } else if (is_fatnum(ac)) {
+    ac = bool_obj(fnisfin(get_fatnum(ac)));
   } else failactype("number");
   gonexti(); 
 }
@@ -76,8 +82,10 @@ define_instruction(infp) {
   if (likely(is_flonum(ac))) {
     double f = get_flonum(ac);
     ac = bool_obj(f <= -HUGE_VAL || f >= HUGE_VAL);
-  } else if (likely(is_fixnum(ac) || is_bignum(ac) || is_fatnum(ac))) {
+  } else if (likely(is_fixnum(ac) || is_bignum(ac))) {
     ac = bool_obj(0);
+  } else if (is_fatnum(ac)) {
+    ac = bool_obj(fnisinf(get_fatnum(ac)));
   } else failactype("number");
   gonexti(); 
 }
@@ -925,7 +933,7 @@ define_instruction(gand) {
     gonexti();
   }
   spush(x); spush(y); ac = (obj)&fnand; 
-  goih(tower_unary); 
+  goih(tower_binary); 
 }
 
 define_instruction(gior) { 
@@ -935,7 +943,7 @@ define_instruction(gior) {
     gonexti();
   }
   spush(x); spush(y); ac = (obj)&fnior; 
-  goih(tower_unary); 
+  goih(tower_binary); 
 }
 
 define_instruction(gxor) { 
@@ -945,7 +953,7 @@ define_instruction(gxor) {
     gonexti();
   }
   spush(x); spush(y); ac = (obj)&fnxor; 
-  goih(tower_unary); 
+  goih(tower_binary); 
 }
 
 define_instruction(gash) {
@@ -972,13 +980,19 @@ tower:
 define_instruction(geqv) { goi(ieqv); }
 
 define_instruction(glen) { 
-  if (likely(is_fixnum(ac))) goi(ilen);
+  if (likely(is_fixnum(ac))) {
+    ac = fixnum_obj(fxlen(get_fixnum(ac)));
+    gonexti();
+  }
   spush(ac); ac = (obj)&fnlen;
   goih(tower_unary); 
 }
 
 define_instruction(gbtc) { 
-  if (likely(is_fixnum(ac))) goi(ibtc);
+  if (likely(is_fixnum(ac))) {
+    ac = fixnum_obj(fxbtc(get_fixnum(ac)));
+    gonexti();
+  }
   spush(ac); ac = (obj)&fnbtc;
   goih(tower_unary); 
 }

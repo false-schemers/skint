@@ -3856,10 +3856,7 @@ numt_t intlen(nump_t *zp, numt_t xt, const nump_t *xp)
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
 
   if (isfix(xt)) {
-    unsigned long v = (unsigned long)(getfix(xp) >= 0 ? getfix(xp) : ~getfix(xp));
-    long len = 0;
-    while (v) { ++len; v >>= 1; }
-    return setfix(zp, len);
+    return setfix(zp, fxlen(getfix(xp)));
   } else {
     long len = bnintlen(getbig(xp));
     return setfix(zp, len);
@@ -3873,8 +3870,7 @@ numt_t intbtc(nump_t *zp, numt_t xt, const nump_t *xp)
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
 
   if (isfix(xt)) {
-    unsigned long v = (unsigned long)(getfix(xp) >= 0 ? getfix(xp) : ~getfix(xp));
-    while (v) { ++cnt; v &= v - 1; } /* Kernighan popcount */
+    return fxbtc(getfix(xp));
   } else {
     cnt = bnbitc(getbig(xp));
   }

@@ -234,7 +234,7 @@ int fxlen(long x) {
     case 2: case 3: case -3: case -4: return t + 2;
     case 4: case 5: case 6: case 7:
     case -5: case -6: case -7: case -8: return t + 3;
-    default: x /= 16; t += 4;
+    default: if (x < 0) x = (x+1)/16-1; else x /= 16; t += 4;
   }
 }
 
