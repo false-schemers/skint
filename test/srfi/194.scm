@@ -150,16 +150,24 @@
                 (define byte-size (cadr testcase))
                 (define signed? (caddr testcase))
                 (assert-int-generator (make-gen) byte-size signed?))
-              (list
-                (list make-random-u8-generator 8 #f)
-                (list make-random-s8-generator 8 #t)
-                (list make-random-u16-generator 16 #f)
-                (list make-random-s16-generator 16 #t)
-                ;[esl-] nop support for these:
-                #;(list make-random-u32-generator 32 #f)
-                #;(list make-random-s32-generator 32 #t)
-                #;(list make-random-u64-generator 64 #f)
-                #;(list make-random-s64-generator 64 #t)))
+              (cond-expand
+                (full-numeric-tower ;[esl*]
+                  (list 
+                    (list make-random-u8-generator 8 #f)
+                    (list make-random-s8-generator 8 #t)
+                    (list make-random-u16-generator 16 #f)
+                    (list make-random-s16-generator 16 #t)
+                    (list make-random-u32-generator 32 #f)
+                    (list make-random-s32-generator 32 #t)
+                    (list make-random-u64-generator 64 #f)
+                    (list make-random-s64-generator 64 #t)))
+                (else ;[esl-] nop support for 32/64
+                  (list
+                    (list make-random-u8-generator 8 #f)
+                    (list make-random-s8-generator 8 #t)
+                    (list make-random-u16-generator 16 #f)
+                    (list make-random-s16-generator 16 #t)))))
+
 
             ;;test u1 separately, since it will fail quarter checks due to small range
             (assert-number-generator/all-in-range (make-random-u1-generator) 0 2)
@@ -184,8 +192,9 @@
                   (not (= v (floor v))))
                 (make-random-real-generator 1.0 5.0))))
 
-#| [esl] need support for complex numbers
-(test-group "Test complex rectangular"
+(cond-expand
+  (full-numeric-tower ;[esl*]
+    (test-group "Test complex rectangular"
             (reset-source!)
 
             (assert-number-generator
@@ -206,10 +215,13 @@
                   (and (not (= 0 (real-part num)))
                        (not (= 0 (imag-part num)))))
                 (make-random-rectangular-generator -10.0 10.0 -10.0 10.0))))
-(test-group "Test complex polar"
+    (test-group "Test complex polar"
             (reset-source!)
             (define PI (* 4 (atan 1.0)))
-
+            ; [esl*] some complex numbers that won't be accepted as literals by the towerless reader
+            (define n0+0i 0) ; replaced below
+            (define n2+5i (make-rectangular 2 5)) ; replaced below
+            (define n-1+3i (make-rectangular -1 3)) ; replaced below
             (define (test-polar g origin mag-from mag-to angle-from angle-to test-converge-origin)
               (assert-number-generator
                 (gmap
@@ -243,7 +255,7 @@
 
               ;; test points converge to center
               (when test-converge-origin
-                (let ((sum 0+0i))
+                (let ((sum n0+0i))
                   (generator-for-each
                     (lambda (point) (set! sum (+ point sum)))
                     (gtake g 1000))
@@ -252,17 +264,16 @@
 
 
             (test-polar (make-random-polar-generator 0. 1.)
-                        0+0i 0. 1. (- PI) PI #t)
+                        n0+0i 0. 1. (- PI) PI #t)
 
-            (test-polar (make-random-polar-generator 2+5i 1. 2.)
-                        2+5i 1. 2. (- PI) PI #t)
+            (test-polar (make-random-polar-generator n2+5i 1. 2.)
+                        n2+5i 1. 2. (- PI) PI #t)
 
             (test-polar (make-random-polar-generator 1. 2. -1. 1.)
-                        0+0i 1. 2. -1. 1. #f)
+                        n0+0i 1. 2. -1. 1. #f)
 
-            (test-polar (make-random-polar-generator -1+3i 0. 2. (- PI) PI)
-                        -1+3i 0. 2. (- PI) PI #t))
-|#
+            (test-polar (make-random-polar-generator n-1+3i 0. 2. (- PI) PI)
+                        n-1+3i 0. 2. (- PI) PI #t))))
 
 (test-group "Test random bool"
             (reset-source!)

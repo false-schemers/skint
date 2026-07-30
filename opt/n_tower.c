@@ -921,6 +921,42 @@ static void dnprint(FILE *fp, double x, int radix)
   }
 }
 
+/* 'generic' writer for flonums; returns 0 or -1 on invalid radix */
+int wrdn(double x, int radix, int (*pf)(int, void*), void *pd)
+{
+  switch (radix) {
+    case 10: {
+      /* make sure either . or e is always there */
+      char buffer[DN_DEC_BUFSIZE], *buf = buffer; int eordot = 0;
+      sprintf(buffer, "%.*g", DBL_DIG+2, x);
+      for (; *buf != 0; buf++) if (*buf == 'e' || *buf == 'E' || *buf == '.') eordot = 1;
+      if (!eordot) *buf++ = '.', *buf++ = '0';
+      *buf = 0;
+      for (buf = buffer; *buf; ++buf) (*pf)(*buf, pd);
+      return 0; 
+    } break;
+    case 2: {
+      char buffer[DN_BIN_BUFSIZE], *buf = dtobin(x, buffer, DN_BIN_BUFSIZE);
+      assert(buffer == buf);
+      for (; *buf; ++buf) (*pf)(*buf, pd);
+      return 0; 
+    } break;
+    case 8: {
+      char buffer[DN_BIN_BUFSIZE], *buf = dtooct(x, buffer, DN_BIN_BUFSIZE);
+      assert(buffer == buf);
+      for (; *buf; ++buf) (*pf)(*buf, pd);
+      return 0; 
+    } break;
+    case 16: {
+      char buffer[DN_BIN_BUFSIZE], *buf = dtohex(x, buffer, DN_BIN_BUFSIZE);
+      assert(buffer == buf);
+      for (; *buf; ++buf) (*pf)(*buf, pd);
+      return 0; 
+    } break;
+  }
+  return -1;
+}
+
 
 /* bignum implementation (avp) */
 
@@ -2809,7 +2845,7 @@ size_t bnfmtsize(const bignum_t *n, int radix)
 }
 
 /* [esl++] 'generic' writer for bignums */
-void wrbn(const bignum_t *n, int radix, int (*pf)(int, void*), void *pd)
+int wrbn(const bignum_t *n, int radix, int (*pf)(int, void*), void *pd)
 {
   size_t len;
   char *buffer;
@@ -2817,13 +2853,15 @@ void wrbn(const bignum_t *n, int radix, int (*pf)(int, void*), void *pd)
 
   assert(n != NULL);
   CHECKSIGN(n);
-
+  
+  if (radix < 2 || radix > 36) return -1;
   len = bnfmtsize(n, radix);
-  if (len == 0) return;
+  if (len == 0) return 0; /* huh? */
   buffer = bnrealloc(NULL, len); // use regular alloc???
   ptr = bntostr(buffer, len, n, radix);
   for (; *ptr; ++ptr) (*pf)(*ptr, pd); 
   bnrealloc(buffer, 0);
+  return 0;
 }
 
 /* [esl++] */
@@ -6473,12 +6511,20 @@ numt_t strtognum(nump_t *zp, const char *str, char **endptr, int radix)
   numt_t zt = NUMT_NONE; char *cp;
   int forceie = 0; /* -1=#i 1=#e */
   int flags = 0; /* CNF_XXX|... */
-  assert(str); assert(radix >= 2 && radix <= 36);
+  assert(str); 
+  if (radix < 2 || radix > 36) return setfail(EDOM);
   /* returns start of complex part and sets radix/ie; returns NULL on errors */
   if ((cp = check_number(str, &radix, &forceie, &flags)) == NULL) { 
     /* invalid number syntax */
     if (endptr) *endptr = (char*)str;
     return setfail(EDOM);
+  }
+  if (flags & (CNF_DOTEXP|CNF_INFNAN|CNF_NONR7)) {
+    if (radix != 2 && radix != 8 && radix != 10 && radix != 16) {
+      /* invalid floating-point number syntax */
+      if (endptr) *endptr = (char*)str;
+      return setfail(EDOM); 
+    }
   }
   /* positon at the start of complex */
   str = (const char *)cp;
@@ -6499,14 +6545,15 @@ numt_t strtognum(nump_t *zp, const char *str, char **endptr, int radix)
   return zt;
 }
 
-/* # of chars needed for x in radix; return 0 if x is inexact and radix != 10  */
+/* # of chars needed for x in radix; return 0 on invalid radix  */
 size_t gnumfmtsize(numt_t xt, const nump_t *xp, int radix)
 {
-  assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isrect(xt)) {
+    if (radix < 2 || radix > 36) return 0; 
     return rectfmtsize(xt, xp, radix);
   } else {
+    if (radix != 2 && radix != 8 && radix != 10 && radix != 16) return 0; 
     return compfmtsize(xt, xp, radix);
   }
 }
@@ -6516,23 +6563,27 @@ size_t gnumfmtsize(numt_t xt, const nump_t *xp, int radix)
  * or NULL if an inexact number is printed in wrong radix. */
 char *gnumtostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix)
 {
-  assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isrect(xt)) {
+    if (radix < 2 || radix > 36) return NULL; 
     return recttostr(buffer, len, xt, xp, radix);
   } else {
+    if (radix != 2 && radix != 8 && radix != 10 && radix != 16) return NULL; 
     return comptostr(buffer, len, xt, xp, radix);
   }
 }
 
-/* 'generic' writer for gnums */
-void gnumwrite(numt_t xt, const nump_t *xp, int radix, int (*pf)(int, void*), void *pd)
+/* 'generic' writer for gnums; returns 0 or -1 on invalid radix */
+int gnumwrite(numt_t xt, const nump_t *xp, int radix, int (*pf)(int, void*), void *pd)
 {
-  size_t len = gnumfmtsize(xt, xp, radix);
-  char *buf = cxm_cknull(malloc(len+1), "realloc(gnumwrite)");
-  char *s = gnumtostr(buf, len, xt, xp, radix);
+  size_t len; char *buf, *s;
+  len = gnumfmtsize(xt, xp, radix);
+  if (!len) return -1; 
+  buf = cxm_cknull(malloc(len+1), "realloc(gnumwrite)");
+  s = gnumtostr(buf, len, xt, xp, radix); assert(s);
   for (; *s; ++s) (*pf)(*s, pd);
   free(buf);
+  return 0;
 }
 
 
@@ -6876,10 +6927,10 @@ fatnum_t *dupfatnum(fatnum_t *fn) /* shallow copy! */
 }
 
 /* 'generic' writer for fatnums */
-void wrfn(const fatnum_t *n, int radix, int (*pf)(int, void*), void *pd)
+int wrfn(const fatnum_t *n, int radix, int (*pf)(int, void*), void *pd)
 {
   assert(n); assert(n->t);
-  gnumwrite(n->t, n->p, radix, pf, pd);
+  return gnumwrite(n->t, n->p, radix, pf, pd);
 }
 
 

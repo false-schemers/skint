@@ -12,7 +12,11 @@
     ((test-overflow name expr) 
      (test-overflow expr))
     ((test-overflow expr)
-     (test #t (inexact? expr))))) 
+     (cond-expand 
+        (exact-closed 
+          (test #t (bignum? expr)))
+        (else
+          (test #t (inexact? expr)))))))
 
 ;; tests from the SRFI doc (some modified for range)
 (check

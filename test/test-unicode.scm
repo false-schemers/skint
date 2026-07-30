@@ -57,7 +57,8 @@
   (display " passed (")
   (write (/ (floor (* (/ *tests-passed* *tests-run*) 10000)) 100))
   (display "%)")
-  (newline))
+  (newline)
+  (exit (- *tests-run* *tests-passed*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

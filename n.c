@@ -1307,7 +1307,6 @@ in_numsym:
   } else if (s[0] == '.' && s[1] == 0) {
     *po = obj_from_char('.'); xc = 'o';
   } else { 
-    errno = 0;
     switch (strtonum(pf, cbdata(pcb), NULL, 10)) {
       case NUMT_FIX: xc = 'e'; break;
       case NUMT_FLO: xc = 'i'; break;

@@ -14,6 +14,9 @@
 /* numerical comparisons (needed for inexacts) */
 typedef enum { NCMP_LT, NCMP_LE, NCMP_EQ, NCMP_GE, NCMP_GT } ncmp_t;
 
+/* 'generic' writer for flonums; returns 0 or -1 on invalid radix */
+extern int wrdn(double n, int radix, int (*pf)(int, void*), void *pd);
+
 /* bignums (avp) */
 typedef struct bignum bignum_t;
 
@@ -57,8 +60,8 @@ extern long bnintlen(const bignum_t *n);
 extern long bnbitc(const bignum_t *n);
 extern void bnfree(bignum_t *n);
 
-/* 'generic' writer for bignums */
-extern void wrbn(const bignum_t *n, int radix, int (*pf)(int, void*), void *pd);
+/* 'generic' writer for bignums; returns 0 or -1 on invalid radix */
+extern int wrbn(const bignum_t *n, int radix, int (*pf)(int, void*), void *pd);
 extern bignum_t *strtobn(const char *str, char **endptr, int radix);
 
 extern cxtype_t *BIGNUM_NTAG;
@@ -144,8 +147,8 @@ extern int fnlen(fatnum4r_t *fz, const fatnum_t *fx);
 extern int fnbtc(fatnum4r_t *fz, const fatnum_t *fx);
 
 
-/* 'generic' writer for fatnums */
-extern void wrfn(const fatnum_t *n, int radix, int (*pf)(int, void*), void *pd);
+/* 'generic' writer for fatnums; returns 0 or -1 on invalid radix */
+extern int wrfn(const fatnum_t *n, int radix, int (*pf)(int, void*), void *pd);
 
 extern cxtype_t *FATNUM_NTAG;
 #define is_fatnum_obj(o) (isnative(o, FATNUM_NTAG))

@@ -1002,20 +1002,21 @@ define_instruction(gbtc) {
 define_instruction(ntos) {
   if (is_fixnum(ac)) {
     goi(itos);
-  } else if (is_flonum(ac)) {
-    if (unlikely(spop() != fixnum_obj(10))) fail("non-10 radix in flonum conversion");
-    spush(0); /* #f: use default precision */
+  } else if (is_flonum(ac) && sref(0) == fixnum_obj(10)) {
+    sdrop(1); spush(0); /* use default precision */
     goi(jtos);
   } else {
-    int radix; cbuf_t *pcb; char *s;
+    int radix, err; cbuf_t *pcb; char *s;
     int (*pf)(int, void*) = (int (*)(int, void*))cbputc;
     obj x = ac, y = spop(); ckn(x); ckk(y);
     radix = get_fixnum(y);
     if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
     pcb = newcb();
-    if (is_bignum(x)) wrbn(get_bignum(x), radix, pf, pcb);
-    else if (is_fatnum(x)) wrfn(get_fatnum(x), radix, pf, pcb);
+    if (is_flonum(x)) err = wrdn(get_flonum(x), radix, pf, pcb); 
+    else if (is_bignum(x)) err = wrbn(get_bignum(x), radix, pf, pcb);
+    else if (is_fatnum(x)) err = wrfn(get_fatnum(x), radix, pf, pcb);
     else failtype(x, "known number");
+    if (err < 0) failtype(y, "valid radix inexact number");
     s = cbdata(pcb);
     ac = string_obj(newsdata(s));
     gonexti();
