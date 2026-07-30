@@ -640,6 +640,10 @@ define_instruction(exit) {
   else if (ac == bool_obj(1)) excode = 0;
   else if (is_fixnum(ac)) excode = (int)get_fixnum(ac);
   else excode = 1;
+#ifndef _WIN32
+  /* cap to bring into [0..255] range; use 255 for overflow */
+  if (excode < 0 || excode > 255) excode = 255;
+#endif  
   exit(excode);
   unwindi(0);
 }
@@ -4541,6 +4545,12 @@ define_instruction(cursec) {
 define_instruction(system) {
   int res; cks(ac);
   res = usystem(stringchars(ac));
+#ifdef _WIN32 /* Windows system() returns exit_code << 8 */
+  res = res >> 8;
+#else /* POSIX (Linux, macOS, BSD): decode wexit status */
+  if (WIFEXITED(res)) res = WEXITSTATUS(res);
+  else res = 255;  /* out of range/killed/terminated */
+#endif
   ac = fixnum_obj(res);
   gonexti(); 
 }
