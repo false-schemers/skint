@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <assert.h>
 /* extra includes */
+#include <stdint.h>
 #include <math.h>
 #include <errno.h>
 #include <ctype.h>
@@ -320,7 +321,7 @@ static obj obj_from_flonum(int rc, double d) {
 #else
 extern cxtype_t *FLONUM_NTAG;
 typedef double flonum_t;
-typedef long long flobits_t; /* has to be the same size as flonum_t! */
+typedef int64_t flobits_t; /* has to be the same size as flonum_t! */
 #define is_flonum_obj(o) (isnative(o, FLONUM_NTAG))
 #define is_flonum_flonum(f) ((void)(f), 1)
 #define is_flonum_bool(f) ((void)(f), 0)

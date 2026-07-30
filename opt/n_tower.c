@@ -1066,7 +1066,8 @@ void bnfree(bignum_t *pn);
 
 static bignum_t *bny_dupll(const bignum_t *lla);
 static bignum_t *bndup(const bignum_t *a);
-bignum_t *lltobn(long long n);
+bignum_t *lltobn(int64_t n);
+bignum_t *ulltobn(uint64_t n);
 
 static bignum_t zero = {0, DUP_STATIC, 0, {0}};
 bignum_t *bn0 = &zero;
@@ -1138,6 +1139,31 @@ static bignum_t *bnx_makell(struct bignum_ll *b, int64_t v)
 
   return (bignum_t *)(void *)b;
 }
+
+/* esl++ */
+static bignum_t *bnx_makeull(struct bignum_ll *b, uint64_t v)
+{
+  size_t i;
+
+  b->dupcount = DUP_AUTO;
+#if (UINT64_MAX > LIMB_MAX)
+  { uint64_t w;
+    for (i = 0, w = v; w; i++, w >>= LIMB_BITS) {
+      b->limb[i] = w & LIMB_MAX;
+    }
+  }
+#elif (UINT64_MAX == LIMB_MAX)
+  i = 1;
+  b->limb[0] = v;
+#else
+#error "Too bad: uint64_t is shorter than reasonable"
+#endif
+  b->size = i;
+  b->isneg = 0;
+
+  return (bignum_t *)(void *)b;
+}
+
 
 /* if (a > b) return +1
  * if (a < b) return -1
@@ -1475,7 +1501,7 @@ bignum_t *bnz_dmodl(limb_t *r, const bignum_t *n, limb_t d)
     x->limb[i] = LO_LIMB(hn / d);
     h = (hn % d);
   }
-  *r = (limb_t)(long long)h; 
+  *r = (limb_t)(int64_t)h; 
 
   if (x->limb[n->size - 1] != 0) {
     x->size = n->size;
@@ -1983,7 +2009,7 @@ int bncmpabs(const bignum_t *a, const bignum_t *b)
   return bnx_cmp(a->limb, a->size, b->limb, b->size);
 }
 
-int bncmpl(const bignum_t *n, long long fix)
+int bncmpl(const bignum_t *n, int64_t fix)
 {
   struct bignum_ll b;
 
@@ -2037,7 +2063,7 @@ bignum_t *bnadd(const bignum_t *a, const bignum_t *b)
   return_NORMALIZE(r, "bnadd");
 }
 
-bignum_t *bnaddl(const bignum_t *n, long long incr)
+bignum_t *bnaddll(const bignum_t *n, int64_t incr)
 {
   struct bignum_ll b;
   bignum_t *r = bn0;
@@ -2088,7 +2114,7 @@ bignum_t *bnaddl(const bignum_t *n, long long incr)
       r = bnz_addsub(n->isneg, n, 1, bnx_makell(&b, incr));
     }
   }
-  return_NORMALIZE(r, "bnaddl");
+  return_NORMALIZE(r, "bnaddll");
 }
 
 bignum_t *bnsub(const bignum_t *a, const bignum_t *b)
@@ -2107,7 +2133,7 @@ bignum_t *bnsub(const bignum_t *a, const bignum_t *b)
   return_NORMALIZE(r, "bnsub");
 }
 
-bignum_t *bnashl(const bignum_t *a, long long sh)
+bignum_t *bnashll(const bignum_t *a, int64_t sh)
 {
   bignum_t *r = bn0;
   assert(a != NULL);
@@ -2124,7 +2150,7 @@ bignum_t *bnashl(const bignum_t *a, long long sh)
     size_t rs = aw - sw + ((sp < ap)? 1: 0);
 
     if ((aw > sw) || ((aw == sw) && (ap > sp))) {
-      NEWBN(r, rs, "bnashl");
+      NEWBN(r, rs, "bnashll");
       r->size = bnx_shright(r->limb, rs, a->limb, aw, ap, sw, sp);
       r->isneg = a->isneg;
     } else {
@@ -2139,13 +2165,13 @@ bignum_t *bnashl(const bignum_t *a, long long sh)
 
     assert(rs >= a->size);
 
-    NEWBN(r, rs, "bnashl");
+    NEWBN(r, rs, "bnashll");
     r->size = bnx_shleft(r->limb, rs, a->limb, aw, ap, sw, sp);
     r->isneg = a->isneg;
   } else {
     return bndup(a);
   }
-  return_NORMALIZE(r, "bnashl");
+  return_NORMALIZE(r, "bnashll");
 }
 
 bignum_t *bnmul(const bignum_t *a, const bignum_t *b)
@@ -2182,7 +2208,7 @@ bignum_t *bnmul(const bignum_t *a, const bignum_t *b)
   return_NORMALIZE(r, "bnmul");
 }
 
-bignum_t *bnmull(const bignum_t *n, long long v)
+bignum_t *bnmulll(const bignum_t *n, int64_t v)
 {
   struct bignum_ll b;
   bignum_t *r;
@@ -2211,8 +2237,8 @@ bignum_t *bnmull(const bignum_t *n, long long v)
       bignum_t *bx = bnx_makell(&b, v);
       size_t rs = n->size + bx->size;
       if (rs < n->size)
-        bnx_failure("bnmull");
-      NEWBN(r, rs, "bnmull");
+        bnx_failure("bnmulll");
+      NEWBN(r, rs, "bnmulll");
       r->size = bnx_mul(r->limb, rs,
         n->limb, n->size,
         bx->limb, bx->size);
@@ -2222,8 +2248,8 @@ bignum_t *bnmull(const bignum_t *n, long long v)
     bignum_t *bx = bnx_makell(&b, v);
     size_t rs = n->size + bx->size;
     if (rs < n->size)
-      bnx_failure("bnmull");
-    NEWBN(r, rs, "bnmull");
+      bnx_failure("bnmulll");
+    NEWBN(r, rs, "bnmulll");
     r->size = bnx_mul(r->limb, rs,
       n->limb, n->size,
       bx->limb, bx->size);
@@ -2236,18 +2262,18 @@ bignum_t *bnmull(const bignum_t *n, long long v)
       bignum_t *bx = bnx_makell(&b, v);
       size_t rs = n->size + bx->size;
       if (rs < n->size)
-        bnx_failure("bnmull");
-      NEWBN(r, rs, "bnmull");
+        bnx_failure("bnmulll");
+      NEWBN(r, rs, "bnmulll");
       r->size = bnx_mul(r->limb, rs,
         n->limb, n->size,
         bx->limb, bx->size);
     }
     r->isneg = !n->isneg;
   }
-  return_NORMALIZE(r, "bnmull");
+  return_NORMALIZE(r, "bnmulll");
 }
 
-bignum_t *bnexpt(const bignum_t *a, unsigned long long n)
+bignum_t *bnexptull(const bignum_t *a, uint64_t n)
 {
   bignum_t *b = bn1;
   bignum_t *an;
@@ -2269,13 +2295,13 @@ bignum_t *bnexpt(const bignum_t *a, unsigned long long n)
   }
 
   if (BNPLUSTWO(a)) { /* esl++ */
-    if (n >= LLONG_MAX) bnx_failure("bnexpt");  
-    return bnashl(bn1, n);
+    if (n >= INT64_MAX) bnx_failure("bnexptull");  
+    return bnashll(bn1, n);
   }
 
   if (BNMINUSTWO(a)) { /* esl++ */
-    if (n >= LLONG_MAX) bnx_failure("bnexpt");
-    b = bnashl(bn1, n);
+    if (n >= INT64_MAX) bnx_failure("bnexptull");
+    b = bnashll(bn1, n);
     if ((n & 1) == 0) return b;
     an = bnneg(b);
     bnfree(b);
@@ -2320,7 +2346,7 @@ bignum_t *bndmod(bignum_t **rem, const bignum_t *num, const bignum_t *den)
 
   if (den->size == 1) {
     limb_t r;
-    long long v;
+    int64_t v;
     struct bignum_ll b;
     d = bnz_dmodl(&r, num, den->limb[0]);
     v = r;
@@ -2377,7 +2403,7 @@ bignum_t *bndmodl(long *rem, const bignum_t *num, long den)
   }
 
   if (num->isneg)
-    *rem = -(long long)rl;
+    *rem = -(int64_t)rl;
   else
     *rem = rl;
 
@@ -2389,7 +2415,7 @@ from_limb:
 #if (ULONG_MAX > LIMB_MAX)
   {
     size_t i;
-    long long v;
+    int64_t v;
     for (i = r->size, v = 0; i--;)
       v += (v << LIMB_BITS) | r->limb[i];
     if (num->isneg)
@@ -2493,14 +2519,14 @@ long bnmodl(const bignum_t *num, long den)
     goto from_limb;
   }
   if (num->isneg)
-    return -(long long)reml;
+    return -(int64_t)reml;
   else
     return reml;
 from_limb:
 #if (ULONG_MAX > LIMB_MAX)
   {
     size_t i;
-    long long v;
+    int64_t v;
     for (i = rem->size, v = 0; i--;)
       v += (v << LIMB_BITS) | rem->limb[i];
     if (num->isneg)
@@ -2640,6 +2666,62 @@ long bntol(const bignum_t *n)
     return v;
 }
 
+/* esl+ */
+int64_t bntoll(const bignum_t *n)
+{
+  int64_t v;
+
+  assert(n != NULL);
+  CHECKSIGN(n);
+
+  if (bnwidths(n) > sizeof(int64_t) * CHAR_BIT)
+    return (errno = ERANGE, 0);
+
+#if (UINT64_MAX > LIMB_MAX)
+  {
+    size_t i;
+    for (v = 0, i = n->size; i--;)
+      v = (v << (sizeof(limb_t) * CHAR_BIT)) + n->limb[i];
+  }
+#elif (UINT64_MAX == LIMB_MAX)
+  v = n->limb[0]; 
+#else
+#error "Long is unreasonably short"
+#endif
+
+  if (n->isneg)
+    return -v;
+  else
+    return v;
+}
+
+/* esl+ */
+uint64_t bntoull(const bignum_t *n)
+{
+  uint64_t v;
+
+  assert(n != NULL);
+  CHECKSIGN(n);
+
+  if (n->isneg || bnwidthu(n) > sizeof(uint64_t) * CHAR_BIT)
+    return (errno = ERANGE, 0);
+
+#if (UINT64_MAX > LIMB_MAX)
+  {
+    size_t i;
+    for (v = 0, i = n->size; i--;)
+      v = (v << (sizeof(limb_t) * CHAR_BIT)) + n->limb[i];
+  }
+#elif (UINT64_MAX == LIMB_MAX)
+  v = n->limb[0]; 
+#else
+#error "Long is unreasonably short"
+#endif
+
+    return v;
+}
+
+
 double bntod(const bignum_t *n)
 {
   double v, s;
@@ -2708,7 +2790,7 @@ char *bntostr(char *buffer, size_t len, const bignum_t *n, int radix)
   return ptr;
 }
 
-bignum_t *lltobn(long long n)
+bignum_t *lltobn(int64_t n)
 {
   struct bignum_ll bl;
 
@@ -2719,6 +2801,20 @@ bignum_t *lltobn(long long n)
     return bn1;
   default:
     return bndup(bnx_makell(&bl, n));
+  }
+}
+
+bignum_t *ulltobn(uint64_t n)
+{
+  struct bignum_ll bl;
+
+  switch (n) {
+  case 0:
+    return bn0;
+  case 1:
+    return bn1;
+  default:
+    return bndup(bnx_makeull(&bl, n));
   }
 }
 
@@ -2734,12 +2830,12 @@ static bignum_t *dtobn(double x)
   f = frexp(x, &e);
 
   for (i = 0; e > 0 && i < sizeof(double) * CHAR_BIT; i++, e--) {
-    bignum_t *v2 = bnashl(v, 1);
+    bignum_t *v2 = bnashll(v, 1);
 
     bnfree(v);
     f = f * 2.0;
     if (f >= 1.0) {
-      bignum_t *s = bnaddl(v2, 1);
+      bignum_t *s = bnaddll(v2, 1);
       bnfree(v2);
       v2 = s;
       f = f - 1.0;
@@ -2747,7 +2843,7 @@ static bignum_t *dtobn(double x)
     v = v2;
   }
   if (e > 0) {
-    bignum_t *s = bnashl(v, e);
+    bignum_t *s = bnashll(v, e);
     bnfree(v);
     v = s;
   }
@@ -2889,22 +2985,22 @@ double bnrtod(const bignum_t *n, const bignum_t *d)
   if (e < DBL_MIN_EXP - DBL_MANT_DIG) return bnfree(a), bnfree(b), s * 0.0;
 
   /* scale to get DBL_MANT_DIG+2 bits (guard, round, sticky in remainder) */
-  t = bnashl(a, (long)(DBL_MANT_DIG + 2) + (long)wb - (long)wa);
+  t = bnashll(a, (long)(DBL_MANT_DIG + 2) + (long)wb - (long)wa);
   q = bndmod(&r, t, b);
   bnfree(t); bnfree(a); bnfree(b);
 
   /* GRS rounding: look at bottom 2 bits of q and sticky bit (r) */
   low = bnmodl(q, 4);
   if (low > 2) { /* 11x: round up */
-    t = bnaddl(q, 1); bnfree(q); q = t;
+    t = bnaddll(q, 1); bnfree(q); q = t;
   } else if (low == 2) {
     /* 10x: half-way, check sticky */
     if (!bnzero(r)) { /* 101: round up */
-      t = bnaddl(q, 1); bnfree(q); q = t;
+      t = bnaddll(q, 1); bnfree(q); q = t;
     } else { /* 100: tie - round to even (check bit 2) */
-      t = bnashl(q, -2);
+      t = bnashll(q, -2);
       if (bnodd(t)) {
-        bignum_t *p = bnaddl(q, 1); bnfree(q); q = p;
+        bignum_t *p = bnaddll(q, 1); bnfree(q); q = p;
       }
       bnfree(t);
     }
@@ -2913,11 +3009,11 @@ double bnrtod(const bignum_t *n, const bignum_t *d)
   bnfree(r);
 
   /* drop guard+round bits */
-  t = bnashl(q, -2); bnfree(q); q = t;
+  t = bnashll(q, -2); bnfree(q); q = t;
 
   /* handle overflow from rounding (now has DBL_MANT_DIG+1 bits) */
   if (bnwidthu(q) > DBL_MANT_DIG) {
-    ++e; t = bnashl(q, -1); bnfree(q); q = t;
+    ++e; t = bnashll(q, -1); bnfree(q); q = t;
   }
 
   v = s * ldexp(bntod(q), e - DBL_MANT_DIG);
@@ -2950,7 +3046,7 @@ double bnsqrttod(const bignum_t *n0)
   /* lop off useless bits, but keep shift even */
   sh = (long)(w - keep); 
   if (sh & 1L) ++sh;
-  m = bnashl(n, -sh);
+  m = bnashll(n, -sh);
   md = bntod(m);
 
   /* sh/2 is exact, adjust exponent */
@@ -3110,8 +3206,8 @@ bignum_t *bnbitash(const bignum_t *a, long cnt)
 {
   /* left shift or any shift of a positive */
   if (cnt >= 0 || !a->isneg) {
-    /* same as bnashl */
-    return bnashl(a, (long long)cnt);
+    /* same as bnashll */
+    return bnashll(a, (int64_t)cnt);
   } else { /* right shift of a negative */
     bignum_t *r; long acnt = -cnt;
     size_t wds = (size_t)(acnt / LIMB_BITS);
@@ -3124,8 +3220,8 @@ bignum_t *bnbitash(const bignum_t *a, long cnt)
     if (!sticky && bts > 0 && wds < a->size)
       if (a->limb[wds] & (((limb_t)1 << bts) - 1)) sticky = 1;
 
-    r = bnashl(a, (long long)cnt);
-    if (sticky) { bignum_t *t = bnaddl(r, -1); bnfree(r); r = t; }
+    r = bnashll(a, (int64_t)cnt);
+    if (sticky) { bignum_t *t = bnaddll(r, -1); bnfree(r); r = t; }
 
     return r;
   }
@@ -3345,10 +3441,10 @@ static numt_t intadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
       else zt = setbig(zp, lltobn(z));
       return zt;
     } else {
-      bz = bnaddl(getbig(yp), getfix(xp));
+      bz = bnaddll(getbig(yp), getfix(xp));
     }
   } else {
-    if (isfix(yt)) bz = bnaddl(getbig(xp), getfix(yp));
+    if (isfix(yt)) bz = bnaddll(getbig(xp), getfix(yp));
     else bz = bnadd(getbig(xp), getbig(yp));
   }
   if (bnwidths(bz) > FIXNUM_WIDTH) zt = setbig(zp, bz);
@@ -3370,12 +3466,12 @@ static numt_t intsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
       else zt = setbig(zp, lltobn(z));
       return zt;
     } else {
-      bignum_t *bt = bnaddl(getbig(yp), -getfix(xp));  /* no bnsubl */
+      bignum_t *bt = bnaddll(getbig(yp), -getfix(xp));  /* no bnsubl */
       bz = bnneg(bt); /* no in-place sign change */
       bnfree(bt);
     }
   } else {
-    if (isfix(yt)) bz = bnaddl(getbig(xp), -getfix(yp));
+    if (isfix(yt)) bz = bnaddll(getbig(xp), -getfix(yp));
     else bz = bnsub(getbig(xp), getbig(yp));
   }
   if (bnwidths(bz) > FIXNUM_WIDTH) zt = setbig(zp, bz);
@@ -3397,10 +3493,10 @@ static numt_t intmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
       else zt = setbig(zp, lltobn(z));
       return zt;
     } else {
-      bz = bnmull(getbig(yp), getfix(xp));
+      bz = bnmulll(getbig(yp), getfix(xp));
     }
   } else {
-    if (isfix(yt)) bz = bnmull(getbig(xp), getfix(yp));
+    if (isfix(yt)) bz = bnmulll(getbig(xp), getfix(yp));
     else bz = bnmul(getbig(xp), getbig(yp));
   }
   if (bnwidths(bz) > FIXNUM_WIDTH) zt = setbig(zp, bz);
@@ -3704,7 +3800,7 @@ static numt_t intgcd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
 }
 
 /* z = x^y, y >= 0 */
-static numt_t intexptu(nump_t *zp, numt_t xt, const nump_t *xp, unsigned long long y)
+static numt_t intexptu(nump_t *zp, numt_t xt, const nump_t *xp, uint64_t y)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   /* x^0 = 1 (for all x, including 0) */
@@ -3740,7 +3836,7 @@ static numt_t intexptu(nump_t *zp, numt_t xt, const nump_t *xp, unsigned long lo
       return zt;
     }
   } else { /* bignum case */    
-    return setbig(zp, bnexpt(getbig(xp), y));
+    return setbig(zp, bnexptull(getbig(xp), y));
   }
 }
 
@@ -4345,7 +4441,7 @@ static numt_t ratscale(nump_t *zp, numt_t xt, const nump_t *xp, long b, long e)
     return numdup(zp, xt, xp);
   } else {
     nump_t bp[1]; numt_t bt = setfix(bp, b);
-    nump_t sp[1]; numt_t st = intexptu(sp, bt, bp, (unsigned long long)labs(e));
+    nump_t sp[1]; numt_t st = intexptu(sp, bt, bp, (uint64_t)labs(e));
     numt_t zt;
     if (e < 0) zt = ratdiv(zp, xt, xp, st, sp);
     else zt = ratmul(zp, xt, xp, st, sp);
@@ -4520,7 +4616,7 @@ static numt_t dtorat(nump_t *zp, double x)
     else mt = setbig(mp, lltobn(ml));
     if (m > e) ame = m-e; else ame = e-m;
     if (ame < FIXNUM_WIDTH-1) nt = setfix(np, 1L << ame);
-    else nt = setbig(np, bnashl(bn1, ame));
+    else nt = setbig(np, bnashll(bn1, ame));
     if (m > e) zt = ratdiv(zp, mt, mp, nt, np);
     else zt = intmul(zp, mt, mp, nt, np);
     numfini(nt, np), numfini(mt, mp);
@@ -5841,9 +5937,9 @@ static numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const
       long x = getfix(yp), ax = labs(x); /* legal even if bignum */
       if (isbig(yt) || ax >= BIGNUM_MAX_BITS) return setfail(ERANGE);
       if (x > 0 && ax < FIXNUM_WIDTH-1) return setfix(zp, 1L << ax);
-      if (x > 0) return setbig(zp, bnashl(bn1, ax));
+      if (x > 0) return setbig(zp, bnashll(bn1, ax));
       if (ax < FIXNUM_WIDTH-1) return NUMT_MKRAT(setfix(zp, 1), setfix(zp+1, 1L << ax));
-      else return NUMT_MKRAT(setfix(zp, 1), setbig(zp+1, bnashl(bn1, ax)));
+      else return NUMT_MKRAT(setfix(zp, 1), setbig(zp+1, bnashll(bn1, ax)));
     }
     /* flonum special cases */
     if (isflo(xt)) {
@@ -5906,7 +6002,7 @@ static numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const
       assert(isfix(yt)); assert(labs(getfix(yp)) > 1);
       if (getfix(yp) > 0) { /* do bignum expt, normalize */
         bignum_t *bx = isfix(xt) ? lltobn(getfix(xp)) : getbig(xp);
-        bignum_t *bz = bnexpt(bx, (unsigned long long)getfix(yp));
+        bignum_t *bz = bnexptull(bx, (uint64_t)getfix(yp));
         numt_t zt;
         if (isfix(xt)) bnfree(bx); 
         if (bnwidths(bz) > FIXNUM_WIDTH) zt = setbig(zp, bz);
@@ -5914,7 +6010,7 @@ static numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const
         return zt;
       } else { /* do bignum expt, normalize, get reciprocal */
         bignum_t *bx = isfix(xt) ? lltobn(getfix(xp)) : getbig(xp);
-        bignum_t *bd = bnexpt(bx, (unsigned long long)labs(getfix(yp)));
+        bignum_t *bd = bnexptull(bx, (uint64_t)labs(getfix(yp)));
         nump_t dp[1]; numt_t dt; numt_t zt; 
         if (isfix(xt)) bnfree(bx);
         if (bnwidths(bd) > FIXNUM_WIDTH) dt = setbig(dp, bd);

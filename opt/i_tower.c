@@ -239,7 +239,7 @@ define_instruction(add) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
-    long long llz = (long long)lx + (long long)ly;
+    int64_t llz = (int64_t)lx + (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else { spush(x); spush(y); ac = (obj)&fnadd; goih(tower_binary); }
   } else {
@@ -259,7 +259,7 @@ define_instruction(sub) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
-    long long llz = (long long)lx - (long long)ly;
+    int64_t llz = (int64_t)lx - (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else { spush(x); spush(y); ac = (obj)&fnsub; goih(tower_binary); }
   } else {
@@ -279,7 +279,7 @@ define_instruction(mul) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
-    long long llz = (long long)lx * (long long)ly;
+    int64_t llz = (int64_t)lx * (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else { spush(x); spush(y); ac = (obj)&fnmul; goih(tower_binary); }
   } else {
@@ -298,10 +298,10 @@ define_instruction(mul) {
 define_instruction(div) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
-    long lx, ly; long long llz, llr;
+    long lx, ly; int64_t llz, llr;
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
     lx = get_fixnum(x), ly = get_fixnum(y);   
-    llz = (long long)lx / (long long)ly, llr = (long long)lx % (long long)ly;
+    llz = (int64_t)lx / (int64_t)ly, llr = (int64_t)lx % (int64_t)ly;
     if (likely(!llr && llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else { spush(x); spush(y); ac = (obj)&fndiv; goih(tower_binary); }
   } else {
@@ -1042,7 +1042,7 @@ define_instruction(pushsub) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
-    long long llz = (long long)lx - (long long)ly;
+    int64_t llz = (int64_t)lx - (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else { spush(x); spush(y); ac = (obj)&fnsub; goih(tower_binary_push); }
   } else {

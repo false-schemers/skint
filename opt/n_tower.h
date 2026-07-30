@@ -20,9 +20,12 @@ extern int wrdn(double n, int radix, int (*pf)(int, void*), void *pd);
 /* bignums (avp) */
 typedef struct bignum bignum_t;
 
-extern bignum_t *lltobn(long long n);
+extern bignum_t *lltobn(int64_t n);
+extern bignum_t *ulltobn(uint64_t n);
 extern double bntod(const bignum_t *n);
 extern long bntol(const bignum_t *n);
+extern int64_t bntoll(const bignum_t *n);
+extern uint64_t bntoull(const bignum_t *n);
 /* # of bits needed for 2-complement signed representation of n */
 extern size_t bnwidths(const bignum_t *n);
 /* # of bits needed for unsigned representation of |n| */
@@ -34,17 +37,17 @@ extern bignum_t *bndivl(const bignum_t *num, long den);
 extern bignum_t *bndiv(const bignum_t *num, const bignum_t *den);
 extern bignum_t *bndmodl(long *rem, const bignum_t *num, long den);
 extern bignum_t *bndmod(bignum_t **rem, const bignum_t *num, const bignum_t *den);
-extern bignum_t *bnexpt(const bignum_t *a, unsigned long long n);
-extern bignum_t *bnmull(const bignum_t *n, long long v);
+extern bignum_t *bnexptull(const bignum_t *a, uint64_t n);
+extern bignum_t *bnmulll(const bignum_t *n, int64_t v);
 extern bignum_t *bnmul(const bignum_t *a, const bignum_t *b);
-extern bignum_t *bnashl(const bignum_t *a, long long sh); /* shifts right if sh < 0 */
+extern bignum_t *bnashll(const bignum_t *a, int64_t sh); /* shifts right if sh < 0 */
 extern bignum_t *bnsub(const bignum_t *a, const bignum_t *b);
-extern bignum_t *bnaddl(const bignum_t *n, long long incr);
+extern bignum_t *bnaddll(const bignum_t *n, int64_t incr);
 extern bignum_t *bnadd(const bignum_t *a, const bignum_t *b);
 extern int bnodd(const bignum_t *a); /* lsb bit is 1 */
 extern int bneven(const bignum_t *a); /* lsb bit is 0 */
 extern int bneq(const bignum_t *a, const bignum_t *b); /* a == b ? */
-extern int bncmpl(const bignum_t *n, long long fix); /* returns -1,0,1 */
+extern int bncmpll(const bignum_t *n, int64_t fix); /* returns -1,0,1 */
 extern int bncmpabs(const bignum_t *a, const bignum_t *b); /* compares |a| and |b|, returns -1,0,1 */
 extern int bncmp(const bignum_t *a, const bignum_t *b); /* returns -1,0,1 */
 extern int bnzero(const bignum_t *a); /* a == 0 ? */

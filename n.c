@@ -183,21 +183,21 @@ long fxflo(double f) {
 #endif
 
 long fxaddc(long x, long y, long *pc) { 
-  long long z = (long long)x + (long long)y + (long long)*pc;
+  int64_t z = (int64_t)x + (int64_t)y + (int64_t)*pc;
   long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
   if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
   return zq;
 }
 
 long fxsubc(long x, long y, long *pc) { 
-  long long z = (long long)x - (long long)y - (long long)*pc;
+  int64_t z = (int64_t)x - (int64_t)y - (int64_t)*pc;
   long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
   if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
   return zq;
 }
 
 long fxmulc(long x, long y, long *pc) { 
-  long long z = (long long)x * (long long)y + (long long)*pc;
+  int64_t z = (int64_t)x * (int64_t)y + (int64_t)*pc;
   long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
   if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
   return zq;
@@ -206,7 +206,7 @@ long fxmulc(long x, long y, long *pc) {
 long fxpow(long x, long y) { 
   if (y < 0 || x == 0) return 0;
   else if (y == 0) return 1; else if (y == 1) return x;
-  else { long long lx = x, ly = y, lz = 1;
+  else { int64_t lx = x, ly = y, lz = 1;
     while (ly > 0) {
       if (ly & 1) { lz *= lx; if (lz < FIXNUM_MIN || lz > FIXNUM_MAX) return 0; }
       if ((ly >>= 1) > 0) { lx *= lx; if (lx < FIXNUM_MIN || lx > FIXNUM_MAX) return 0; }

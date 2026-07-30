@@ -365,7 +365,7 @@ long fxflo(double f) {
 
 (%definition "extern long fxaddc(long x, long y, long *pc);")
 (%localdef "long fxaddc(long x, long y, long *pc) { 
-  long long z = (long long)x + (long long)y + (long long)*pc;
+  int64_t z = (int64_t)x + (int64_t)y + (int64_t)*pc;
   long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
   if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
   return zq;
@@ -373,7 +373,7 @@ long fxflo(double f) {
 
 (%definition "extern long fxsubc(long x, long y, long *pc);")
 (%localdef "long fxsubc(long x, long y, long *pc) { 
-  long long z = (long long)x - (long long)y - (long long)*pc;
+  int64_t z = (int64_t)x - (int64_t)y - (int64_t)*pc;
   long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
   if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
   return zq;
@@ -381,7 +381,7 @@ long fxflo(double f) {
 
 (%definition "extern long fxmulc(long x, long y, long *pc);")
 (%localdef "long fxmulc(long x, long y, long *pc) { 
-  long long z = (long long)x * (long long)y + (long long)*pc;
+  int64_t z = (int64_t)x * (int64_t)y + (int64_t)*pc;
   long zq = (long)(z >> FIXNUM_WIDTH), zr = (long)(z & FIXNUM_MASK);
   if (zr & FIXNUM_SIGN) zq += 1; *pc = (zr ^ FIXNUM_SIGN) - FIXNUM_SIGN;
   return zq;
@@ -539,7 +539,7 @@ long fxflo(double f) {
 (%localdef "cxtype_t *FLONUM_NTAG = &cxt_flonum;")
 (%definition "extern cxtype_t *FLONUM_NTAG;")
 (%definition "typedef double flonum_t;")
-(%definition "typedef long long flobits_t; /* has to be the same size as flonum_t! */")
+(%definition "typedef int64_t flobits_t; /* has to be the same size as flonum_t! */")
 (%definition "#define is_flonum_obj(o) (isnative(o, FLONUM_NTAG))")
 (%definition "#define is_flonum_flonum(f) ((void)(f), 1)")
 (%definition "#define is_flonum_bool(f) ((void)(f), 0)")

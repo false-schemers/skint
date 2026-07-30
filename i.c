@@ -2305,9 +2305,9 @@ define_instruction(imulc) {
 
 define_instruction(ifmar) {
   obj x = ac, y = spop(), z = spop(), m = spop(); 
-  long long mr; cki(x); cki(y); cki(z); cki(m);
-  mr = (((long long)get_fixnum(x) * (long long)get_fixnum(y)) + (long long)get_fixnum(z))
-       % (long long)get_fixnum(m);
+  int64_t mr; cki(x); cki(y); cki(z); cki(m);
+  mr = (((int64_t)get_fixnum(x) * (int64_t)get_fixnum(y)) + (int64_t)get_fixnum(z))
+       % (int64_t)get_fixnum(m);
   ac = fixnum_obj((int)mr);
   gonexti();
 }
@@ -2718,7 +2718,7 @@ define_instruction(add) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
-    long long llz = (long long)lx + (long long)ly;
+    int64_t llz = (int64_t)lx + (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else ac = flonum_obj((double)lx + (double)ly);
   } else {
@@ -2738,7 +2738,7 @@ define_instruction(sub) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
-    long long llz = (long long)lx - (long long)ly;
+    int64_t llz = (int64_t)lx - (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else ac = flonum_obj((double)lx - (double)ly);
   } else {
@@ -2758,7 +2758,7 @@ define_instruction(mul) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
-    long long llz = (long long)lx * (long long)ly;
+    int64_t llz = (int64_t)lx * (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else ac = flonum_obj((double)lx * (double)ly);
   } else {
@@ -2777,10 +2777,10 @@ define_instruction(mul) {
 define_instruction(div) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
-    long lx, ly; long long llz, llr;
+    long lx, ly; int64_t llz, llr;
     if (unlikely(y == fixnum_obj(0))) fail("division by zero");
     lx = get_fixnum(x), ly = get_fixnum(y);   
-    llz = (long long)lx / (long long)ly, llr = (long long)lx % (long long)ly;
+    llz = (int64_t)lx / (int64_t)ly, llr = (int64_t)lx % (int64_t)ly;
     if (likely(!llr && llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else ac = flonum_obj((double)lx / (double)ly);
   } else {
@@ -3330,7 +3330,7 @@ define_instruction(pushsub) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
-    long long llz = (long long)lx - (long long)ly;
+    int64_t llz = (int64_t)lx - (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
     else ac = flonum_obj((double)lx - (double)ly);
   } else {
@@ -4121,18 +4121,18 @@ define_instruction(vmclo) {
 }
 
 define_instruction(hshim) {
-  unsigned long long v = (unsigned long long)ac, base = 0; obj b = spop(); 
+  uint64_t v = (uint64_t)ac, base = 0; obj b = spop(); 
   if (b) { ckk(b); base = get_fixnum(b); } 
   if (ac && isaptr(ac)) {
 #ifdef FLONUMS_BOXED
     if (is_flonum_obj(ac)) {
-      union { unsigned long long ull; double d; } u;
+      union { uint64_t ull; double d; } u;
       u.d = flonum_from_obj(ac); v = u.ull;
     } else
 #endif
     { ac = fixnum_obj(0); gonexti(); }
   }
-  if (!base) base = 1 + (unsigned long long)FIXNUM_MAX;
+  if (!base) base = 1 + (uint64_t)FIXNUM_MAX;
   ac = fixnum_obj((fixnum_t)(v % base));
   gonexti();
 }
@@ -5065,9 +5065,9 @@ static obj *rds_arg(obj *r, obj *sp, obj *hp)
 /* protects registers from r to sp, in: ra=sym, out: ra=loc/eof */
 static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
 {
-  unsigned long long base;
+  uint64_t base;
   if (issymbol(ra) && isvector(cx__2Aglobals_2A) && (base = vectorlen(cx__2Aglobals_2A)) > 0) {
-    unsigned long long v = (unsigned long long)ra; int i = (int)(v % base);
+    uint64_t v = (uint64_t)ra; int i = (int)(v % base);
     obj p = isassv(ra, vectorref(cx__2Aglobals_2A, i));
     if (ispair(p)) ra = cdr(p);
     else { /* prepend (sym . #&sym) to *globals* */
