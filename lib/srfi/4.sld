@@ -1,9 +1,12 @@
 
 (define-library (srfi 4)
+
   (import (scheme base) (scheme case-lambda))
+
   (import (only (skint)
     bytevector->list 
     make-numvector numvector? numvector-length numvector-ref numvector-set! list->numvector))
+
   (export
     u8vector? make-u8vector u8vector u8vector-length u8vector-ref u8vector-set!
     u8vector->list list->u8vector
@@ -13,19 +16,22 @@
     u16vector-set! u16vector->list list->u16vector
     s16vector? make-s16vector s16vector s16vector-length s16vector-ref
     s16vector-set! s16vector->list list->s16vector
-    ; larger integers are out of Skint fixnum range; support is not required
-    ;   u32vector? make-u32vector u32vector u32vector-length u32vector-ref
-    ;   u32vector-set! u32vector->list list->u32vector
-    ;   s32vector? make-s32vector s32vector s32vector-length s32vector-ref
-    ;   s32vector-set! s32vector->list list->s32vector
-    ;   u64vector? make-u64vector u64vector u64vector-length u64vector-ref
-    ;   u64vector-set! u64vector->list list->u64vector
-    ;   s64vector? make-s64vector s64vector s64vector-length s64vector-ref
-    ;   s64vector-set! s64vector->list list->s64vector
     f32vector? make-f32vector f32vector f32vector-length f32vector-ref
     f32vector-set! f32vector->list list->f32vector
     f64vector? make-f64vector f64vector f64vector-length f64vector-ref
     f64vector-set! f64vector->list list->f64vector)
+
+  (cond-expand 
+    (full-numeric-tower ;[esl*]
+      (export 
+        u32vector? make-u32vector u32vector u32vector-length u32vector-ref
+        u32vector-set! u32vector->list list->u32vector
+        s32vector? make-s32vector s32vector s32vector-length s32vector-ref
+        s32vector-set! s32vector->list list->s32vector
+        u64vector? make-u64vector u64vector u64vector-length u64vector-ref
+        u64vector-set! u64vector->list list->u64vector
+        s64vector? make-s64vector s64vector s64vector-length s64vector-ref
+        s64vector-set! s64vector->list list->s64vector)))
 
 (begin
 ;; [esl]
@@ -121,5 +127,54 @@
 (define s16vector->list (numvector->list-procedure s16))
 (define f32vector->list (numvector->list-procedure f32))
 (define f64vector->list (numvector->list-procedure f64))
+
+(cond-expand 
+(full-numeric-tower ;[esl*]
+
+(define-syntax u32 4)
+(define-syntax s32 5)
+(define-syntax u64 6)
+(define-syntax s64 7)
+
+(define (u32vector? x) (numvector? x u32))
+(define (s32vector? x) (numvector? x s32))
+(define (u64vector? x) (numvector? x u64))
+(define (s64vector? x) (numvector? x s64))
+
+(define (u32vector-length x) (numvector-length (numvector-check u32 x)))
+(define (s32vector-length x) (numvector-length (numvector-check s32 x)))
+(define (u64vector-length x) (numvector-length (numvector-check u64 x)))
+(define (s64vector-length x) (numvector-length (numvector-check s64 x)))
+
+(define (u32vector-ref x i) (numvector-ref (numvector-check u32 x) i))
+(define (s32vector-ref x i) (numvector-ref (numvector-check s32 x) i))
+(define (u64vector-ref x i) (numvector-ref (numvector-check u64 x) i))
+(define (s64vector-ref x i) (numvector-ref (numvector-check s64 x) i))
+
+(define (u32vector-set! x i n) (numvector-set! (numvector-check u32 x) i n))
+(define (s32vector-set! x i n) (numvector-set! (numvector-check s32 x) i n))
+(define (u64vector-set! x i n) (numvector-set! (numvector-check u64 x) i n))
+(define (s64vector-set! x i n) (numvector-set! (numvector-check s64 x) i n))
+
+(define (list->u32vector l) (list->numvector l u32))
+(define (list->s32vector l) (list->numvector l s32))
+(define (list->u64vector l) (list->numvector l u64))
+(define (list->s64vector l) (list->numvector l s64))
+
+(define (u32vector . l) (list->numvector l u32))
+(define (s32vector . l) (list->numvector l s32))
+(define (u64vector . l) (list->numvector l u64))
+(define (s64vector . l) (list->numvector l s64))
+
+(define make-u32vector (make-numvector-procedure u32))
+(define make-s32vector (make-numvector-procedure s32))
+(define make-u64vector (make-numvector-procedure u64))
+(define make-s64vector (make-numvector-procedure s64))
+
+(define u32vector->list (numvector->list-procedure u32))
+(define s32vector->list (numvector->list-procedure s32))
+(define u64vector->list (numvector->list-procedure u64))
+(define s64vector->list (numvector->list-procedure s64))
+))
 
 ))

@@ -1113,7 +1113,7 @@ static bignum_t *bnx_makell(struct bignum_ll *b, int64_t v)
     if (v == INT64_MIN) {
       b->limb[0] = 0;
       i = 1;
-      w = (((uint64_t)INT64_MIN) >> LIMB_BITS) + 1;
+      w = (((uint64_t)INT64_MIN) >> LIMB_BITS); /* esl*, was + 1 */
     } else {
       w = -v;
       i = 0;

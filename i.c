@@ -1631,7 +1631,7 @@ define_instruction(nget) {
       else ac = bignum_obj(ulltobn(v));
     } break;
     case 7: { int64_t v; /* s64 */
-      if (i*4 >= l) failtype(x, "valid s64vector index");
+      if (i*8 >= l) failtype(x, "valid s64vector index");
       v = *(int64_t*)&bytevector_ref(ac, i*8);
       if (FIXNUM_MIN <= v && v <= FIXNUM_MAX) ac = fixnum_obj((long)v);
       else ac = bignum_obj(lltobn(v));
