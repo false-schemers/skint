@@ -1343,7 +1343,7 @@
 (define (write-serialized-numvector-element x t port)  
   (case t 
     [(0 32 33 34 35 36 37 38 39) (write-serialized-byte x port)]
-    [(1 2 3 10 11) (write-string (number->string x 10) port) (write-char #\; port)]))
+    [(1 2 3 4 5 6 7 10 11) (write-string (number->string x 10) port) (write-char #\; port)]))
 
 (define (write-serialized-sexp x port)
   (cond [(eq? x #f) 
@@ -2809,7 +2809,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.7.3")
+(define *skint-version* "0.7.4")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

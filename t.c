@@ -757,8 +757,8 @@ char *t_code[] = {
 
   "P", "write-serialized-numvector-element",
   "%3.1,'(l9:i0;i32;i33;i34;i35;i36;i37;i38;i39;),.1A1?{.3,.2,@(y21:write"
-  "-serialized-byte)[42}'(l5:i1;i2;i3;i10;i11;),.1A1?{${.5,'(i10),.5E8,@("
-  "y12:write-string)[02}.3,'(c;)W0]4}]4",
+  "-serialized-byte)[42}'(l9:i1;i2;i3;i4;i5;i6;i7;i10;i11;),.1A1?{${.5,'("
+  "i10),.5E8,@(y12:write-string)[02}.3,'(c;)W0]4}]4",
 
   "P", "write-serialized-sexp",
   "%2f,.1q?{.1,'(cf)W0]2}t,.1q?{.1,'(ct)W0]2}n,.1q?{.1,'(cn)W0]2}.0C0?{.1"
@@ -1786,7 +1786,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.7.3)@!(y15:*skint-version*)",
+  "'(s5:0.7.4)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",

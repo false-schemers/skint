@@ -1679,6 +1679,10 @@
                           [(s8)  (list->numvector (sub-read-numerical-list p name) 1)]
                           [(u16) (list->numvector (sub-read-numerical-list p name) 2)]
                           [(s16) (list->numvector (sub-read-numerical-list p name) 3)]
+                          [(u32) (list->numvector (sub-read-numerical-list p name) 4)]
+                          [(s32) (list->numvector (sub-read-numerical-list p name) 5)]
+                          [(u64) (list->numvector (sub-read-numerical-list p name) 6)]
+                          [(s64) (list->numvector (sub-read-numerical-list p name) 7)]
                           [(f32) (list->numvector (sub-read-numerical-list p name) 10)]
                           [(f64) (list->numvector (sub-read-numerical-list p name) 11)]
                           [else (r-error p "unexpected name after #" name)]))]
@@ -1790,6 +1794,8 @@
                   [else (cons form (recur (sub-read p)))])))))
 
   (define (sub-read-numerical-list p ts)
+    (when (and (memq ts '(u32 s32 u64 s64)) (not opt-tower))
+      (r-error p "unsupported numerical vector type" name))
     (unless (eq? (read-char p) #\()
       (r-error p (format "invalid ~avector syntax" ts)))
     (let recur ([form (sub-read p)])
@@ -1802,6 +1808,10 @@
                  (and (eq? ts 's8)  (fixnum? form) (fx<=? -128 form 127))
                  (and (eq? ts 'u16) (fixnum? form) (fx<=? 0 form 65535))
                  (and (eq? ts 's16) (fixnum? form) (fx<=? -32768 form 32767))
+                 (and (eq? ts 'u32) (exact-integer? form) (>= form 0) (fx<=? (integer-length form) 32))
+                 (and (eq? ts 's32) (exact-integer? form) (fx<? (integer-length form) 32))
+                 (and (eq? ts 'u64) (exact-integer? form) (>= form 0) (fx<=? (integer-length form) 64))
+                 (and (eq? ts 's64) (exact-integer? form) (fx<? (integer-length form) 64))
                  (and (eq? ts 'f32) (flonum? form))
                  (and (eq? ts 'f64) (flonum? form)))
              (cons form (recur (sub-read p)))]

@@ -1555,10 +1555,12 @@ define_instruction(nmk) {
   int t, n, *v; obj x = spop(); cki(ac); ckk(x);
   t = get_fixnum(ac), n = get_fixnum(x);
   switch (t) {
-    case 0:  /* u8 */
-    case 1:  break; /* s8 */
-    case 2:  /* u16 */
-    case 3:  n *= 2; break; /* s16 */
+    case 0: case 1: break; /* u8/s8 */
+    case 2: case 3: n *= 2; break; /* u16/s16 */
+#ifdef OPT_TOWER    
+    case 4: case 5: n *= 4; break; /* u32/s32 */
+    case 6: case 7: n *= 8; break; /* u64/s64 */
+#endif    
     case 10: n *= sizeof(float); break; /* f32 */
     case 11: n *= sizeof(double); break; /* f64 */
     case 32: t += n % 8; n = (n+7)/8; break; /* bit */
@@ -1573,10 +1575,12 @@ define_instruction(nlen) {
   int l, t; ckb(ac); 
   l = bytevector_len(ac); t = bytevector_type(ac);
   switch (t) {
-    case 0:  /* u8 */
-    case 1:  break; /* s8 */
-    case 2:  /* u16 */
-    case 3:  l /= 2; break; /* s16 */
+    case 0: case 1: break; /* u8/s8 */
+    case 2: case 3: l /= 2; break; /* u16/s16 */
+#ifdef OPT_TOWER
+    case 4: case 5: l /= 4; break; /* u32/s32 */
+    case 6: case 7: l /= 8; break; /* u64/s64 */
+#endif
     case 10: l /= sizeof(float); break; /* f32 */
     case 11: l /= sizeof(double); break; /* f64 */
     case 32: case 33: case 34: case 35: case 36: case 37: case 38: 
@@ -1607,6 +1611,32 @@ define_instruction(nget) {
       if (i*2 >= l) failtype(x, "valid s16vector index");
       ac = fixnum_obj(*(int16_t*)&bytevector_ref(ac, i*2));
     } break;
+#ifdef OPT_TOWER
+    case 4: { uint32_t v; /* u32 */
+      if (i*4 >= l) failtype(x, "valid u32vector index");
+      v = *(uint32_t*)&bytevector_ref(ac, i*4);
+      if (v <= FIXNUM_MAX) ac = fixnum_obj((long)v);
+      else ac = bignum_obj(ulltobn(v));
+    } break;
+    case 5: { int32_t v; /* s32 */
+      if (i*4 >= l) failtype(x, "valid s32vector index");
+      v = *(int32_t*)&bytevector_ref(ac, i*4);
+      if (FIXNUM_MIN <= v && v <= FIXNUM_MAX) ac = fixnum_obj((long)v);
+      else ac = bignum_obj(lltobn(v));
+    } break;
+    case 6: { uint64_t v; /* u64 */
+      if (i*8 >= l) failtype(x, "valid u64vector index");
+      v = *(uint64_t*)&bytevector_ref(ac, i*8);
+      if (v <= FIXNUM_MAX) ac = fixnum_obj((long)v);
+      else ac = bignum_obj(ulltobn(v));
+    } break;
+    case 7: { int64_t v; /* s64 */
+      if (i*4 >= l) failtype(x, "valid s64vector index");
+      v = *(int64_t*)&bytevector_ref(ac, i*8);
+      if (FIXNUM_MIN <= v && v <= FIXNUM_MAX) ac = fixnum_obj((long)v);
+      else ac = bignum_obj(lltobn(v));
+    } break;
+#endif
     case 10: { /* f32 */
       double f;
       if (i*(int)sizeof(float) >= l) failtype(x, "valid f32vector index");
@@ -1657,6 +1687,38 @@ define_instruction(nput) {
       if (i*2 >= l) failtype(x, "valid s16vector index");
       *(int16_t*)&bytevector_ref(ac, i*2) = (int16_t)v;
     } break;
+
+#ifdef OPT_TOWER
+    case 4: { long v; uint64_t ullv; int err = 1;
+      if (is_fixnum(y)) { v = get_fixnum(y); err = v < 0; ullv = (uint64_t)v; }
+      else if (is_bignum(y)) { ullv = bntoull(get_bignum(y)); err = !ullv || ullv > UINT32_MAX; }
+      if (err) { errno = 0; failtype(y, "valid u32 value"); }
+      if (i*4 >= l) failtype(x, "valid u32vector index");
+      *(uint32_t*)&bytevector_ref(ac, i*4) = (uint32_t)ullv;
+    } break;
+    case 5: { long v; int64_t llv; int err = 1;
+      if (is_fixnum(y)) { v = get_fixnum(y); err = 0; llv = (int64_t)v; }
+      else if (is_bignum(y)) { llv = bntoll(get_bignum(y)); err = !llv || llv < INT32_MIN || llv > INT32_MAX; }
+      if (err) { errno = 0; failtype(y, "valid s32 value"); }
+      if (i*4 >= l) failtype(x, "valid s32vector index");
+      *(int32_t*)&bytevector_ref(ac, i*4) = (int32_t)llv;
+    } break;
+    case 6: { long v; uint64_t ullv; int err = 1;
+      if (is_fixnum(y)) { v = get_fixnum(y); err = v < 0; ullv = (uint64_t)v; }
+      else if (is_bignum(y)) { ullv = bntoull(get_bignum(y)); err = !ullv; }
+      if (err) { errno = 0; failtype(y, "valid u64 value"); }
+      if (i*8 >= l) failtype(x, "valid u64vector index");
+      *(uint64_t*)&bytevector_ref(ac, i*8) = ullv;
+    } break;
+    case 7: { long v; int64_t llv; int err = 1;
+      if (is_fixnum(y)) { v = get_fixnum(y); err = 0; llv = (int64_t)v; }
+      else if (is_bignum(y)) { llv = bntoll(get_bignum(y)); err = !llv; }
+      if (err) { errno = 0; failtype(y, "valid s64 value"); }
+      if (i*8 >= l) failtype(x, "valid s64vector index");
+      *(int64_t*)&bytevector_ref(ac, i*8) = llv;
+    } break;
+#endif
+    
     case 10: { double f; ckj(y); f = get_flonum(y); 
       if (i*(int)sizeof(float) >= l) failtype(x, "valid f32vector index");
       *(float*)&bytevector_ref(ac, i*sizeof(float)) = (float)f;
@@ -1687,6 +1749,10 @@ define_instruction(lton) {
   switch (t) {
     case 0: case 1: sz = n*1; break; /* u8/s8 */
     case 2: case 3: sz = n*2; break; /* u16/s16 */
+#ifdef OPT_TOWER
+    case 4: case 5: sz = n*4; break; /* u32/s32 */
+    case 6: case 7: sz = n*8; break; /* u64/s64 */
+#endif    
     case 10: sz = n*sizeof(float); break; /* f32 */
     case 11: sz = n*sizeof(double); break; /* f64 */
     case 32: sz = (n+7)/8; t += n%8; break; /* bit */
@@ -1713,6 +1779,32 @@ define_instruction(lton) {
         if (v < -32768 || v > 32767) failtype(y, "valid s16 value");
         *(int16_t*)&bytevector_ref(ac, i*2) = (int16_t)v;
       } break;
+#ifdef OPT_TOWER
+      case 4: { long v; uint64_t ullv; int err = 1;
+        if (is_fixnum(y)) { v = get_fixnum(y); err = v < 0; ullv = (uint64_t)v; }
+        else if (is_bignum(y)) { ullv = bntoull(get_bignum(y)); err = !ullv || ullv > UINT32_MAX; }
+        if (err) { errno = 0; failtype(y, "valid u32 value"); }
+        *(uint32_t*)&bytevector_ref(ac, i*4) = (uint32_t)ullv;
+      } break;
+      case 5: { long v; int64_t llv; int err = 1;
+        if (is_fixnum(y)) { v = get_fixnum(y); err = 0; llv = (int64_t)v; }
+        else if (is_bignum(y)) { llv = bntoll(get_bignum(y)); err = !llv || llv < INT32_MIN || llv > INT32_MAX; }
+        if (err) { errno = 0; failtype(y, "valid s32 value"); }
+        *(int32_t*)&bytevector_ref(ac, i*4) = (int32_t)llv;
+      } break;
+      case 6: { long v; uint64_t ullv; int err = 1;
+        if (is_fixnum(y)) { v = get_fixnum(y); err = v < 0; ullv = (uint64_t)v; }
+        else if (is_bignum(y)) { ullv = bntoull(get_bignum(y)); err = !ullv; }
+        if (err) { errno = 0; failtype(y, "valid u64 value"); }
+        *(uint64_t*)&bytevector_ref(ac, i*8) = ullv;
+      } break;
+      case 7: { long v; int64_t llv; int err = 1;
+        if (is_fixnum(y)) { v = get_fixnum(y); err = 0; llv = (int64_t)v; }
+        else if (is_bignum(y)) { llv = bntoll(get_bignum(y)); err = !llv; }
+        if (err) { errno = 0; failtype(y, "valid s64 value"); }
+        *(int64_t*)&bytevector_ref(ac, i*8) = llv;
+      } break;
+#endif
       case 10: { double f; ckj(y); f = get_flonum(y); 
         *(float*)&bytevector_ref(ac, i*sizeof(float)) = (float)f;
       } break;
@@ -4758,6 +4850,36 @@ static int rds_int(obj port)
   return (int)strtol(buf, NULL, 10);
 }
 
+#ifdef OPT_TOWER
+static int64_t rds_llong(obj port)
+{
+  char buf[60], *p = buf, *e = p+59;
+  while (p < e) {
+    int c = iportpeekc(port);
+    if (c == '-' || c == '+' || (c >= '0' && c <= '9')) {
+      iportgetc(port);
+      *p++ = c;
+    } else break;
+  } 
+  *p = 0;
+  return (int64_t)strtoll(buf, NULL, 10);
+}
+
+static uint64_t rds_ullong(obj port)
+{
+  char buf[60], *p = buf, *e = p+59;
+  while (p < e) {
+    int c = iportpeekc(port);
+    if (c == '-' || c == '+' || (c >= '0' && c <= '9')) {
+      iportgetc(port);
+      *p++ = c;
+    } else break;
+  } 
+  *p = 0;
+  return (uint64_t)strtoull(buf, NULL, 10);
+}
+#endif
+
 static double rds_real(obj port)
 {
   char buf[60], *p = buf, *e = p+59, *s; double d;
@@ -4895,6 +5017,10 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
       switch (t) {
         case 0: case 1: esz = 1; break; /* u8/s8 */
         case 2: case 3: esz = 2; break; /* u16/s16 */
+#ifdef OPT_TOWER
+        case 4: case 5: esz = 4; break; /* u32/s32 */
+        case 6: case 7: esz = 8; break; /* u64/s64 */
+#endif        
         case 10: esz = sizeof(float); break; /* f32 */
         case 11: esz = sizeof(double); break; /* f64 */
         case 32: case 33: case 34: case 35: case 36: case 37: case 38:
@@ -4908,6 +5034,12 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
           case 1:  *(int8_t*)p   = (int8_t)  rds_int(port);  break;
           case 2:  *(uint16_t*)p = (uint16_t)rds_int(port);  break;
           case 3:  *(int16_t*)p  = (int16_t) rds_int(port);  break;
+#ifdef OPT_TOWER
+          case 4:  *(uint32_t*)p = (uint32_t)rds_ullong(port);  break;
+          case 5:  *(int32_t*)p  = (int32_t) rds_llong(port);  break;
+          case 6:  *(uint64_t*)p = (uint64_t)rds_ullong(port);  break;
+          case 7:  *(int64_t*)p  = (int64_t) rds_llong(port);  break;
+#endif
           case 10: *(float*)p    = (float)   rds_real(port); break;
           case 11: *(double*)p   = (double)  rds_real(port); break;
           case 32: case 33: case 34: case 35: case 36: case 37: case 38: 

@@ -1481,12 +1481,18 @@ static void wrdatum(obj o, wenv_t *e) {
     }
   } else if (isbytevector(o)) {
     int i, n = bytevectorlen(o), t = bytevectortype(o), sz = 1;
-    char buf[50]; 
+    char buf[60]; 
     switch (t) {
       default: case 0:  wrs("#u8(", e); break;
       case 1:  wrs("#s8(", e); break;
       case 2:  wrs("#u16(", e); sz = 2; break;
       case 3:  wrs("#s16(", e); sz = 2; break;
+#ifdef OPT_TOWER
+      case 4:  wrs("#u32(", e); sz = 4; break;
+      case 5:  wrs("#s32(", e); sz = 4; break;
+      case 6:  wrs("#u64(", e); sz = 8; break;
+      case 7:  wrs("#s64(", e); sz = 8; break;
+#endif      
       case 10: wrs("#f32(", e); sz = sizeof(float); break;
       case 11: wrs("#f64(", e); sz = sizeof(double); break;
     }
@@ -1498,6 +1504,12 @@ static void wrdatum(obj o, wenv_t *e) {
         case 1:  sprintf(buf, "%d", (int)*(signed char *)p);    wrs(buf, e); break; 
         case 2:  sprintf(buf, "%d", (int)*(unsigned short *)p); wrs(buf, e); break; 
         case 3:  sprintf(buf, "%d", (int)*(signed short *)p);   wrs(buf, e); break; 
+#ifdef OPT_TOWER
+        case 4:  sprintf(buf, "%u", *(uint32_t *)p); wrs(buf, e); break; 
+        case 5:  sprintf(buf, "%d", *(int32_t *)p);  wrs(buf, e); break; 
+        case 6:  sprintf(buf, "%"PRIu64, *(uint64_t *)p); wrs(buf, e); break; 
+        case 7:  sprintf(buf, "%"PRId64, *(int64_t *)p);  wrs(buf, e); break; 
+#endif      
         case 10: wrd((double)*(float *)p, 8, e); break; 
         case 11: wrd((double)*(double *)p, 16, e); break; 
       }

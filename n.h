@@ -24,6 +24,15 @@
 #include <float.h>
 #include <limits.h>
 #include <time.h>
+/* old lib patches */
+#if defined(_MSC_VER) && (_MSC_VER <= 1700)
+#define strtoll  _strtoi64
+#define strtoull _strtoui64
+#define PRId64 "I64d"
+#define PRIu64 "I64u"
+#else
+#include <inttypes.h>
+#endif
 /* useful math constants */
 #ifndef M_PI
 #define M_PI 3.141592653589793238462643383279502884
@@ -49,7 +58,6 @@
 
 /* standard definitions */
 #ifdef NAN_BOXING
-#include <stdint.h>
 typedef int64_t obj;          /* pointers are this size, higher 16 bits and lower bit zero */
 typedef int64_t cxoint_t;     /* same thing, used as integer */
 typedef struct {              /* type descriptor */
