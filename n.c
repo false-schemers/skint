@@ -1383,7 +1383,7 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (is_bignum_obj(o)) {
     wrbn(bignum_from_obj(o), 10, e->vt->putch, e->pp);
   } else if (is_fatnum_obj(o)) {
-    wrfn(fatnum_from_obj(o), 10, e->vt->putch, e->pp);
+    wrfn(fatnum_from_obj(o), 10, 0, e->vt->putch, e->pp);
 #endif
   } else if (iseof(o)) {
     wrs("#<eof>", e);
@@ -1495,6 +1495,10 @@ static void wrdatum(obj o, wenv_t *e) {
 #endif      
       case 10: wrs("#f32(", e); sz = sizeof(float); break;
       case 11: wrs("#f64(", e); sz = sizeof(double); break;
+#ifdef OPT_TOWER
+      case 14: wrs("#c64(", e); sz = sizeof(float)*2; break;
+      case 15: wrs("#c128(", e); sz = sizeof(double)*2; break;
+#endif      
     }
     for (i = 0; i < n; i += sz) {
       unsigned char *p = bytevectorref(o, i); 
@@ -1510,8 +1514,17 @@ static void wrdatum(obj o, wenv_t *e) {
         case 6:  sprintf(buf, "%"PRIu64, *(uint64_t *)p); wrs(buf, e); break; 
         case 7:  sprintf(buf, "%"PRId64, *(int64_t *)p);  wrs(buf, e); break; 
 #endif      
-        case 10: wrd((double)*(float *)p, 8, e); break; 
-        case 11: wrd((double)*(double *)p, 16, e); break; 
+        case 10: wrd((double)*(float *)p, FLT_DIG+1, e); break; 
+        case 11: wrd((double)*(double *)p, DBL_DIG+1, e); break; 
+#ifdef OPT_TOWER
+        case 14: case 15: {
+          int prc; fatnum4_t fn4; fn4.t = NUMT_MKCOM(NUMT_FLO, NUMT_FLO);
+          fn4.p[0].flo = (t == 14) ? (double)((float *)p)[0] : ((double *)p)[0];
+          fn4.p[2].flo = (t == 14) ? (double)((float *)p)[1] : ((double *)p)[1];
+          prc = (t == 14) ? FLT_DIG+1 : DBL_DIG+1;
+          wrfn((fatnum_t*)&fn4, 10, prc, e->vt->putch, e->pp);
+        } break;
+#endif      
       }
     }
     wrc(')', e);

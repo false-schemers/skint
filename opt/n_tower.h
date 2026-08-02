@@ -151,7 +151,7 @@ extern int fnbtc(fatnum4r_t *fz, const fatnum_t *fx);
 
 
 /* 'generic' writer for fatnums; returns 0 or -1 on invalid radix */
-extern int wrfn(const fatnum_t *n, int radix, int (*pf)(int, void*), void *pd);
+extern int wrfn(const fatnum_t *n, int radix, int prc, int (*pf)(int, void*), void *pd);
 
 extern cxtype_t *FATNUM_NTAG;
 #define is_fatnum_obj(o) (isnative(o, FATNUM_NTAG))

@@ -33,6 +33,7 @@
     make-c64vector make-c128vector c64vector c128vector c64vector? c128vector?
     c64vector-length c128vector-length c64vector-ref c128vector-ref
     c64vector-set! c128vector-set! c64vector->list c128vector->list
+    list->c64vector list->c128vector
     c64? c128?)
 
 (begin

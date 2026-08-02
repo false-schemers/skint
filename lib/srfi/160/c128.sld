@@ -54,50 +54,6 @@
 ;;;
 ;;; SPDX-License-Identifier: MIT
 
-(define (make-c128vector len . maybe-fill)
-  (define vec (raw-make-c128vector (make-f64vector (* len 2))))
-  (if (not (null? maybe-fill))
-    (c128vector-simple-fill! vec (car maybe-fill)))
-  vec)
-
-(define (c128vector-simple-fill! vec value)
-  (define len (c128vector-length vec))
-  (let loop ((i 0))
-    (if (= i len)
-      vec
-      (begin
-        (c128vector-set! vec i value)
-        (loop (+ i 1))))))
-
-(define (c128vector . list)
-  (list->c128vector list))
-
-(define (c128vector-length vec)
-  (/ (f64vector-length (bv64 vec)) 2))
-
-(define (c128vector-ref vec i)
-  (let ((fvec (bv128 vec))
-        (j (* i 2)))
-    (make-rectangular
-      (f64vector-ref fvec j)
-      (f64vector-ref fvec (+ j 1)))))
-
-(define (c128vector-set! vec i value)
-  (let ((fvec (bv128 vec))
-        (j (* i 2)))
-    (f64vector-set! fvec j (real-part value))
-    (f64vector-set! fvec (+ j 1) (imag-part value))))
-
-(define (list->c128vector list)
-  (define len (length list))
-  (define vec (make-c128vector len))
-  (let loop ((i 0) (list list))
-    (if (= i len)
-      vec
-      (begin
-        (c128vector-set! vec i (car list))
-        (loop (+ i 1) (cdr list))))))
-
 ;;; This code is the same for all SRFI 160 vector sizes.
 
 (define (c128vector-unfold f len seed)

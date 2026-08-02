@@ -1563,6 +1563,10 @@ define_instruction(nmk) {
 #endif    
     case 10: n *= sizeof(float); break; /* f32 */
     case 11: n *= sizeof(double); break; /* f64 */
+#ifdef OPT_TOWER    
+    case 14: n *= sizeof(float)*2; break; /* c64 */
+    case 15: n *= sizeof(double)*2; break; /* c128 */
+#endif    
     case 32: t += n % 8; n = (n+7)/8; break; /* bit */
     default: failtype(ac, "numerical vector type");
   }
@@ -1583,6 +1587,10 @@ define_instruction(nlen) {
 #endif
     case 10: l /= sizeof(float); break; /* f32 */
     case 11: l /= sizeof(double); break; /* f64 */
+#ifdef OPT_TOWER
+    case 14: l /= sizeof(float)*2; break; /* c64 */
+    case 15: l /= sizeof(double)*2; break; /* c128 */
+#endif
     case 32: case 33: case 34: case 35: case 36: case 37: case 38: 
     case 39: l = ((t&7) ? (l-1)*8 + (t&7) : l*8); break; /* bit */
     default: failtype(ac, "numerical vector type");
@@ -1651,6 +1659,26 @@ define_instruction(nget) {
       if (f != f) f = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
       ac = flonum_obj(f); /* may trigger gc */
     } break;
+#ifdef OPT_TOWER
+    case 14: { /* c64 */
+      float *p; double re, im; fatnum4_t f4;
+      if (i*(int)sizeof(float)*2 >= l) failtype(x, "valid c64vector index");
+      p = (float*)&bytevector_ref(ac, i*sizeof(float)*2); re = p[0], im = p[1]; 
+      if (re != re) re = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
+      if (im != im) im = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
+      f4.t = NUMT_MKCOM(NUMT_FLO, NUMT_FLO); f4.p[0].flo = re; f4.p[2].flo = im;
+      ac = fatnum_obj(dupfatnum((fatnum_t*)&f4)); /* may trigger gc */
+    } break;
+    case 15: { /* c128 */
+      double *p, re, im; fatnum4_t f4;
+      if (i*(int)sizeof(double)*2 >= l) failtype(x, "valid c64vector index");
+      p = (double*)&bytevector_ref(ac, i*sizeof(double)*2); re = p[0], im = p[1]; 
+      if (re != re) re = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
+      if (im != im) im = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
+      f4.t = NUMT_MKCOM(NUMT_FLO, NUMT_FLO); f4.p[0].flo = re; f4.p[2].flo = im;
+      ac = fatnum_obj(dupfatnum((fatnum_t*)&f4)); /* may trigger gc */
+    } break;
+#endif
     case 32: case 33: case 34: case 35: case 36: case 37: case 38: 
     case 39: { /* bit */
       int bitl = ((t&7) ? (l-1)*8 + (t&7) : l*8), b;
@@ -1687,7 +1715,6 @@ define_instruction(nput) {
       if (i*2 >= l) failtype(x, "valid s16vector index");
       *(int16_t*)&bytevector_ref(ac, i*2) = (int16_t)v;
     } break;
-
 #ifdef OPT_TOWER
     case 4: { long v; uint64_t ullv; int err = 1;
       if (is_fixnum(y)) { v = get_fixnum(y); err = v < 0; ullv = (uint64_t)v; }
@@ -1718,7 +1745,6 @@ define_instruction(nput) {
       *(int64_t*)&bytevector_ref(ac, i*8) = llv;
     } break;
 #endif
-    
     case 10: { double f; ckj(y); f = get_flonum(y); 
       if (i*(int)sizeof(float) >= l) failtype(x, "valid f32vector index");
       *(float*)&bytevector_ref(ac, i*sizeof(float)) = (float)f;
@@ -1727,6 +1753,28 @@ define_instruction(nput) {
       if (i*(int)sizeof(double) >= l) failtype(x, "valid f64vector index");
       *(double*)&bytevector_ref(ac, i*sizeof(double)) = d;
     } break;
+#ifdef OPT_TOWER
+    case 14: case 15: { 
+      double re = 0.0, im = 0.0; int err = 1;
+      if (is_flonum(y)) { re = get_flonum(y); err = 0; }
+      else if (is_fatnum(y)) { 
+        fatnum_t *pf = get_fatnum(y); nump_t *p = &pf->p[0];
+        err = pf->t != NUMT_MKCOM(NUMT_FLO, NUMT_FLO);
+        if (!err) re = p[0].flo, im = p[2].flo;
+      }
+      if (t == 14) {
+        float *pf; if (err) failtype(y, "valid c64 value");
+        if (i*(int)sizeof(float)*2 >= l) failtype(x, "valid c64vector index");
+        pf = (float*)&bytevector_ref(ac, i*sizeof(float)*2);
+        pf[0] = (float)re; pf[1] = (float)im;
+      } else {
+        double *pf; if (err) failtype(y, "valid c128 value");
+        if (i*(int)sizeof(double)*2 >= l) failtype(x, "valid c128vector index");
+        pf = (double*)&bytevector_ref(ac, i*sizeof(double)*2);
+        pf[0] = re; pf[1] = im;
+      }
+    } break;
+#endif
     case 32: case 33: case 34: case 35: case 36: case 37: case 38: 
     case 39: { unsigned char *pb; long v;
       int bitl = ((t&7) ? (l-1)*8 + (t&7) : l*8), m; 
@@ -1755,6 +1803,10 @@ define_instruction(lton) {
 #endif    
     case 10: sz = n*sizeof(float); break; /* f32 */
     case 11: sz = n*sizeof(double); break; /* f64 */
+#ifdef OPT_TOWER
+    case 14: sz = n*sizeof(float)*2; break; /* c64 */
+    case 15: sz = n*sizeof(double)*2; break; /* c128 */
+#endif    
     case 32: sz = (n+7)/8; t += n%8; break; /* bit */
     default: failtype(x, "numerical vector type");
   }
@@ -1811,6 +1863,26 @@ define_instruction(lton) {
       case 11: { double d; ckj(y); d = get_flonum(y);
         *(double*)&bytevector_ref(ac, i*sizeof(double)) = d;
       } break;
+#ifdef OPT_TOWER
+      case 14: case 15: { 
+        double re = 0.0, im = 0.0; int err = 1;
+        if (is_flonum(y)) { re = get_flonum(y); err = 0; }
+        else if (is_fatnum(y)) { 
+          fatnum_t *pf = get_fatnum(y); nump_t *p = &pf->p[0];
+          err = pf->t != NUMT_MKCOM(NUMT_FLO, NUMT_FLO);
+          if (!err) re = p[0].flo, im = p[2].flo;
+        }
+        if (t == 14) {
+          float *pf; if (err) failtype(y, "valid c64 value");
+          pf = (float*)&bytevector_ref(ac, i*sizeof(float)*2);
+          pf[0] = (float)re; pf[1] = (float)im;
+        } else {
+          double *pf; if (err) failtype(y, "valid c128 value");
+          pf = (double*)&bytevector_ref(ac, i*sizeof(double)*2);
+          pf[0] = re; pf[1] = im;
+        }
+      } break;
+#endif
       case 32: case 33: case 34: case 35: case 36: case 37: case 38: 
       case 39: { long v; int m; unsigned char *pb;
         if (is_bool(y)) v = (long)get_bool(y); else { cki(y); v = get_fixnum(y); }
@@ -5023,6 +5095,10 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
 #endif        
         case 10: esz = sizeof(float); break; /* f32 */
         case 11: esz = sizeof(double); break; /* f64 */
+#ifdef OPT_TOWER
+        case 14: esz = sizeof(float)*2; break; /* c64 */
+        case 15: esz = sizeof(double)*2; break; /* c128 */
+#endif
         case 32: case 33: case 34: case 35: case 36: case 37: case 38:
         case 39: esz = 1; break; /* bit, read as bytes */
         default: ra = mkeof(); return hp; 
@@ -5040,8 +5116,16 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
           case 6:  *(uint64_t*)p = (uint64_t)rds_ullong(port);  break;
           case 7:  *(int64_t*)p  = (int64_t) rds_llong(port);  break;
 #endif
-          case 10: *(float*)p    = (float)   rds_real(port); break;
-          case 11: *(double*)p   = (double)  rds_real(port); break;
+          case 10: *(float*)p    = (float)rds_real(port); break;
+          case 11: *(double*)p   = (double)rds_real(port); break;
+#ifdef OPT_TOWER
+          case 14: ((float*)p)[0] = (float)rds_real(port);
+                   if (iportgetc(port) != ',') { ra = mkeof(); return hp; }
+                   ((float*)p)[1] = (float)rds_real(port); break;
+          case 15: ((double*)p)[0] = (double)rds_real(port);
+                   if (iportgetc(port) != ',') { ra = mkeof(); return hp; }
+                   ((double*)p)[1] = (double)rds_real(port); break;
+#endif
           case 32: case 33: case 34: case 35: case 36: case 37: case 38: 
           case 39: *(uint8_t*)p  = (uint8_t) rds_byte(port); break;
         }

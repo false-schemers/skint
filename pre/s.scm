@@ -1670,7 +1670,7 @@
                           [else (if (symbol? name) 
                                     (symbol->shebang name)
                                     (r-error p "unexpected name after #!" name))]))]
-                     [(or (char-ci=? c #\t) (char-ci=? c #\f) (char-ci=? c #\s) (char-ci=? c #\u))
+                     [(or (char-ci=? c #\t) (char-ci=? c #\f) (char-ci=? c #\s) (char-ci=? c #\u) (char-ci=? c #\c))
                       (let ([name (sub-read-carefully p)])
                         (case name 
                           [(t true) #t] 
@@ -1685,6 +1685,8 @@
                           [(s64) (list->numvector (sub-read-numerical-list p name) 7)]
                           [(f32) (list->numvector (sub-read-numerical-list p name) 10)]
                           [(f64) (list->numvector (sub-read-numerical-list p name) 11)]
+                          [(c64) (list->numvector (sub-read-numerical-list p name) 14)]
+                          [(c128) (list->numvector (sub-read-numerical-list p name) 15)]
                           [else (r-error p "unexpected name after #" name)]))]
                      [(char=? c #\&)
                       (read-char p)
@@ -1794,7 +1796,7 @@
                   [else (cons form (recur (sub-read p)))])))))
 
   (define (sub-read-numerical-list p ts)
-    (when (and (memq ts '(u32 s32 u64 s64)) (not opt-tower))
+    (when (and (memq ts '(u32 s32 u64 s64 c64 c128)) (not opt-tower))
       (r-error p "unsupported numerical vector type" name))
     (unless (eq? (read-char p) #\()
       (r-error p (format "invalid ~avector syntax" ts)))
@@ -1813,7 +1815,9 @@
                  (and (eq? ts 'u64) (exact-integer? form) (>= form 0) (fx<=? (integer-length form) 64))
                  (and (eq? ts 's64) (exact-integer? form) (fx<? (integer-length form) 64))
                  (and (eq? ts 'f32) (flonum? form))
-                 (and (eq? ts 'f64) (flonum? form)))
+                 (and (eq? ts 'f64) (flonum? form))
+                 (and (eq? ts 'c64) (inexact? form))
+                 (and (eq? ts 'c128) (inexact? form)))
              (cons form (recur (sub-read p)))]
             [else (r-error p (format "invalid ~a inside ~avector --" ts ts) form)])))
 
