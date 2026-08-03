@@ -1572,6 +1572,278 @@ void oportputshared(obj x, obj p, int disp) {
   stabfree(e.pst);
 }
 
+
+/* number <-> string conversions */
+
+/* convert char to integer for any radix up to 16 */
+static int char_to_val(int c, unsigned radix) 
+{
+  int d = -1;
+  if (c >= '0' && c <= '9') d = c - '0';
+  else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+  else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+  return (d >= 0 && (unsigned)d < radix) ? d : -1;
+}
+
+/* convert bin/qua/oct/hex floating-point notation to double
+ * bbits: bits per mantissa digit (1=bin, 2=qua, 3=oct, 4=hex)
+ * 'e' (ebase = eradix = 1<<bbits) or 'p' (ebase = 2, eradix = 10) */
+double po2b_atod(const char *s, char **endp, unsigned bbits) 
+{
+  const char *p = s; uint64_t sig = 0; double d;
+  int neg, dotpos = -1, ndigits = 0, hxcount = 0, echar; 
+  int first_digit_idx = -1, first_digit_val = 0, sticky = 0;
+  long pexp = 0; unsigned base = 1 << bbits;
+
+  while (isspace((unsigned char)*p)) ++p;
+  neg = (*p == '-');
+  if (*p == '-' || *p == '+') ++p;
+
+  /* parse mantissa */
+  for (;; ++p) {
+    int c = (unsigned char)*p;
+    int d = (c == '.' && dotpos < 0) ? -2 : char_to_val(c, base);
+    if (d == -1) break; /* not a valid digit */
+    if (d == -2) { dotpos = ndigits; continue; }
+    if (d != 0 || first_digit_idx >= 0) {
+      if (first_digit_idx < 0) {
+        first_digit_idx = ndigits;
+        first_digit_val = d;
+      }
+      /* keep as many digits as fits in 60 bits to prevent uint64_t overflow */
+      if ((hxcount + 1) * bbits <= 60) {
+        sig = (sig << bbits) | (unsigned)d;
+        hxcount++;
+      } else if (d > 0) {
+        sticky = 1;
+      }
+    }
+    ++ndigits;
+  }
+
+  if (ndigits == 0) {
+    if (endp) *endp = (char *)s;
+    errno = EDOM; return 0.0;
+  }
+  if (dotpos < 0) dotpos = ndigits;
+
+  /* parse exponent */
+  echar = tolower((unsigned char)*p);
+  if (echar == 'e' || echar == 'p') {
+    const char *r = p + 1;
+    int pneg = (*r == '-');
+    unsigned eradix = (echar == 'p') ? 10 : base;
+    if (*r == '-' || *r == '+') r++;
+    if (char_to_val(*r, eradix) >= 0) {
+      pexp = 0;
+      while (1) {
+        int d = char_to_val(*r, eradix);
+        if (d < 0) break;
+        if (pexp < 1000000) pexp = pexp * eradix + d;
+        ++r;
+      }
+      if (pneg) pexp = -pexp;
+      p = r;
+    }
+  }
+  if (endp) *endp = (char *)p;
+
+  if (first_digit_idx < 0) { 
+    return neg ? -0.0 : 0.0;
+  } else {
+    int msb_offset = 0;
+    int temp_v = first_digit_val;
+    int target_bits, shift, round_bit;
+    long ldx, exp_msb, binary_pexp;
+
+    /* MSB offset within the first digit (e.g., octal '7' is 2, binary '1' is 0) */
+    while (temp_v >>= 1) ++msb_offset;
+    /* calculate binary weight */
+    binary_pexp = (echar == 'p') ? pexp : pexp * (long)bbits;
+    ldx = binary_pexp + (long)(dotpos - 1 - first_digit_idx) * (long)bbits;
+    ldx -= (long)(hxcount - 1) * (long)bbits;
+    /* binary weight of the MSB */
+    exp_msb = ldx + (long)(hxcount - 1) * (long)bbits + msb_offset;
+
+    /* determine precision (IEEE 754 double) */
+    if (exp_msb >= (long)DBL_MIN_EXP - 1) {
+      target_bits = DBL_MANT_DIG;
+    } else {
+      target_bits = (int)(exp_msb - (long)(DBL_MIN_EXP - DBL_MANT_DIG - 1));
+      if (target_bits < 0) target_bits = 0;
+    }
+
+    /* rounding logic (RNE) */
+    /* total bits currently in sig: (digits - 1)*bbits + (msb_offset + 1) */
+    shift = ((hxcount - 1) * bbits + msb_offset + 1) - target_bits;
+    if (shift > 0) {
+      if (shift >= 64) {
+        sticky |= (sig != 0);
+        sig = 0; round_bit = 0;
+      } else {
+        sticky |= ((sig & ((UINT64_C(1) << (shift - 1)) - 1)) != 0);
+        round_bit = (int)((sig >> (shift - 1)) & 1);
+        sig >>= shift;
+      }
+      if (round_bit && (sticky || (sig & 1))) {
+        sig++;
+        if (target_bits > 0 && (sig >= (UINT64_C(1) << target_bits))) {
+          sig >>= 1; ldx++;
+        }
+      }
+      ldx += shift;
+    } else if (shift < 0) {
+      sig <<= -shift;
+      ldx += shift;
+    }
+
+    /* result */
+    d = ldexp((double)sig, (int)ldx);
+    if (d <= -HUGE_VAL || d >= HUGE_VAL) errno = ERANGE;
+    else if (d == 0.0) errno = ERANGE; /* subnormal underflow */
+    return neg ? -d : d;
+  }
+}
+
+#define bin_strtod(s, endp) po2b_atod(s, endp, 1)
+#define oct_strtod(s, endp) po2b_atod(s, endp, 3)
+#define hex_strtod(s, endp) po2b_atod(s, endp, 4)
+
+/* derived constants for buffer safety */
+/* binary (bbits=1) is the worst case for digit count: DBL_MANT_DIG = 53 */
+#define GN_DIG_MAX (1 + (DBL_MANT_DIG - 1) + 4)
+/* buffer must handle the worst-case binary shift: ~1024 digits + digits + margin */
+#define GN_BUFSIZE (DBL_MAX_EXP + GN_DIG_MAX + 64)
+
+int gn_digit(int x) { return (char)(x < 10 ? ('0' + x) : ('A' + (x - 10))); }
+
+/* render the exponent in a specific radix (2 to 16) */
+static char *render_exp(long val, unsigned radix, char *out) 
+{
+  char tmp[64];
+  int i = 0, j = 0, neg = 0;
+  if (val < 0) { neg = 1; val = -val; }
+  do { tmp[i++] = gn_digit(val % radix); val /= radix; } while (val > 0);
+  if (neg) out[j++] = '-';
+  while (i > 0) out[j++] = tmp[--i];
+  out[j] = '\0';
+  return out;
+}
+
+/* convert double to bin/qua/oct/hex floating-point notation
+ * bbits: 1 (bin), 2 (qua), 3 (oct), 4 (hex)
+ * echar: 'e' (base^exp) or 'p' (2^exp)
+ * eradix: 2, 8, 10, or 16 (radix to print the exponent part) */
+char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar) 
+{
+  double f, adj;
+  int neg, e, rem, i, pos, ndig;
+  unsigned base = 1 << bbits;
+  int dig[GN_DIG_MAX], last_nz;
+  int len_std, len_shift, shift;
+  long bin_exp_at_dot;
+  char exp_part[64], val_part[64];
+
+  assert(buflen >= GN_BUFSIZE);
+  assert(bbits >= 1 && bbits <= 4);
+
+  if (x != x || x >= HUGE_VAL || x <= -HUGE_VAL) return NULL;
+  if (x < 0.0 || (x == 0.0 && 1.0/x < 0.0)) { neg = 1; x = -x; } 
+  else neg = 0;
+  if (x == 0.0) { strcpy(buf, neg ? "-0.0" : "0.0"); return buf; }
+
+  f = frexp(x, &e);
+
+  /* normalize leading digit to be in [1, 2^bbits) */
+  rem = e % (int)bbits;
+  if (rem <= 0) rem += bbits;
+
+  adj = ldexp(f, rem);
+  bin_exp_at_dot = (long)e - rem; /* guaranteed multiple of bbits */
+
+  /* NB: leading dig holds 'rem' bits, calc total count */
+  ndig = 1 + (DBL_MANT_DIG - rem + bbits - 1) / bbits;
+  assert(ndig <= GN_DIG_MAX);
+
+  /* extract digits */
+  for (i = 0; i < GN_DIG_MAX; ++i) dig[i] = 0;
+  for (i = 0; i < ndig; ++i) {
+    int d = (int)adj;
+    dig[i] = d;
+    adj = ldexp(adj - (double)d, bbits);
+  }
+
+  last_nz = ndig - 1;
+  while (last_nz > 0 && dig[last_nz] == 0) --last_nz;
+
+  /* prepare exponent string */
+  exp_part[0] = echar;
+  if (echar == 'p') {
+    /* 'p' format always uses decimal binary exponent */
+    sprintf(exp_part + 1, "%ld", bin_exp_at_dot); /* drop + for consistency */
+  } else {
+    /* 'e' format uses base-radix exponent */
+    long base_exp = bin_exp_at_dot / (long)bbits;
+    render_exp(base_exp, base, val_part); /* does not print '+' */
+    strcpy(exp_part + 1, val_part);
+  }
+
+  /* determine shortest representation */
+  shift = (int)(bin_exp_at_dot / (long)bbits);
+
+  /* standard form length: "D.FFFF" + exp_part */
+  if (last_nz == 0) len_std = 1 + (int)strlen(exp_part);
+  else len_std = 1 + 1 + last_nz + (int)strlen(exp_part);
+  /* we 'pessimize' len_std to widen the 'fixed' range */
+  len_std += (bin_exp_at_dot >= 0) ? 3 : 2; /* as if '+' is there */
+
+  /* shifted form length */
+  if (shift >= 0) {
+    int digits_before_dot = shift + 1;
+    int digits_after_dot = (last_nz > shift) ? (last_nz - shift) : 1;
+    len_shift = digits_before_dot + 1 + digits_after_dot;
+  } else {
+    int abs_shift = -shift;
+    len_shift = 2 + (abs_shift - 1) + (last_nz + 1);
+  }
+
+  /* formatting */
+  pos = 0;
+  if (neg) buf[pos++] = '-';
+
+  if (len_shift <= len_std) {
+    if (shift >= 0) {
+      for (i = 0; i <= shift || i <= last_nz; i++) {
+        buf[pos++] = gn_digit(i < GN_DIG_MAX ? dig[i] : 0);
+        if (i == shift) buf[pos++] = '.';
+      }
+      if (buf[pos-1] == '.') buf[pos++] = '0';
+    } else {
+      int abs_shift = -shift;
+      buf[pos++] = '0'; buf[pos++] = '.';
+      for (i = 0; i < abs_shift - 1; i++) buf[pos++] = '0';
+      for (i = 0; i <= last_nz; i++) buf[pos++] = gn_digit(dig[i]);
+    }
+    buf[pos] = '\0';
+  } else {
+    buf[pos++] = gn_digit(dig[0]);
+    if (last_nz > 0) {
+      buf[pos++] = '.';
+      for (i = 1; i <= last_nz; i++) buf[pos++] = gn_digit(dig[i]);
+    }
+    buf[pos] = '\0';
+    strcat(buf, exp_part);
+  }
+
+  return buf;
+}
+
+#define DN_BIN_BUFSIZE GN_BUFSIZE
+#define dtobin(x, buf, buflen) po2b_dtoa(x, buf, buflen, 1, 'e')
+#define dtooct(x, buf, buflen) po2b_dtoa(x, buf, buflen, 3, 'e')
+#define dtohex(x, buf, buflen) po2b_dtoa(x, buf, buflen, 4, 'p')
+
+
 /* system-dependent extensions */
 
 extern int is_tty(FILE *fp)

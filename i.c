@@ -3470,10 +3470,15 @@ define_instruction(gbtc) { goi(ibtc); }
 /* generic number <-> string conversions */
 
 define_instruction(ntos) {
-  if (is_fixnum(ac)) goi(itos);
-  if (unlikely(spop() != fixnum_obj(10))) fail("non-10 radix in flonum conversion");
-  spush(0); /* #f: use default precision */
-  goi(jtos);
+  if (is_fixnum(ac)) {
+    goi(itos);
+  } else if (is_flonum(ac) && sref(0) == fixnum_obj(10)) {
+    sdrop(1); spush(0); /* use default precision */
+    goi(jtos);
+  } else {
+    if (!is_flonum(ac)) failtype(x, "number");
+    else fail("non-10 radix in flonum conversion");
+  }
 }
 
 define_instruction(ston) {

@@ -1015,8 +1015,8 @@ define_instruction(ntos) {
     if (is_flonum(x)) err = wrdn(get_flonum(x), radix, pf, pcb); 
     else if (is_bignum(x)) err = wrbn(get_bignum(x), radix, pf, pcb);
     else if (is_fatnum(x)) err = wrfn(get_fatnum(x), radix, 0, pf, pcb);
-    else failtype(x, "known number");
-    if (err < 0) failtype(y, "valid radix inexact number");
+    else failtype(x, "number");
+    if (err < 0) failtype(y, "valid radix for inexact number");
     s = cbdata(pcb);
     ac = string_obj(newsdata(s));
     gonexti();
