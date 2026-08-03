@@ -1378,12 +1378,12 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (is_fixnum_obj(o)) {
     char buf[30]; sprintf(buf, "%ld", fixnum_from_obj(o)); wrs(buf, e);
   } else if (is_flonum_obj(o)) {
-    wrd(flonum_from_obj(o), 16, e);
+    wrd(flonum_from_obj(o), DBL_DIG+1, e);
 #ifdef OPT_TOWER
   } else if (is_bignum_obj(o)) {
     wrbn(bignum_from_obj(o), 10, e->vt->putch, e->pp);
   } else if (is_fatnum_obj(o)) {
-    wrfn(fatnum_from_obj(o), 10, 0, e->vt->putch, e->pp);
+    wrfn(fatnum_from_obj(o), 10, 0, DBL_DIG+1, e->vt->putch, e->pp);
 #endif
   } else if (iseof(o)) {
     wrs("#<eof>", e);
@@ -1522,7 +1522,7 @@ static void wrdatum(obj o, wenv_t *e) {
           fn4.p[0].flo = (t == 14) ? (double)((float *)p)[0] : ((double *)p)[0];
           fn4.p[2].flo = (t == 14) ? (double)((float *)p)[1] : ((double *)p)[1];
           prc = (t == 14) ? FLT_DIG+1 : DBL_DIG+1;
-          wrfn((fatnum_t*)&fn4, 10, prc, e->vt->putch, e->pp);
+          wrfn((fatnum_t*)&fn4, 10, 0, prc, e->vt->putch, e->pp);
         } break;
 #endif      
       }
@@ -1732,15 +1732,15 @@ static char *render_exp(long val, unsigned radix, char *out)
 
 /* convert double to bin/qua/oct/hex floating-point notation
  * bbits: 1 (bin), 2 (qua), 3 (oct), 4 (hex)
- * echar: 'e' (base^exp) or 'p' (2^exp)
- * eradix: 2, 8, 10, or 16 (radix to print the exponent part) */
-char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar) 
+ * echar: 'e' (base^exp) or 'p' (2^exp); eradix: depends on echar
+ * mode: 'e', 'f', 'g', or 'a' ('a' is a variant of 'e' for hex printing) */
+char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar, int mode) 
 {
   double f, adj;
   int neg, e, rem, i, pos, ndig;
   unsigned base = 1 << bbits;
   int dig[GN_DIG_MAX], last_nz;
-  int len_std, len_shift, shift;
+  int len_std, len_shift, shift, fixed;
   long bin_exp_at_dot;
   char exp_part[64], val_part[64];
 
@@ -1754,12 +1754,22 @@ char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar)
 
   f = frexp(x, &e);
 
-  /* normalize leading digit to be in [1, 2^bbits) */
-  rem = e % (int)bbits;
-  if (rem <= 0) rem += bbits;
+  /* normalize leading digit */
+  if (mode == 'a' && bbits == 4) {
+    /* special %a-like hex printing */
+    if (e < DBL_MIN_EXP) { /* denormal case: l.d. is 0 */
+      rem = e - (DBL_MIN_EXP-1); 
+    } else { /* normal case: leading digit is 1 */
+      rem = 1; 
+    }
+  } else {
+    /* normalize leading digit to be in [1, 2^bbits) */
+    rem = e % (int)bbits;
+    if (rem <= 0) rem += bbits;
+  }
 
   adj = ldexp(f, rem);
-  bin_exp_at_dot = (long)e - rem; /* guaranteed multiple of bbits */
+  bin_exp_at_dot = (long)e - rem;
 
   /* NB: leading dig holds 'rem' bits, calc total count */
   ndig = 1 + (DBL_MANT_DIG - rem + bbits - 1) / bbits;
@@ -1807,11 +1817,14 @@ char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar)
     len_shift = 2 + (abs_shift - 1) + (last_nz + 1);
   }
 
-  /* formatting */
   pos = 0;
   if (neg) buf[pos++] = '-';
 
-  if (len_shift <= len_std) {
+  if (mode == 'f') fixed = 1;
+  else if (mode == 'e' || mode == 'a') fixed = 0;
+  else fixed = (len_shift <= len_std);
+
+  if (fixed) {
     if (shift >= 0) {
       for (i = 0; i <= shift || i <= last_nz; i++) {
         buf[pos++] = gn_digit(i < GN_DIG_MAX ? dig[i] : 0);
@@ -1839,9 +1852,10 @@ char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar)
 }
 
 #define DN_BIN_BUFSIZE GN_BUFSIZE
-#define dtobin(x, buf, buflen) po2b_dtoa(x, buf, buflen, 1, 'e')
-#define dtooct(x, buf, buflen) po2b_dtoa(x, buf, buflen, 3, 'e')
-#define dtohex(x, buf, buflen) po2b_dtoa(x, buf, buflen, 4, 'p')
+#define dtobin(x, buf, buflen) po2b_dtoa(x, buf, buflen, 1, 'e', 'g')
+#define dtooct(x, buf, buflen) po2b_dtoa(x, buf, buflen, 3, 'e', 'g')
+#define dtohex(x, buf, buflen) po2b_dtoa(x, buf, buflen, 4, 'p', 'g')
+#define dtohexa(x, buf, buflen) po2b_dtoa(x, buf, buflen, 4, 'p', 'a')
 
 
 /* system-dependent extensions */

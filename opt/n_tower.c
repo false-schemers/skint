@@ -611,66 +611,40 @@ size_t dnfmtsize(int radix, int prc)
 
 /* format finite x into buffer; len should be at least as calculated by 
  * dnfmtsize; returns buffer (prints left-to-right) or NULL on wrong radix */
-char *dntostr(char *buf, size_t len, double x, int radix, int prc)
+char *dntostr(char *buf, size_t len, double x, int radix, int mode, int prc)
 {
   char *res = buf;
   assert(len >= dnfmtsize(radix, prc));
   switch (radix) {
     case 10: {
       /* make sure either . or e is always there */
-      int eordot = 0;
-      sprintf(buf, "%.*g", prc > 0 ? prc : DBL_DIG+1, x);
+      int eordot = 0; if (prc < 0 || prc > DBL_DIG+2) prc = DBL_DIG+2;
+      if (mode == 'f') sprintf(buf, "%.*f", prc, x);
+      else if (mode == 'e' || mode == 'a') sprintf(buf, "%.*e", prc, x);
+      else sprintf(buf, "%.*g", prc, x);
       for (; *buf != 0; buf++) if (*buf == 'e' || *buf == 'E' || *buf == '.') eordot = 1;
       if (!eordot) *buf++ = '.', *buf++ = '0';
       *buf = 0;
     } break;
     case 2:  res = dtobin(x, buf, len); assert(res == buf); break;
     case 8:  res = dtooct(x, buf, len); assert(res == buf); break;
-    case 16: res = dtohex(x, buf, len); assert(res == buf); break;
+    case 16: res = (mode == 'a') ? dtohexa(x, buf, len) : dtohex(x, buf, len); assert(res == buf); break;
     default: return NULL;
   }
   return res;
 }
 
-static void dnprint(FILE *fp, double x, int radix)
-{
-  switch (radix) {
-    case 10: {
-      /* make sure either . or e is always there */
-      char buffer[DN_DEC_BUFSIZE], *buf = buffer; int eordot = 0;
-      sprintf(buffer, "%.*g", DBL_DIG+2, x);
-      for (; *buf != 0; buf++) if (*buf == 'e' || *buf == 'E' || *buf == '.') eordot = 1;
-      if (!eordot) *buf++ = '.', *buf++ = '0';
-      *buf = 0;
-      fputs(buffer, fp); 
-    } break;
-    case 2: {
-      char buffer[DN_BIN_BUFSIZE], *buf = dtobin(x, buffer, DN_BIN_BUFSIZE);
-      assert(buffer == buf);
-      fputs(buf, fp); 
-    } break;
-    case 8: {
-      char buffer[DN_BIN_BUFSIZE], *buf = dtooct(x, buffer, DN_BIN_BUFSIZE);
-      assert(buffer == buf);
-      fputs(buf, fp); 
-    } break;
-    case 16: {
-      char buffer[DN_BIN_BUFSIZE], *buf = dtohex(x, buffer, DN_BIN_BUFSIZE);
-      assert(buffer == buf);
-      fputs(buf, fp); 
-    } break;
-    default: assert(0);
-  }
-}
-
 /* 'generic' writer for flonums; returns 0 or -1 on invalid radix */
-int wrdn(double x, int radix, int (*pf)(int, void*), void *pd)
+int wrdn(double x, int radix, int mode, int prc, int (*pf)(int, void*), void *pd)
 {
   switch (radix) {
     case 10: {
       /* make sure either . or e is always there */
       char buffer[DN_DEC_BUFSIZE], *buf = buffer; int eordot = 0;
-      sprintf(buffer, "%.*g", DBL_DIG+2, x);
+      if (prc < 0 || prc > DBL_DIG+2) prc = DBL_DIG+2;
+      if (mode == 'f') sprintf(buffer, "%.*f", prc, x);
+      else if (mode == 'e' || mode == 'a') sprintf(buffer, "%.*e", prc, x);
+      else sprintf(buffer, "%.*g", prc, x);
       for (; *buf != 0; buf++) if (*buf == 'e' || *buf == 'E' || *buf == '.') eordot = 1;
       if (!eordot) *buf++ = '.', *buf++ = '0';
       *buf = 0;
@@ -690,7 +664,9 @@ int wrdn(double x, int radix, int (*pf)(int, void*), void *pd)
       return 0; 
     } break;
     case 16: {
-      char buffer[DN_BIN_BUFSIZE], *buf = dtohex(x, buffer, DN_BIN_BUFSIZE);
+      char buffer[DN_BIN_BUFSIZE], *buf;
+      if (mode == 'a') buf = dtohexa(x, buffer, DN_BIN_BUFSIZE);
+      else buf = dtohex(x, buffer, DN_BIN_BUFSIZE);
       assert(buffer == buf);
       for (; *buf; ++buf) (*pf)(*buf, pd);
       return 0; 
@@ -4860,30 +4836,30 @@ static size_t compfmtsize(numt_t xt, const nump_t *xp, int radix, int prc)
 }
 
 /* returns buf on success, NULL on wrong radix */
-static char *flotostr(char *buf, size_t len, double x, int radix, int prc)
+static char *flotostr(char *buf, size_t len, double x, int radix, int mode, int prc)
 {
   assert(len >= 7);
   if (x != x) return strcpy(buf, "+nan.0");
   if (x > DBL_MAX) return strcpy(buf, "+inf.0");
   if (x < -DBL_MAX) return strcpy(buf, "-inf.0");
-  return dntostr(buf, len, x, radix, prc);  
+  return dntostr(buf, len, x, radix, mode, prc);  
 }
 
 /* format x into buffer; len should be as calculated by compfmtsize;
  * returns ptr to first char of zero-terminated result in buffer
  * or NULL if an inexact number is printed in non-10 radix. */
-static char *comptostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix, int prc)
+static char *comptostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix, int mode, int prc)
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
   if (isflo(xt)) { /* may return NULL on wrong radix */
-    return flotostr(buffer, len, getflo(xp), radix, prc);
+    return flotostr(buffer, len, getflo(xp), radix, mode, prc);
   } else { /* flotostr prints left-to-right */
-    char *buf = flotostr(buffer, len/2, getflo(xp), radix, prc);
+    char *buf = flotostr(buffer, len/2, getflo(xp), radix, mode, prc);
     char *sep = buf ? buf + strlen(buf) : NULL;
     assert(!buf || buf == buffer);
     if (!buf) return NULL;
     if (dnsignless(getflo(xp+2))) *sep++ = '+';
-    buf = flotostr(sep, len/2, getflo(xp+2), radix, prc);
+    buf = flotostr(sep, len/2, getflo(xp+2), radix, mode, prc);
     assert(!buf || buf == sep);
     if (!buf) return NULL;
     sep = buf + strlen(buf);
@@ -6384,7 +6360,7 @@ numt_t strtognum(nump_t *zp, const char *str, char **endptr, int radix)
 }
 
 /* # of chars needed for x in radix; return 0 on invalid radix  */
-size_t gnumfmtsize(numt_t xt, const nump_t *xp, int radix, int prc)
+size_t gnumfmtsize(numt_t xt, const nump_t *xp, int radix, int mode, int prc)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isrect(xt)) {
@@ -6399,7 +6375,7 @@ size_t gnumfmtsize(numt_t xt, const nump_t *xp, int radix, int prc)
 /* format x into buffer; len should be as calculated by gnumfmtsize;
  * returns ptr to first char of zero-terminated result in buffer
  * or NULL if an inexact number is printed in wrong radix. */
-char *gnumtostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix, int prc)
+char *gnumtostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix, int mode, int prc)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isrect(xt)) {
@@ -6407,18 +6383,18 @@ char *gnumtostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, int radix
     return recttostr(buffer, len, xt, xp, radix);
   } else {
     if (radix != 2 && radix != 8 && radix != 10 && radix != 16) return NULL; 
-    return comptostr(buffer, len, xt, xp, radix, prc);
+    return comptostr(buffer, len, xt, xp, radix, mode, prc);
   }
 }
 
 /* 'generic' writer for gnums; returns 0 or -1 on invalid radix */
-int gnumwrite(numt_t xt, const nump_t *xp, int radix, int prc, int (*pf)(int, void*), void *pd)
+int gnumwrite(numt_t xt, const nump_t *xp, int radix, int mode, int prc, int (*pf)(int, void*), void *pd)
 {
   size_t len; char *buf, *s;
-  len = gnumfmtsize(xt, xp, radix, prc);
+  len = gnumfmtsize(xt, xp, radix, mode, prc);
   if (!len) return -1; 
   buf = cxm_cknull(malloc(len+1), "realloc(gnumwrite)");
-  s = gnumtostr(buf, len, xt, xp, radix, prc); assert(s);
+  s = gnumtostr(buf, len, xt, xp, radix, mode, prc); assert(s);
   for (; *s; ++s) (*pf)(*s, pd);
   free(buf);
   return 0;
@@ -6765,11 +6741,11 @@ fatnum_t *dupfatnum(fatnum_t *fn) /* shallow copy! */
 }
 
 /* 'generic' writer for fatnums */
-int wrfn(const fatnum_t *n, int radix, int prc, int (*pf)(int, void*), void *pd)
+int wrfn(const fatnum_t *n, int radix, int mode, int prc, int (*pf)(int, void*), void *pd)
 {
   assert(n); assert(n->t);
   if (prc <= 0) prc = DBL_DIG+1;
-  return gnumwrite(n->t, n->p, radix, prc, pf, pd);
+  return gnumwrite(n->t, n->p, radix, mode, prc, pf, pd);
 }
 
 

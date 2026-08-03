@@ -15,7 +15,7 @@
 typedef enum { NCMP_LT, NCMP_LE, NCMP_EQ, NCMP_GE, NCMP_GT } ncmp_t;
 
 /* 'generic' writer for flonums; returns 0 or -1 on invalid radix */
-extern int wrdn(double n, int radix, int (*pf)(int, void*), void *pd);
+extern int wrdn(double n, int radix, int mode, int prc, int (*pf)(int, void*), void *pd);
 
 /* bignums (avp) */
 typedef struct bignum bignum_t;
@@ -151,7 +151,7 @@ extern int fnbtc(fatnum4r_t *fz, const fatnum_t *fx);
 
 
 /* 'generic' writer for fatnums; returns 0 or -1 on invalid radix */
-extern int wrfn(const fatnum_t *n, int radix, int prc, int (*pf)(int, void*), void *pd);
+extern int wrfn(const fatnum_t *n, int radix, int mode, int prc, int (*pf)(int, void*), void *pd);
 
 extern cxtype_t *FATNUM_NTAG;
 #define is_fatnum_obj(o) (isnative(o, FATNUM_NTAG))

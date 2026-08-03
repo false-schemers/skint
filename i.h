@@ -429,6 +429,7 @@ declare_instruction(geqv,       "G7\0'(i-1)",   0,  "bitwise-eqv",              
 declare_instruction(glen,       "G8",           0,  "integer-length",           '1', AUTOGL)
 declare_instruction(gbtc,       "G8!",          0,  "bit-count",                '1', AUTOGL)
 /* generic number <-> string conversions */
+declare_instruction(intos,      "E6!",          0,  "inexact->string",          '4', AUTOGL)
 declare_instruction(ntos,       "E8\0'(i10)",   0,  "number->string",           'b', AUTOGL)
 declare_instruction(ston,       "E9\0'(i10)",   0,  "string->number",           'b', AUTOGL)
 /* popular fused combos */

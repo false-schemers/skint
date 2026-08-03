@@ -999,6 +999,31 @@ define_instruction(gbtc) {
 
 /* generic number <-> string conversions */
 
+define_instruction(intos) {
+  if (is_flonum(ac) && sref(0) == fixnum_obj(10) 
+      && sref(1) == bool_obj(0) && is_fixnum(sref(2))) {
+    obj x = sref(2); /* precision */
+    sdrop(3); spush(x);
+    goi(jtos);
+  } else {
+    int radix, mode, prc, err; cbuf_t *pcb; char *s;
+    int (*pf)(int, void*) = (int (*)(int, void*))cbputc;
+    obj x = ac, y = spop(), m = spop(), p = spop(); 
+    ckn(x); ckk(y); ckc(m); ckk(p);
+    radix = get_fixnum(y);
+    if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
+    mode = get_char(m); prc = get_fixnum(p);
+    pcb = newcb();
+    if (is_flonum(x)) err = wrdn(get_flonum(x), radix, mode, prc, pf, pcb); 
+    else if (is_fatnum(x)) err = wrfn(get_fatnum(x), radix, mode, prc, pf, pcb);
+    else failtype(x, "inexact number");
+    if (err < 0) failtype(y, "valid radix for inexact number");
+    s = cbdata(pcb);
+    ac = string_obj(newsdata(s));
+    gonexti();
+  }
+}
+
 define_instruction(ntos) {
   if (is_fixnum(ac)) {
     goi(itos);
@@ -1012,9 +1037,9 @@ define_instruction(ntos) {
     radix = get_fixnum(y);
     if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
     pcb = newcb();
-    if (is_flonum(x)) err = wrdn(get_flonum(x), radix, pf, pcb); 
+    if (is_flonum(x)) err = wrdn(get_flonum(x), radix, 0, -1, pf, pcb); 
     else if (is_bignum(x)) err = wrbn(get_bignum(x), radix, pf, pcb);
-    else if (is_fatnum(x)) err = wrfn(get_fatnum(x), radix, 0, pf, pcb);
+    else if (is_fatnum(x)) err = wrfn(get_fatnum(x), radix, 0, -1, pf, pcb);
     else failtype(x, "number");
     if (err < 0) failtype(y, "valid radix for inexact number");
     s = cbdata(pcb);
