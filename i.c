@@ -2149,14 +2149,26 @@ define_instruction(itoc) {
 }
 
 define_instruction(jtos) {
-  char buf[50], *s; double d; long pr = -1; 
+#if 1
+  char buffer[DN_MAX_BUFSIZE], *s; double x; 
+  int mode = 'f', prc = -1;
+  obj arg = spop(); ckj(ac); x = get_flonum(ac);
+  if (is_fixnum(arg)) prc = (int)get_fixnum(arg);
+  else if (arg == bool_obj(1)) mode = 'g';
+  else mode = 'g'; /* default: old %.16g loses bits */
+  s = dntostr(buffer, DN_MAX_BUFSIZE, x, 10, mode, prc);
+  assert(s == buffer); /* rx 10 is always supported */
+  ac = string_obj(newsdata(s));
+  gonexti();
+#else
+  char buf[50], *s; double d; long prc = -1; 
   obj arg = spop(); ckj(ac); d = get_flonum(ac);
   if (d != d) { ac = string_obj(newsdata("+nan.0")); gonexti(); }
   if (d <= -HUGE_VAL) { ac = string_obj(newsdata("-inf.0")); gonexti(); }
   if (d >= HUGE_VAL) { ac = string_obj(newsdata("+inf.0")); gonexti(); }
   /* since double can't hold more than 17 decimal digits, limit fixed representation length */
-  if (is_fixnum(arg) && fabs(d) <= 9007199254740992.0 && (pr = get_fixnum(arg)) >= 0 && pr < 18) 
-    sprintf(buf, "%.*f", (int)pr, d); 
+  if (is_fixnum(arg) && fabs(d) <= 9007199254740992.0 && (prc = get_fixnum(arg)) >= 0 && prc < 18) 
+    sprintf(buf, "%.*f", (int)prc, d); 
   else if (arg == bool_obj(1)) sprintf(buf, "%.17g", d);
   else sprintf(buf, "%.16g", d);
   for (s = buf; *s != 0; ++s) { if (strchr(".e", *s)) break; }
@@ -2167,11 +2179,12 @@ define_instruction(jtos) {
       while (*s == '+' || (*s == '0' && s[1])) ++s;
       while (*s) *t++ = *s++; *t = 0; 
     }
-  } else if (*s == 0 && pr <= 0) { 
-    *s++ = '.'; if (pr < 0) *s++ = '0'; *s = 0; 
+  } else if (*s == 0 && prc <= 0) { 
+    *s++ = '.'; if (prc < 0) *s++ = '0'; *s = 0; 
   }
   ac = string_obj(newsdata(buf));
   gonexti();
+#endif
 }
 
 define_instruction(stoj) {
@@ -3469,15 +3482,30 @@ define_instruction(gbtc) { goi(ibtc); }
 
 /* generic number <-> string conversions */
 
+define_instruction(intos) {
+  char buffer[DN_MAX_BUFSIZE], *s; 
+  double x; int radix, mode, prc = -1;
+  obj n = ac, y = spop(), m = spop(), p = spop(); 
+  ckj(n); ckk(y); ckc(m); x = get_flonum(n); 
+  radix = get_fixnum(y); mode = get_char(m); 
+  if (p != bool_obj(0)) { ckk(p); prc = get_fixnum(p); }
+  s = dntostr(buffer, DN_MAX_BUFSIZE, x, radix, mode, prc);
+  if (s == NULL) failtype(y, "valid radix for inexact number");
+  ac = string_obj(newsdata(s));
+  gonexti();
+}
+
 define_instruction(ntos) {
   if (is_fixnum(ac)) {
     goi(itos);
-  } else if (is_flonum(ac) && sref(0) == fixnum_obj(10)) {
-    sdrop(1); spush(0); /* use default precision */
-    goi(jtos);
+  } else if (is_flonum(ac)) {
+    obj y = spop();
+    spush(bool_obj(0));
+    spush(char_obj('g'));
+    spush(y);
+    goi(intos);
   } else {
-    if (!is_flonum(ac)) failtype(x, "number");
-    else fail("non-10 radix in flonum conversion");
+    failtype(ac, "number");
   }
 }
 
@@ -4738,8 +4766,8 @@ define_instruction(gccnt) {
 }
 
 define_instruction(bumpcnt) {
-  extern size_t cxg_bumpcount;
-  ac = fixnum_obj((int)cxg_bumpcount); 
+  extern int cxg_bumpcount;
+  ac = fixnum_obj(cxg_bumpcount); 
   gonexti();
 }
 

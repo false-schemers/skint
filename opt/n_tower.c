@@ -567,115 +567,6 @@ static int parse_zero(const char *s, char **ep)
 }
 
 
-/* double <-> string conversions */
-
-/* clears errno and sets it to EDOM or ERANGE on error */
-double strtodn(const char *str, int radix, char **ep)
-{
-  double x; char *e = (char *)str; errno = 0;
-  switch (radix) {
-    case 2:  x = bin_strtod(str, &e); break;
-    case 8:  x = oct_strtod(str, &e); break;
-    case 10: x = strtod(str, &e); break; // dec_strtod(str, &e); break;
-    case 16: x = hex_strtod(str, &e); break;
-    default: x = HUGE_VAL-HUGE_VAL; assert(0);
-  }
-  if (str == e) errno = EDOM;
-  else if (errno == ERANGE) errno = 0; /* allow over/underflow */
-  else if (errno) errno = EDOM; 
-  if (ep) *ep = e;
-  return x;
-}
-
-/* check if x is not normally printed with a sign */
-int dnsignless(double x)
-{
-  if (x != x || x <= -HUGE_VAL || HUGE_VAL <= x) return 0;
-  if (x == 0.0 && 1.0/x < 0.0) return 0;
-  return x >= 0.0;
-}
-
-/* add safety margin for "0.", "e-", etc. */
-#define DN_DEC_BUFSIZE (DBL_DIG+20)
-
-/* measure max. size of the buffer needed for printing */
-size_t dnfmtsize(int radix, int prc)
-{
-  int extra;
-  if (prc <= 0) prc = DBL_DIG+1;
-  extra = (prc-DBL_DIG-1); if (extra < 0) extra = 0;
-  assert(radix == 2 || radix == 8 || radix == 10 || radix == 16);
-  if (radix == 10) return DN_DEC_BUFSIZE+extra; /* estimated up */
-  else return DN_BIN_BUFSIZE; /* largest of 2/8/16 estimated up */
-}
-
-/* format finite x into buffer; len should be at least as calculated by 
- * dnfmtsize; returns buffer (prints left-to-right) or NULL on wrong radix */
-char *dntostr(char *buf, size_t len, double x, int radix, int mode, int prc)
-{
-  char *res = buf;
-  assert(len >= dnfmtsize(radix, prc));
-  switch (radix) {
-    case 10: {
-      /* make sure either . or e is always there */
-      int eordot = 0; if (prc < 0 || prc > DBL_DIG+2) prc = DBL_DIG+2;
-      if (mode == 'f') sprintf(buf, "%.*f", prc, x);
-      else if (mode == 'e' || mode == 'a') sprintf(buf, "%.*e", prc, x);
-      else sprintf(buf, "%.*g", prc, x);
-      for (; *buf != 0; buf++) if (*buf == 'e' || *buf == 'E' || *buf == '.') eordot = 1;
-      if (!eordot) *buf++ = '.', *buf++ = '0';
-      *buf = 0;
-    } break;
-    case 2:  res = dtobin(x, buf, len); assert(res == buf); break;
-    case 8:  res = dtooct(x, buf, len); assert(res == buf); break;
-    case 16: res = (mode == 'a') ? dtohexa(x, buf, len) : dtohex(x, buf, len); assert(res == buf); break;
-    default: return NULL;
-  }
-  return res;
-}
-
-/* 'generic' writer for flonums; returns 0 or -1 on invalid radix */
-int wrdn(double x, int radix, int mode, int prc, int (*pf)(int, void*), void *pd)
-{
-  switch (radix) {
-    case 10: {
-      /* make sure either . or e is always there */
-      char buffer[DN_DEC_BUFSIZE], *buf = buffer; int eordot = 0;
-      if (prc < 0 || prc > DBL_DIG+2) prc = DBL_DIG+2;
-      if (mode == 'f') sprintf(buffer, "%.*f", prc, x);
-      else if (mode == 'e' || mode == 'a') sprintf(buffer, "%.*e", prc, x);
-      else sprintf(buffer, "%.*g", prc, x);
-      for (; *buf != 0; buf++) if (*buf == 'e' || *buf == 'E' || *buf == '.') eordot = 1;
-      if (!eordot) *buf++ = '.', *buf++ = '0';
-      *buf = 0;
-      for (buf = buffer; *buf; ++buf) (*pf)(*buf, pd);
-      return 0; 
-    } break;
-    case 2: {
-      char buffer[DN_BIN_BUFSIZE], *buf = dtobin(x, buffer, DN_BIN_BUFSIZE);
-      assert(buffer == buf);
-      for (; *buf; ++buf) (*pf)(*buf, pd);
-      return 0; 
-    } break;
-    case 8: {
-      char buffer[DN_BIN_BUFSIZE], *buf = dtooct(x, buffer, DN_BIN_BUFSIZE);
-      assert(buffer == buf);
-      for (; *buf; ++buf) (*pf)(*buf, pd);
-      return 0; 
-    } break;
-    case 16: {
-      char buffer[DN_BIN_BUFSIZE], *buf;
-      if (mode == 'a') buf = dtohexa(x, buffer, DN_BIN_BUFSIZE);
-      else buf = dtohex(x, buffer, DN_BIN_BUFSIZE);
-      assert(buffer == buf);
-      for (; *buf; ++buf) (*pf)(*buf, pd);
-      return 0; 
-    } break;
-  }
-  return -1;
-}
-
-
 /* bignum implementation (avp) */
 
 /* bignum version 0.6.0rc4 $Id: bnversion.c 382 2009-08-15 16:57:45Z avp $ */
@@ -4835,16 +4726,6 @@ static size_t compfmtsize(numt_t xt, const nump_t *xp, int radix, int prc)
   return isflo(xt) ? dnfmtsize(radix, prc) : dnfmtsize(radix, prc)*2 + 2;
 }
 
-/* returns buf on success, NULL on wrong radix */
-static char *flotostr(char *buf, size_t len, double x, int radix, int mode, int prc)
-{
-  assert(len >= 7);
-  if (x != x) return strcpy(buf, "+nan.0");
-  if (x > DBL_MAX) return strcpy(buf, "+inf.0");
-  if (x < -DBL_MAX) return strcpy(buf, "-inf.0");
-  return dntostr(buf, len, x, radix, mode, prc);  
-}
-
 /* format x into buffer; len should be as calculated by compfmtsize;
  * returns ptr to first char of zero-terminated result in buffer
  * or NULL if an inexact number is printed in non-10 radix. */
@@ -4852,14 +4733,14 @@ static char *comptostr(char *buffer, size_t len, numt_t xt, const nump_t *xp, in
 {
   assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
   if (isflo(xt)) { /* may return NULL on wrong radix */
-    return flotostr(buffer, len, getflo(xp), radix, mode, prc);
-  } else { /* flotostr prints left-to-right */
-    char *buf = flotostr(buffer, len/2, getflo(xp), radix, mode, prc);
+    return dntostr(buffer, len, getflo(xp), radix, mode, prc);
+  } else { /* dntostr prints left-to-right */
+    char *buf = dntostr(buffer, len/2, getflo(xp), radix, mode, prc);
     char *sep = buf ? buf + strlen(buf) : NULL;
     assert(!buf || buf == buffer);
     if (!buf) return NULL;
     if (dnsignless(getflo(xp+2))) *sep++ = '+';
-    buf = flotostr(sep, len/2, getflo(xp+2), radix, mode, prc);
+    buf = dntostr(sep, len/2, getflo(xp+2), radix, mode, prc);
     assert(!buf || buf == sep);
     if (!buf) return NULL;
     sep = buf + strlen(buf);
@@ -6744,7 +6625,6 @@ fatnum_t *dupfatnum(fatnum_t *fn) /* shallow copy! */
 int wrfn(const fatnum_t *n, int radix, int mode, int prc, int (*pf)(int, void*), void *pd)
 {
   assert(n); assert(n->t);
-  if (prc <= 0) prc = DBL_DIG+1;
   return gnumwrite(n->t, n->p, radix, mode, prc, pf, pd);
 }
 

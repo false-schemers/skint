@@ -1351,6 +1351,12 @@ static void wrsn(const char *s, int spn, wenv_t *e) {
   assert(vt); while (s < es) vt->putch(unextc(s), pp);
 }
 static void wrd(double d, int prc, wenv_t *e) {
+#if 1
+  char buf[DN_MAX_BUFSIZE], *s;
+  s = dntostr(buf, DN_MAX_BUFSIZE, d, 10, 'g', prc);
+  assert(s == buf);
+  wrs(buf, e);
+#else
   char buf[50], *s;
   if (d != d) wrs("+nan.0", e); 
   else if (d <= -HUGE_VAL) wrs("-inf.0", e);
@@ -1367,6 +1373,7 @@ static void wrd(double d, int prc, wenv_t *e) {
     } else if (*s == 0) { *s++ = '.'; *s++ = '0'; *s = 0; }
     wrs(buf, e);
   }
+#endif
 }
 static void wrdatum(obj o, wenv_t *e) {
   long ref;
@@ -1378,12 +1385,12 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (is_fixnum_obj(o)) {
     char buf[30]; sprintf(buf, "%ld", fixnum_from_obj(o)); wrs(buf, e);
   } else if (is_flonum_obj(o)) {
-    wrd(flonum_from_obj(o), DBL_DIG+1, e);
+    wrd(flonum_from_obj(o), -1, e); /* use 'natural' precision */
 #ifdef OPT_TOWER
   } else if (is_bignum_obj(o)) {
     wrbn(bignum_from_obj(o), 10, e->vt->putch, e->pp);
   } else if (is_fatnum_obj(o)) {
-    wrfn(fatnum_from_obj(o), 10, 0, DBL_DIG+1, e->vt->putch, e->pp);
+    wrfn(fatnum_from_obj(o), 10, 0, DBL_DECIMAL_DIG, e->vt->putch, e->pp);
 #endif
   } else if (iseof(o)) {
     wrs("#<eof>", e);
@@ -1513,15 +1520,15 @@ static void wrdatum(obj o, wenv_t *e) {
         case 5:  sprintf(buf, "%d", *(int32_t *)p);  wrs(buf, e); break; 
         case 6:  sprintf(buf, "%"PRIu64, *(uint64_t *)p); wrs(buf, e); break; 
         case 7:  sprintf(buf, "%"PRId64, *(int64_t *)p);  wrs(buf, e); break; 
-#endif      
-        case 10: wrd((double)*(float *)p, FLT_DIG+1, e); break; 
-        case 11: wrd((double)*(double *)p, DBL_DIG+1, e); break; 
+#endif 
+        case 10: wrd((double)*(float *)p, FLT_DECIMAL_DIG, e); break; /* shorten */
+        case 11: wrd((double)*(double *)p, -1, e); break; /* 'natural' precision */
 #ifdef OPT_TOWER
         case 14: case 15: {
           int prc; fatnum4_t fn4; fn4.t = NUMT_MKCOM(NUMT_FLO, NUMT_FLO);
           fn4.p[0].flo = (t == 14) ? (double)((float *)p)[0] : ((double *)p)[0];
           fn4.p[2].flo = (t == 14) ? (double)((float *)p)[1] : ((double *)p)[1];
-          prc = (t == 14) ? FLT_DIG+1 : DBL_DIG+1;
+          prc = (t == 14) ? FLT_DECIMAL_DIG : DBL_DECIMAL_DIG;
           wrfn((fatnum_t*)&fn4, 10, 0, prc, e->vt->putch, e->pp);
         } break;
 #endif      
@@ -1573,7 +1580,7 @@ void oportputshared(obj x, obj p, int disp) {
 }
 
 
-/* number <-> string conversions */
+/* double <-> string conversions */
 
 /* convert char to integer for any radix up to 16 */
 static int char_to_val(int c, unsigned radix) 
@@ -1705,17 +1712,13 @@ double po2b_atod(const char *s, char **endp, unsigned bbits)
   }
 }
 
-#define bin_strtod(s, endp) po2b_atod(s, endp, 1)
-#define oct_strtod(s, endp) po2b_atod(s, endp, 3)
-#define hex_strtod(s, endp) po2b_atod(s, endp, 4)
-
 /* derived constants for buffer safety */
 /* binary (bbits=1) is the worst case for digit count: DBL_MANT_DIG = 53 */
 #define GN_DIG_MAX (1 + (DBL_MANT_DIG - 1) + 4)
-/* buffer must handle the worst-case binary shift: ~1024 digits + digits + margin */
-#define GN_BUFSIZE (DBL_MAX_EXP + GN_DIG_MAX + 64)
+/* buffer must handle the worst-case scenario (binary, right before f->g switch) */
+#define GN_BUFSIZE (DBL_MANT_DIG + GN_DIG_MAX + 32)
 
-int gn_digit(int x) { return (char)(x < 10 ? ('0' + x) : ('A' + (x - 10))); }
+static int gn_digit(int x) { return (char)(x < 10 ? ('0' + x) : ('A' + (x - 10))); }
 
 /* render the exponent in a specific radix (2 to 16) */
 static char *render_exp(long val, unsigned radix, char *out) 
@@ -1733,8 +1736,9 @@ static char *render_exp(long val, unsigned radix, char *out)
 /* convert double to bin/qua/oct/hex floating-point notation
  * bbits: 1 (bin), 2 (qua), 3 (oct), 4 (hex)
  * echar: 'e' (base^exp) or 'p' (2^exp); eradix: depends on echar
- * mode: 'e', 'f', 'g', or 'a' ('a' is a variant of 'e' for hex printing) */
-char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar, int mode) 
+ * mode: 'e', 'f', 'g', or 'a' ('a' is a variant of 'e' for hex printing)
+ * prc: precision (used for rounding, not for adding trailing zeroes) */
+char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar, int mode, int prc) 
 {
   double f, adj;
   int neg, e, rem, i, pos, ndig;
@@ -1770,6 +1774,14 @@ char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar, i
 
   adj = ldexp(f, rem);
   bin_exp_at_dot = (long)e - rem;
+  
+  if (mode == 'f') { /* switch to g if out of safe f range */
+    long emin = -DBL_MANT_DIG, emax = DBL_MANT_DIG;
+    if (bin_exp_at_dot < emin || bin_exp_at_dot > emax) mode = 'g';
+  }
+  
+  /* exp at dot in terms of bbit digits */
+  shift = (int)(bin_exp_at_dot / (long)bbits);
 
   /* NB: leading dig holds 'rem' bits, calc total count */
   ndig = 1 + (DBL_MANT_DIG - rem + bbits - 1) / bbits;
@@ -1783,6 +1795,72 @@ char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar, i
     adj = ldexp(adj - (double)d, bbits);
   }
 
+  /* optional nearest, ties-to-even rounding */
+  if (prc >= 0) {
+    int rnd_idx;
+    if (mode == 'f') rnd_idx = shift + prc + 1;
+    else if (mode == 'e' || mode == 'a') rnd_idx = prc + 1;
+    else /* 'g' */ rnd_idx = prc > 0 ? prc : 1;
+    /* normal rounding region: rnd_idx inside digit array */
+    if (rnd_idx > 0 && rnd_idx < ndig) {
+      int round_digit = dig[rnd_idx];
+      int half = base >> 1;
+      int is_half = (round_digit == half);
+      int round_up = 0;
+      /* check if the tail is exactly half */
+      if (is_half) {
+        for (i = rnd_idx+1; i < ndig; ++i) {
+          if (dig[i] != 0) { is_half = 0; break; }
+        }
+      }
+      /* decide rounding direction */
+      if (round_digit > half) {
+        round_up = 1; /* strictly greater than half */
+      } else if (is_half) {
+        /* ties-to-even: check previous digit */
+        if ((dig[rnd_idx-1] & 1) != 0)
+          round_up = 1; /* previous digit is odd */
+      }
+      if (round_up) { /* propagate carry */
+        for (i = rnd_idx-1; i >= 0; --i) {
+          dig[i]++;
+          if (dig[i] < (int)base) break;
+          dig[i] = 0;
+        }
+        if (i < 0) { /* overflow past leading digit */
+          dig[0] = 1;
+          bin_exp_at_dot += bbits;
+          ++shift;
+        }
+      }
+      ndig = rnd_idx;
+    } else if (rnd_idx <= 0) { /* tiny magnitude case */
+      int half = base >> 1;
+      int round_up = 0;
+      if (rnd_idx == 0) {
+        if (dig[0] > half) {
+          round_up = 1;
+        } else if (dig[0] == half) {
+          for (i = 1; i < ndig; ++i) {
+            if (dig[i] != 0) { round_up = 1; break; }
+          }
+        }
+      }
+      if (round_up) { 
+        /* round up to smallest printable unit */
+        dig[0] = 1;
+        bin_exp_at_dot = (long)(-prc) * bbits;
+        shift = -prc;
+        ndig = 1;
+      } else {
+        /* round down to zero */
+        strcpy(buf, neg ? "-0.0" : "0.0");
+        return buf;
+      }
+    }
+  }
+
+  /* trim trailing zeroes */
   last_nz = ndig - 1;
   while (last_nz > 0 && dig[last_nz] == 0) --last_nz;
 
@@ -1797,9 +1875,6 @@ char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar, i
     render_exp(base_exp, base, val_part); /* does not print '+' */
     strcpy(exp_part + 1, val_part);
   }
-
-  /* determine shortest representation */
-  shift = (int)(bin_exp_at_dot / (long)bbits);
 
   /* standard form length: "D.FFFF" + exp_part */
   if (last_nz == 0) len_std = 1 + (int)strlen(exp_part);
@@ -1848,14 +1923,111 @@ char *po2b_dtoa(double x, char *buf, size_t buflen, unsigned bbits, int echar, i
     strcat(buf, exp_part);
   }
 
+  assert(strlen(buf) < buflen);
   return buf;
 }
 
-#define DN_BIN_BUFSIZE GN_BUFSIZE
-#define dtobin(x, buf, buflen) po2b_dtoa(x, buf, buflen, 1, 'e', 'g')
-#define dtooct(x, buf, buflen) po2b_dtoa(x, buf, buflen, 3, 'e', 'g')
-#define dtohex(x, buf, buflen) po2b_dtoa(x, buf, buflen, 4, 'p', 'g')
-#define dtohexa(x, buf, buflen) po2b_dtoa(x, buf, buflen, 4, 'p', 'a')
+/* double <-> string conversions */
+
+/* clears errno and sets it to EDOM or ERANGE on error */
+double strtodn(const char *str, int radix, char **ep)
+{
+  double x; char *e = (char *)str; errno = 0;
+  switch (radix) {
+    case 2:  x = po2b_atod(str, &e, 1); break;
+    case 4:  x = po2b_atod(str, &e, 2); break;
+    case 8:  x = po2b_atod(str, &e, 3); break;
+    case 10: x = strtod(str, &e); break; // dec_strtod(str, &e); break;
+    case 16: x = po2b_atod(str, &e, 4); break;
+    default: x = HUGE_VAL-HUGE_VAL; assert(0);
+  }
+  if (str == e) errno = EDOM;
+  else if (errno == ERANGE) errno = 0; /* allow over/underflow */
+  else if (errno) errno = EDOM; 
+  if (ep) *ep = e;
+  return x;
+}
+
+/* check if x is not normally printed with a sign */
+int dnsignless(double x)
+{
+  if (x != x || x <= -HUGE_VAL || HUGE_VAL <= x) return 0;
+  if (x == 0.0 && 1.0/x < 0.0) return 0;
+  return x >= 0.0;
+}
+
+/* measure max. size of the buffer needed for printing */
+size_t dnfmtsize(int radix, int prc)
+{
+  assert(radix == 2 || radix == 4 || radix == 8 || radix == 10 || radix == 16);
+  /* prc will be clamped so as not to overflow buffer sizes below */
+  if (radix == 10) return DN_DEC_BUFSIZE; /* estimated up */
+  else return DN_MAX_BUFSIZE; /* largest of 2/8/16 estimated up */
+}
+
+/* format finite x into buffer; len should be at least as calculated by 
+ * dnfmtsize; returns buffer (prints left-to-right) or NULL on wrong radix */
+char *dntostr(char *buf, size_t len, double x, int radix, int mode, int prc)
+{
+  char *res = buf; unsigned int bbits = 4;
+  assert(len >= dnfmtsize(radix, prc));
+  if (x != x) return strcpy(buf, "+nan.0");
+  if (x > DBL_MAX) return strcpy(buf, "+inf.0");
+  if (x < -DBL_MAX) return strcpy(buf, "-inf.0");
+  switch (radix) {
+    case 10: {
+      /* make sure either . or e is always there */
+      int gotprc = (prc >= 0); char *s; double ax = fabs(x);
+      const double amax = (double)(1LL << DBL_MANT_DIG);
+      if (prc < 0 || prc > DBL_DECIMAL_DIG) prc = DBL_DECIMAL_DIG;
+      /* make sure we don't get a buffer overflow on really long fixed padding */
+      if (mode == 'f' && ax <= amax) sprintf(buf, "%.*f", prc, x);
+      /* switch to %g, but don't do full precision unless specifically asked for it */
+      else if (mode == 'f' && prc < DBL_DECIMAL_DIG) sprintf(buf, "%.*g", DBL_DECIMAL_DIG-1, x);
+      else if (mode == 'e' || mode == 'a') sprintf(buf, "%.*e", prc, x);
+      else if (gotprc) sprintf(buf, "%.*g", prc, x);
+      else { /* compatibility with sloppy old skint that uset %.16g */
+        sprintf(buf, "%.*g", DBL_DECIMAL_DIG-1, x); /* fine as it was? */
+        if (strtod(buf, NULL) != x) sprintf(buf, "%.*g", DBL_DECIMAL_DIG, x); 
+      }
+#if 1
+      for (s = buf; *s != 0; ++s) { if (*s == '.' || *s == 'e') break; }
+      if (*s == '.' || *s == 'e') {
+        if (*s == '.') s = strchr(s+1, 'e'); 
+        if (s) { /* remove + and leading 0s from expt */
+          char *t = ++s; if (*s == '-') ++s, ++t; 
+          while (*s == '+' || (*s == '0' && s[1])) ++s;
+          while (*s) *t++ = *s++; *t = 0; 
+        }
+      } else if (*s == 0 && (!gotprc || !prc)) { 
+        *s++ = '.'; if (!gotprc) *s++ = '0'; *s = 0; 
+      }
+#else
+      for (; *buf != 0; buf++) if (*buf == 'e' || *buf == 'E' || *buf == '.') eordot = 1;
+      if (!eordot) *buf++ = '.', *buf++ = '0';
+      *buf = 0;
+#endif
+    } break;
+    case 2: --bbits; case 4: --bbits; case 8: --bbits;
+    case 16: { /* got through with correct bbits */
+      int exc = (radix == 16 || mode == 'a') ? 'p' : 'e';
+      res = po2b_dtoa(x, buf, len, bbits, exc, mode, prc);
+      assert(res == buf);
+    } break;
+    default: return NULL;
+  }
+  assert(strlen(res) < len);
+  return res;
+}
+
+/* 'generic' writer for flonums; returns 0 or -1 on invalid radix */
+int wrdn(double x, int radix, int mode, int prc, int (*pf)(int, void*), void *pd)
+{
+  char buffer[DN_MAX_BUFSIZE];
+  char *buf = dntostr(buffer, DN_MAX_BUFSIZE, x, radix, mode, prc);
+  if (buf) for (; *buf; ++buf) (*pf)(*buf, pd);
+  return buf ? 0 : -1;
+}
 
 
 /* system-dependent extensions */

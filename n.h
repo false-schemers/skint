@@ -33,6 +33,16 @@
 #else
 #include <inttypes.h>
 #endif
+#ifndef DBL_DECIMAL_DIG
+#ifdef DECIMAL_DIG
+#define DBL_DECIMAL_DIG DECIMAL_DIG
+#else
+#define DBL_DECIMAL_DIG 17
+#endif
+#endif
+#ifndef FLT_DECIMAL_DIG
+#define FLT_DECIMAL_DIG 9
+#endif
 /* useful math constants */
 #ifndef M_PI
 #define M_PI 3.141592653589793238462643383279502884
@@ -686,6 +696,15 @@ extern obj isassoc(obj x, obj l);
 extern void oportputsimple(obj x, obj p, int disp);
 extern void oportputcircular(obj x, obj p, int disp);
 extern void oportputshared(obj x, obj p, int disp);
+
+/* 'generic' writer for flonums; returns 0 or -1 on invalid radix */
+extern int wrdn(double n, int radix, int mode, int prc, int (*pf)(int, void*), void *pd);
+/* floating-point formatter wit support for radices 10, 2, 4, 8, 16 */
+extern char *dntostr(char *buf, size_t len, double x, int radix, int mode, int prc);
+/* safe for fixed printing at the end of f range */
+#define DN_DEC_BUFSIZE (16 + DBL_DECIMAL_DIG + 32)
+/* safe for fixed binary printing at the end of f range */
+#define DN_MAX_BUFSIZE (DBL_MANT_DIG + DBL_MANT_DIG + 40)
 
 /* detecting math libraries */
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)

@@ -14,9 +14,6 @@
 /* numerical comparisons (needed for inexacts) */
 typedef enum { NCMP_LT, NCMP_LE, NCMP_EQ, NCMP_GE, NCMP_GT } ncmp_t;
 
-/* 'generic' writer for flonums; returns 0 or -1 on invalid radix */
-extern int wrdn(double n, int radix, int mode, int prc, int (*pf)(int, void*), void *pd);
-
 /* bignums (avp) */
 typedef struct bignum bignum_t;
 
