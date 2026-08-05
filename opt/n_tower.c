@@ -431,7 +431,7 @@ static char *skip_decimal(const char *s, int radix, int *pflags)
 static char *skip_ureal(const char *s, int radix, int *pflags)
 {
   const char *t; int flags = 0;
-  if (radix == 2 || radix == 8 || radix == 10) {
+  if (radix == 2 || radix == 4 || radix == 8 || radix == 10) {
     t = skip_decimal(s, radix, &flags);
     if (t == s) return (char *)s;
     if (flags & CNF_DOTEXP) /* [.eEpP] */ 
@@ -2465,7 +2465,7 @@ static bignum_t *dtobn(double x)
   }
 }
 
-bignum_t *strtobn(const char *str, char **endptr, int radix)
+bignum_t *strtobn(const char *str, char **endp, int radix)
 {
   /* IMPROV */
   int isneg; int has_bn, ndigs;
@@ -2481,7 +2481,7 @@ bignum_t *strtobn(const char *str, char **endptr, int radix)
   switch (*str) {
   case '+': isneg = 0; str++; break;
   case '-': isneg = 1; str++; break;
-  case 0: if (endptr) *endptr = (char *)str; return (errno = EDOM, NULL);
+  case 0: if (endp) *endp = (char *)str; return (errno = EDOM, NULL);
   default: isneg = 0; break;
   }
 
@@ -2499,8 +2499,8 @@ bignum_t *strtobn(const char *str, char **endptr, int radix)
     bnfree(v);
     v = r;
   }
-  if (endptr)
-    *endptr = (char *)str;
+  if (endp)
+    *endp = (char *)str;
 
   if (ndigs) {
     if (has_bn)
@@ -3596,7 +3596,7 @@ static numt_t intbtc(nump_t *zp, numt_t xt, const nump_t *xp)
 
 
 /* returns NUMT_NONE and sets errno on failure */
-static numt_t strtoint(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtoint(nump_t *zp, const char *str, char **endp, int radix)
 {
   long l; char *ep = NULL;
   numt_t zt = NUMT_NONE;
@@ -3617,7 +3617,7 @@ static numt_t strtoint(nump_t *zp, const char *str, char **endptr, int radix)
       zt = setfail(EDOM);
     }
   }
-  if (endptr) *endptr = ep;
+  if (endp) *endp = ep;
   return zt;
 }
 
@@ -4061,10 +4061,10 @@ static numt_t ratscale(nump_t *zp, numt_t xt, const nump_t *xp, long b, long e)
 }
 
 /* returns NUMT_NONE and sets errno on failure */
-static numt_t strtorat(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtorat(nump_t *zp, const char *str, char **endp, int radix)
 {
   numt_t zt = NUMT_NONE; char *ep = NULL;
-  int decimal = (radix == 2 || radix == 8 || radix == 10 || radix == 16);
+  int decimal = (radix == 2 || radix == 4 || radix == 8 || radix == 10 || radix == 16);
   assert(str); assert(radix >= 2 && radix <= 36);
   errno = 0;
   if (decimal && str[0] == '.' && char_to_val(str[1], radix) >= 0) 
@@ -4144,7 +4144,7 @@ static numt_t strtorat(nump_t *zp, const char *str, char **endptr, int radix)
       }
     }
   }
-  if (endptr) *endptr = ep;
+  if (endp) *endp = ep;
   return zt;
 }
 
@@ -4197,10 +4197,10 @@ static double rattod(numt_t xt, const nump_t *xp)
 }
 
 /* strtod via strtorat, rattod (not used?) */
-static double strtoratd(const char *str, char **endptr, int radix)
+static double strtoratd(const char *str, char **endp, int radix)
 {
   double res;
-  nump_t tp[2]; numt_t tt = strtorat(tp, str, endptr, radix);
+  nump_t tp[2]; numt_t tt = strtorat(tp, str, endp, radix);
   if (!tt || errno) res = HUGE_VAL-HUGE_VAL; /* NaN */
   else res = rattod(tt, tp);
   numfini(tt, tp);
@@ -4405,7 +4405,7 @@ static numt_t rectdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
 }
 
 /* returns NUMT_NONE and sets errno on failure (ERANGE is special!) */
-static numt_t strtorect(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtorect(nump_t *zp, const char *str, char **endp, int radix)
 {
   numt_t zt = NUMT_NONE; char *ep = NULL;
   assert(str); assert(radix >= 2 && radix <= 36);
@@ -4475,7 +4475,7 @@ static numt_t strtorect(nump_t *zp, const char *str, char **endptr, int radix)
       /* real */
     }
   }
-  if (endptr) *endptr = ep;
+  if (endp) *endp = ep;
   if (!isrect(zt)) errno = ERANGE;
   return zt;
 }
@@ -4625,12 +4625,12 @@ static numt_t compdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
 #endif /* cfl ops candidates */
 
 /* returns NUMT_NONE and sets errno on failure */
-static numt_t strtoflo(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtoflo(nump_t *zp, const char *str, char **endp, int radix)
 {
   double d; char *e, *t; numt_t zt = NUMT_NONE;
   errno = 0; 
   /* check for infnans first */
-  if (endptr) *endptr = (char*)str + 6;
+  if (endp) *endp = (char*)str + 6;
   if (0 == strncmp_ci(str, "+inf.0", 6)) return setflo(zp, HUGE_VAL);
   if (0 == strncmp_ci(str, "-inf.0", 6)) return setflo(zp, -HUGE_VAL);
   if (0 == strncmp_ci(str, "+nan.0", 6)) return setflo(zp, HUGE_VAL-HUGE_VAL);
@@ -4638,7 +4638,7 @@ static numt_t strtoflo(nump_t *zp, const char *str, char **endptr, int radix)
   /* check for a ratio (in radix) */
   e = (char*)str; if (*e == '-' || *e == '+') ++e;
   if ((t = skip_uinteger(e, radix))[0] == '/') {
-    zt = strtorat(zp, str, endptr, radix);
+    zt = strtorat(zp, str, endp, radix);
     if (isflo(zt) && errno == ERANGE) return errno = 0, zt;
     else if (!zt || errno) return setfail(EDOM);
     d = rattod(zt, zp);
@@ -4646,13 +4646,13 @@ static numt_t strtoflo(nump_t *zp, const char *str, char **endptr, int radix)
     return setflo(zp, d);
   }
   /* not a ratio: either intnum or inexact (b,o,x)decimal */
-  if (radix == 2 || radix == 8 || radix == 10 || radix == 16) {
-    d = strtodn(str, radix, endptr); /* will handle ints too */
+  if (radix == 2 || radix == 4 || radix == 8 || radix == 10 || radix == 16) {
+    d = strtodn(str, radix, endp); /* will handle ints too */
     if (errno == ERANGE) errno = 0; /* overflows and underflows are ok */
     if (errno) return setfail(EDOM); 
   } else { /* intnum only, arbitrary radix */
     double zero = (*str == '-') ? -0.0 : 0.0; /* NB: -0! */ 
-    zt = strtoint(zp, str, endptr, radix);
+    zt = strtoint(zp, str, endp, radix);
     if (!zt) return setfail(EDOM);
     if (isfix(zt) && getfix(zp) == 0) d = zero;
     else d = inttod(zt, zp); /* may overflow, but it's ok */
@@ -4662,7 +4662,7 @@ static numt_t strtoflo(nump_t *zp, const char *str, char **endptr, int radix)
 }
 
 /* returns NUMT_NONE and sets errno on failure */
-static numt_t strtocomp(nump_t *zp, const char *str, char **endptr, int radix)
+static numt_t strtocomp(nump_t *zp, const char *str, char **endp, int radix)
 {
   numt_t zt = NUMT_NONE; char *ep = NULL;
   assert(str); assert(radix >= 2 && radix <= 36);
@@ -4714,7 +4714,7 @@ static numt_t strtocomp(nump_t *zp, const char *str, char **endptr, int radix)
       /* real */
     }
   }
-  if (endptr) *endptr = ep;
+  if (endp) *endp = ep;
   return zt;
 }
 
@@ -6201,7 +6201,7 @@ static int gnumnanp(numt_t xt, const nump_t *xp)
 
 
 /* returns NUMT_NONE and sets errno on failure */
-numt_t strtognum(nump_t *zp, const char *str, char **endptr, int radix)
+numt_t strtognum(nump_t *zp, const char *str, char **endp, int radix)
 {
   numt_t zt = NUMT_NONE; char *cp;
   int forceie = 0; /* -1=#i 1=#e */
@@ -6211,28 +6211,28 @@ numt_t strtognum(nump_t *zp, const char *str, char **endptr, int radix)
   /* returns start of complex part and sets radix/ie; returns NULL on errors */
   if ((cp = check_number(str, &radix, &forceie, &flags)) == NULL) { 
     /* invalid number syntax */
-    if (endptr) *endptr = (char*)str;
+    if (endp) *endp = (char*)str;
     return setfail(EDOM);
   }
   if (flags & (CNF_DOTEXP|CNF_INFNAN|CNF_NONR7)) {
     if (radix != 2 && radix != 8 && radix != 10 && radix != 16) {
       /* invalid floating-point number syntax */
-      if (endptr) *endptr = (char*)str;
+      if (endp) *endp = (char*)str;
       return setfail(EDOM); 
     }
   }
   /* positon at the start of complex */
   str = (const char *)cp;
   if (forceie < 0) { /* as inexact */
-    zt = strtocomp(zp, str, endptr, radix);
+    zt = strtocomp(zp, str, endp, radix);
   } else if (forceie > 0) { /* as exact */
-    zt = strtorect(zp, str, endptr, radix);
+    zt = strtorect(zp, str, endp, radix);
     /* catch polar -> inexact */
     if (!isrect(zt)) zt = (numfini(zt, zp), setfail(EDOM)); 
   } else if (flags & CNF_DOTEXP) { /* has elements of inexact notation */
-    zt = strtocomp(zp, str, endptr, radix);
+    zt = strtocomp(zp, str, endp, radix);
   } else { /* no elements of inexact notation */
-    zt = strtorect(zp, str, endptr, radix);
+    zt = strtorect(zp, str, endp, radix);
     /* polar -> inexact is ok */
     if (iscomp(zt) && errno == ERANGE) errno = 0;
     if (errno) zt = (numfini(zt, zp), setfail(EDOM));

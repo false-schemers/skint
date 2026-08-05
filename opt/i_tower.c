@@ -788,8 +788,6 @@ define_instruction(renp) { /* rectnum? */
   gonexti(); 
 }
 
-/// FIXME
-
 define_instruction(numer) {
   if (likely(is_fixnum(ac))) gonexti();
   else if (likely(is_bignum(ac))) gonexti();

@@ -2149,7 +2149,6 @@ define_instruction(itoc) {
 }
 
 define_instruction(jtos) {
-#if 1
   char buffer[DN_MAX_BUFSIZE], *s; double x; 
   int mode = 'f', prc = -1;
   obj arg = spop(); ckj(ac); x = get_flonum(ac);
@@ -2160,31 +2159,6 @@ define_instruction(jtos) {
   assert(s == buffer); /* rx 10 is always supported */
   ac = string_obj(newsdata(s));
   gonexti();
-#else
-  char buf[50], *s; double d; long prc = -1; 
-  obj arg = spop(); ckj(ac); d = get_flonum(ac);
-  if (d != d) { ac = string_obj(newsdata("+nan.0")); gonexti(); }
-  if (d <= -HUGE_VAL) { ac = string_obj(newsdata("-inf.0")); gonexti(); }
-  if (d >= HUGE_VAL) { ac = string_obj(newsdata("+inf.0")); gonexti(); }
-  /* since double can't hold more than 17 decimal digits, limit fixed representation length */
-  if (is_fixnum(arg) && fabs(d) <= 9007199254740992.0 && (prc = get_fixnum(arg)) >= 0 && prc < 18) 
-    sprintf(buf, "%.*f", (int)prc, d); 
-  else if (arg == bool_obj(1)) sprintf(buf, "%.17g", d);
-  else sprintf(buf, "%.16g", d);
-  for (s = buf; *s != 0; ++s) { if (strchr(".e", *s)) break; }
-  if (*s == '.' || *s == 'e') {
-    if (*s == '.') s = strchr(s+1, 'e'); 
-    if (s) { /* remove + and leading 0s from expt */
-      char *t = ++s; if (*s == '-') ++s, ++t; 
-      while (*s == '+' || (*s == '0' && s[1])) ++s;
-      while (*s) *t++ = *s++; *t = 0; 
-    }
-  } else if (*s == 0 && prc <= 0) { 
-    *s++ = '.'; if (prc < 0) *s++ = '0'; *s = 0; 
-  }
-  ac = string_obj(newsdata(buf));
-  gonexti();
-#endif
 }
 
 define_instruction(stoj) {
