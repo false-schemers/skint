@@ -1882,7 +1882,6 @@ double strtodn(const char *str, int radix, char **ep)
 }
 
 #ifndef OPT_TOWER
-
 /* returns NUMT_NONE and sets errno on failure */
 static numt_t strtoint(nump_t *zp, const char *str, char **endp, int radix)
 {
@@ -1971,7 +1970,6 @@ err:
 }
 
 /* towerless version of strtonum */
-#if 1
 numt_t strtonum(fatnum4_t *fn, const char *s, char **endp, int radix) 
 {
   int eno = errno; char *ep = NULL;
@@ -1982,55 +1980,6 @@ numt_t strtonum(fatnum4_t *fn, const char *s, char **endp, int radix)
   }
   return fn->t = NUMT_NONE; 
 }
-#else
-numt_t strtonum(fatnum4_t *fn, const char *s, char **endp, int radix) 
-{
-  const char *e; int conv = 0, eno = errno; long l; double d;
-  if (!endp) endp = (char**)&e;
-  for (; s[0] == '#'; s += 2) {
-    switch (s[1]) {
-      case 'b': case 'B': radix = 2; break;
-      case 'o': case 'O': radix = 8; break;
-      case 'd': case 'D': radix = 10; break;
-      case 'x': case 'X': radix = 16; break;
-      case 'e': case 'E': conv = 'e'; break;
-      case 'i': case 'I': conv = 'i'; break;
-      default: return fn->t = NUMT_NONE;
-    }
-  }
-  if (isspace(*s)) return fn->t = NUMT_NONE;
-  for (e = s; *e; ++e) { if (strchr(".eEiInN", *e)) break; }
-  if (!*e || radix != 10) { /* s is not a syntax for an inexact number */
-    l = (errno = 0, strtol(s, (char**)&e, radix));
-    if (errno || *e || e == s) { 
-      if (conv == 'i') goto fl; 
-      return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE); 
-    } else if (conv == 'i') {
-      return (errno = eno, *endp = (char *)e, fn->p[0].flo = l, fn->t = NUMT_FLO);
-    }
-    if (FIXNUM_MIN <= l && l <= FIXNUM_MAX) {
-      return (errno = eno, *endp = (char *)e, fn->p[0].fix = l, fn->t = NUMT_FIX);
-    } else { /* can't represent as an exact */
-      return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE);
-    }
-  } 
-  fl: if (radix != 10) return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE); 
-  e = "", errno = 0; if (*s != '+' && *s != '-') d = strtod(s, (char**)&e);
-  else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
-  else if (strcmp_ci(s+1, "nan.0") == 0) d = HUGE_VAL - HUGE_VAL;
-  else d = strtod(s, (char**)&e);
-  if (errno == ERANGE) errno = 0; /* allow subnormals */
-  if (errno || *e || e == s) {
-    return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE);
-  } else if ((conv == 'e') && ((l=(long)d) < FIXNUM_MIN || l > FIXNUM_MAX || (double)l != d)) {
-    return (errno = eno, *endp = (char *)s, fn->t = NUMT_NONE); /* conv to exact failed */
-  } else if (conv == 'e') {
-    return (errno = eno, *endp = (char *)e, fn->p[0].fix = fxflo(d), fn->t = NUMT_FIX);
-  } else {
-    return (errno = eno, *endp = (char *)e, fn->p[0].flo = d, fn->t = NUMT_FLO);
-  }
-}
-#endif
 #endif
 
 

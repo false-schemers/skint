@@ -677,6 +677,7 @@ static bignum_t *bny_dupll(const bignum_t *lla);
 static bignum_t *bndup(const bignum_t *a);
 bignum_t *lltobn(int64_t n);
 bignum_t *ulltobn(uint64_t n);
+bignumll_t bnll(int64_t v);
 
 static bignum_t zero = {0, DUP_STATIC, 0, {0}};
 bignum_t *bn0 = &zero;
@@ -2351,6 +2352,203 @@ double bntod(const bignum_t *n)
     return v;
 }
 
+#ifndef COMPACT_BNTOSTR /* [esl*] big but fast print */
+/* power-of-two fast printer (radices 2, 4, 8, 16, 32) */
+static char *bntostr_po2(char *buffer, size_t len, const bignum_t *n, int bbits)
+{
+  size_t total_bits = bnwidthu(n);
+  const size_t limb_bits = LIMB_BITS;
+  const limb_t mask = ((limb_t)1 << bbits) - 1;
+  char *ptr = buffer + len - 1;
+
+  *ptr = '\0';
+
+  if (total_bits == 0) {
+    if (ptr == buffer) return NULL;
+    *--ptr = '0';
+    return ptr;
+  } else {
+    size_t bit_pos = 0;
+    while (bit_pos < total_bits) {
+      size_t limb_idx = bit_pos / limb_bits;
+      size_t offset   = bit_pos % limb_bits;
+      limb_t digit;
+      if (ptr == buffer) return NULL;
+      digit = n->limb[limb_idx] >> offset;
+      if (offset + bbits > limb_bits && limb_idx + 1 < n->size) {
+        digit |= (n->limb[limb_idx + 1] << (limb_bits - offset));
+      }
+      digit &= mask;
+      *--ptr = gn_digit((int)digit);
+      bit_pos += bbits;
+    }
+  }
+
+  if (n->isneg) {
+    if (ptr == buffer) return NULL;
+    *--ptr = '-';
+  }
+
+  return ptr;
+}
+
+/* calc radix that is a multiple of the original radix fitting in limb */
+static void get_super_radix(int radix, limb_t *out_chunk, int *out_digits)
+{
+  limb_t chunk = (limb_t)radix;
+  int digits = 1;
+  while (chunk <= LIMB_MAX / (limb_t)radix) {
+    chunk *= (limb_t)radix;
+    digits++;
+  }
+  *out_chunk = chunk;
+  *out_digits = digits;
+}
+
+/* simple iterative printer for small bignums */
+static size_t bntostr_small(char *out, const bignum_t *n, size_t req_digits, int is_top, int radix)
+{
+  limb_t big_chunk;
+  int chunk_digits;
+  limb_t chunks[128];
+  int i, num_chunks = 0;
+  char tmp[512];
+  int tmp_pos = 512;
+  bignumll_t bnll_chunk;
+  bignum_t *bn_chunk, *curr;
+
+  /* clean zero-handling for sub-blocks vs top-level zero */
+  if (bnwidthu(n) == 0) {
+    size_t total = is_top ? 1 : req_digits;
+    if (total > 0) memset(out, '0', total);
+    return total;
+  }
+
+  get_super_radix(radix, &big_chunk, &chunk_digits);
+  bnll_chunk = bnll(big_chunk);
+  bn_chunk = (bignum_t *)&bnll_chunk;
+  curr = (bignum_t *)n;
+
+  while (bnwidthu(curr) > 0) {
+    bignum_t *rem = NULL;
+    bignum_t *q = bndmod(&rem, curr, bn_chunk);
+    if (num_chunks >= 128) break;
+    chunks[num_chunks++] = (rem && rem->size > 0) ? rem->limb[0] : 0;
+    if (rem) bnfree(rem);
+    if (curr != n) bnfree(curr);
+    curr = q;
+  }
+  if (curr != n) bnfree(curr);
+
+  for (i = 0; i < num_chunks; i++) {
+    limb_t val = chunks[i];
+    int digits_to_write = (i == num_chunks - 1) ? 0 : chunk_digits;
+    if (digits_to_write == 0) {
+      do {
+        if (tmp_pos == 0) break;
+        tmp[--tmp_pos] = gn_digit((int)(val % radix));
+        val /= radix;
+      } while (val > 0);
+    } else {
+      int d;
+      for (d = 0; d < chunk_digits; d++) {
+        if (tmp_pos == 0) break;
+        tmp[--tmp_pos] = gn_digit((int)(val % radix));
+        val /= radix;
+      }
+    }
+  }
+
+  { size_t num_digits = 512 - tmp_pos;
+    size_t total_len = (!is_top && req_digits > num_digits) ? req_digits : num_digits;
+    size_t leading_zeros = total_len - num_digits;
+    memset(out, '0', leading_zeros);
+    memcpy(out + leading_zeros, tmp + tmp_pos, num_digits);
+    return total_len;
+  }
+}
+
+#define DC_THRESHOLD 32
+
+/* divide-and-conquer printer for arbitrary radices */
+static size_t bntostr_dc_rec(char *out, const bignum_t *n, size_t req_digits, int is_top, int radix)
+{
+  size_t bits = bnwidthu(n);
+  size_t est_digits;
+  bignumll_t bnll_radix;
+  size_t d, req_q, q_len, r_len;
+  bignum_t *p, *q, *r;
+
+  est_digits = (size_t)((double)bits / log((double)radix) * log(2.0)) + 1;
+
+  if (est_digits <= DC_THRESHOLD)
+      return bntostr_small(out, n, req_digits, is_top, radix);
+
+  d = est_digits / 2;
+  bnll_radix = bnll(radix);
+  p = bnexptull((bignum_t *)&bnll_radix, (uint64_t)d);
+  r = NULL;
+  q = bndmod(&r, n, p);
+  bnfree(p);
+
+  if (bnwidthu(q) == 0 && is_top) {
+    size_t len = bntostr_dc_rec(out, r, req_digits, 1, radix);
+    bnfree(q);
+    bnfree(r);
+    return len;
+  }
+
+  /* calculate required digits for q */
+  req_q = (req_digits > d) ? (req_digits - d) : 0;
+  q_len = bntostr_dc_rec(out, q, req_q, is_top, radix);
+  bnfree(q);
+
+  r_len = bntostr_dc_rec(out + q_len, r, d, 0, radix);
+  bnfree(r);
+
+  return q_len + r_len;
+}
+
+/* main entry: dispatch on radix and number size */
+char *bntostr(char *buffer, size_t len, const bignum_t *n, int radix)
+{
+  size_t bits = bnwidthu(n);
+  size_t est_digits;
+  size_t min_buf_needed;
+  char *tmp;
+  size_t prefix_len = 0, body_len, total_len;
+  char *right_ptr;
+
+  if (radix == 2 || radix == 4 || radix == 8 || radix == 16 || radix == 32) {
+    int bbits = radix == 2 ? 1 : radix == 4 ? 2 : radix == 8 ? 3 : radix == 16 ? 4 : 5;
+    char *res = bntostr_po2(buffer, len, n, bbits);
+    assert(res);
+    return res;
+  }
+
+  est_digits = (size_t)((double)bits / log((double)radix) * log(2.0)) + 1;
+
+  min_buf_needed = est_digits + (n->isneg ? 2 : 1);
+  assert(len >= min_buf_needed);
+  
+  tmp = buffer;
+  if (n->isneg && bits > 0) {
+    *tmp++ = '-';
+    prefix_len = 1;
+  }
+
+  if (est_digits <= DC_THRESHOLD) body_len = bntostr_small(tmp, n, 0, 1, radix);
+  else body_len = bntostr_dc_rec(tmp, n, 0, 1, radix);
+
+  /* make sure number is right-aligned in buffer */
+  total_len = prefix_len + body_len;
+  buffer[total_len] = '\0';
+  right_ptr = buffer + (len - 1 - total_len);
+  memmove(right_ptr, buffer, total_len + 1);
+
+  return right_ptr;
+}
+#else /* simple but slow */
 char *bntostr(char *buffer, size_t len, const bignum_t *n, int radix)
 {
   /* IMPROV */
@@ -2398,6 +2596,7 @@ char *bntostr(char *buffer, size_t len, const bignum_t *n, int radix)
   }
   return ptr;
 }
+#endif
 
 bignum_t *lltobn(int64_t n)
 {
@@ -3555,7 +3754,9 @@ static numt_t intash(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
       } else { /* y > 0 */
         if (y >= BIGNUM_MAX_BITS) return setfail(EDOM); /* out of memory */
         if (y < FIXNUM_WIDTH - 1) { 
-          long z = x << y; if ((z >> y) == x) return setfix(zp, z); 
+          long z = x << y; 
+          if ((z >> y) == x && FIXNUM_MIN <= z && z <= FIXNUM_MAX) 
+            return setfix(zp, z); 
         } /* else fall thru */
       }
     }
