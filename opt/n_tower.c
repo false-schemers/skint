@@ -2331,7 +2331,6 @@ uint64_t bntoull(const bignum_t *n)
     return v;
 }
 
-
 double bntod(const bignum_t *n)
 {
   double v, s;
@@ -2864,6 +2863,138 @@ double bnsqrttod(const bignum_t *n0)
   bnfree(n);
   return r;
 }
+
+#define BITMASK64(n) ((n) >= 64 ? ~(uint64_t)0 : (((uint64_t)1 << (n)) - 1))
+
+/* ignores sign of the input; returs -inf on b==0 */
+double bnlogtod(const bignum_t *b)
+{
+  size_t i, s, s_limb, s_bit, w, b0;
+  uint64_t top_bits;
+  assert(b != NULL);
+
+  w = bnwidthu(b);
+  if (w == 0) return -HUGE_VAL;
+  /* if (b->isneg) return NAN; */
+
+  /* Small enough to convert directly */
+  if (w <= DBL_MANT_DIG) {
+    uint64_t val = 0;
+    for (i = b->size; i > 0; i--) {
+      val = (val << LIMB_BITS) | (uint64_t)b->limb[i - 1];
+    }
+    return log((double)val);
+  }
+
+  /* Extract top DBL_MANT_DIG bits */
+  s      = w - DBL_MANT_DIG;
+  s_limb = s / LIMB_BITS;
+  s_bit  = s % LIMB_BITS;
+
+  top_bits = 0;
+  b0 = LIMB_BITS - s_bit; /* Bits available in starting limb */
+
+  if (b0 >= DBL_MANT_DIG) {
+    /* All 53 bits reside within s_limb */
+    top_bits = ((uint64_t)b->limb[s_limb] >> s_bit) & BITMASK64(DBL_MANT_DIG);
+  } else {
+    /* Take remaining b0 bits from s_limb */
+    uint64_t part0 = (uint64_t)b->limb[s_limb] >> s_bit;
+    size_t rem1 = DBL_MANT_DIG - b0;
+
+    if (rem1 <= LIMB_BITS) {
+      /* Spans 2 limbs: take LEAST significant rem1 bits from s_limb + 1 */
+      uint64_t part1 = (uint64_t)b->limb[s_limb + 1] & BITMASK64(rem1);
+      top_bits = part0 | (part1 << b0);
+    } else {
+      /* Spans 3 limbs (e.g. 32-bit limbs with 64-bit mantissa) */
+      uint64_t part1 = (uint64_t)b->limb[s_limb + 1];
+      size_t rem2 = rem1 - LIMB_BITS;
+      uint64_t part2 = (uint64_t)b->limb[s_limb + 2] & BITMASK64(rem2);
+      top_bits = part0 | (part1 << b0) | (part2 << (b0 + LIMB_BITS));
+    }
+  }
+
+  return log((double)top_bits) + ((double)s * log(2.0));
+}
+
+#ifndef COMPACT_RATTRIG
+/* dynamically select p and q scaled to w, capped at maximum signed 64-bit ratio */
+static void bnx_2pi(const bignum_t *n, const bignum_t *d, bignumll_t *bnpll, bignumll_t *bnqll)
+{
+  /* ratio approx. of 2*pi with both num and den fitting into int64_t */
+  static const struct { uint64_t p, q; size_t max_w; } pi2_table[] = {
+    { 8958937768937ull,        1425859230779ull,       28 },
+    { 279510437053578ull,      44485467702853ull,      37 },
+    { 856449186698608ull,      136308121570117ull,     42 },
+    { 5706674932067741ull,     908245524057187ull,     47 },
+    { 30246273033735921ull,    4813843863426169ull,    52 },
+    { 133254891185777774ull,   21208174623389167ull,   57 },
+    { 430010946591069243ull,   68438367733593670ull,   62 },
+    { 5293386250278608690ull,  842468587426513207ull,  71 }
+  };
+  size_t w_n = bnwidthu(n), w_d = bnwidthu(d);
+  size_t w = (w_n > w_d) ? (w_n - w_d) : 0;
+  size_t num_entries = sizeof(pi2_table) / sizeof(pi2_table[0]);
+  size_t i, idx = num_entries - 1; /* Default to best 63-bit convergent */
+
+  for (i = 0; i < num_entries; i++) {
+    if (w <= pi2_table[i].max_w) { idx = i; break; }
+  }
+
+  *bnpll = bnll((int64_t)pi2_table[idx].p);
+  *bnqll = bnll((int64_t)pi2_table[idx].q);
+}
+
+/* reduce rational n/d modulo 2pi, returning *pnum/*pden */
+static void bnrmod2pi(const bignum_t *n, const bignum_t *d, bignum_t **pnum, bignum_t **pden)
+{
+  bignumll_t bnpll, bnqll; 
+  bignum_t *p, *q, *nq, *dp, *r_num, *r_den, *k_bn;
+
+  bnx_2pi(n, d, &bnpll, &bnqll);
+  p = (bignum_t *)&bnpll; q = (bignum_t *)&bnqll;
+
+  nq = bnmul(n, q); dp = bnmul(d, p);
+
+  /* direct remainder: r_num = (n*q) mod (d*p) */
+  k_bn = bndmod(&r_num, nq, dp);
+  r_den = bnmul(d, q);
+
+  if (r_num->isneg) {
+    bignum_t *adj_num = bnadd(r_num, dp);
+    bnfree(r_num);
+    r_num = adj_num;
+  }
+
+  *pnum = r_num;
+  *pden = r_den;
+
+  bnfree(nq);
+  bnfree(dp);
+  bnfree(k_bn);
+}
+
+/* compute correlated sin and cos of rational n/d */
+void bnrsincostod(const bignum_t *n, const bignum_t *d, double *psin, double *pcos)
+{
+  bignum_t *num, *den;
+  double x;
+
+  bnrmod2pi(n, d, &num, &den);
+  x = bnrtod(num, den);
+#if defined(_gnu_source)
+  /* gnu extension: sincos(x, &s, &c) */
+  sincos(x, psin, pcos);
+#else
+  /* portable fallback */
+  *psin = sin(x);
+  *pcos = cos(x);
+#endif
+
+  bnfree(num); bnfree(den);
+}
+#endif
 
 bignumll_t bnll(int64_t v)
 {
@@ -4260,6 +4391,28 @@ static numt_t ratscale(nump_t *zp, numt_t xt, const nump_t *xp, long b, long e)
     return zt;
   }
 }
+
+#ifndef COMPACT_RATTRIG
+void ratsincos(numt_t xt, const nump_t *xp, double *psin, double *pcos)
+{
+  assert(NUMT_IS_RATNUM(xt) && "non-rational number");
+  if (isfix(xt)) {
+#if defined(_GNU_SOURCE)
+    sincos(getfix(xp), psin, pcos);
+#else
+    long x = getfix(xp);
+    *psin = sin(x), *pcos = cos(x);
+#endif
+  } else if (isbig(xt)) {
+    bnrsincostod(getbig(xp), bn1, psin, pcos);
+  } else { /* ratio */
+    bignumll_t nll, dll; 
+    bignum_t *n = isfix(NUMT_RAT_N(xt)) ? (nll = bnll(getfix(xp)), (bignum_t *)&nll) : getbig(xp);
+    bignum_t *d = isfix(NUMT_RAT_D(xt)) ? (dll = bnll(getfix(xp+1)), (bignum_t *)&dll) : getbig(xp+1);
+    bnrsincostod(n, d, psin, pcos);
+  }
+}
+#endif
 
 /* returns NUMT_NONE and sets errno on failure */
 static numt_t strtorat(nump_t *zp, const char *str, char **endp, int radix)
@@ -5704,7 +5857,10 @@ static numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
   }
 }
 
-static int gnumodd(numt_t xt, const nump_t *xp); /* see below */
+/* see below */
+static int gnumodd(numt_t xt, const nump_t *xp); 
+static numt_t gnumexp(nump_t *zp, numt_t xt, const nump_t *xp);
+static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp);
 
 /* z = expt(x, y)  [generic] */
 /* exact base with exact integer exponent stays exact; may go inexact otherwise */
@@ -5906,13 +6062,20 @@ static numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const
     zt = gnumdiv(zp, NUMT_FIX, &numfix_1, tt, tp);
     numfini(tt, tp);
     return zt;
+  } else if (israt(xt) && isreal(yt) && ratsign(xt, xp) > 0) {
+    /* x^y = exp(log(x)*y) via inexacts, but w/lower chances of overflow */
+    nump_t lp[4]; numt_t lt = gnumlog(lp, xt, xp);
+    nump_t mp[4]; numt_t mt = gnummul(mp, lt, lp, yt, yp);
+    numt_t zt = gnumexp(zp, mt, mp); 
+    numfini(lt, lp); numfini(mt, mp);
+    return zt;
   } else { /* general case: go inexact via polar form: (r,theta)^(c+di) */
     double rx, ix, ry, iy, rz, iz;
     if (isrect(xt)) recttodd(xt, xp, &rx, &ix); else comptodd(xt, xp, &rx, &ix);
     if (isrect(yt)) recttodd(yt, yp, &ry, &iy); else comptodd(yt, yp, &ry, &iy);
     cmath_pow(rx, ix, ry, iy, &rz, &iz);
     /* if inputs were purely real, and xt is positive, result is real */
-    if (isrect(xt) && isreal(yt) && rx > 0.0 && iz == 0.0) return setflo(zp, rz); 
+    if (isreal(xt) && isreal(yt) && rx > 0.0 && iz == 0.0) return setflo(zp, rz); 
     return NUMT_MKCOM(setflo(zp, rz), setflo(zp+2, iz));
   }
 }
@@ -6045,19 +6208,30 @@ static numt_t gnumexp(nump_t *zp, numt_t xt, const nump_t *xp)
   }
 }
 
-/* z = log(x)  [natural log; may produce complex for negative reals] */
+/* z = log(x)  [natural log; complex result for negative reals] */
 static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
-  if (isfix(xt) && getfix(xp) == 0) {
-    return setfail(EDOM); /* most Schemes fail */
-  } else if (isfix(xt) && getfix(xp) == 1) {
-    return setfix(zp, 0); /* consistent with exp */
-  } else if (isreal(xt)) {
-    double x = isflo(xt) ? getflo(xp) : rattod(xt, xp);
+  if (isfix(xt)) {
+    long x = getfix(xp);
+    if (x == 0) return setfail(EDOM); /* most Schemes fail */
+    if (x == 1) return setfix(zp, 0); /* consistent with exp */
+    if (x >= 0) return setflo(zp, log(x));
+    return NUMT_MKCOM(setflo(zp, log(labs(x))), setflo(zp+2, M_PI));
+  } else if (isbig(xt)) {
+    bignum_t *x = getbig(xp);
+    if (bnsign(x) >= 0) return setflo(zp, bnlogtod(x));
+    return NUMT_MKCOM(setflo(zp, bnlogtod(x)), setflo(zp+2, M_PI));
+  } else if (israt(xt)) {
+    int sign = intsign(NUMT_RAT_N(xt), xp);
+    double nlog = isfix(NUMT_RAT_N(xt)) ? log(labs(getfix(xp))) : bnlogtod(getbig(xp));
+    double dlog = isfix(NUMT_RAT_D(xt)) ? log(labs(getfix(xp+1))) : bnlogtod(getbig(xp+1));
+    if (sign >= 0) return setflo(zp, nlog-dlog);
+    return NUMT_MKCOM(setflo(zp, nlog-dlog), setflo(zp+2, M_PI));
+  } else if (isflo(xt)) {
+    double x = getflo(xp);
     /* if (x > 0.0 || x == 0.0 && 1.0/x > 0.0) return setflo(zp, log(x)); */
     if (x >= 0.0) return setflo(zp, log(x));
-    /* negative real: log(x) = log|x| + i*pi */
     return NUMT_MKCOM(setflo(zp, log(-x)), setflo(zp+2, M_PI));
   } else {
     double rx, ix, re, im;
@@ -6079,14 +6253,15 @@ static numt_t gnumlogn(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const
       return setfail(EDOM); /* most Schemes fail */
     } else if (isfix(xt) && getfix(xp) == 1) {
       return setfix(zp, 0); /* consistent with exp */
-    } else { /* isreal(xt) */
-      double x = isflo(xt) ? getflo(xp) : rattod(xt, xp);
+    } else if (isflo(xt)) {
+      double x = getflo(xp);
       /* if (x > 0.0 || x == 0.0 && 1.0/x > 0.0) return setflo(zp, log10(x)); */
       if (x >= 0.0) return setflo(zp, log10(x));
       /* negative real: log10(x) = log10|x| + i*pi/log(10) */
       return NUMT_MKCOM(setflo(zp, log10(-x)), setflo(zp+2, M_PI_LN10));
     }
-  } else {
+  } 
+  { /* fallback code; used ror int and rat x too */
     nump_t lxp[4]; numt_t lxt = gnumlog(lxp, xt, xp);
     nump_t lyp[4]; numt_t lyt = gnumlog(lyp, yt, yp);
     numt_t zt = gnumdiv(zp, lxt, lxp, lyt, lyp);
@@ -6102,8 +6277,13 @@ static numt_t gnumsin(nump_t *zp, numt_t xt, const nump_t *xp)
   if (isfix(xt) && getfix(xp) == 0) {
     return setfix(zp, 0); /* consistent with exp */
   } else if (isreal(xt)) {
+#ifndef COMPACT_RATTRIG
+    if (isflo(xt)) return setflo(zp, sin(getflo(xp)));
+    else { double s, c; ratsincos(xt, xp, &s, &c); return setflo(zp, s); }
+#else  
     double x = isflo(xt) ? getflo(xp) : rattod(xt, xp);
     return setflo(zp, sin(x));
+#endif
   } else {
     double rx, ix, re, im;
     if (isrect(xt)) recttodd(xt, xp, &rx, &ix); else comptodd(xt, xp, &rx, &ix);
@@ -6119,8 +6299,13 @@ static numt_t gnumcos(nump_t *zp, numt_t xt, const nump_t *xp)
   if (isfix(xt) && getfix(xp) == 0) {
     return setfix(zp, 1); /* consistent with exp */
   } else if (isreal(xt)) {
+#ifndef COMPACT_RATTRIG
+    if (isflo(xt)) return setflo(zp, cos(getflo(xp)));
+    else { double s, c; ratsincos(xt, xp, &s, &c); return setflo(zp, c); }
+#else  
     double x = isflo(xt) ? getflo(xp) : rattod(xt, xp);
     return setflo(zp, cos(x));
+#endif
   } else {
     double rx, ix, re, im;
     if (isrect(xt)) recttodd(xt, xp, &rx, &ix); else comptodd(xt, xp, &rx, &ix);
@@ -6136,8 +6321,13 @@ static numt_t gnumtan(nump_t *zp, numt_t xt, const nump_t *xp)
   if (isfix(xt) && getfix(xp) == 0) {
     return setfix(zp, 0); /* consistent with exp */
   } else if (isreal(xt)) {
+#ifndef COMPACT_RATTRIG
+    if (isflo(xt)) return setflo(zp, tan(getflo(xp)));
+    else { double s, c; ratsincos(xt, xp, &s, &c); return setflo(zp, s/c); }
+#else  
     double x = isflo(xt) ? getflo(xp) : rattod(xt, xp);
     return setflo(zp, tan(x));
+#endif
   } else {
     double rx, ix, re, im;
     if (isrect(xt)) recttodd(xt, xp, &rx, &ix); else comptodd(xt, xp, &rx, &ix);
