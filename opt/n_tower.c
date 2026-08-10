@@ -2919,47 +2919,45 @@ double bnlogtod(const bignum_t *b)
 }
 
 #ifndef COMPACT_RATTRIG
-/* dynamically select p and q scaled to w, capped at maximum signed 64-bit ratio */
-static void bnx_2pi(const bignum_t *n, const bignum_t *d, bignumll_t *bnpll, bignumll_t *bnqll)
+/* hex string for 2*pi (integer part '6', followed by fractional hex nibbles)
+   python3 -c "from mpmath import mp, pi; mp.dps=500; x=2*pi; n=300; 
+   h=format(int(mp.floor(x*16**n)), 'x'); print(f'{h[0]}.{h[1:]}')" */
+static const char *hex_2pi_str = "6"
+  "487ed5110b4611a62633145c06e0e68948127044533e63a0105df531d89cd912"
+  "8a5043cc71a026ef7ca8cd9e69d218d98158536f92f8a1ba7f09ab6b6a8e122f"
+  "242dabb312f3f637a262174d31bf6b585ffae5b7a035bf6f71c35fdad44cfd2d"
+  "74f9208be258ff324943328f6722d9ee1003e5c50b1df82cc6d241b0e2ae9cd3"
+  "48b1fd47e9267afc1b2ae91ee51d6cb0e3179ab1042a95dcf6a9483b84b4b36b"
+  "3861aa7255e4c0278ba3604650c10be19482f23171b671df1cf3b960c074301c"
+  "d93c1d17603d147dae2aef837a62964ef15e5fb4aac0b8c1ccaa4be754ab5728"
+  "ae9130c4c7d02880ab9472d45556216d6998b8682283d19d42a9";
+
+static bignum_t *g_2pi_max = NULL;
+static size_t g_max_frac_bits = 0;
+long bn_init_2pi(void)
 {
-  /* ratio approx. of 2*pi with both num and den fitting into int64_t */
-  static const struct { uint64_t p, q; size_t max_w; } pi2_table[] = {
-    { 8958937768937ull,        1425859230779ull,       28 },
-    { 279510437053578ull,      44485467702853ull,      37 },
-    { 856449186698608ull,      136308121570117ull,     42 },
-    { 5706674932067741ull,     908245524057187ull,     47 },
-    { 30246273033735921ull,    4813843863426169ull,    52 },
-    { 133254891185777774ull,   21208174623389167ull,   57 },
-    { 430010946591069243ull,   68438367733593670ull,   62 },
-    { 5293386250278608690ull,  842468587426513207ull,  71 }
-  };
-  size_t w_n = bnwidthu(n), w_d = bnwidthu(d);
-  size_t w = (w_n > w_d) ? (w_n - w_d) : 0;
-  size_t num_entries = sizeof(pi2_table) / sizeof(pi2_table[0]);
-  size_t i, idx = num_entries - 1; /* Default to best 63-bit convergent */
-
-  for (i = 0; i < num_entries; i++) {
-    if (w <= pi2_table[i].max_w) { idx = i; break; }
+  if (!g_2pi_max) {
+    size_t len;
+    g_2pi_max = strtobn(hex_2pi_str, NULL, 16);
+    len = strlen(hex_2pi_str);
+    g_max_frac_bits = (len > 1) ? (len - 1) * 4 : 0;
   }
-
-  *bnpll = bnll((int64_t)pi2_table[idx].p);
-  *bnqll = bnll((int64_t)pi2_table[idx].q);
+  return (long)g_max_frac_bits;
 }
 
-/* reduce rational n/d modulo 2pi, returning *pnum/*pden */
-static void bnrmod2pi(const bignum_t *n, const bignum_t *d, bignum_t **pnum, bignum_t **pden)
+/* Reduce rational n/d modulo 2*pi, returning *pnum, *pden */
+void bnrmod2pi(const bignum_t *n, const bignum_t *d, bignum_t **pnum, bignum_t **pden)
 {
-  bignumll_t bnpll, bnqll; 
-  bignum_t *p, *q, *nq, *dp, *r_num, *r_den, *k_bn;
-
-  bnx_2pi(n, d, &bnpll, &bnqll);
-  p = (bignum_t *)&bnpll; q = (bignum_t *)&bnqll;
-
-  nq = bnmul(n, q); dp = bnmul(d, p);
-
-  /* direct remainder: r_num = (n*q) mod (d*p) */
-  k_bn = bndmod(&r_num, nq, dp);
-  r_den = bnmul(d, q);
+  size_t w_n = bnwidthu(n), w_d = bnwidthu(d);
+  size_t w = (w_n > w_d) ? (w_n - w_d) : 0;
+  long mfb = bn_init_2pi();
+  long m = (long)w + DBL_MANT_DIG > mfb ? mfb : (long)w + DBL_MANT_DIG;
+  long shift = (long)(mfb - m);
+  bignum_t *p = bnashll(g_2pi_max, -shift);
+  bignum_t *nq = bnashll(n, m);
+  bignum_t *dp = bnmul(d, p);
+  bignum_t *r_den = bnashll(d, m);
+  bignum_t *r_num, *k_bn = bndmod(&r_num, nq, dp);
 
   if (r_num->isneg) {
     bignum_t *adj_num = bnadd(r_num, dp);
@@ -2967,12 +2965,10 @@ static void bnrmod2pi(const bignum_t *n, const bignum_t *d, bignum_t **pnum, big
     r_num = adj_num;
   }
 
-  *pnum = r_num;
-  *pden = r_den;
+  *pnum = r_num; *pden = r_den;
 
-  bnfree(nq);
-  bnfree(dp);
-  bnfree(k_bn);
+  bnfree(p); bnfree(nq);
+  bnfree(dp); bnfree(k_bn);
 }
 
 /* compute correlated sin and cos of rational n/d */
