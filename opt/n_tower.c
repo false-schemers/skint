@@ -2919,22 +2919,22 @@ double bnlogtod(const bignum_t *b)
 }
 
 #ifndef COMPACT_RATTRIG
-/* hex string for 2*pi (integer part '6', followed by fractional hex nibbles)
-   python3 -c "from mpmath import mp, pi; mp.dps=500; x=2*pi; n=300; 
-   h=format(int(mp.floor(x*16**n)), 'x'); print(f'{h[0]}.{h[1:]}')" */
+/* hex string for 2*pi (integer part '6', followed by fract nibbles)
+   python3 -c "from mpmath import mp, pi; mp.dps=1000; x=2*pi; n=512; 
+   h=format(int(mp.floor(x*16**n)), 'X'); print(f'{h[0]}.{h[1:]}')" */
 static const char *hex_2pi_str = "6"
-  "487ed5110b4611a62633145c06e0e68948127044533e63a0105df531d89cd912"
-  "8a5043cc71a026ef7ca8cd9e69d218d98158536f92f8a1ba7f09ab6b6a8e122f"
-  "242dabb312f3f637a262174d31bf6b585ffae5b7a035bf6f71c35fdad44cfd2d"
-  "74f9208be258ff324943328f6722d9ee1003e5c50b1df82cc6d241b0e2ae9cd3"
-  "48b1fd47e9267afc1b2ae91ee51d6cb0e3179ab1042a95dcf6a9483b84b4b36b"
-  "3861aa7255e4c0278ba3604650c10be19482f23171b671df1cf3b960c074301c"
-  "d93c1d17603d147dae2aef837a62964ef15e5fb4aac0b8c1ccaa4be754ab5728"
-  "ae9130c4c7d02880ab9472d45556216d6998b8682283d19d42a9";
+  "487ED5110B4611A62633145C06E0E68948127044533E63A0105DF531D89CD912"
+  "8A5043CC71A026EF7CA8CD9E69D218D98158536F92F8A1BA7F09AB6B6A8E122F"
+  "242DABB312F3F637A262174D31BF6B585FFAE5B7A035BF6F71C35FDAD44CFD2D"
+  "74F9208BE258FF324943328F6722D9EE1003E5C50B1DF82CC6D241B0E2AE9CD3"
+  "48B1FD47E9267AFC1B2AE91EE51D6CB0E3179AB1042A95DCF6A9483B84B4B36B"
+  "3861AA7255E4C0278BA3604650C10BE19482F23171B671DF1CF3B960C074301C"
+  "D93C1D17603D147DAE2AEF837A62964EF15E5FB4AAC0B8C1CCAA4BE754AB5728"
+  "AE9130C4C7D02880AB9472D45556216D6998B8682283D19D42A90D5EF8E5D327";
 
 static bignum_t *g_2pi_max = NULL;
 static size_t g_max_frac_bits = 0;
-long bn_init_2pi(void)
+static long bnx_init_2pi(void)
 {
   if (!g_2pi_max) {
     size_t len;
@@ -2950,12 +2950,9 @@ void bnrmod2pi(const bignum_t *n, const bignum_t *d, bignum_t **pnum, bignum_t *
 {
   size_t w_n = bnwidthu(n), w_d = bnwidthu(d);
   size_t w = (w_n > w_d) ? (w_n - w_d) : 0;
-  long mfb = bn_init_2pi();
-  long m = (long)w + DBL_MANT_DIG > mfb ? mfb : (long)w + DBL_MANT_DIG;
-  long shift = (long)(mfb - m);
-  bignum_t *p = bnashll(g_2pi_max, -shift);
+  long m = bnx_init_2pi();
   bignum_t *nq = bnashll(n, m);
-  bignum_t *dp = bnmul(d, p);
+  bignum_t *dp = bnmul(d, g_2pi_max);
   bignum_t *r_den = bnashll(d, m);
   bignum_t *r_num, *k_bn = bndmod(&r_num, nq, dp);
 
@@ -2966,9 +2963,7 @@ void bnrmod2pi(const bignum_t *n, const bignum_t *d, bignum_t **pnum, bignum_t *
   }
 
   *pnum = r_num; *pden = r_den;
-
-  bnfree(p); bnfree(nq);
-  bnfree(dp); bnfree(k_bn);
+  bnfree(nq); bnfree(dp); bnfree(k_bn);
 }
 
 /* compute correlated sin and cos of rational n/d */
