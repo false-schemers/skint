@@ -425,7 +425,6 @@ declare_instruction(gand,       "G1\0'(i-1)",   0,  "bitwise-and",              
 declare_instruction(gior,       "G2\0'0",       0,  "bitwise-ior",              'p', AUTOGL)
 declare_instruction(gxor,       "G3\0'0",       0,  "bitwise-xor",              'p', AUTOGL)
 declare_instruction(gash,       "G4",           0,  "arithmetic-shift",         '2', AUTOGL)
-declare_instruction(geqv,       "G7\0'(i-1)",   0,  "bitwise-eqv",              'p', AUTOGL)
 declare_instruction(glen,       "G8",           0,  "integer-length",           '1', AUTOGL)
 declare_instruction(gbtc,       "G8!",          0,  "bit-count",                '1', AUTOGL)
 /* generic number <-> string conversions */

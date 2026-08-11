@@ -1,6 +1,6 @@
 (define-library (srfi 270)
   (import (scheme base) (scheme write) (scheme case-lambda))
-  (import (only (skint hidden) inexact->string))
+  (import (only (skint) inexact->string))
   (export write-hexadecimal-float)
 
 ;[esl] uses skint internal formatter 

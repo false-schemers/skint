@@ -60,6 +60,25 @@
 (define (bitwise-orc1  i j)  (bitwise-ior (bitwise-not i) j))
 (define (bitwise-orc2  i j)  (bitwise-ior i (bitwise-not j)))
 
+;;; This is a general definition, but less than efficient.  It should also
+;;; receive primitive compiler/interpreter support so that the expensive
+;;; n-ary mechanism is not invoked in the standard cases -- that is,
+;;; an application of BITWISE-EQV should be rewritten into an equivalent
+;;; tree applying some two-argument primitive to the arguments, in the
+;;; same manner that statically-known n-ary applications of associative
+;;; operations such as + and * are handled efficiently:
+;;;   (bitwise-eqv)         => -1
+;;;   (bitwise-eqv i)       => i
+;;;   (bitwise-eqv i j)     => (%bitwise-eqv i j)
+;;;   (bitwise-eqv i j k)   => (%bitwise-eqv (%bitwise-eqv i j) k)
+;;;   (bitwise-eqv i j k l) => (%bitwise-eqv (%bitwise-eqv (%bitwise-eqv i j) k) l)
+
+(define (bitwise-eqv . args)
+  (let lp ((args args) (ans -1))
+    (if (pair? args)
+        (lp (cdr args) (bitwise-not (bitwise-xor ans (car args))))
+	ans)))
+
 ;;; [esl] made syntax for guaranteed inlining
 (define-syntax mask ; local
   (syntax-rules () 

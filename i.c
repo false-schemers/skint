@@ -3450,7 +3450,6 @@ define_instruction(gash) {
   gonexti();
 }
 
-define_instruction(geqv) { goi(ieqv); }
 define_instruction(glen) { goi(ilen); }
 define_instruction(gbtc) { goi(ibtc); }
 

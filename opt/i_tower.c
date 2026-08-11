@@ -974,9 +974,6 @@ tower:
   goih(tower_binary);
 }
 
-// FIXME?
-define_instruction(geqv) { goi(ieqv); }
-
 define_instruction(glen) { 
   if (likely(is_fixnum(ac))) {
     ac = fixnum_obj(fxlen(get_fixnum(ac)));
