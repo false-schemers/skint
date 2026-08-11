@@ -3093,6 +3093,58 @@ int bnrcmp(const bignum_t *n1, const bignum_t *d1, const bignum_t *n2, const big
   return isneg1 ? -res : res;
 }
 
+/* [esl+] fast(er) comparison of n1/d1 and a non-NaN double */
+int bnrdcmp(const bignum_t *n1, const bignum_t *d1, double d2)
+{
+  int isneg1, exp_d2, cmp;
+  long long e1, e_d2, delta_l;
+  bignum_t *p1, *p2, *tmp;
+  bignumll_t bn_m;
+  double m;
+
+  assert(d2 == d2); /* no NaNs! */
+  assert(DBL_MANT_DIG < 64);
+
+  /* 0s amd signs */
+  if (d2 >= HUGE_VAL)  return -1;
+  if (d2 <= -HUGE_VAL) return  1;
+  if (BNZERO(n1)) return (d2 == 0.0) ? 0 : (d2 > 0.0) ? -1 : 1;
+  if (d2 == 0.0) return n1->isneg ? -1 : 1;
+  isneg1 = n1->isneg;
+  if (isneg1 != (d2 < 0.0)) return isneg1 ? -1 : 1;
+
+  /* extract mantissa and exponent */
+  m = frexp(fabs(d2), &exp_d2);
+
+  /* limb count comparison */
+  delta_l = (long long)n1->size - (long long)d1->size;
+  if ((delta_l - 1) * LIMB_BITS >= (long long)exp_d2)
+      return isneg1 ? -1 : 1;
+  if ((long long)exp_d2 >= (delta_l + 1) * LIMB_BITS + 1)
+      return isneg1 ? 1 : -1;
+
+  /* bit width comparison */
+  e1 = (long long)bnwidthu(n1) - (long long)bnwidthu(d1);
+  if (e1 >= (long long)exp_d2 + 1) return isneg1 ? -1 : 1;
+  if ((long long)exp_d2 >= e1 + 2) return isneg1 ? 1 : -1;
+
+  /* cross-product fallback */
+  e_d2 = (long long)exp_d2 - DBL_MANT_DIG;
+  bn_m = bnll((int64_t)ldexp(m, DBL_MANT_DIG));
+  p2 = bnmul(d1, (const bignum_t *)&bn_m);
+  if (e_d2 > 0) {
+    tmp = bnashll(p2, e_d2);
+    bnfree(p2);
+    p2 = tmp;
+  }
+  p1 = (e_d2 < 0) ? bnashll(n1, -e_d2) : bndup(n1);
+  cmp = bncmpabs(p1, p2);
+  bnfree(p1);
+  bnfree(p2);
+
+  return isneg1 ? -cmp : cmp;
+}
+
 
 bignumll_t bnll(int64_t v)
 {
@@ -5270,9 +5322,12 @@ static void comptodd(numt_t xt, const nump_t *xp, double *prd, double *pid)
 #define isreal(nt) NUMT_IS_REALNUM(nt) 
 
 /* x == y */
-static int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
-  long lx, ly; double dx, dy; nump_t xp1[2], yp1[2];
+  long lx, ly; double dx, dy; 
+#if 0
+  nump_t xp1[2], yp1[2];
+#endif
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   assert(NUMT_IS_REALNUM(yt) && "non-real number");
   if (isfix(xt) && isfix(yt)) { /* fast track */
@@ -5287,6 +5342,23 @@ static int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
       dy = isfix(yt) ? getfix(yp) : getflo(yp);
       return dx == dy;
     } else { /* slow track */
+#if 1
+      if (isflo(xt)) { /* yt is a ratio */
+        bignumll_t nyll, dyll; double d = getflo(xp);
+        numt_t nyt = NUMT_RAT_N(yt), dyt = NUMT_RAT_D(yt);
+        bignum_t *ny = isbig(nyt) ? getbig(yp)   : bnx_makell(&nyll, getfix(yp));
+        bignum_t *dy = isbig(dyt) ? getbig(yp+1) : bnx_makell(&dyll, dyt ? getfix(yp+1) : 1);
+        return d == d && bnrdcmp(ny, dy, d) == 0;
+      } else if (isflo(yt)) { /* xt is a ratio */
+        bignumll_t nxll, dxll; double d = getflo(yp);
+        numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt);
+        bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
+        bignum_t *dx = isbig(dxt) ? getbig(xp+1) : bnx_makell(&dxll, dxt ? getfix(xp+1) : 1);
+        return d == d && bnrdcmp(nx, dx, d) == 0;
+      } else { /* can't happen */
+        assert(0); return 0;
+      }
+#else    
       int res;
       if (isflo(xt)) xt = dtorat(xp1, getflo(xp)), xp = xp1;
       if (isflo(yt)) yt = dtorat(yp1, getflo(yp)), yp = yp1;
@@ -5294,6 +5366,7 @@ static int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
       if (xp == xp1) numfini(xt, xp1);
       if (yp == yp1) numfini(yt, yp1);
       return res;
+#endif
     }
   } else {
     return rateq(xt, xp, yt, yp);
@@ -5301,10 +5374,13 @@ static int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* cmp(x, y) == c */
-static int realcmpc(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
+int realcmpc(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
 {
-  long lx, ly; double dx, dy; int res;
+  long lx, ly; double dx, dy; int cmp;
+#if 0
+  int res;
   nump_t xp1[2], yp1[2]; numt_t xt1 = NUMT_NONE, yt1 = NUMT_NONE;
+#endif
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   assert(NUMT_IS_REALNUM(yt) && "non-real number");
   if (isfix(xt) && isfix(yt)) { /* fast track */
@@ -5319,13 +5395,46 @@ static int realcmpc(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, nc
       dy = isfix(yt) ? getfix(yp) : getflo(yp);
       goto cmpd;
     } else { /* slow track */
+#if 1
+      if (isflo(xt)) { /* yt is a ratio */
+        bignumll_t nyll, dyll; double d = getflo(xp);
+        numt_t nyt = NUMT_RAT_N(yt), dyt = NUMT_RAT_D(yt);
+        bignum_t *ny = isbig(nyt) ? getbig(yp)   : bnx_makell(&nyll, getfix(yp));
+        bignum_t *dy = isbig(dyt) ? getbig(yp+1) : bnx_makell(&dyll, dyt ? getfix(yp+1) : 1);
+        if (d != d) return 0; /* oops -- NaN! */
+        cmp = -bnrdcmp(ny, dy, d);
+        goto cmp;
+      } else if (isflo(yt)) { /* xt is a ratio */
+        bignumll_t nxll, dxll; double d = getflo(yp);
+        numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt);
+        bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
+        bignum_t *dx = isbig(dxt) ? getbig(xp+1) : bnx_makell(&dxll, dxt ? getfix(xp+1) : 1);
+        if (d != d) return 0; /* oops -- NaN! */
+        cmp = bnrdcmp(nx, dx, d);
+        goto cmp;
+      }
+#else
       if (isflo(xt)) xt = xt1 = dtorat(xp1, getflo(xp)), xp = xp1;
       if (isflo(yt)) yt = yt1 = dtorat(yp1, getflo(yp)), yp = yp1;
       goto cmpr;
+#endif
     }
   } else {
     goto cmpr;
   }
+#if 1
+cmpr:
+  cmp = ratcmp(xt, xp, yt, yp);
+cmp:
+  switch (c) { 
+    case NCMP_LT: return cmp < 0;
+    case NCMP_LE: return cmp <= 0;
+    case NCMP_EQ: return cmp == 0;
+    case NCMP_GE: return cmp >= 0;
+    case NCMP_GT: return cmp > 0;
+    default: assert(0); return 0;
+  }
+#endif 
 cmpl:
   switch (c) { 
     case NCMP_LT: return lx < ly;
@@ -5344,6 +5453,7 @@ cmpd:
     case NCMP_GT: return dx > dy;
     default: assert(0); return 0;
   }
+#if 0
 cmpr:
   switch (c) { 
     case NCMP_LT: res = ratless(xt, xp, yt, yp); break;
@@ -5356,6 +5466,7 @@ cmpr:
   numfini(xt1, xp1);
   numfini(yt1, yp1);
   return res;
+#endif
 }
 
 /* cmp(x, 0) == c */
