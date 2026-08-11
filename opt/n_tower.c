@@ -1634,6 +1634,8 @@ int bneq(const bignum_t *a, const bignum_t *b)
   return (bncmp(a, b) == 0);
 }
 
+#define bneql(b, l) (0 == bncmpl(b, l))
+
 int bneven(const bignum_t *a)
 {
   assert(a != NULL);
@@ -3456,9 +3458,6 @@ int intcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* x == y */
-#if 1
-#define inteq(xt, xp, yt, yp) (intcmp(xt, xp, yt, yp) == 0)
-#else
 int inteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
@@ -3471,27 +3470,9 @@ int inteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
     return 0;
   }
 }
-#endif
 
 /* x < y */
-#if 1
 #define intless(xt, xp, yt, yp) (intcmp(xt, xp, yt, yp) < 0)
-#else
-int intless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  assert(NUMT_IS_INTNUM(xt) && "non-integer number");
-  assert(NUMT_IS_INTNUM(yt) && "non-integer number");
-  if (isfix(xt)) {
-    if (isfix(yt)) return getfix(xp) < getfix(yp);
-    else return bnsign(getbig(yp)) > 0; /* disjoint */
-  } else {
-    if (isfix(yt)) return bnsign(getbig(xp)) < 0; /* disjoint */
-    else return bncmp(getbig(xp), getbig(yp)) < 0;
-  }
-}
-#endif
-
-#define bneql(b, l) (0 == bncmpl(b, l))
 
 /* odd(x) */
 static int intodd(numt_t xt, const nump_t *xp)
@@ -4229,37 +4210,7 @@ int rateq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* x < y */
-#if 1
 #define ratless(xt, xp, yt, yp) (ratcmp(xt, xp, yt, yp) < 0)
-#else
-int ratless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  int xs, ys;
-  assert(NUMT_IS_RATNUM(xt) && "non-rational number");
-  assert(NUMT_IS_RATNUM(yt) && "non-rational number");
-  if (isint(xt) && isint(yt)) {
-    return intless(xt, xp, yt, yp);
-  } else if ((xs = intsign(NUMT_RAT_N(xt), xp)) != (ys = intsign(NUMT_RAT_N(yt), yp))) {
-    return xs < ys;
-  } else if (!isint(xt) && !isint(yt) && inteq(NUMT_RAT_D(xt), xp+1, NUMT_RAT_D(yt), yp+1)) {
-    return intless(NUMT_RAT_N(xt), xp, NUMT_RAT_N(yt), yp);
-  } else {
-    /* have to compare n(x)*d(y) < n(y)*d(x) */
-    int res;
-    numt_t nxt; nump_t nxp[1]; numt_t dxt; nump_t dxp[1]; /* owned by caller */
-    numt_t nyt; nump_t nyp[1]; numt_t dyt; nump_t dyp[1]; /* owned by caller */
-    numt_t mxt; nump_t mxp[1]; numt_t myt; nump_t myp[1]; /* new */
-    nxt = NUMT_RAT_N(xt), *nxp = *xp;
-    if (!(dxt = NUMT_RAT_D(xt))) dxt = setfix(dxp, 1); else dxp[0] = xp[1];
-    nyt = NUMT_RAT_N(yt), *nyp = *yp;
-    if (!(dyt = NUMT_RAT_D(yt))) dyt = setfix(dyp, 1); else dyp[0] = yp[1];
-    mxt = intmul(mxp, nxt, nxp, dyt, dyp), myt = intmul(myp, nyt, nyp, dxt, dxp);
-    res = intless(mxt, mxp, myt, myp);
-    numfini(mxt, mxp), numfini(myt, myp);
-    return res;
-  }
-}
-#endif
 
 /* z = -x */
 static numt_t ratneg(nump_t *zp, numt_t xt, const nump_t *xp)
@@ -5018,9 +4969,20 @@ static numt_t strtorect(nump_t *zp, const char *str, char **endp, int radix)
         /* real */
       } else {
         double m = isflo(zt) ? getflo(zp) : rattod(zt, zp);
+#ifndef COMPACT_RATTRIG
+        numfini(zt, zp);
+        if (isflo(at)) {
+          double a = getflo(ap);
+          zt = NUMT_MKCOM(setflo(zp, m*cos(a)), setflo(zp+2, m*sin(a)));
+        } else {
+          double sa, ca; ratsincos(at, ap, &sa, &ca);
+          zt = NUMT_MKCOM(setflo(zp, m*ca), setflo(zp+2, m*sa));
+        }
+#else        
         double a = isflo(at) ? getflo(ap) : rattod(at, ap);
         numfini(zt, zp); numfini(at, ap);
         zt = NUMT_MKCOM(setflo(zp, m*cos(a)), setflo(zp+2, m*sin(a)));
+#endif
       }
     } else { 
       /* real */
@@ -5325,9 +5287,6 @@ static void comptodd(numt_t xt, const nump_t *xp, double *prd, double *pid)
 int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   long lx, ly; double dx, dy; 
-#if 0
-  nump_t xp1[2], yp1[2];
-#endif
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   assert(NUMT_IS_REALNUM(yt) && "non-real number");
   if (isfix(xt) && isfix(yt)) { /* fast track */
@@ -5342,7 +5301,6 @@ int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
       dy = isfix(yt) ? getfix(yp) : getflo(yp);
       return dx == dy;
     } else { /* slow track */
-#if 1
       if (isflo(xt)) { /* yt is a ratio */
         bignumll_t nyll, dyll; double d = getflo(xp);
         numt_t nyt = NUMT_RAT_N(yt), dyt = NUMT_RAT_D(yt);
@@ -5358,15 +5316,6 @@ int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
       } else { /* can't happen */
         assert(0); return 0;
       }
-#else    
-      int res;
-      if (isflo(xt)) xt = dtorat(xp1, getflo(xp)), xp = xp1;
-      if (isflo(yt)) yt = dtorat(yp1, getflo(yp)), yp = yp1;
-      res = rateq(xt, xp, yt, yp);
-      if (xp == xp1) numfini(xt, xp1);
-      if (yp == yp1) numfini(yt, yp1);
-      return res;
-#endif
     }
   } else {
     return rateq(xt, xp, yt, yp);
@@ -5377,10 +5326,6 @@ int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 int realcmpc(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
 {
   long lx, ly; double dx, dy; int cmp;
-#if 0
-  int res;
-  nump_t xp1[2], yp1[2]; numt_t xt1 = NUMT_NONE, yt1 = NUMT_NONE;
-#endif
   assert(NUMT_IS_REALNUM(xt) && "non-real number");
   assert(NUMT_IS_REALNUM(yt) && "non-real number");
   if (isfix(xt) && isfix(yt)) { /* fast track */
@@ -5395,7 +5340,6 @@ int realcmpc(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
       dy = isfix(yt) ? getfix(yp) : getflo(yp);
       goto cmpd;
     } else { /* slow track */
-#if 1
       if (isflo(xt)) { /* yt is a ratio */
         bignumll_t nyll, dyll; double d = getflo(xp);
         numt_t nyt = NUMT_RAT_N(yt), dyt = NUMT_RAT_D(yt);
@@ -5413,16 +5357,10 @@ int realcmpc(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
         cmp = bnrdcmp(nx, dx, d);
         goto cmp;
       }
-#else
-      if (isflo(xt)) xt = xt1 = dtorat(xp1, getflo(xp)), xp = xp1;
-      if (isflo(yt)) yt = yt1 = dtorat(yp1, getflo(yp)), yp = yp1;
-      goto cmpr;
-#endif
     }
   } else {
     goto cmpr;
   }
-#if 1
 cmpr:
   cmp = ratcmp(xt, xp, yt, yp);
 cmp:
@@ -5434,7 +5372,6 @@ cmp:
     case NCMP_GT: return cmp > 0;
     default: assert(0); return 0;
   }
-#endif 
 cmpl:
   switch (c) { 
     case NCMP_LT: return lx < ly;
@@ -5453,20 +5390,6 @@ cmpd:
     case NCMP_GT: return dx > dy;
     default: assert(0); return 0;
   }
-#if 0
-cmpr:
-  switch (c) { 
-    case NCMP_LT: res = ratless(xt, xp, yt, yp); break;
-    case NCMP_LE: res = !ratless(yt, yp, xt, xp); break;
-    case NCMP_EQ: res = rateq(xt, xp, yt, yp); break;
-    case NCMP_GE: res = !ratless(xt, xp, yt, yp); break;
-    case NCMP_GT: res = ratless(yt, yp, xt, xp); break;
-    default: assert(0); res = 0; break;
-  }
-  numfini(xt1, xp1);
-  numfini(yt1, yp1);
-  return res;
-#endif
 }
 
 /* cmp(x, 0) == c */
@@ -6441,9 +6364,19 @@ static numt_t gnummkpol(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, cons
   if ((isfix(yt) && getfix(yp) == 0) || (isfix(xt) && getfix(xp) == 0)) {
     return numdup(zp, xt, xp);
   } else {
-    double r = isflo(xt) ? getflo(xp) : rattod(xt, xp);
-    double theta = isflo(yt) ? getflo(yp) : rattod(yt, yp);
-    return NUMT_MKCOM(setflo(zp, r*cos(theta)), setflo(zp+2, r*sin(theta)));
+    double m = isflo(xt) ? getflo(xp) : rattod(xt, xp);
+#ifndef COMPACT_RATTRIG
+    if (isflo(yt)) {
+      double a = getflo(yp);
+      return NUMT_MKCOM(setflo(zp, m*cos(a)), setflo(zp+2, m*sin(a)));
+    } else {
+      double sa, ca; ratsincos(yt, yp, &sa, &ca);
+      return NUMT_MKCOM(setflo(zp, m*ca), setflo(zp+2, m*sa));
+    }
+#else    
+    double a = isflo(yt) ? getflo(yp) : rattod(yt, yp);
+    return NUMT_MKCOM(setflo(zp, m*cos(a)), setflo(zp+2, m*sin(a)));
+#endif
   }
 }
 
