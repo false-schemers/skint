@@ -2987,6 +2987,77 @@ void bnrsincostod(const bignum_t *n, const bignum_t *d, double *psin, double *pc
 }
 #endif
 
+#define ATAN2_TRUNC_BITS (DBL_MANT_DIG + 7) /* guard bits for lost precision */
+#define ATAN2_DOMINANCE  (DBL_MANT_DIG + 1) /* underflow */
+
+double bnratan2tod(const bignum_t *ny, const bignum_t *dy, const bignum_t *nx, const bignum_t *dx)
+{
+  int y_is_neg, x_is_neg;
+  size_t wny, wdy, wnx, wdx, sy, sx;
+  size_t sh_ny, sh_dy, sh_nx, sh_dx;
+  bignum_t *ny_t, *dy_t, *nx_t, *dx_t;
+  bignum_t *n_ratio, *d_ratio;
+  double r_trunc, r, y_val, x_val;
+  int extra;
+
+  if (BNZERO(dy) || BNZERO(dx)) return HUGE_VAL-HUGE_VAL;  /* NaN */
+
+  /* signs of y = ny/dy, x = nx/dx */
+  y_is_neg = (ny->isneg != dy->isneg);
+  x_is_neg = (nx->isneg != dx->isneg);
+
+  if (BNZERO(ny)) {
+    if (x_is_neg) return y_is_neg ? -M_PI : M_PI;
+    else return y_is_neg ? -0.0 : 0.0;
+  } else if (BNZERO(nx)) {
+    return y_is_neg ? -M_PI_2 : M_PI_2;
+  }
+
+  /* approximate log2 magnitudes */
+  wny = bnwidthu(ny); wdy = bnwidthu(dy);
+  wnx = bnwidthu(nx); wdx = bnwidthu(dx);
+  sy = wny + wdx; /* approx log2(|ny * dx|) */
+  sx = wdy + wnx; /* approx log2(|dy * nx|) */
+
+  /* fast path: |y| >> |x| (angle approaches +/- pi/2) */
+  if (sy > sx + ATAN2_DOMINANCE) {
+    return y_is_neg ? -M_PI_2 : M_PI_2;
+  }
+  /* fast path: |x| >> |y|, x < 0 (angle approaches +/- pi) */
+  if (sx > sy + ATAN2_DOMINANCE && x_is_neg) {
+    return y_is_neg ? -M_PI : M_PI;
+  }
+
+  /* comparable magnitudes: shift right via negative shift count */
+  sh_ny = (wny > ATAN2_TRUNC_BITS) ? (wny - ATAN2_TRUNC_BITS) : 0;
+  sh_dy = (wdy > ATAN2_TRUNC_BITS) ? (wdy - ATAN2_TRUNC_BITS) : 0;
+  sh_nx = (wnx > ATAN2_TRUNC_BITS) ? (wnx - ATAN2_TRUNC_BITS) : 0;
+  sh_dx = (wdx > ATAN2_TRUNC_BITS) ? (wdx - ATAN2_TRUNC_BITS) : 0;
+  ny_t = sh_ny ? bnashll(ny, -(long)sh_ny) : bndup(ny);
+  dy_t = sh_dy ? bnashll(dy, -(long)sh_dy) : bndup(dy);
+  nx_t = sh_nx ? bnashll(nx, -(long)sh_nx) : bndup(nx);
+  dx_t = sh_dx ? bnashll(dx, -(long)sh_dx) : bndup(dx);
+
+  /* cross-multiply and free temps */
+  n_ratio = bnmul(ny_t, dx_t);
+  d_ratio = bnmul(dy_t, nx_t);
+  bnfree(ny_t); bnfree(dy_t); bnfree(nx_t); bnfree(dx_t);
+
+  /* convert ratio to abs double and free */
+  r_trunc = fabs(bnrtod(n_ratio, d_ratio));
+  bnfree(n_ratio); bnfree(d_ratio);
+
+  /* compensate for truncation scale mismatch */
+  extra = (int)(sh_ny + sh_dx) - (int)(sh_dy + sh_nx);
+  r = ldexp(r_trunc, extra);
+
+  /* apply signs and compute final angle */
+  y_val = y_is_neg ? -r : r;
+  x_val = x_is_neg ? -1.0 : 1.0;
+
+  return atan2(y_val, x_val);
+}
+
 bignumll_t bnll(int64_t v)
 {
   bignumll_t b; bnx_makell(&b, v);
@@ -5852,6 +5923,10 @@ static numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
 static int gnumodd(numt_t xt, const nump_t *xp); 
 static numt_t gnumexp(nump_t *zp, numt_t xt, const nump_t *xp);
 static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp);
+static numt_t gnummagn(nump_t *zp, numt_t xt, const nump_t *xp);
+static numt_t gnumangl(nump_t *zp, numt_t xt, const nump_t *xp);
+static numt_t gnumatan2(nump_t *zp, numt_t yt, const nump_t *yp, numt_t xt, const nump_t *xp);
+static numt_t gnummkrec(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp);
 
 /* z = expt(x, y)  [generic] */
 /* exact base with exact integer exponent stays exact; may go inexact otherwise */
@@ -6108,9 +6183,9 @@ static numt_t gnummagn(nump_t *zp, numt_t xt, const nump_t *xp)
     return realabs(zp, xt, xp);
   } else if (isrect(xt)) {
     /* exact complex: do the math directly */
-    nump_t rp[2]; numt_t rt = intmul(rp, NUMT_COM_R(xt), xp, NUMT_COM_R(xt), xp); 
-    nump_t ip[2]; numt_t it = intmul(ip, NUMT_COM_I(xt), xp+2, NUMT_COM_I(xt), xp+2); 
-    nump_t sp[2]; numt_t st = intadd(sp, rt, rp, it, ip);
+    nump_t rp[2]; numt_t rt = ratmul(rp, NUMT_COM_R(xt), xp, NUMT_COM_R(xt), xp); 
+    nump_t ip[2]; numt_t it = ratmul(ip, NUMT_COM_I(xt), xp+2, NUMT_COM_I(xt), xp+2); 
+    nump_t sp[2]; numt_t st = ratadd(sp, rt, rp, it, ip);
     numt_t zt; numfini(rt, rp); numfini(it, ip);
     zt = gnumsqrt(zp, st, sp);
     numfini(st, sp);
@@ -6123,7 +6198,7 @@ static numt_t gnummagn(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = angle(x)  [always inexact] */
-static numt_t gnumangle(nump_t *zp, numt_t xt, const nump_t *xp)
+static numt_t gnumangl(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt) && getfix(xp) == 0) return setfail(EDOM);
@@ -6134,9 +6209,7 @@ static numt_t gnumangle(nump_t *zp, numt_t xt, const nump_t *xp)
   } else if (israt(xt)) {
     return ratsign(xt, xp) < 0 ? setflo(zp, M_PI) : setfix(zp, 0);
   } else if (isrect(xt)) {
-    double rx, ix;
-    recttodd(xt, xp, &rx, &ix);
-    return setflo(zp, atan2(ix, rx));
+    return gnumatan2(zp, NUMT_COM_I(xt), xp+2, NUMT_COM_R(xt), xp);
   } else {
     double rx = getflo(xp), ix = NUMT_COM_I(xt) ? getflo(xp+2) : 0.0;
     return setflo(zp, atan2(ix, rx));
@@ -6144,7 +6217,7 @@ static numt_t gnumangle(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = make-rectangular(x, y)  [x, y must be real] */
-static numt_t gnummakerect(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnummkrec(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -6166,7 +6239,7 @@ static numt_t gnummakerect(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, c
 }
 
 /* z = make-polar(r, theta)  [always inexact] */
-static numt_t gnummakepolar(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+static numt_t gnummkpol(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
@@ -6180,7 +6253,7 @@ static numt_t gnummakepolar(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, 
   }
 }
 
-/* inexact transcendental functions: all return inexact (compnum if needed) */
+/* transcendental functions: all return inexact (mostly) */
 
 /* z = exp(x) */
 static numt_t gnumexp(nump_t *zp, numt_t xt, const nump_t *xp)
@@ -6224,6 +6297,20 @@ static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
     /* if (x > 0.0 || x == 0.0 && 1.0/x > 0.0) return setflo(zp, log(x)); */
     if (x >= 0.0) return setflo(zp, log(x));
     return NUMT_MKCOM(setflo(zp, log(-x)), setflo(zp+2, M_PI));
+  } else if (isrect(xt)) {
+    /* do the math directly so as not to convert to double prematurely */
+    nump_t rp[2]; numt_t rt = ratmul(rp, NUMT_COM_R(xt), xp, NUMT_COM_R(xt), xp); 
+    nump_t ip[2]; numt_t it = ratmul(ip, NUMT_COM_I(xt), xp+2, NUMT_COM_I(xt), xp+2); 
+    nump_t sp[2]; numt_t st = ratadd(sp, rt, rp, it, ip); /* nonnegative! */
+    nump_t lp[4]; numt_t lt = gnumlog(lp, st, sp); /* 4 slots just in case */
+    nump_t tp[1]; numt_t tt = setfix(tp, 2), zt;
+    numfini(rt, rp); numfini(it, ip); numfini(st, sp);
+    rt = gnumdiv(rp, lt, lp, tt, tp); assert(!NUMT_COM_I(rt));
+    it = gnumangl(ip, xt, xp); assert(!NUMT_COM_I(it));
+    numfini(lt, lp); numfini(tt, tp); 
+    zt = gnummkrec(zp, rt, rp, it, ip);
+    numfini(rt, rp); numfini(it, ip); 
+    return zt;
   } else {
     double rx, ix, re, im;
     if (isrect(xt)) recttodd(xt, xp, &rx, &ix); else comptodd(xt, xp, &rx, &ix);
@@ -6423,6 +6510,15 @@ static numt_t gnumatan2(nump_t *zp, numt_t yt, const nump_t *yp, numt_t xt, cons
     if (getfix(xp) > 0) return setfix(zp, 0); 
     else if (getfix(xp) < 0) return setflo(zp, M_PI); 
     else return setfail(EDOM);
+  } else if (israt(yt) && israt(xt)) {
+    bignumll_t nyll, dyll, nxll, dxll; 
+    numt_t nyt = NUMT_RAT_N(yt), dyt = NUMT_RAT_D(yt); 
+    numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt); 
+    bignum_t *ny = isbig(nyt) ? getbig(yp)   : bnx_makell(&nyll, getfix(yp));
+    bignum_t *dy = isbig(dyt) ? getbig(yp+1) : bnx_makell(&dyll, dyt ? getfix(yp+1) : 1);
+    bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
+    bignum_t *dx = isbig(dxt) ? getbig(xp+1) : bnx_makell(&dxll, dxt ? getfix(xp+1) : 1);
+    return setflo(zp, bnratan2tod(ny, dy, nx, dx));
   } else {
     double y = isflo(yt) ? getflo(yp) : rattod(yt, yp);  /* first arg is y */
     double x = isflo(xt) ? getflo(xp) : rattod(xt, xp);  /* second arg is x */
@@ -6808,7 +6904,7 @@ int fnmagn(fatnum4r_t *fz, const fatnum_t *fx)
     fz->t = zt; return zt != NUMT_NONE; }
 
 int fnangl(fatnum4r_t *fz, const fatnum_t *fx)
-  { numt_t zt = gnumangle(fz->u.p, fx->t, fx->p);
+  { numt_t zt = gnumangl(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "angle: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
@@ -6935,12 +7031,12 @@ int fnatan2(fatnum4r_t *fz, const fatnum_t *fy, const fatnum_t *fx)
     fz->t = zt; return zt != NUMT_NONE; }
 
 int fnmkrec(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
-  { numt_t zt = gnummakerect(fz->u.p, fx->t, fx->p, fy->t, fy->p);
+  { numt_t zt = gnummkrec(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "make-rectangular: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
 
 int fnmkpol(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
-  { numt_t zt = gnummakepolar(fz->u.p, fx->t, fx->p, fy->t, fy->p);
+  { numt_t zt = gnummkpol(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "make-polar: domain error");
     fz->t = zt; return zt != NUMT_NONE; }
     
