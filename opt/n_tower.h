@@ -79,7 +79,7 @@ typedef struct fatnum4r { numt_t t; union { nump_t p[4]; char msg[80]; } u; } fa
 /* return values: 1 = true, 0 = false */
 extern int fneqn(const fatnum_t *fx, const fatnum_t *fy);
 extern int fneqv(const fatnum_t *fx, const fatnum_t *fy);
-extern int fncmp(const fatnum_t *fx, const fatnum_t *fy, ncmp_t c);
+extern int fncmpc(const fatnum_t *fx, const fatnum_t *fy, ncmp_t c);
 extern int fnodd(const fatnum_t *fx);
 extern int fneven(const fatnum_t *fx);
 extern int fnisex(const fatnum_t *fx);

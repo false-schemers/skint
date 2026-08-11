@@ -410,7 +410,7 @@ define_instrhelper(tower_cmp) {
   else if (is_fatnum(y)) { fy = get_fatnum(y); if (!fnisreal(fy)) fy = NULL; } 
   if (!fx) failtype(x, "real number");
   if (!fy) failtype(y, "real number");
-  res = fncmp(fx, fy, ncmp); assert(!res || res == 1);
+  res = fncmpc(fx, fy, ncmp); assert(!res || res == 1);
   ac = bool_obj(res);
   gonexti();
 }

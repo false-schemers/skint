@@ -3058,6 +3058,42 @@ double bnratan2tod(const bignum_t *ny, const bignum_t *dy, const bignum_t *nx, c
   return atan2(y_val, x_val);
 }
 
+/* [esl+] fast(er) comparison of two normalized rationals n1/d1 n2/d2; returns -1/0/1 */
+int bnrcmp(const bignum_t *n1, const bignum_t *d1, const bignum_t *n2, const bignum_t *d2)
+{
+  int z1, z2, isneg1, isneg2;
+  size_t c1, c2, s1, s2;
+  bignum_t *p1, *p2;
+  int res;
+
+  /* 0s amd signs */
+  z1 = BNZERO(n1), z2 = BNZERO(n2);
+  if (z1 && z2) return 0;
+  isneg1 = n1->isneg, isneg2 = n2->isneg;
+  if (z1) return isneg2 ? 1 : -1;
+  if (z2) return isneg1 ? -1 : 1;
+  if (isneg1 != isneg2) return isneg1 ? -1 : 1;
+
+  /* limb count comparison; gap of 2 is large enough */
+  c1 = n1->size + d2->size; c2 = d1->size + n2->size;
+  if (c1 >= c2 + 2) return isneg1 ? -1 : 1;
+  if (c2 >= c1 + 2) return isneg1 ? 1 : -1;
+
+  /* bit width comparison; gap of 2 is large enough */
+  s1 = bnwidthu(n1) + bnwidthu(d2);
+  s2 = bnwidthu(d1) + bnwidthu(n2);
+  if (s1 >= s2 + 2) return isneg1 ? -1 : 1;
+  if (s2 >= s1 + 2) return isneg1 ? 1 : -1;
+
+  /* cross-product fallnack; signs are the same */
+  p1 = bnmul(n1, d2); p2 = bnmul(d1, n2);
+  res = bncmpabs(p1, p2);
+  bnfree(p1); bnfree(p2);
+  
+  return isneg1 ? -res : res;
+}
+
+
 bignumll_t bnll(int64_t v)
 {
   bignumll_t b; bnx_makell(&b, v);
@@ -3350,8 +3386,28 @@ static numt_t nummove(nump_t *yp, numt_t xt, const nump_t *xp)
 
 #define NUMT_IS_INTNUM(nt) ((nt) == NUMT_FIX || (nt) == NUMT_BIG)
 
+/* x <=> y, returns -1/0/1 */
+int intcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+{
+  assert(NUMT_IS_INTNUM(xt) && "non-integer number");
+  assert(NUMT_IS_INTNUM(yt) && "non-integer number");
+  if (isfix(xt) && isfix(yt)) {
+    long x = getfix(xp), y = getfix(yp);
+    return (x < y) ? -1 : (x > y);
+  } else if (isfix(xt)) { /* yt is big */
+    return -bnsign(getbig(yp)); /* y is out of fixnum range */
+  } else if (isfix(yt)) { /* xt is big */
+    return bnsign(getbig(xp)); /* x is out of fixnum range */
+  } else { /* both big */
+    return bncmp(getbig(xp), getbig(yp));
+  }
+}
+
 /* x == y */
-static int inteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+#if 1
+#define inteq(xt, xp, yt, yp) (intcmp(xt, xp, yt, yp) == 0)
+#else
+int inteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
@@ -3363,9 +3419,13 @@ static int inteq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
     return 0;
   }
 }
+#endif
 
 /* x < y */
-static int intless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+#if 1
+#define intless(xt, xp, yt, yp) (intcmp(xt, xp, yt, yp) < 0)
+#else
+int intless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
@@ -3377,6 +3437,7 @@ static int intless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
     else return bncmp(getbig(xp), getbig(yp)) < 0;
   }
 }
+#endif
 
 #define bneql(b, l) (0 == bncmpl(b, l))
 
@@ -4083,8 +4144,26 @@ static double inttod(numt_t xt, const nump_t *xp)
 /* these macros assume RATNUM arguments */
 #define isint(xt)     (NUMT_IS_INTNUM(xt))
 
+/* x <=> y, returns -1/0/1 */
+int ratcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+{
+  assert(NUMT_IS_RATNUM(xt) && "non-rational number");
+  assert(NUMT_IS_RATNUM(yt) && "non-rational number");
+  if (isint(xt) && isint(yt)) {
+    return intcmp(xt, xp, yt, yp);
+  } else {
+    bignumll_t nxll, dxll, nyll, dyll;
+    numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt), nyt = NUMT_RAT_N(yt), dyt = NUMT_RAT_D(yt);
+    bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
+    bignum_t *dx = isbig(dxt) ? getbig(xp+1) : bnx_makell(&dxll, dxt ? getfix(xp+1) : 1);
+    bignum_t *ny = isbig(nyt) ? getbig(yp)   : bnx_makell(&nyll, getfix(yp));
+    bignum_t *dy = isbig(dyt) ? getbig(yp+1) : bnx_makell(&dyll, dyt ? getfix(yp+1) : 1);
+    return bnrcmp(nx, dx, ny, dy);
+  }
+}
+
 /* x == y */
-static int rateq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+int rateq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
   assert(NUMT_IS_RATNUM(yt) && "non-rational number");
@@ -4098,7 +4177,10 @@ static int rateq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* x < y */
-static int ratless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+#if 1
+#define ratless(xt, xp, yt, yp) (ratcmp(xt, xp, yt, yp) < 0)
+#else
+int ratless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   int xs, ys;
   assert(NUMT_IS_RATNUM(xt) && "non-rational number");
@@ -4125,6 +4207,7 @@ static int ratless(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
     return res;
   }
 }
+#endif
 
 /* z = -x */
 static numt_t ratneg(nump_t *zp, numt_t xt, const nump_t *xp)
@@ -5218,7 +5301,7 @@ static int realeq(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* cmp(x, y) == c */
-static int realcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
+static int realcmpc(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
 {
   long lx, ly; double dx, dy; int res;
   nump_t xp1[2], yp1[2]; numt_t xt1 = NUMT_NONE, yt1 = NUMT_NONE;
@@ -5489,12 +5572,12 @@ static int gnumeqv(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 }
 
 /* cmp(x, y) == c  [real numbers only] */
-static int gnumcmp(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
+static int gnumcmpc(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp, ncmp_t c)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
   if (!isreal(xt) || !isreal(yt)) return -1;
-  return realcmp(xt, xp, yt, yp, c);
+  return realcmpc(xt, xp, yt, yp, c);
 }
 
 /* cmp(x, 0) == c  [internal, real numbers only] */
@@ -6785,8 +6868,8 @@ int fneqn(const fatnum_t *fx, const fatnum_t *fy)
 int fneqv(const fatnum_t *fx, const fatnum_t *fy)
   { return gnumeqv(fx->t, fx->p, fy->t, fy->p); }
 
-int fncmp(const fatnum_t *fx, const fatnum_t *fy, ncmp_t c)
-  { return gnumcmp(fx->t, fx->p, fy->t, fy->p, c); }
+int fncmpc(const fatnum_t *fx, const fatnum_t *fy, ncmp_t c)
+  { return gnumcmpc(fx->t, fx->p, fy->t, fy->p, c); }
 
 int fnodd(const fatnum_t *fx)
   { return gnumodd(fx->t, fx->p); }
