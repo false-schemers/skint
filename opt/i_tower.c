@@ -1001,13 +1001,14 @@ define_instruction(intos) {
     sdrop(3); spush(x);
     goi(jtos);
   } else {
-    int radix, mode, prc, err; cbuf_t *pcb; char *s;
+    int radix, mode = 0, prc = -1, err; cbuf_t *pcb; char *s;
     int (*pf)(int, void*) = (int (*)(int, void*))cbputc;
     obj x = ac, y = spop(), m = spop(), p = spop(); 
-    ckn(x); ckk(y); ckc(m); ckk(p);
+    ckn(x); ckk(y);
     radix = get_fixnum(y);
     if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
-    mode = get_char(m); prc = get_fixnum(p);
+    if (m != bool_obj(0)) { ckc(m); mode = get_char(m); }
+    if (p != bool_obj(0)) { ckk(p); prc = get_fixnum(p); }
     pcb = newcb();
     if (is_flonum(x)) err = wrdn(get_flonum(x), radix, mode, prc, pf, pcb); 
     else if (is_fatnum(x)) err = wrfn(get_fatnum(x), radix, mode, prc, pf, pcb);

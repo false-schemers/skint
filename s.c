@@ -1133,16 +1133,30 @@ char *s_code[] = {
   "C", 0,
   "${@(y5:write),@(y14:make-parameter)[01}@!(y19:format-pretty-print)",
 
+  "P", "make-inexact-formatter",
+  "%1.0,&1{%4,,,,#0#1#2#3'0,.7<!?{:0}{f}.!0'0,.7<!?{'(i100),.7>!?{.6}{f}}"
+  "{f}.!1.4N0?{${.3^,.3^,'(i10),.9Nj,@(y15:inexact->string)[04}}{.4}.!2.2"
+  "^S0?{.2^S3}{f}.!3.3^?{.3^,.6>}{f}?{.7,'(c ),.5^,.8-S2W4}.7,.3^W4]8}]1",
+
   "C", 0,
-  "${&0{%4.3,.1W4]4},@(y14:make-parameter)[01}@!(y18:format-fixed-print)",
+  "${${'(cf),@(y22:make-inexact-formatter)[01},@(y14:make-parameter)[01}@"
+  "!(y18:format-fixed-print)",
+
+  "C", 0,
+  "${${'(ce),@(y22:make-inexact-formatter)[01},@(y14:make-parameter)[01}@"
+  "!(y24:format-exponential-print)",
+
+  "C", 0,
+  "${${'(cg),@(y22:make-inexact-formatter)[01},@(y14:make-parameter)[01}@"
+  "!(y20:format-general-print)",
 
   "C", 0,
   "${@(y7:newline),@(y14:make-parameter)[01}@!(y17:format-fresh-line)",
 
   "C", 0,
-  "${'(s83:supported directives: ~~ ~%25 ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d"
-  " ~x ~f ~? ~k ~* ~N@* ~!),@(y14:make-parameter)[01}@!(y18:format-help-s"
-  "tring)",
+  "${'(s89:supported directives: ~~ ~%25 ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d"
+  " ~x ~e ~f ~g ~? ~k ~* ~N@* ~!),@(y14:make-parameter)[01}@!(y18:format-"
+  "help-string)",
 
   "P", "fprintf",
   "%!2,,,,,#0#1#2#3#4&0{%1.0p?{.0a]1}'(s35:format: no argument for ~ dire"
@@ -1167,14 +1181,20 @@ char *s_code[] = {
   "'(cx),.1v?{${:5,${.(i11),:3^[01},'(i16),:4^[03}${.8,:2^[01},.2d,:6^[72"
   "}'(ch),.1v?{:5,${@(y18:format-help-string)[00}W4.6,.2d,:6^[72}'(cy),.1"
   "v?{${:5,${.(i11),:3^[01},${@(y19:format-pretty-print)[00}[02}${.8,:2^["
-  "01},.2d,:6^[72}'(cf),.1v?{${:5,.6^,.8^,${.(i13),:3^[01},${@(y18:format"
-  "-fixed-print)[00}[04}${.8,:2^[01},.2d,:6^[72}'(l2:c?;ck;),.1A1?{${${${"
-  ".(i12),:2^[01},:3^[01},${.(i11),:3^[01}X2,:6^[02}${${.(i10),:2^[01},:2"
-  "^[01},.2d,:6^[72}'(c*),.1v?{.2^?{:1g,.5^,,'0>!;>!}{f}?{.4^,:1A6,.2d,:6"
-  "^[72}.6g,.5^,,'0>!;>!?{.4^,.7A6,.2d,:6^[72}'(i-1),.5^=?{${.8,:2^[01},."
-  "2d,:6^[72}'(s28:format: invalid ~* directive),@(y5:error)[71}.1a,'(s32"
-  ":format: unrecognized ~ directive),@(y5:error)[72}:5,.1aW0.1,.1d,:6^[2"
-  "2}.!0.0^_1[82",
+  "01},.2d,:6^[72}'(ce),.1v?{${:5,.6^,.8^,${.(i13),:3^[01},${@(y24:format"
+  "-exponential-print)[00}[04}${.8,:2^[01},.2d,:6^[72}'(cf),.1v?{${:5,.6^"
+  ",.8^,${.(i13),:3^[01},${@(y18:format-fixed-print)[00}[04}${.8,:2^[01},"
+  ".2d,:6^[72}'(cg),.1v?{${:5,.6^,.8^,${.(i13),:3^[01},${@(y20:format-gen"
+  "eral-print)[00}[04}${.8,:2^[01},.2d,:6^[72}'(l2:c?;ck;),.1A1?{${${${.("
+  "i12),:2^[01},:3^[01},${.(i11),:3^[01}X2,:6^[02}${${.(i10),:2^[01},:2^["
+  "01},.2d,:6^[72}'(c*),.1v?{.2^?{:1g,.5^,,'0>!;>!}{f}?{.4^,:1A6,.2d,:6^["
+  "72}.6g,.5^,,'0>!;>!?{.4^,.7A6,.2d,:6^[72}'(i-1),.5^=?{${.8,:2^[01},.2d"
+  ",:6^[72}'(s28:format: invalid ~* directive),@(y5:error)[71}.1a,'(s32:f"
+  "ormat: unrecognized ~ directive),@(y5:error)[72}:5,.1aW0.1,.1d,:6^[22}"
+  ".!0.0^_1[82",
+
+  "P", "printf",
+  "%!1.0,Poc,@(y7:fprintf),@(y13:apply-to-list)[22",
 
   "P", "format",
   "%!1f,.2q,.0?{.0}{.2S0}_1?{P51,.2?{.1,.3c}{.1},${.2,.4c,@(y7:fprintf),@"

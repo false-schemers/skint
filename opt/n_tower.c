@@ -80,6 +80,7 @@ void cmath_pow(double rx, double ix, double ry, double iy, double *prz, double *
 
 #else  /* C90 fallback */
 
+#ifndef C99_MATH_LIB
 /* helper to copy sign of y to x, correctly handling signed zero */
 static double c90_copysign(double x, double y) 
 {
@@ -87,17 +88,23 @@ static double c90_copysign(double x, double y)
   if (y > 0.0) return fabs(x);
   return (1.0/y < 0.0) ? -fabs(x): fabs(x);
 }
+#define copysign(x, y) c90_copysign(x, y)
+#endif
 
-/* C90 log1p replacement, good near zero.  Requires x > -1. */
+#ifndef C99_MATH_LIB
+/* C90 log1p replacement, good near zero. Requires x > -1. */
 static double c90_log1p(double x)
-{
-  double u;
+{ /* volatile to prevent optimizations */
+  volatile double u;
   if (x == 0.0) return x;
   u = 1.0 + x;
   if (u == 1.0) return x;
   return log(u) * (x / (u - 1.0));
 }
+#define log1p(x) c90_log1p(x)
+#endif
 
+#ifndef C99_MATH_LIB
 /* stable hypotenuse: sqrt(a^2+b^2) without overflow */
 static double c90_hypot(double a, double b)
 {
@@ -108,6 +115,8 @@ static double c90_hypot(double a, double b)
   t = bb / aa;
   return aa * sqrt(1.0 + t*t);
 }
+#define hypot(a, b) c90_hypot(a, b)
+#endif
 
 /* complex divide: (a+ib)/(c+id) - Smith's method for stability */
 static void c90_cdiv(double a, double b, double c, double d, double *pr, double *pi)
@@ -136,9 +145,9 @@ static double c90_asinh(double x)
     r = log(ax) + M_LN2;
   } else {
     s = sqrt(1.0 + ax * ax);
-    r = c90_log1p(ax + (ax * ax) / (1.0 + s));
+    r = log1p(ax + (ax * ax) / (1.0 + s));
   }
-  return c90_copysign(r, x);
+  return copysign(r, x);
 }
 
 /* exp(z) = e^rx * (cos(ix) + i*sin(ix)) */
@@ -201,7 +210,7 @@ void cmath_sqrt(double rx, double ix, double *prz, double *piz)
     *prz = 0.0; *piz = ix_neg ? -HUGE_VAL : HUGE_VAL;
     return;
   }
-  m = c90_hypot(rx, ix);
+  m = hypot(rx, ix);
   if (!rx_neg) {
     re = sqrt((m + rx) * 0.5);
     im = (re == 0.0) ? (ix_neg ? -0.0 : 0.0) : ix / (2.0 * re);
@@ -286,16 +295,16 @@ void cmath_atan(double rx, double ix, double *pre, double *pim)
   double x = rx, y = ix, ax = fabs(x), ay = fabs(y), re, im;
   /* corner case: isinf(x) */
   if (x <= -HUGE_VAL || x >= HUGE_VAL) {
-    *pre = c90_copysign(M_PI_2, x);
-    *pim = c90_copysign(0.0, y);
+    *pre = copysign(M_PI_2, x);
+    *pim = copysign(0.0, y);
     return;
   }
   /* re part */
   if (x == 0.0) {
-    if (ay > 1.0) re = c90_copysign(M_PI_2, x);
+    if (ay > 1.0) re = copysign(M_PI_2, x);
     else re = x; /* preserve +0.0 / -0.0 */
   } else if (ax >= C90_BIG || ay >= C90_BIG) {
-    re = c90_copysign(M_PI_2, x);
+    re = copysign(M_PI_2, x);
   } else {
     double den;
     if (ax < ay) den = (1.0 - ay) * (1.0 + ay) - x * x;
@@ -304,13 +313,13 @@ void cmath_atan(double rx, double ix, double *pre, double *pim)
   }
   /* im part */
   if (fabs(ay - 1.0) < 0.5) { /* avoid losing x*x */
-    double hp = c90_hypot(x, y + 1.0);
-    double hm = c90_hypot(x, y - 1.0);
+    double hp = hypot(x, y + 1.0);
+    double hm = hypot(x, y - 1.0);
     if (hp == 0.0) im = -HUGE_VAL; /* z = -i */
     else if (hm == 0.0) im = HUGE_VAL;  /* z = +i */
     else im = 0.5 * (log(hp) - log(hm));
   } else { /* 1/4 log1p(4y / (x^2 + (y-1)^2)) */
-    double ym = y - 1.0, h = c90_hypot(x, ym), t;
+    double ym = y - 1.0, h = hypot(x, ym), t;
     if (h == 0.0) im = HUGE_VAL;  /* z = +i */
     else {
       if (h >= C90_BIG) { /* avoid h*h overflow */
@@ -319,7 +328,7 @@ void cmath_atan(double rx, double ix, double *pre, double *pim)
         double den = x * x + ym * ym;
         t = 4.0 * y / den;
       }
-      im = 0.25 * c90_log1p(t);
+      im = 0.25 * log1p(t);
     }
   }
   *pre = re;
@@ -357,7 +366,7 @@ double cmath_hypot(double x, double y)
   * C99 requires hypot(NaN, inf) = inf. */
   if (ay + ay == ay && ay > 0.0) return ay;
   /* we can go with C90 version now */
-  return c90_hypot(x, y);
+  return hypot(x, y);
 }
 
 #endif /* HAVE_C99_COMPLEX */
@@ -2868,7 +2877,7 @@ double bnsqrttod(const bignum_t *n0)
 
 #define BITMASK64(n) ((n) >= 64 ? ~(uint64_t)0 : (((uint64_t)1 << (n)) - 1))
 
-/* ignores sign of the input; returs -inf on b==0 */
+/* log(|b|); returns -inf on b==0 */
 double bnlogtod(const bignum_t *b)
 {
   size_t i, s, s_limb, s_bit, w, b0;
@@ -2918,6 +2927,50 @@ double bnlogtod(const bignum_t *b)
   }
 
   return log((double)top_bits) + ((double)s * log(2.0));
+}
+
+/* log(|n|/d); returns -inf if n==0 */
+double bnrlogtod(const bignum_t *n, const bignum_t *d)
+{
+  long long diff_w;
+
+  assert(!d->isneg);
+  if (BNZERO(n)) return -HUGE_VAL;
+  if (BNZERO(d)) return  HUGE_VAL;
+
+  /* ratio close to 1? */
+  diff_w = (long long)bnwidthu(n) - (long long)bnwidthu(d);
+  if (diff_w >= -1 && diff_w <= 1) { 
+    int cmp = bncmpabs(n, d);
+    if (cmp == 0) return 0.0;
+    else {
+      bignum_t *delta;
+      double r, ans;
+      if (cmp > 0) {
+        /* |n| > d */
+        if (!n->isneg) delta = bnsub(n, d); /* n - d > 0 */
+        else delta = bnadd(n, d); /* n + d = d - |n| < 0 */
+        r = fabs(bnrtod(delta, d)); /* (|n| - d) / d */
+        ans = log1p(r);
+      } else { /* |n| < d */
+        if (!n->isneg) delta = bnsub(d, n); /* d - n > 0 */
+        else delta = bnadd(n, d); /* n + d = d - |n| > 0 */
+        r = fabs(bnrtod(delta, d)); /* (d - |n|) / d */
+        ans = log1p(-r);
+      }
+      bnfree(delta);
+      return ans;
+    }
+  }
+
+  /* ratio fits in double range (|diff_w| <= 900)? */
+  if (diff_w >= -900 && diff_w <= 900) {
+    double r = fabs(bnrtod(n, d));
+    if (r > 0.0 && r < HUGE_VAL) return log(r);
+  }
+
+  /* extreme scales (|diff_w| > 900) */
+  return bnlogtod(n) - bnlogtod(d);
 }
 
 #ifndef COMPACT_RATTRIG
@@ -6415,10 +6468,20 @@ static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
     return NUMT_MKCOM(setflo(zp, bnlogtod(x)), setflo(zp+2, M_PI));
   } else if (israt(xt)) {
     int sign = intsign(NUMT_RAT_N(xt), xp);
+#if 1
+    bignumll_t nxll, dxll;
+    numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt); 
+    bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
+    bignum_t *dx = isbig(dxt) ? getbig(xp+1) : bnx_makell(&dxll, dxt ? getfix(xp+1) : 1);
+    double z = bnrlogtod(nx, dx); /* z = log(|nx|/dx), accurate around 1 */
+    if (sign >= 0) return setflo(zp, z);
+    return NUMT_MKCOM(setflo(zp, z), setflo(zp+2, M_PI));
+#else
     double nlog = isfix(NUMT_RAT_N(xt)) ? log(labs(getfix(xp))) : bnlogtod(getbig(xp));
     double dlog = isfix(NUMT_RAT_D(xt)) ? log(labs(getfix(xp+1))) : bnlogtod(getbig(xp+1));
     if (sign >= 0) return setflo(zp, nlog-dlog);
     return NUMT_MKCOM(setflo(zp, nlog-dlog), setflo(zp+2, M_PI));
+#endif
   } else if (isflo(xt)) {
     double x = getflo(xp);
     /* if (x > 0.0 || x == 0.0 && 1.0/x > 0.0) return setflo(zp, log(x)); */

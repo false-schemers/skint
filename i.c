@@ -3457,10 +3457,11 @@ define_instruction(gbtc) { goi(ibtc); }
 
 define_instruction(intos) {
   char buffer[DN_MAX_BUFSIZE], *s; 
-  double x; int radix, mode, prc = -1;
+  double x; int radix, mode = 0, prc = -1;
   obj n = ac, y = spop(), m = spop(), p = spop(); 
-  ckj(n); ckk(y); ckc(m); x = get_flonum(n); 
+  ckj(n); ckk(y); x = get_flonum(n); 
   radix = get_fixnum(y); mode = get_char(m); 
+  if (m != bool_obj(0)) { ckc(m); mode = get_char(m); }
   if (p != bool_obj(0)) { ckk(p); prc = get_fixnum(p); }
   s = dntostr(buffer, DN_MAX_BUFSIZE, x, radix, mode, prc);
   if (s == NULL) failtype(y, "valid radix for inexact number");

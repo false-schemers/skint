@@ -2032,12 +2032,22 @@
 
 (define format-pretty-print 
   (make-parameter write))
-(define format-fixed-print ; TODO: add (number->string/fixed arg ww dd) instruction
-  (make-parameter (lambda (arg wd dd p) (display arg p))))
+(define (make-inexact-formatter mc)
+  (lambda (arg wd dd p)
+    (define md (and (>= dd 0) mc))
+    (define pr (and (>= dd 0) (<= dd 100) dd))
+    (define s (if (number? arg) (inexact->string (inexact arg) 10 md pr) arg))
+    (define l (and (string? s) (string-length s)))
+    (when (and l (> wd l)) (display (make-string (- wd l) #\space) p))
+    (display s p)))
+(define format-fixed-print (make-parameter (make-inexact-formatter #\f)))
+(define format-exponential-print (make-parameter (make-inexact-formatter #\e)))
+(define format-general-print (make-parameter (make-inexact-formatter #\g)))
+
 (define format-fresh-line ; TODO: add (fresh-line [p]) instruction for source ports
   (make-parameter newline))
 (define format-help-string 
-  (make-parameter "supported directives: ~~ ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~f ~? ~k ~* ~N@* ~!"))
+  (make-parameter "supported directives: ~~ ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~e ~f ~g ~? ~k ~* ~N@* ~!"))
 
 (define (fprintf p fs . allargs)
   (define (hd args)
@@ -2079,7 +2089,9 @@
                [(#\x) (write-num 16 (hd args) p) (lp (cdr fl) (tl args))]
                [(#\h) (display (format-help-string) p) (lp (cdr fl) args)]
                [(#\y) ((format-pretty-print) (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\e) ((format-exponential-print) (hd args) w d p) (lp (cdr fl) (tl args))]
                [(#\f) ((format-fixed-print) (hd args) w d p) (lp (cdr fl) (tl args))]
+               [(#\g) ((format-general-print) (hd args) w d p) (lp (cdr fl) (tl args))]
                [(#\? #\k) (lp (string->list (hd args)) (hd (tl args))) (lp (cdr fl) (tl (tl args)))]
                [(#\*) (cond [(and at (<= 0 w (length allargs))) (lp (cdr fl) (list-tail allargs w))]
                             [(<= 0 w (length args)) (lp (cdr fl) (list-tail args w))]
@@ -2087,6 +2099,9 @@
                             [else (error "format: invalid ~* directive")])]
                [else  (error "format: unrecognized ~ directive" (car fl))]))]
           [else (write-char (car fl) p) (lp (cdr fl) args)])))
+
+(define (printf fs . allargs)
+  (apply fprintf (current-output-port) allargs))
 
 (define (format arg . args)
   (cond [(or (eq? arg #f) (string? arg))

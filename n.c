@@ -1323,7 +1323,7 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (is_bignum_obj(o)) {
     wrbn(bignum_from_obj(o), 10, e->vt->putch, e->pp);
   } else if (is_fatnum_obj(o)) {
-    wrfn(fatnum_from_obj(o), 10, 0, DBL_DECIMAL_DIG, e->vt->putch, e->pp);
+    wrfn(fatnum_from_obj(o), 10, 0, -1, e->vt->putch, e->pp);
 #endif
   } else if (iseof(o)) {
     wrs("#<eof>", e);
@@ -2021,7 +2021,7 @@ char *dntostr(char *buf, size_t len, double x, int radix, int mode, int prc)
       else if (mode == 'f' && prc < DBL_DECIMAL_DIG) sprintf(buf, "%.*g", DBL_DECIMAL_DIG-1, x);
       else if (mode == 'e' || mode == 'a') sprintf(buf, "%.*e", prc, x);
       else if (gotprc) sprintf(buf, "%.*g", prc, x);
-      else { /* compatibility with sloppy old skint that uset %.16g */
+      else { /* compatibility with sloppy old skint that used %.16g */
         sprintf(buf, "%.*g", DBL_DECIMAL_DIG-1, x); /* fine as it was? */
         if (strtod(buf, NULL) != x) sprintf(buf, "%.*g", DBL_DECIMAL_DIG, x); 
       }
