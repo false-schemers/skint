@@ -3082,6 +3082,10 @@ double bnratan2tod(const bignum_t *ny, const bignum_t *dy, const bignum_t *nx, c
   if (sx > sy + ATAN2_DOMINANCE && x_is_neg) {
     return y_is_neg ? -M_PI : M_PI;
   }
+  /* fast path: |x| >> |y|, x > 0 (angle approaches +/- 0) */
+  if (sx > sy + ATAN2_DOMINANCE && !x_is_neg) {
+    return y_is_neg ? -0.0 : 0.0;
+  }
 
   /* comparable magnitudes: shift right via negative shift count */
   sh_ny = (wny > ATAN2_TRUNC_BITS) ? (wny - ATAN2_TRUNC_BITS) : 0;
@@ -3111,6 +3115,55 @@ double bnratan2tod(const bignum_t *ny, const bignum_t *dy, const bignum_t *nx, c
   x_val = x_is_neg ? -1.0 : 1.0;
 
   return atan2(y_val, x_val);
+}
+
+/* [esl+] complex arctangent: (rd + i*id) = atan((xn/xd) + i*(yn/yd)) */
+void bncatantodd(double *prd, double *pid, const bignum_t *xn, const bignum_t *xd, const bignum_t *yn, const bignum_t *yd)
+{
+  bignum_t *x, *y, *d_xy, *d_xy2, *x2, *y2;
+  bignum_t *tmp1, *n_2x, *tmp2, *n_1r2;
+  bignum_t *sum_y, *diff_y, *sq_sum_y, *sq_diff_y, *n_v, *d_v;
+
+  assert(!xd->isneg && !yd->isneg);
+
+  /* compute basic cross-product terms */
+  x = bnmul(xn, yd); y = bnmul(yn, xd);
+  d_xy = bnmul(xd, yd);
+  x2 = bnmul(x, x); y2 = bnmul(y, y);
+  d_xy2 = bnmul(d_xy, d_xy);
+
+  /* real part terms */
+  tmp1 = bnmul(x, d_xy);
+  n_2x = bnashll(tmp1, 1);
+  bnfree(tmp1);
+  tmp2 = bnadd(x2, y2);
+  n_1r2 = bnsub(d_xy2, tmp2);
+  bnfree(tmp2);
+
+  *prd = 0.5 * bnratan2tod(n_2x, d_xy2, n_1r2, d_xy2);
+
+  /* imaginary part terms */
+  sum_y = bnadd(yd, yn);
+  diff_y = bnsub(yd, yn);
+  tmp1 = bnmul(xd, sum_y);
+  sq_sum_y = bnmul(tmp1, tmp1);
+  bnfree(tmp1);
+  tmp2 = bnmul(xd, diff_y);
+  sq_diff_y = bnmul(tmp2, tmp2);
+  bnfree(tmp2);
+  n_v = bnadd(x2, sq_sum_y);
+  d_v = bnadd(x2, sq_diff_y);
+
+  *pid = 0.25 * bnrlogtod(n_v, d_v);
+
+  /* cleanup */
+  bnfree(x); bnfree(y);
+  bnfree(d_xy); bnfree(d_xy2);
+  bnfree(x2); bnfree(y2);
+  bnfree(n_2x); bnfree(n_1r2);
+  bnfree(sum_y); bnfree(diff_y);
+  bnfree(sq_sum_y); bnfree(sq_diff_y);
+  bnfree(n_v); bnfree(d_v);
 }
 
 /* [esl+] fast(er) comparison of two normalized rationals n1/d1 n2/d2; returns -1/0/1 */
@@ -6669,7 +6722,8 @@ static numt_t gnumacos(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = atan(x) [1-argument] */
-static numt_t gnumatan(nump_t *zp, numt_t xt, const nump_t *xp)
+/* z = atan(x) [1-argument] */
+numt_t gnumatan(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   double rx, ix, re, im;
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
@@ -6678,9 +6732,25 @@ static numt_t gnumatan(nump_t *zp, numt_t xt, const nump_t *xp)
   } else if (isreal(xt)) {
     rx = isflo(xt) ? getflo(xp) : rattod(xt, xp);
     ix = 0.0;
+#if 1
+  } else if (isrect(xt)) {
+    bignumll_t nrll, drll, nill, dill;
+    numt_t rt = NUMT_COM_R(xt), nrt = NUMT_RAT_N(rt), drt = NUMT_RAT_D(rt); 
+    bignum_t *nr = isbig(nrt) ? getbig(xp)   : bnx_makell(&nrll, getfix(xp));
+    bignum_t *dr = isbig(drt) ? getbig(xp+1) : bnx_makell(&drll, drt ? getfix(xp+1) : 1);
+    numt_t it = NUMT_COM_I(xt), nit = NUMT_RAT_N(it), dit = NUMT_RAT_D(it); 
+    bignum_t *ni = isbig(nit) ? getbig(xp+2) : bnx_makell(&nill, getfix(xp+2));
+    bignum_t *di = isbig(dit) ? getbig(xp+3) : bnx_makell(&dill, dit ? getfix(xp+3) : 1);
+    double zr, zi; bncatantodd(&zr, &zi, nr, dr, ni, di);
+    return NUMT_MKCOM(setflo(zp, zr), setflo(zp+2, zi));
+  } else {
+    comptodd(xt, xp, &rx, &ix);
+  }
+#else
   } else {
     if (iscomp(xt)) comptodd(xt, xp, &rx, &ix); else recttodd(xt, xp, &rx, &ix);
   }
+#endif
   if (ix == 0.0) {
     if (isreal(xt)) return setflo(zp, atan(rx));
     return NUMT_MKCOM(setflo(zp, atan(rx)), setflo(zp+2, 0.0));
