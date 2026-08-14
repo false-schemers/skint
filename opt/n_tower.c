@@ -6151,35 +6151,95 @@ static int gnumcmp0(numt_t xt, const nump_t *xp, ncmp_t c)
   return realcmp0(xt, xp, c);
 }
 
-/* z = max(x, y)  [real numbers only; result is inexact if either arg is] */
-static numt_t gnummax(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+/* z = min(x, y)  [real numbers only; result is inexact if either arg is] */
+numt_t gnummin(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
   if (!isreal(xt) || !isreal(yt)) return setfail(EDOM);
   /* R7RS: if either arg is inexact, result is inexact */
-  if (isflo(xt) || isflo(yt)) {
-    double x = isflo(xt) ? getflo(xp) : rattod(xt, xp);
-    double y = isflo(yt) ? getflo(yp) : rattod(yt, yp);
-    return setflo(zp, x >= y ? x : y);
-  } else { /* both exact */
-    return ratless(xt, xp, yt, yp) ? numdup(zp, yt, yp) : numdup(zp, xt, xp);
+  if (isfix(xt) && isfix(yt)) {
+    long x = getfix(xp), y = getfix(yp);
+    return setfix(zp, x <= y ? x : y);
+  } else if (isflo(xt) && isflo(yt)) {
+    double x = getflo(xp), y = getflo(yp);
+    return setflo(zp, ieee_fminimum(x, y));
+  } else if (isflo(xt)) { /* y is rat */
+    double x = getflo(xp);
+    if (x != x) { /* NaN! */
+      return setflo(zp, x * 1.0); /* quiet it, just in case */
+    } else if (isfix(yt)) { 
+      double y = (double)getfix(yp); 
+      return setflo(zp, ieee_fminimum(x, y));
+    } else { /* y is rat */
+      bignumll_t nyll, dyll; numt_t nyt = NUMT_RAT_N(yt), dyt = NUMT_RAT_D(yt);
+      bignum_t *ny = isbig(nyt) ? getbig(yp)   : bnx_makell(&nyll, getfix(yp));
+      bignum_t *dy = isbig(dyt) ? getbig(yp+1) : bnx_makell(&dyll, dyt ? getfix(yp+1) : 1);
+      int cmp = -bnrdcmp(ny, dy, x);
+      return setflo(zp, cmp <= 0 ? x : bnrtod(ny, dy)); 
+    }
+  } else if (isflo(yt)) { /* x is rat */
+    double y = getflo(yp);
+    if (y != y) { /* NaN! */
+      return setflo(zp, y * 1.0); /* quiet it, just in case */
+    } else if (isfix(xt)) { 
+      double x = (double)getfix(xp); 
+      return setflo(zp, ieee_fminimum(x, y));
+    } else { /* x is rat */
+      bignumll_t nxll, dxll; numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt);
+      bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
+      bignum_t *dx = isbig(dxt) ? getbig(xp+1) : bnx_makell(&dxll, dxt ? getfix(xp+1) : 1);
+      int cmp = bnrdcmp(nx, dx, y);
+      return setflo(zp, cmp <= 0 ? bnrtod(nx, dx) : y); 
+    }
+  } else { /* both are rat */
+    return ratcmp(xt, xp, yt, yp) <= 0 ? numdup(zp, xt, xp) : numdup(zp, yt, yp);
   }
 }
 
-/* z = min(x, y)  [real numbers only; result is inexact if either arg is] */
-static numt_t gnummin(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
+/* z = max(x, y)  [real numbers only; result is inexact if either arg is] */
+numt_t gnummax(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   assert(NUMT_IS_VALID(yt) && "unsupported number type");
   if (!isreal(xt) || !isreal(yt)) return setfail(EDOM);
   /* R7RS: if either arg is inexact, result is inexact */
-  if (isflo(xt) || isflo(yt)) {
-    double x = isflo(xt) ? getflo(xp) : rattod(xt, xp);
-    double y = isflo(yt) ? getflo(yp) : rattod(yt, yp);
-    return setflo(zp, x <= y ? x : y);
-  } else { /* both exact */
-    return ratless(xt, xp, yt, yp) ? numdup(zp, xt, xp) : numdup(zp, yt, yp);
+  if (isfix(xt) && isfix(yt)) {
+    long x = getfix(xp), y = getfix(yp);
+    return setfix(zp, x >= y ? x : y);
+  } else if (isflo(xt) && isflo(yt)) {
+    double x = getflo(xp), y = getflo(yp);
+    return setflo(zp, ieee_fmaximum(x, y));
+  } else if (isflo(xt)) { /* y is rat */
+    double x = getflo(xp);
+    if (x != x) { /* NaN! */
+      return setflo(zp, x * 1.0); /* quiet it, just in case */
+    } else if (isfix(yt)) { 
+      double y = (double)getfix(yp); 
+      return setflo(zp, ieee_fmaximum(x, y));
+    } else { /* y is rat */
+      bignumll_t nyll, dyll; numt_t nyt = NUMT_RAT_N(yt), dyt = NUMT_RAT_D(yt);
+      bignum_t *ny = isbig(nyt) ? getbig(yp)   : bnx_makell(&nyll, getfix(yp));
+      bignum_t *dy = isbig(dyt) ? getbig(yp+1) : bnx_makell(&dyll, dyt ? getfix(yp+1) : 1);
+      int cmp = -bnrdcmp(ny, dy, x);
+      return setflo(zp, cmp >= 0 ? x : bnrtod(ny, dy)); 
+    }
+  } else if (isflo(yt)) { /* x is rat */
+    double y = getflo(yp);
+    if (y != y) { /* NaN! */
+      return setflo(zp, y * 1.0); /* quiet it, just in case */
+    } else if (isfix(xt)) { 
+      double x = (double)getfix(xp); 
+      return setflo(zp, ieee_fmaximum(x, y));
+    } else { /* x is rat */
+      bignumll_t nxll, dxll; numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt);
+      bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
+      bignum_t *dx = isbig(dxt) ? getbig(xp+1) : bnx_makell(&dxll, dxt ? getfix(xp+1) : 1);
+      int cmp = bnrdcmp(nx, dx, y);
+      return setflo(zp, cmp >= 0 ? bnrtod(nx, dx) : y); 
+    }
+  } else { /* both are rat */
+    return ratcmp(xt, xp, yt, yp) >= 0 ? numdup(zp, xt, xp) : numdup(zp, yt, yp);
   }
 }
 

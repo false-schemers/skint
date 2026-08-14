@@ -2589,14 +2589,18 @@ define_instruction(jne) {
 }
 
 define_instruction(jmin) {
+  double dx, dy;
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = get_flonum(x) < get_flonum(y) ? x : y;
+  dx = get_flonum(x), dy = get_flonum(y);
+  ac = flonum_obj(ieee_fminimum(dx, dy));
   gonexti(); 
 }
 
 define_instruction(jmax) {
+  double dx, dy;
   obj x = ac, y = spop(); ckj(x); ckj(y);
-  ac = get_flonum(x) > get_flonum(y) ? x : y;
+  dx = get_flonum(x), dy = get_flonum(y);
+  ac = flonum_obj(ieee_fmaximum(dx, dy));
   gonexti(); 
 }
 
@@ -3127,7 +3131,7 @@ define_instruction(ne) {
 define_instruction(min) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
-    ac = (get_fixnum(x) < get_fixnum(y)) ? x : y;
+    ac = (get_fixnum(x) <= get_fixnum(y)) ? x : y;
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -3136,7 +3140,7 @@ define_instruction(min) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = dx < dy ? flonum_obj(dx) : flonum_obj(dy);
+    ac = flonum_obj(ieee_fminimum(dx, dy));
   }
   gonexti(); 
 }
@@ -3153,7 +3157,7 @@ define_instruction(max) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = dx > dy ? flonum_obj(dx) : flonum_obj(dy);
+    ac = flonum_obj(ieee_fmaximum(dx, dy));
   }
   gonexti(); 
 }

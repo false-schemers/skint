@@ -548,7 +548,7 @@ tower:
 define_instruction(min) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
-    ac = (get_fixnum(x) < get_fixnum(y)) ? x : y;
+    ac = (get_fixnum(x) <= get_fixnum(y)) ? x : y;
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -557,7 +557,7 @@ define_instruction(min) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnmin; goih(tower_binary); }
-    ac = dx < dy ? flonum_obj(dx) : flonum_obj(dy);
+    ac = flonum_obj(ieee_fminimum(dx, dy));
   }
   gonexti(); 
 }
@@ -565,7 +565,7 @@ define_instruction(min) {
 define_instruction(max) {
   obj x = ac, y = spop();
   if (likely(are_fixnums(x, y))) {
-    ac = (get_fixnum(x) > get_fixnum(y)) ? x : y;
+    ac = (get_fixnum(x) >= get_fixnum(y)) ? x : y;
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -574,7 +574,7 @@ define_instruction(max) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnmax; goih(tower_binary); }
-    ac = dx > dy ? flonum_obj(dx) : flonum_obj(dy);
+    ac = flonum_obj(ieee_fmaximum(dx, dy));
   }
   gonexti(); 
 }
