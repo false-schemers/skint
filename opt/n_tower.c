@@ -2839,41 +2839,459 @@ double bnrtod(const bignum_t *n, const bignum_t *d)
   return v;
 }
 
-/* ignores sign of the input, returns nonnegative result */
-double bnsqrttod(const bignum_t *n0)
+/* [esl+] inexact sqrt bundle */
+
+/* returns square root of a normalized |n|/d ratio as a double */
+double bnrsqrttod(const bignum_t *n, const bignum_t *d)
 {
-  bignum_t *n, *m; size_t w, keep;
-  long sh; double md, r;
+  double dn, dd, m;
+  long long sn, sd, s, k; int r;
+  const double limb_base = (double)LIMB_MAX + 1.0; /* 2^32 = 4294967296.0 */
 
-  n = bnabs(n0);
-  if (bnzero(n)) { bnfree(n); return 0.0; }
-  w = bnwidthu(n);
+  assert(!BNZERO(d) && !d->isneg);
+  if (BNZERO(n)) return 0.0;
 
-  /* see if we are getting infinity anyway */
-  if (w > (size_t)2 * (size_t)DBL_MAX_EXP) { bnfree(n); return HUGE_VAL; }
-
-  /* Keep enough high bits so that conversion is finite and accurate. */
-  keep = (size_t)(DBL_MAX_EXP - 2);
-  if (keep < (size_t)DBL_MANT_DIG) keep = (size_t)DBL_MANT_DIG;
-  /* see if regular conversion is ok */
-  if (w <= keep) { 
-    md = bntod(n); bnfree(n); 
-    return sqrt(md);
+  /* extract top two limbs of |n| */
+  dn = (double)n->limb[n->size - 1];
+  if (n->size > 1) {
+    dn = dn * limb_base + (double)n->limb[n->size - 2];
+    sn = (long long)(n->size - 2) * LIMB_BITS;
+  } else {
+    sn = (long long)(n->size - 1) * LIMB_BITS;
   }
 
-  /* lop off useless bits, but keep shift even */
-  sh = (long)(w - keep); 
-  if (sh & 1L) ++sh;
-  m = bnashll(n, -sh);
-  md = bntod(m);
+  /* extract top two limbs of d */
+  dd = (double)d->limb[d->size - 1];
+  if (d->size > 1) {
+      dd = dd * limb_base + (double)d->limb[d->size - 2];
+      sd = (long long)(d->size - 2) * LIMB_BITS;
+  } else {
+      sd = (long long)(d->size - 1) * LIMB_BITS;
+  }
 
-  /* sh/2 is exact, adjust exponent */
-  r = ldexp(sqrt(md), (int)(sh / 2));
+  /* shift difference s = 2k + r, ensuring remainder r in {0, 1} */
+  s = sn - sd;
+  k = s / 2;
+  r = (int)(s % 2);
+  if (r < 0) { r += 2; k -= 1; }
 
-  bnfree(m);
-  bnfree(n);
-  return r;
+  /* mantissa ratio m = (dn / dd) * 2^r */
+  m = ldexp(dn / dd, r);
+
+  /* range guard & final hardware scaling */
+  if (k > DBL_MAX_EXP)  return HUGE_VAL;
+  if (k < -DBL_MAX_EXP) return 0.0;
+
+  return ldexp(sqrt(m), (int)k);
 }
+
+/* returns square root of a normalized |n|/d ratio as a double */
+double bnsqrttod(const bignum_t *n)
+{
+  return bnrsqrttod(n, (const bignum_t *)bn1);
+}
+
+/* returns square root of normalized (rn/rd)+(in/id)i as doubles */
+void bncsqrttodd(double *prd, double *pid, const bignum_t *rn, const bignum_t *rd, const bignum_t *in, const bignum_t *id)
+{
+  double sx, sy, smax, sx_p, sy_p, x_p, y_p, z_mag_p, u_p, v_p;
+  double v_final, u_final;
+
+  assert(prd != NULL && pid != NULL);
+
+  /* get non-negative magnitude square roots: sx = sqrt(|x|), sy = sqrt(|y|) */
+  sx = bnrsqrttod(rn, rd);
+  sy = bnrsqrttod(in, id);
+
+  smax = (sx > sy) ? sx : sy;
+  if (smax == 0.0) {
+    *prd = 0.0;
+    *pid = 0.0;
+    return;
+  }
+
+  /* scale components to <= 1.0 to guarantee zero intermediate overflow */
+  sx_p = sx / smax; sy_p = sy / smax;
+  x_p = rn->isneg ? -(sx_p * sx_p) : (sx_p * sx_p);
+  y_p = in->isneg ? -(sy_p * sy_p) : (sy_p * sy_p);
+
+  /* scaled magnitude |z'| = sqrt(x'^2 + y'^2) */
+  z_mag_p = sqrt(x_p * x_p + y_p * y_p);
+
+  /* numerically stable complex square root with direct-rescue path */
+  if (x_p >= 0.0) {
+    u_p = sqrt((z_mag_p + x_p) * 0.5);
+    if (u_p != 0.0) {
+      v_p = fabs(y_p) / (2.0 * u_p);
+      /* rescue: y_p underflowed but sy != 0; compute unscaled v directly */
+      if (v_p == 0.0 && sy != 0.0) {
+        v_final = (sy / (2.0 * u_p)) * sy_p;
+        *prd = u_p * smax;
+        *pid = in->isneg ? -v_final : v_final;
+        return;
+      }
+    } else {
+      v_p = 0.0;
+    }
+  } else {
+    v_p = sqrt((z_mag_p - x_p) * 0.5);
+    if (v_p != 0.0) {
+      u_p = fabs(y_p) / (2.0 * v_p);
+      /* rescue: y_p underflowed but sy != 0; compute unscaled u directly. */
+      if (u_p == 0.0 && sy != 0.0) {
+        u_final = (sy / (2.0 * v_p)) * sy_p;
+        *prd = u_final;
+        *pid = in->isneg ? -(v_p * smax) : (v_p * smax);
+        return;
+      }
+    } else {
+      u_p = 0.0;
+    }
+  }
+
+  /* rescale components back and assign correct imaginary branch sign */
+  *prd = u_p * smax;
+  *pid = in->isneg ? -(v_p * smax) : (v_p * smax);
+}
+
+
+/* [esl+] exact sqrt bundle */
+
+/* fast approximate conversion of a bignum to a hardware double */
+double bntod_approx(const bignum_t *n)
+{
+  double d; long long shift;
+  const double limb_base = (double)LIMB_MAX + 1.0; /* 2^32 = 4294967296.0 */
+
+  if (BNZERO(n)) return 0.0;
+
+  /* the most significant limb */
+  d = (double)n->limb[n->size - 1];
+
+  /* blend in second limb if present to populate all mantissa bits */
+  if (n->size > 1) {
+    d = d * limb_base + (double)n->limb[n->size - 2];
+    shift = (long long)(n->size - 2) * LIMB_BITS;
+  } else {
+    shift = (long long)(n->size - 1) * LIMB_BITS;
+  }
+
+  /* clamp shift to prevent ldexp exponent overflow */
+  if (shift > 2 * DBL_MAX_EXP)  return n->isneg ? -HUGE_VAL : HUGE_VAL;
+  if (shift < -2 * DBL_MAX_EXP) return 0.0;
+
+  /* hardware floating-point scaling */
+  d = ldexp(d, (int)shift);
+
+  return n->isneg ? -d : d;
+}
+
+/* initial overestimate x0 for Newton-Raphson integer sqrt */
+static bignum_t *bnisqrt_initial_seed(const bignum_t *n_abs)
+{
+  size_t w = bnwidthu(n_abs);
+  bignum_t *x = NULL;
+  const size_t MAX_EXACT_BITS = (size_t)(DBL_MANT_DIG - 1); /* 52 bits */
+
+  if (w <= MAX_EXACT_BITS) {
+    /* fits directly into double mantissa */
+    double d = fabs(bntod_approx(n_abs));
+    double s = sqrt(d);
+    /* + 1.0 bias strictly guarantees x0 >= floor(sqrt(|n|)) */
+    x = dtobn(s + 1.0);
+  } else {
+    /* large: shift right to extract top 52 bits
+     * Ensure shift amount 'k' is even so sqrt(2^k) = 2^(k/2) is exact. */
+    long long k = (long long)((w - MAX_EXACT_BITS) & ~(unsigned long long)1);
+    bignum_t *n_top = bnashll(n_abs, -k); /* >> k */
+    double d = fabs(bntod_approx(n_top));
+    double s = sqrt(d);
+    /* s + 1.0 is tiny (~2^26), so dtobn never sees Inf/NaN */
+    bignum_t *x_top = dtobn(s + 1.0);
+    if (x_top) {
+      /* scale back up by k/2 bits */
+      x = bnashll(x_top, (k / 2));
+      bnfree(x_top);
+    }
+    bnfree(n_top);
+  }
+
+  return x;
+}
+
+/* exact integer square root and remainder on |n| = (*out_root)^2 + (*out_rem)
+ * out_root should be non-NULL, but out_rem can be NULL; returns 1 if rem is 0  */
+int bnisqrt(const bignum_t *n, bignum_t **out_root, bignum_t **out_rem)
+{
+  bignum_t *n_abs, *x, *next_x, *q, *sum, *sq, *rem; int res;
+
+  assert(n != NULL);
+  assert(out_root != NULL);
+
+  if (BNZERO(n)) {
+    *out_root = (bignum_t *)bn0;
+    if (out_rem) *out_rem  = (bignum_t *)bn0;
+    return 1;
+  }
+
+  /* work strictly on absolute magnitude |n| */
+  n_abs = bnabs(n);
+
+  /* get hardware-accelerated overestimate seed x0 */
+  x = bnisqrt_initial_seed(n_abs);
+
+  /* Newton-Raphson iteration: x_{k+1} = floor((x_k + floor(|n| / x_k)) / 2) */
+  for (;;) {
+    q = bndiv(n_abs, x); 
+    sum = bnadd(x, q);
+    bnfree(q);
+
+    next_x = bnashll(sum, -1); /* >> 1 */
+    bnfree(sum);
+
+    /* convergence check: x_k decreases monotonically until hitting floor(sqrt(|n|)).
+     * once next_x >= x, we have reached the exact integer root. */
+    if (bncmp(next_x, x) >= 0) {
+      bnfree(next_x);
+      break;
+    }
+
+    bnfree(x);
+    x = next_x;
+  }
+
+  *out_root = x;
+
+  /* compute exact non-negative remainder |n| - x^2 */
+  sq = bnmul(x, x); rem = bnsub(n_abs, sq);
+  bnfree(sq); 
+  bnfree(n_abs);
+
+  res = BNZERO(rem);
+  if (out_rem) *out_rem  = rem;
+  else bnfree(rem);
+
+  return res;
+}
+
+/* modular quadratic residue lookup tables */
+
+static const unsigned char sq64[64] = {
+  1,1,0,0,1,0,0,0, 0,1,0,0,0,0,0,0,
+  1,1,0,0,0,0,0,0, 0,1,0,0,0,0,0,0,
+  0,1,0,0,1,0,0,0, 0,1,0,0,0,0,0,0,
+  0,1,0,0,0,0,0,0, 0,1,0,0,0,0,0,0
+};
+
+/* FIXED: Corrected residues for mod 63 (16 quadratic residues total) */
+static const unsigned char sq63[63] = {
+  1,1,0,0,1,0,0,1, 0,1,0,0,0,0,0,0,
+  1,0,1,0,0,0,1,0, 0,1,0,0,1,0,0,0,
+  0,0,0,0,1,1,0,0, 0,0,0,1,0,0,1,0,
+  0,1,0,0,0,0,0,0, 0,0,1,0,0,0,0
+};
+
+static const unsigned char sq65[65] = {
+  1,1,0,0,1,0,0,0, 0,1,1,0,0,0,1,0,
+  1,0,0,0,0,0,0,0, 0,1,1,0,0,1,1,0,
+  0,0,0,1,1,0,0,1, 1,0,0,0,0,0,0,0,
+  0,1,0,1,0,0,0,1, 1,0,0,0,0,1,0,0,
+  1
+};
+
+static const unsigned char sq11[11] = {
+  1,1,0,1,1,1,0,0,0,1,0
+};
+
+static unsigned long bn_mag_modl(const bignum_t *n, long m)
+{
+  long r;
+  assert(n->size > 0); /* never called on bn0 */
+  if (m == 64) return (unsigned long)(n->limb[0] & 63UL);
+  r = bnmodl(n, m);
+  if (r < 0) r = -r;
+  return (unsigned long)(r % m);
+}
+
+
+/* bignum square root of |n| */
+int bntrysqrt(const bignum_t *n, bignum_t **out_root)
+{
+  bignum_t *root = NULL, *rem = NULL;
+
+  assert(n != NULL);
+
+  if (BNZERO(n)) {
+    if (out_root) *out_root = (bignum_t *)bn0;
+    return 1;
+  }
+
+  if (!sq64[bn_mag_modl(n, 64)]) return 0;
+  if (!sq63[bn_mag_modl(n, 63)]) return 0;
+  if (!sq65[bn_mag_modl(n, 65)]) return 0;
+  if (!sq11[bn_mag_modl(n, 11)]) return 0;
+
+  bnisqrt(n, &root, &rem);
+
+  if (BNZERO(rem)) {
+    bnfree(rem);
+    if (out_root) *out_root = root;
+    else bnfree(root);
+    return 1;
+  }
+
+  bnfree(rem);
+  bnfree(root);
+  return 0;
+}
+
+/* exact rational square root, ratio is expected to be in reduced form */
+int bnrtrysqrt_reduced(const bignum_t *num, const bignum_t *den, bignum_t **out_rn, bignum_t **out_rd)
+{
+  bignum_t *rn = NULL, *rd = NULL;
+
+  assert(!BNZERO(den) && !den->isneg);
+
+  if (!bntrysqrt(num, &rn)) return 0;
+  if (!bntrysqrt(den, &rd)) { bnfree(rn); return 0; }
+
+  if (out_rn) *out_rn = rn; else bnfree(rn);
+  if (out_rd) *out_rd = rd; else bnfree(rd);
+  return 1;
+}
+
+/* exact rational square root, ratio is not expected to be in reduced form */
+int bnrtrysqrt(const bignum_t *num, const bignum_t *den, bignum_t **out_rn, bignum_t **out_rd)
+{
+  bignum_t *g, *num_red, *den_red;
+  int res;
+
+  assert(!BNZERO(den) && !den->isneg);
+
+  g = bngcd(num, den);
+  if (bncmp(g, bn1) == 0) {
+    bnfree(g);
+    return bnrtrysqrt_reduced(num, den, out_rn, out_rd);
+  }
+
+  num_red = bndiv(num, g); den_red = bndiv(den, g);
+  bnfree(g);
+
+  res = bnrtrysqrt_reduced(num_red, den_red, out_rn, out_rd);
+  bnfree(num_red);
+  bnfree(den_red);
+  return res;
+}
+
+/* exact complex square root */
+int bnctrysqrt(const bignum_t *rn, const bignum_t *rd, const bignum_t *in, const bignum_t *id,
+               bignum_t **out_an, bignum_t **out_ad, bignum_t **out_bn, bignum_t **out_bd)
+{
+  bignum_t *g_den, *rd_prime, *id_prime;
+  bignum_t *x, *y, *n_z2, *r_num;
+  bignum_t *tmp1, *tmp2, *lcm_den, *a_num, *a_den;
+  bignum_t *local_an = NULL, *local_ad = NULL;
+  int is_sq;
+
+  assert(!BNZERO(rd) && !rd->isneg);
+  assert(!BNZERO(id) && !id->isneg);
+
+  /* pure real case (y = 0) */
+  if (BNZERO(in)) {
+    if (bnsign(rn) >= 0) {
+      if (bnrtrysqrt_reduced(rn, rd, out_an, out_ad)) {
+        if (out_bn) *out_bn = (bignum_t *)bn0;
+        if (out_bd) *out_bd = (bignum_t *)bn1;
+        return 1;
+      }
+    } else {
+      if (bnrtrysqrt_reduced(rn, rd, out_bn, out_bd)) {
+        if (out_an) *out_an = (bignum_t *)bn0;
+        if (out_ad) *out_ad = (bignum_t *)bn1;
+        return 1;
+      }
+    }
+    return 0;
+  }
+
+  /* reduce denominators upfront: rd' = rd/g, id' = id/g */
+  g_den = bngcd(rd, id);
+  rd_prime = bndiv(rd, g_den);
+  id_prime = bndiv(id, g_den);
+
+  /* x = rn * id', y = in * rd' */
+  x = bnmul(rn, id_prime);
+  y = bnmul(in, rd_prime);
+
+  /* n_z2 = x^2 + y^2 */
+  tmp1 = bnmul(x, x);
+  tmp2 = bnmul(y, y);
+  n_z2 = bnadd(tmp1, tmp2);
+  bnfree(tmp1);
+  bnfree(tmp2);
+
+  /* test if numerator of |z|^2 is a square */
+  is_sq = bntrysqrt(n_z2, &r_num);
+  bnfree(n_z2);
+  if (!is_sq) {
+    bnfree(x); bnfree(y); bnfree(g_den);
+    bnfree(rd_prime); bnfree(id_prime);
+    return 0;
+  }
+
+  /* lcm_den = g_den * rd' * id' = lcm(rd, id) */
+  tmp1 = bnmul(rd_prime, id_prime);
+  lcm_den = bnmul(g_den, tmp1);
+  bnfree(tmp1);
+  bnfree(g_den);
+  bnfree(rd_prime);
+  bnfree(id_prime);
+
+  /* a_num = r_num + x, a_den = 2 * lcm_den */
+  a_num = bnadd(r_num, x);
+  a_den = bnashll(lcm_den, 1);
+
+  bnfree(r_num);
+  bnfree(x); bnfree(y);
+  bnfree(lcm_den);
+
+  /* test if a is a rational square */
+  is_sq = bnrtrysqrt(a_num, a_den, &local_an, &local_ad);
+  bnfree(a_num);
+  bnfree(a_den);
+
+  if (!is_sq) return 0;
+
+  /* compute b = y / (2 * a) */
+  if (out_bn || out_bd) {
+    bignum_t *nb_raw, *db_raw, *db_temp, *g;
+    bignum_t *local_bn, *local_bd;
+
+    nb_raw  = bnmul(in, local_ad);
+    db_temp = bnmul(id, local_an);
+    db_raw  = bnashll(db_temp, 1);
+    bnfree(db_temp);
+
+    g = bngcd(nb_raw, db_raw);
+    local_bn = bndiv(nb_raw, g);
+    local_bd = bndiv(db_raw, g);
+
+    bnfree(nb_raw);
+    bnfree(db_raw);
+    bnfree(g);
+
+    if (out_bn) *out_bn = local_bn; else bnfree(local_bn);
+    if (out_bd) *out_bd = local_bd; else bnfree(local_bd);
+  }
+
+  if (out_an) *out_an = local_an; else bnfree(local_an);
+  if (out_ad) *out_ad = local_ad; else bnfree(local_ad);
+
+  return 1;
+}
+
+/* [esl] end of sqrt bundles */
+
 
 #define BITMASK64(n) ((n) >= 64 ? ~(uint64_t)0 : (((uint64_t)1 << (n)) - 1))
 
@@ -3943,7 +4361,7 @@ void intfquorem(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, con
 #endif
 
 /* q = floor(sqrt(x)), r = x-floor(sqrt(x)) x >= 0 */
-static void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp)
+void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_INTNUM(xt) && getfix(xp) >= 0 && "non-natural number");
   if (isfix(xt)) {
@@ -3951,8 +4369,12 @@ static void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt,
     for (q = 1; q*q > x || x > q*(q+2); q = (q + x/q)/2);
     *pqt = setfix(qp, q), *prt = setfix(rp, x-q*q);
   } else {
+#if 1
+    bignum_t *bx = getbig(xp), *bq = NULL, *br = NULL;
+    bnisqrt(bx, &bq, &br); assert(bq != NULL && br != NULL);
+#else  
     bignum_t *bx = getbig(xp), *bq = bn1, *bq2, *bl, *bu;
-    bignum_t *bn2 = lltobn(2), *br;
+    bignum_t *bn2 = ltobn(2), *br;
   loop:
     bl = bnmul(bq, bq), bq2 = bnmul(bq, bn2), bu = bnadd(bl, bq2);
     if (bncmp(bl, bx) <= 0 && bncmp(bx, bu) <= 0) {
@@ -3967,6 +4389,7 @@ static void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt,
       goto loop;
     }
     bnfree(bl), bnfree(bq2), bnfree(bu), bnfree(bn2);
+#endif
     if (bnwidths(bq) > FIXNUM_WIDTH) *pqt = setbig(qp, bq);
     else (*pqt = setfix(qp, bntol(bq))), bnfree(bq);
     if (bnwidths(br) > FIXNUM_WIDTH) *prt = setbig(rp, br);
@@ -6073,13 +6496,38 @@ static void gnumisqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t x
 }
 
 /* z = sqrt(x)  [generic; result may be inexact complex] */
-static numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
+numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isrect(xt)) {
     /* exact: try integer sqrt first, then fall back to inexact */
     if (isint(xt)) {
-      /* exact integer: attempt exact square root */
+#if 1
+      if (isfix(xt)) {
+        long x = getfix(xp), ax = labs(x), q;
+        for (q = 1; q*q > ax || ax > q*(q+2); q = (q + ax/q)/2);
+        if (q*q == ax) {
+          if (x >= 0) return setfix(zp, q);
+          else return NUMT_MKCOM(setfix(zp, 0), setfix(zp+2, q));
+        } else {
+          if (x >= 0) return setflo(zp, sqrt(x));
+          else return NUMT_MKCOM(setflo(zp, 0.0), setflo(zp+2, sqrt(-x)));
+        }
+      } else { /* isbig(x) */
+        bignum_t *x = getbig(xp), *q = NULL;
+        if (bntrysqrt(x, &q)) { /* exact q? */
+          numt_t qt; nump_t *qp = (bnsign(x) >= 0) ? zp : zp+2;
+          if (bnwidths(q) > FIXNUM_WIDTH) qt = setbig(qp, q);
+          else { qt = setfix(qp, bntol(q)); bnfree(q); }
+          if (bnsign(x) >= 0) return qt;
+          else return NUMT_MKCOM(setfix(zp, 0), qt);
+        } else {
+          double q = bnsqrttod(x); /* ignores x sign, returns nonnegative q */
+          if (bnsign(x) >= 0) return setflo(zp, q);
+          return NUMT_MKCOM(setflo(zp, 0.0), setflo(zp+2, q));
+        }
+      }
+#else    
       nump_t qp[1]; numt_t qt; nump_t rp[1]; numt_t rt;
       if (intsign(xt, xp) < 0) {
         nump_t tp[1]; numt_t tt = intneg(tp, xt, xp);
@@ -6105,24 +6553,73 @@ static numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
         if (bnsign(x) >= 0) return setflo(zp, r);
         return NUMT_MKCOM(setflo(zp, 0.0), setflo(zp+2, r));
       } 
+#endif
     }
     if (!isint(xt) && israt(xt)) {
+#if 1
+      bignumll_t nxll, dxll; bignum_t *nq = NULL, *dq = NULL;
+      numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt);
+      bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
+      bignum_t *dx = isbig(dxt) ? getbig(xp+1) : bnx_makell(&dxll, dxt ? getfix(xp+1) : 1);
+      if (bnrtrysqrt(nx, dx, &nq, &dq)) { /* exact q? */
+        numt_t nqt; nump_t *nqp = (bnsign(nx) >= 0) ? zp   : zp+2;
+        numt_t dqt; nump_t *dqp = (bnsign(nx) >= 0) ? zp+1 : zp+3;
+        if (bnwidths(nq) > FIXNUM_WIDTH) nqt = setbig(nqp, nq);
+        else { nqt = setfix(nqp, bntol(nq)); bnfree(nq); }
+        if (bnwidths(dq) > FIXNUM_WIDTH) dqt = setbig(dqp, dq);
+        else { dqt = setfix(dqp, bntol(dq)); bnfree(dq); }
+        if (bnsign(nx) >= 0) return NUMT_MKRAT(nqt, dqt);
+        else return NUMT_MKCOM(setfix(zp, 0), NUMT_MKRAT(nqt, dqt));
+      } else { /* inexact */
+        double q = bnrsqrttod(nx, dx); /* sqrt(|nx|/dx) */
+        if (bnsign(nx) >= 0) return setflo(zp, q);
+        else return NUMT_MKCOM(setflo(zp, 0.0), setflo(zp+2, q));
+      }   
+#else
       nump_t np[4]; numt_t nt = gnumsqrt(np, NUMT_RAT_N(xt), xp);
       nump_t dp[4]; numt_t dt = gnumsqrt(dp, NUMT_RAT_D(xt), xp+1);
       numt_t zt = (nt == NUMT_NONE || dt == NUMT_NONE) ? NUMT_NONE : gnumdiv(zp, nt, np, dt, dp); 
       numfini(nt, np); numfini(dt, dp);
       return zt;
+#endif
     }
     if (isreal(xt)) {
       double x = rattod(xt, xp);
       if (x >= 0.0) return setflo(zp, sqrt(x));
       return NUMT_MKCOM(setflo(zp, 0.0), setflo(zp+2, sqrt(-x)));
     } else {
+#if 1
+      /* exact complex, with nonzero imag part */
+      bignumll_t nrll, drll, nill, dill; 
+      bignum_t *nrz = NULL, *drz = NULL, *niz = NULL, *diz = NULL;
+      numt_t rt = NUMT_COM_R(xt), nrt = NUMT_RAT_N(rt), drt = NUMT_RAT_D(rt); 
+      bignum_t *nr = isbig(nrt) ? getbig(xp)   : bnx_makell(&nrll, getfix(xp));
+      bignum_t *dr = isbig(drt) ? getbig(xp+1) : bnx_makell(&drll, drt ? getfix(xp+1) : 1);
+      numt_t it = NUMT_COM_I(xt), nit = NUMT_RAT_N(it), dit = NUMT_RAT_D(it); 
+      bignum_t *ni = isbig(nit) ? getbig(xp+2) : bnx_makell(&nill, getfix(xp+2));
+      bignum_t *di = isbig(dit) ? getbig(xp+3) : bnx_makell(&dill, dit ? getfix(xp+3) : 1);
+      if (bnctrysqrt(nr, dr, ni, di, &nrz, &drz, &niz, &diz)) { /* exact? */
+        numt_t nrt, drt = NUMT_NONE, nit, dit = NUMT_NONE; long l;
+        if (bnwidths(nrz) > FIXNUM_WIDTH) nrt = setbig(zp+0, nrz);
+        else { nrt = setfix(zp+0, bntol(nrz)); bnfree(nrz); }
+        if (bnwidths(drz) > FIXNUM_WIDTH) drt = setbig(zp+1, drz);
+        else { l = bntol(drz); bnfree(drz); if (l != 1) drt = setfix(zp+1, l); }        
+        if (bnwidths(niz) > FIXNUM_WIDTH) nit = setbig(zp+2, niz);
+        else { nit = setfix(zp+2, bntol(niz)); bnfree(niz); }
+        if (bnwidths(diz) > FIXNUM_WIDTH) dit = setbig(zp+3, diz);
+        else { l = bntol(diz); bnfree(diz); if (l != 1) dit = setfix(zp+3, l); }        
+        return NUMT_MKCOM(NUMT_MKRAT(nrt, drt), NUMT_MKRAT(nit, dit));
+      } else {
+        double zr, zi; bncsqrttodd(&zr, &zi, nr, dr, ni, di);
+        return NUMT_MKCOM(setflo(zp, zr), setflo(zp+2, zi));
+      }
+#else
       /* exact complex: convert to inexact and do complex sqrt */
       double rx, ix, re, im;
       recttodd(xt, xp, &rx, &ix);
       cmath_sqrt(rx, ix, &re, &im);
       return NUMT_MKCOM(setflo(zp, re), setflo(zp+2, im));
+#endif
     }
   } else if (isreal(xt) && getflo(xp) != getflo(xp)) { /* NaN */
     /* traditionally imag NaN is not added (although it makes sense) */
