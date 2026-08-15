@@ -13162,4 +13162,31 @@
 (test #i14/15 (rationalize 0.94 .01))
 (test #i16/17 (rationalize 0.95 .01))
 
+; extremities
+
+(test 1.0e20 (expt #e1e200 1/10))
+(test #e1e200 (expt #e1e400 1/2))
+(test 1.0e-200 (expt #e1e400 -1/2))
+(test 1.0e100 (expt #e1e500 1/5))
+
+(test 921.3806107878983+0.7853981633974483i (log (make-rectangular #e1e400 #e1e400)))
+(test 921.0340371976183+1.5707963267948966i (log (make-rectangular 0 #e1e400)))
+(test 921.0340371976183+3.141592653589793i (log (make-rectangular #e-1e400 0)))
+(test 921.0340371976183+1.0e-100i (log (make-rectangular #e1e400 #e1e300)))
+
+(test -0.054049970102390585-0.9985382319830978i (exp (make-rectangular 0 #e1e400)))
+(test -0.146923051558083-2.714308331021277i (exp (make-rectangular 1 #e1e400)))
+(test -0.3993782612320884-7.378255013050136i (exp (make-rectangular 2 #e1e400)))
+(test -0.16821444437424507-0.985750425160377i (exp (make-rectangular 0 #e1e300)))
+
+(test -1.5408250088957696-0.06351958938074119i (sin (make-rectangular #e1e400 1)))
+(test -0.0834034621773418+1.1734833221255077i (cos (make-rectangular #e1e400 1)))
+(test 0.03899581728156827+1.3102637197596267i (tan (make-rectangular #e1e400 1)))
+(test -3.7566962337490777-0.19603169660967548i (sin (make-rectangular #e1e400 2)))
+
+(test 10000.0+0.0i (expt (make-rectangular #e1e400 0) 1/100))
+(test 10034.407990773918+78.811676574155i (expt (make-rectangular #e1e400 #e1e400) 1/100))
+(test 9998.766324816606+157.07317311820677i (expt (make-rectangular 0 #e1e400) 1/100))
+(test 10000.0+1.0e-98i (expt (make-rectangular #e1e400 #e1e300) 1/100))
+
 (test-end)
