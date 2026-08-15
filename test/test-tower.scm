@@ -13184,7 +13184,19 @@
 (test 0.03899581728156827+1.3102637197596267i (tan (make-rectangular #e1e400 1)))
 (test -3.7566962337490777-0.19603169660967548i (sin (make-rectangular #e1e400 2)))
 
-(test 10000.0+0.0i (expt (make-rectangular #e1e400 0) 1/100))
+(test 1.5707963267948966-921.7271843781782i (asin (make-rectangular #e1e400 0)))
+(test -1.5707963267948966+921.7271843781782i (asin (make-rectangular #e-1e400 0)))
+(test 0.0+921.7271843781782i (asin (make-rectangular 0 #e1e400)))
+(test 1.5707963267948966+921.7271843781782i (asin (make-rectangular #e1e400 #e1e300)))
+(test -1.5707963267948966+921.7271843781782i (asin (make-rectangular #e-1e400 #e1e300)))
+
+(test 0.0+921.7271843781782i (acos (make-rectangular #e1e400 0)))
+(test 3.141592653589793-921.7271843781782i (acos (make-rectangular #e-1e400 0)))
+(test 1.5707963267948966-921.7271843781782i (acos (make-rectangular 0 #e1e400)))
+(test 1.0e-100-921.7271843781782i (acos (make-rectangular #e1e400 #e1e300)))
+(test 3.141592653589793-921.7271843781782i (acos (make-rectangular #e-1e400 #e1e300)))
+
+(test 10000.0 (expt (make-rectangular #e1e400 0) 1/100))
 (test 10034.407990773918+78.811676574155i (expt (make-rectangular #e1e400 #e1e400) 1/100))
 (test 9998.766324816606+157.07317311820677i (expt (make-rectangular 0 #e1e400) 1/100))
 (test 10000.0+1.0e-98i (expt (make-rectangular #e1e400 #e1e300) 1/100))

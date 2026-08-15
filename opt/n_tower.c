@@ -3586,6 +3586,125 @@ void bnctantodd(double *prtan, double *pitan,
   }
 }
 
+/* compute complex asin(z) for rational z = nrx/drx + i * nix/dix */
+int bncasintodd(double *pre, double *pim, /* use *pim only if return value is not 0 */
+  const bignum_t *nrx, const bignum_t *drx, const bignum_t *nix, const bignum_t *dix)
+{
+  double rx, ix, re, im, eps_log;
+  bignum_t *abs_nrx, *diff, *a;
+  int is_comp = 1;
+
+  /* 1. Fast path for zero */
+  if (BNZERO(nrx) && BNZERO(nix)) {
+    if (pre) *pre = 0.0;
+    if (pim) *pim = 0.0;
+    return 0;
+  }
+
+  /* near-unity rescue for purely real inputs (y = 0) */
+  if (BNZERO(nix)) {
+    int cmp_absnd = bncmpabs(nrx, drx);
+    rx = bnrtod(nrx, drx);
+    if (cmp_absnd <= 0) is_comp = 0;
+
+    /* Detect precision loss where x != +-1.0, but bnrtod rounded to +-1.0 */
+    if ((rx == 1.0 || rx == -1.0) && cmp_absnd != 0) {
+      abs_nrx = bnabs(nrx);
+
+      if (cmp_absnd > 0) {
+        /* |x| > 1: asin(1+eps) = pi/2 - i*sqrt(2*eps) */
+        diff = bnsub(abs_nrx, drx);
+        a = bnashll(diff, 1);
+        eps_log = 0.5 * bnrlogtod(a, drx);
+        bnfree(diff); bnfree(a); bnfree(abs_nrx);
+
+        im = exp(eps_log);
+        if (pre) *pre = nrx->isneg ? -M_PI_2 : M_PI_2;
+        if (pim) *pim = nrx->isneg ? im : -im;
+        return 1; /* complex */
+      } else {
+        /* |x| < 1: asin(1-eps) = pi/2 - sqrt(2*eps) */
+        diff = bnsub(drx, abs_nrx);
+        a = bnashll(diff, 1);
+        eps_log = 0.5 * bnrlogtod(a, drx);
+        bnfree(diff); bnfree(a); bnfree(abs_nrx);
+
+        re = M_PI_2 - exp(eps_log);
+        if (pre) *pre = nrx->isneg ? -re : re;
+        if (pim) *pim = 0.0;
+        return 0; /* real */
+      }
+    }
+  }
+
+  { /* large-magnitude rescue: |z| >> 1 */
+    long long wr = BNZERO(nrx) ? 0 : (long long)bnwidthu(nrx) - (long long)bnwidthu(drx);
+    long long wi = BNZERO(nix) ? 0 : (long long)bnwidthu(nix) - (long long)bnwidthu(dix);
+    long long wmax = (wr > wi) ? wr : wi;
+
+    /* asin(z) ~ atan2(x, |y|) + i * (ln2 + ln|z|) * sign */
+    if (wmax >= DBL_MANT_DIG) {
+      bignum_t *a, *b, *d, *a2, *b2, *num, *den;
+      bignum_t *abs_nix;
+      double ln_absz;
+
+      /* Re(asin(z)) = atan2(x, |y|) */
+      abs_nix = bnabs(nix);
+      re = bnratan2tod(nrx, drx, abs_nix, dix);
+      bnfree(abs_nix);
+
+      /* ln|z| via bignum: 0.5 * ln(|z|^2) */
+      a   = bnmul(nix, drx); b   = bnmul(nrx, dix);  d = bnmul(drx, dix); 
+      a2  = bnmul(a, a);     b2  = bnmul(b, b);
+      num = bnadd(a2, b2);   den = bnmul(d, d);
+
+      ln_absz = 0.5 * bnrlogtod(num, den);
+
+      bnfree(a);  bnfree(b);  bnfree(d);
+      bnfree(a2); bnfree(b2); bnfree(num); bnfree(den);
+
+      /* Im = ln(2) + ln|z|, with correct sign */
+      im = M_LN2 + ln_absz;
+
+      if (BNZERO(nix)) im = nrx->isneg ? im : -im;
+      else im = nix->isneg ? -im : im;
+
+      if (pre) *pre = re;
+      if (pim) *pim = im;
+      return 1; /* complex */
+    }
+  }
+
+  /* fallback: convert to double and use C library */
+  rx = bnrtod(nrx, drx);
+  ix = bnrtod(nix, dix);
+  cmath_asin(rx, ix, &re, &im);
+
+  /* R7RS branch cuts for real rationals */
+  if (BNZERO(nix)) {
+    if      (rx >  1.0) im = -fabs(im);
+    else if (rx < -1.0) im =  fabs(im);
+  }
+
+  if (pre) *pre = re;
+  if (pim) *pim = im;
+
+  return is_comp;
+}
+
+/* compute complex acos(z) via acos(z) = pi/2 - asin(z) */
+int bncacostodd(double *pre, double *pim, /* use *pim only if return value is not 0 */
+  const bignum_t *nrx, const bignum_t *drx, const bignum_t *nix, const bignum_t *dix)
+{
+  double re, im;
+  int is_comp = bncasintodd(&re, &im, nrx, drx, nix, dix);
+
+  /* R7RS branch cuts */
+  if (pre) *pre = M_PI_2 - re;
+  if (pim) *pim = -im;
+
+  return is_comp;
+}
 
 /* High/low Cody-Waite splitting constants for ln(2) to preserve precision. 
   Their sum gives ln2 in extended precision; to regenerate them, run
@@ -7539,67 +7658,83 @@ numt_t gnumtan(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = asin(x) */
-static numt_t gnumasin(nump_t *zp, numt_t xt, const nump_t *xp)
+numt_t gnumasin(nump_t *zp, numt_t xt, const nump_t *xp)
 {
-  double rx, ix, re, im;
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt) && getfix(xp) == 0) {
     return setfix(zp, 0); /* consistent with sin */
   } else if (isflo(xt) && getflo(xp) != getflo(xp)) { /* NaN */
     /* traditionally imag NaN is not added (although it makes sense) */
     return setflo(zp, HUGE_VAL-HUGE_VAL); /* just real NaN */
-  } else if (isreal(xt)) {
-    rx = isflo(xt) ? getflo(xp) : rattod(xt, xp);
-    ix = 0.0;
-  } else {
-    if (iscomp(xt)) comptodd(xt, xp, &rx, &ix); else recttodd(xt, xp, &rx, &ix);
+  } else if (isrect(xt)) {
+    bignumll_t nrll, drll, nill, dill; double zr, zi;
+    numt_t rt = NUMT_COM_R(xt), nrt = NUMT_RAT_N(rt), drt = NUMT_RAT_D(rt); 
+    bignum_t *nr = isbig(nrt) ? getbig(xp)   : bnx_makell(&nrll, getfix(xp));
+    bignum_t *dr = isbig(drt) ? getbig(xp+1) : bnx_makell(&drll, drt ? getfix(xp+1) : 1);
+    numt_t it = NUMT_COM_I(xt), nit = NUMT_RAT_N(it), dit = NUMT_RAT_D(it); 
+    bignum_t *ni = isbig(nit) ? getbig(xp+2) : bnx_makell(&nill, nit ? getfix(xp+2) : 0);
+    bignum_t *di = isbig(dit) ? getbig(xp+3) : bnx_makell(&dill, dit ? getfix(xp+3) : 1);
+    if (!bncasintodd(&zr, &zi, nr, dr, ni, di)) return setflo(zp, zr);
+    else return NUMT_MKCOM(setflo(zp, zr), setflo(zp+2, zi));
+  } else { /* flonum or compnum */
+    double rx, ix, re, im;
+    if (isflo(xt)) rx = getflo(xp), ix = 0.0;
+    else comptodd(xt, xp, &rx, &ix);
+    if (ix == 0.0 && rx >= -1.0 && rx <= 1.0) {
+      if (isreal(xt)) return setflo(zp, asin(rx));
+      return NUMT_MKCOM(setflo(zp, asin(rx)), setflo(zp+2, 0.0));
+    }
+    cmath_asin(rx, ix, &re, &im);
+    /* C99 conventions => R7RS */
+    if (isreal(xt)) { 
+      if       (rx > 1.0) im = -fabs(im);
+      else if (rx < -1.0) im =  fabs(im);
+    } else if (ix == 0.0) {
+      if   (1.0/ix < 0.0) im = -fabs(im);
+      else                im = fabs(im);
+    }
+    return NUMT_MKCOM(setflo(zp, re), setflo(zp+2, im));
   }
-  if (ix == 0.0 && rx >= -1.0 && rx <= 1.0) {
-    if (isreal(xt)) return setflo(zp, asin(rx));
-    return NUMT_MKCOM(setflo(zp, asin(rx)), setflo(zp+2, 0.0));
-  }
-  cmath_asin(rx, ix, &re, &im);
-  /* C99 conventions => R7RS */
-  if (isreal(xt)) { 
-    if       (rx > 1.0) im = -fabs(im);
-    else if (rx < -1.0) im =  fabs(im);
-  } else if (ix == 0.0) {
-    if   (1.0/ix < 0.0) im = -fabs(im);
-    else                im = fabs(im);
-  }
-  return NUMT_MKCOM(setflo(zp, re), setflo(zp+2, im));
 }
 
 /* z = acos(x) */
-static numt_t gnumacos(nump_t *zp, numt_t xt, const nump_t *xp)
+numt_t gnumacos(nump_t *zp, numt_t xt, const nump_t *xp)
 {
-  double rx, ix, re, im;
   assert(NUMT_IS_VALID(xt) && "unsupported number type");
   if (isfix(xt) && getfix(xp) == 1) {
     return setfix(zp, 0); /* consistent with cos */
   } else if (isflo(xt) && getflo(xp) != getflo(xp)) { /* NaN */
     /* traditionally imag NaN is not added (although it makes sense) */
     return setflo(zp, HUGE_VAL-HUGE_VAL); /* just real NaN */
-  } else if (isreal(xt)) {
-    rx = isflo(xt) ? getflo(xp) : rattod(xt, xp);
-    ix = 0.0;
-  } else {
-    if (iscomp(xt)) comptodd(xt, xp, &rx, &ix); else recttodd(xt, xp, &rx, &ix);
+  } else if (isrect(xt)) {
+    bignumll_t nrll, drll, nill, dill; double zr, zi;
+    numt_t rt = NUMT_COM_R(xt), nrt = NUMT_RAT_N(rt), drt = NUMT_RAT_D(rt); 
+    bignum_t *nr = isbig(nrt) ? getbig(xp)   : bnx_makell(&nrll, getfix(xp));
+    bignum_t *dr = isbig(drt) ? getbig(xp+1) : bnx_makell(&drll, drt ? getfix(xp+1) : 1);
+    numt_t it = NUMT_COM_I(xt), nit = NUMT_RAT_N(it), dit = NUMT_RAT_D(it); 
+    bignum_t *ni = isbig(nit) ? getbig(xp+2) : bnx_makell(&nill, nit ? getfix(xp+2) : 0);
+    bignum_t *di = isbig(dit) ? getbig(xp+3) : bnx_makell(&dill, dit ? getfix(xp+3) : 1);
+    if (!bncacostodd(&zr, &zi, nr, dr, ni, di)) return setflo(zp, zr);
+    else return NUMT_MKCOM(setflo(zp, zr), setflo(zp+2, zi));
+  } else { /* flonum or compnum */
+    double rx, ix, re, im;
+    if (isflo(xt)) rx = getflo(xp), ix = 0.0;
+    else comptodd(xt, xp, &rx, &ix);
+    if (ix == 0.0 && rx >= -1.0 && rx <= 1.0) {
+      if (isreal(xt)) return setflo(zp, acos(rx));
+      return NUMT_MKCOM(setflo(zp, acos(rx)), setflo(zp+2, 0.0));
+    }
+    cmath_acos(rx, ix, &re, &im);
+    /* C99 conventions => R7RS */
+    if (isreal(xt)) {
+      if       (rx > 1.0) im = fabs(im);
+      else if (rx < -1.0) im = -fabs(im);
+    } else if (ix == 0.0) {
+      if   (1.0/ix < 0.0) im = fabs(im);
+      else                im = -fabs(im);
+    }
+    return NUMT_MKCOM(setflo(zp, re), setflo(zp+2, im));
   }
-  if (ix == 0.0 && rx >= -1.0 && rx <= 1.0) {
-    if (isreal(xt)) return setflo(zp, acos(rx));
-    return NUMT_MKCOM(setflo(zp, acos(rx)), setflo(zp+2, 0.0));
-  }
-  cmath_acos(rx, ix, &re, &im);
-  /* C99 conventions => R7RS */
-  if (isreal(xt)) {
-    if       (rx > 1.0) im = fabs(im);
-    else if (rx < -1.0) im = -fabs(im);
-  } else if (ix == 0.0) {
-    if   (1.0/ix < 0.0) im = fabs(im);
-    else                im = -fabs(im);
-  }
-  return NUMT_MKCOM(setflo(zp, re), setflo(zp+2, im));
 }
 
 /* z = atan(x) [1-argument] */
