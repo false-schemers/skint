@@ -2,6 +2,23 @@
 
 /* complex number arithmetic */
 
+/* complex division: (a+ib)/(c+id) - Smith's method for stability */
+static void cmath_cdiv(double a, double b, double c, double d, double *pr, double *pi)
+{
+  double r, denom;
+  if (fabs(c) >= fabs(d)) {
+    r     = d / c;
+    denom = c + r * d;
+    *pr   = (a + r * b) / denom;
+    *pi   = (b - r * a) / denom;
+  } else {
+    r     = c / d;
+    denom = d + r * c;
+    *pr   = (a * r + b) / denom;
+    *pi   = (b * r - a) / denom;
+  }
+}
+
 #ifdef HAVE_C99_COMPLEX
 #include <complex.h>
 
@@ -117,23 +134,6 @@ static double c90_hypot(double a, double b)
 }
 #define hypot(a, b) c90_hypot(a, b)
 #endif
-
-/* complex divide: (a+ib)/(c+id) - Smith's method for stability */
-static void c90_cdiv(double a, double b, double c, double d, double *pr, double *pi)
-{
-  double r, denom;
-  if (fabs(c) >= fabs(d)) {
-    r     = d / c;
-    denom = c + r * d;
-    *pr   = (a + r * b) / denom;
-    *pi   = (b - r * a) / denom;
-  } else {
-    r     = c / d;
-    denom = d + r * c;
-    *pr   = (a * r + b) / denom;
-    *pi   = (b * r - a) / denom;
-  }
-}
 
 /* stable real asinh for C90 */
 static double c90_asinh(double x)
@@ -344,7 +344,7 @@ void cmath_pow(double rx, double ix, double ry, double iy, double *prz, double *
     else if (ry ==  0.5) { cmath_sqrt(rx,ix, prz,piz); return; }
     else if (ry ==  1.0) { *prz = rx;  *piz = ix;  return; }
     else if (ry ==  2.0) { *prz = rx*rx-ix*ix; *piz = 2.0*rx*ix; return; }
-    else if (ry == -1.0) { c90_cdiv(1.0,0.0, rx,ix, prz,piz); return; }
+    else if (ry == -1.0) { cmath_cdiv(1.0,0.0, rx,ix, prz,piz); return; }
   }
   cmath_log(rx, ix, &lr, &li); /* log(z) */
   pr = ry*lr - iy*li; pi = ry*li + iy*lr; /* w * log(z) */
@@ -3417,6 +3417,84 @@ void bnclogtodd(double *pre, double *pim, const bignum_t *nr, const bignum_t *dr
   *pim = bnratan2tod(ni, di, nr, dr);
 }
 
+/* two-argument logarithm *pre+*pim*i  = log_y(x); returns complex? flag */
+int bnclogntodd(double *pre, double *pim, /* use *pim only if return value is not 0 */
+  const bignum_t *nrx, const bignum_t *drx, const bignum_t *nix, const bignum_t *dix,
+  const bignum_t *nry, const bignum_t *dry, const bignum_t *niy, const bignum_t *diy)
+{
+  double ux, vx, uy, vy;
+
+  /* structural analysis: log_y(x) is provably real iff
+   * x is a positive real, y is a positive real, and y != 1 */
+  int  result_is_real = BNZERO(nix) && BNZERO(niy) &&
+                        !nrx->isneg && !BNZERO(nrx) &&
+                        !nry->isneg && !BNZERO(nry) &&
+                        (!BNONE(nry, 0) || !BNONE(dry, 0));
+
+  /* near-unity cancellation: x and y round to 1+0i but aren't exactly 1 */
+  { /* compute (x-1)/(y-1) using the Taylor expansion ln(1+e) ~= e for small e */
+    double rx = bnrtod(nrx, drx), ix = bnrtod(nix, dix);
+    double ry = bnrtod(nry, dry), iy = bnrtod(niy, diy);
+
+    if (rx == 1.0 && ix == 0.0 && ry == 1.0 && iy == 0.0) {
+      /* O(1) checks using BNONE for normalized inputs */
+      int x_is_one = BNZERO(nix) && BNONE(nrx, 0) && BNONE(drx, 0);
+      int y_is_one = BNZERO(niy) && BNONE(nry, 0) && BNONE(dry, 0);
+
+      if (!x_is_one && !y_is_one) {
+        /* fast path: purely real x and y near 1 */
+        if (BNZERO(nix) && BNZERO(niy)) {
+          bignum_t *dx1 = bnsub(nrx, drx), *dy1 = bnsub(nry, dry);
+          bignum_t *num = bnmul(dx1, dry), *den = bnmul(dy1, drx);
+
+          if (pre) *pre = bnrtod(num, den);
+          if (pim) *pim = 0.0;
+
+          bnfree(dx1); bnfree(dy1); bnfree(num); bnfree(den);
+          return 0;
+        } else {
+          /* exact Gaussian rational division (x-1)/(y-1) */
+          bignum_t *dx1 = bnsub(nrx, drx), *dy1 = bnsub(nry, dry);
+          bignum_t *ux = bnmul(dx1, dix), *vx = bnmul(nix, drx), *dx = bnmul(drx, dix);
+          bignum_t *uy = bnmul(dy1, diy), *vy = bnmul(niy, dry), *dy = bnmul(dry, diy);
+
+          /* numerator and denominator of (ux + i vx) / (uy + i vy) */
+          bignum_t *u1 = bnmul(ux, uy), *u2 = bnmul(vx, vy);
+          bignum_t *v1 = bnmul(vx, uy), *v2 = bnmul(ux, vy);
+          bignum_t *q1 = bnmul(uy, uy), *q2 = bnmul(vy, vy);
+
+          bignum_t *m_re = bnadd(u1, u2), *m_im = bnsub(v1, v2);
+          bignum_t *d_z2 = bnadd(q1, q2), *p_re, *p_im, *q;
+
+          bnfree(u1); bnfree(u2); bnfree(v1); bnfree(v2); bnfree(q1); bnfree(q2);
+
+          /* apply cross-denominators dy and dx */
+          p_re = bnmul(m_re, dy), p_im = bnmul(m_im, dy);
+          q = bnmul(d_z2, dx);
+
+          bnfree(dx1); bnfree(dy1);
+          bnfree(ux); bnfree(vx); bnfree(dx);
+          bnfree(uy); bnfree(vy); bnfree(dy);
+          bnfree(m_re); bnfree(m_im); bnfree(d_z2);
+
+          *pre = bnrtod(p_re, q);
+          *pim = bnrtod(p_im, q);
+
+          bnfree(p_re); bnfree(p_im); bnfree(q);
+          return !result_is_real;
+        }
+      }
+    }
+  }
+
+  /* General path: ln(x) / ln(y) via bnclogtodd */
+  bnclogtodd(&ux, &vx, nrx, drx, nix, dix);
+  bnclogtodd(&uy, &vy, nry, dry, niy, diy);
+  cmath_cdiv(ux, vx, uy, vy, pre, pim);
+
+  return !result_is_real;
+}
+
 /* hex string for pi/4 (512 fractional nibbles = 2048 fractional bits)
    python3 -c "from mpmath import mp, pi; mp.dps=1000; x=pi/4; n=512; 
    print(format(int(mp.floor(x*16**n)), 'X'))" */
@@ -3594,7 +3672,7 @@ int bncasintodd(double *pre, double *pim, /* use *pim only if return value is no
   bignum_t *abs_nrx, *diff, *a;
   int is_comp = 1;
 
-  /* 1. Fast path for zero */
+  /* fast path for zero */
   if (BNZERO(nrx) && BNZERO(nix)) {
     if (pre) *pre = 0.0;
     if (pim) *pim = 0.0;
@@ -3607,7 +3685,7 @@ int bncasintodd(double *pre, double *pim, /* use *pim only if return value is no
     rx = bnrtod(nrx, drx);
     if (cmp_absnd <= 0) is_comp = 0;
 
-    /* Detect precision loss where x != +-1.0, but bnrtod rounded to +-1.0 */
+    /* detect precision loss where x != +-1.0, but bnrtod rounded to +-1.0 */
     if ((rx == 1.0 || rx == -1.0) && cmp_absnd != 0) {
       abs_nrx = bnabs(nrx);
 
@@ -3700,7 +3778,7 @@ int bncacostodd(double *pre, double *pim, /* use *pim only if return value is no
   int is_comp = bncasintodd(&re, &im, nrx, drx, nix, dix);
 
   /* R7RS branch cuts */
-  if (pre) *pre = M_PI_2 - re;
+  *pre = M_PI_2 - re;
   if (pim) *pim = -im;
 
   return is_comp;
@@ -3846,8 +3924,9 @@ void bncpowtodd(double *pre, double *pim,
   if (pim) *pim = bnx_scale_expmul(m, sin(phi));
 }
 
-#define ATAN2_TRUNC_BITS (DBL_MANT_DIG + 7) /* guard bits for lost precision */
-#define ATAN2_DOMINANCE  (DBL_MANT_DIG + 1) /* underflow */
+#define ATAN2_TRUNC_BITS (DBL_MANT_DIG + 7)  /* guard bits for lost precision */
+#define ATAN2_DOMINANCE  (DBL_MANT_DIG + 1)  /* dominance relative to pi / (pi/2) */
+#define ATAN2_UNDERFLOW  (DBL_MAX_EXP + DBL_MANT_DIG + 2) /* double underflow limit (~1079 bits) */
 
 double bnratan2tod(const bignum_t *ny, const bignum_t *dy, const bignum_t *nx, const bignum_t *dx)
 {
@@ -3859,7 +3938,7 @@ double bnratan2tod(const bignum_t *ny, const bignum_t *dy, const bignum_t *nx, c
   double r_trunc, r, y_val, x_val;
   int extra;
 
-  if (BNZERO(dy) || BNZERO(dx)) return HUGE_VAL-HUGE_VAL;  /* NaN */
+  if (BNZERO(dy) || BNZERO(dx)) return HUGE_VAL - HUGE_VAL; /* NaN */
 
   /* signs of y = ny/dy, x = nx/dx */
   y_is_neg = (ny->isneg != dy->isneg);
@@ -3886,12 +3965,12 @@ double bnratan2tod(const bignum_t *ny, const bignum_t *dy, const bignum_t *nx, c
   if (sx > sy + ATAN2_DOMINANCE && x_is_neg) {
     return y_is_neg ? -M_PI : M_PI;
   }
-  /* fast path: |x| >> |y|, x > 0 (angle approaches +/- 0) */
-  if (sx > sy + ATAN2_DOMINANCE && !x_is_neg) {
+  /* fast path: |x| >> |y|, x > 0 (underflows double precision to +/- 0.0) */
+  if (sx > sy + ATAN2_UNDERFLOW && !x_is_neg) {
     return y_is_neg ? -0.0 : 0.0;
   }
 
-  /* comparable magnitudes: shift right via negative shift count */
+  /* comparable magnitudes or x > 0 with non-underflowing small angle */
   sh_ny = (wny > ATAN2_TRUNC_BITS) ? (wny - ATAN2_TRUNC_BITS) : 0;
   sh_dy = (wdy > ATAN2_TRUNC_BITS) ? (wdy - ATAN2_TRUNC_BITS) : 0;
   sh_nx = (wnx > ATAN2_TRUNC_BITS) ? (wnx - ATAN2_TRUNC_BITS) : 0;
@@ -7494,7 +7573,6 @@ static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
     return NUMT_MKCOM(setflo(zp, bnlogtod(x)), setflo(zp+2, M_PI));
   } else if (israt(xt)) {
     int sign = intsign(NUMT_RAT_N(xt), xp);
-#if 1
     bignumll_t nxll, dxll;
     numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt); 
     bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
@@ -7502,19 +7580,12 @@ static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
     double z = bnrlogtod(nx, dx); /* z = log(|nx|/dx), accurate around 1 */
     if (sign >= 0) return setflo(zp, z);
     return NUMT_MKCOM(setflo(zp, z), setflo(zp+2, M_PI));
-#else
-    double nlog = isfix(NUMT_RAT_N(xt)) ? log(labs(getfix(xp))) : bnlogtod(getbig(xp));
-    double dlog = isfix(NUMT_RAT_D(xt)) ? log(labs(getfix(xp+1))) : bnlogtod(getbig(xp+1));
-    if (sign >= 0) return setflo(zp, nlog-dlog);
-    return NUMT_MKCOM(setflo(zp, nlog-dlog), setflo(zp+2, M_PI));
-#endif
   } else if (isflo(xt)) {
     double x = getflo(xp);
     /* if (x > 0.0 || x == 0.0 && 1.0/x > 0.0) return setflo(zp, log(x)); */
     if (x >= 0.0) return setflo(zp, log(x));
     return NUMT_MKCOM(setflo(zp, log(-x)), setflo(zp+2, M_PI));
   } else if (isrect(xt)) {
-#if 1
     bignumll_t nrll, drll, nill, dill;
     numt_t rt = NUMT_COM_R(xt), nrt = NUMT_RAT_N(rt), drt = NUMT_RAT_D(rt); 
     bignum_t *nr = isbig(nrt) ? getbig(xp)   : bnx_makell(&nrll, getfix(xp));
@@ -7524,21 +7595,6 @@ static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
     bignum_t *di = isbig(dit) ? getbig(xp+3) : bnx_makell(&dill, dit ? getfix(xp+3) : 1);
     double zr, zi; bnclogtodd(&zr, &zi, nr, dr, ni, di);
     return NUMT_MKCOM(setflo(zp, zr), setflo(zp+2, zi));
-#else  
-    /* do the math directly so as not to convert to double prematurely */
-    nump_t rp[2]; numt_t rt = ratmul(rp, NUMT_COM_R(xt), xp, NUMT_COM_R(xt), xp); 
-    nump_t ip[2]; numt_t it = ratmul(ip, NUMT_COM_I(xt), xp+2, NUMT_COM_I(xt), xp+2); 
-    nump_t sp[2]; numt_t st = ratadd(sp, rt, rp, it, ip); /* nonnegative! */
-    nump_t lp[4]; numt_t lt = gnumlog(lp, st, sp); /* 4 slots just in case */
-    nump_t tp[1]; numt_t tt = setfix(tp, 2), zt;
-    numfini(rt, rp); numfini(it, ip); numfini(st, sp);
-    rt = gnumdiv(rp, lt, lp, tt, tp); assert(!NUMT_COM_I(rt));
-    it = gnumangl(ip, xt, xp); assert(!NUMT_COM_I(it));
-    numfini(lt, lp); numfini(tt, tp); 
-    zt = gnummkrec(zp, rt, rp, it, ip);
-    numfini(rt, rp); numfini(it, ip); 
-    return zt;
-#endif
   } else {
     double rx, ix, re, im;
     if (isrect(xt)) recttodd(xt, xp, &rx, &ix); else comptodd(xt, xp, &rx, &ix);
@@ -7559,15 +7615,33 @@ static numt_t gnumlogn(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const
       return setfail(EDOM); /* most Schemes fail */
     } else if (isfix(xt) && getfix(xp) == 1) {
       return setfix(zp, 0); /* consistent with exp */
-    } else if (isflo(xt)) {
-      double x = getflo(xp);
-      /* if (x > 0.0 || x == 0.0 && 1.0/x > 0.0) return setflo(zp, log10(x)); */
-      if (x >= 0.0) return setflo(zp, log10(x));
-      /* negative real: log10(x) = log10|x| + i*pi/log(10) */
-      return NUMT_MKCOM(setflo(zp, log10(-x)), setflo(zp+2, M_PI_LN10));
-    }
+    } else { /* isreal(xt) */
+      double x = isflo(xt) ? getflo(xp) : rattod(xt, xp);
+      if (isflo(xt) || (x != 0.0 && fabs(x) < HUGE_VAL)) { /* rat is ok */
+        if (x >= 0.0) return setflo(zp, log10(x));
+        /* negative real: log10(x) = log10|x| + i*pi/log(10) */
+        return NUMT_MKCOM(setflo(zp, log10(-x)), setflo(zp+2, M_PI_LN10));
+      }
+    } /* else fall thru */
   } 
-  { /* fallback code; used ror int and rat x too */
+  if (isrect(xt) && isrect(yt)) { /* try not to loose precision */
+    bignumll_t nrxll, drxll, nixll, dixll, nryll, dryll, niyll, diyll;
+    numt_t rxt = NUMT_COM_R(xt), nrxt = NUMT_RAT_N(rxt), drxt = NUMT_RAT_D(rxt); 
+    bignum_t *nrx = isbig(nrxt) ? getbig(xp)   : bnx_makell(&nrxll, getfix(xp));
+    bignum_t *drx = isbig(drxt) ? getbig(xp+1) : bnx_makell(&drxll, drxt ? getfix(xp+1) : 1);
+    numt_t ixt = NUMT_COM_I(xt), nixt = NUMT_RAT_N(ixt), dixt = NUMT_RAT_D(ixt); 
+    bignum_t *nix = isbig(nixt) ? getbig(xp+2) : bnx_makell(&nixll, nixt ? getfix(xp+2) : 0);
+    bignum_t *dix = isbig(dixt) ? getbig(xp+3) : bnx_makell(&dixll, dixt ? getfix(xp+3) : 1);
+    numt_t ryt = NUMT_COM_R(yt), nryt = NUMT_RAT_N(ryt), dryt = NUMT_RAT_D(ryt); 
+    bignum_t *nry = isbig(nryt) ? getbig(yp)   : bnx_makell(&nryll, getfix(yp));
+    bignum_t *dry = isbig(dryt) ? getbig(yp+1) : bnx_makell(&dryll, dryt ? getfix(yp+1) : 1);
+    numt_t iyt = NUMT_COM_I(yt), niyt = NUMT_RAT_N(iyt), diyt = NUMT_RAT_D(iyt); 
+    bignum_t *niy = isbig(niyt) ? getbig(yp+2) : bnx_makell(&niyll, niyt ? getfix(yp+2) : 0);
+    bignum_t *diy = isbig(diyt) ? getbig(yp+3) : bnx_makell(&diyll, diyt ? getfix(yp+3) : 1);
+    double rz, iz; int com = bnclogntodd(&rz, &iz, nrx, drx, nix, dix, nry, dry, niy, diy); 
+    if (!com) return setflo(zp, rz); /* result is purely real */
+    else return NUMT_MKCOM(setflo(zp, rz), setflo(zp+2, iz));
+  } else { /* fallback code; used for int and rat x too */
     nump_t lxp[4]; numt_t lxt = gnumlog(lxp, xt, xp);
     nump_t lyp[4]; numt_t lyt = gnumlog(lyp, yt, yp);
     numt_t zt = gnumdiv(zp, lxt, lxp, lyt, lyp);
