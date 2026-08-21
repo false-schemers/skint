@@ -1,39 +1,45 @@
 /* n_tower.c -- numerical tower */
 
 /* complex number arithmetic */
+#define CMATH_LOG_DBL_MAX 709.782712893384
+#define C90_BIG 1.0e154
 
-/* complex division: (a+ib)/(c+id) - Smith's method for stability */
-static void cmath_cdiv(double a, double b, double c, double d, double *pr, double *pi)
+/* cmath_cdiv: z/w via Smith's algorithm, handles inf/NaN */
+void cmath_cdiv(double rx, double ix, double ry, double iy, double *prz, double *piz) 
 {
-  double r, denom;
-  if (fabs(c) >= fabs(d)) {
-    r     = d / c;
-    denom = c + r * d;
-    *pr   = (a + r * b) / denom;
-    *pi   = (b - r * a) / denom;
-  } else {
-    r     = c / d;
-    denom = d + r * c;
-    *pr   = (a * r + b) / denom;
-    *pi   = (b * r - a) / denom;
+  double ar, ai, den, t;
+  if (ry == 0.0 && iy == 0.0) { *prz = *piz = HUGE_VAL - HUGE_VAL; return; }
+  if (rx != rx || ix != ix || ry != ry || iy != iy) {
+    *prz = *piz = HUGE_VAL - HUGE_VAL; return;
   }
+  if (fabs(ry) >= fabs(iy)) {
+    t = iy / ry;
+    /* pure-real divisor: z / ry */
+    if (t == 0.0) { *prz = rx / ry; *piz = ix / ry; return; }
+    den = ry + iy * t; ar = rx + ix * t; ai = ix - rx * t;
+  } else {
+    t = ry / iy;
+    /* pure-imag divisor: z/(i*iy) = (ix - i*rx)/iy */
+    if (t == 0.0) { *prz = ix / iy; *piz = -rx / iy; return; }
+    den = iy + ry * t; ar = rx * t + ix; ai = ix * t - rx;
+  }
+  *prz = ar / den;
+  *piz = ai / den;
 }
 
 #ifndef C99_MATH_LIB
-/* helper to copy sign of y to x, correctly handling signed zero */
 static double c90_copysign(double x, double y) 
 {
   if (y < 0.0) return -fabs(x);
   if (y > 0.0) return fabs(x);
-  return (1.0/y < 0.0) ? -fabs(x): fabs(x);
+  return (1.0/y < 0.0) ? -fabs(x) : fabs(x);
 }
 #define copysign(x, y) c90_copysign(x, y)
 #endif
 
 #ifndef C99_MATH_LIB
-/* C90 log1p replacement, good near zero. Requires x > -1. */
-static double c90_log1p(double x)
-{ /* volatile to prevent optimizations */
+static double c90_log1p(double x) 
+{
   volatile double u;
   if (x == 0.0) return x;
   u = 1.0 + x;
@@ -44,47 +50,93 @@ static double c90_log1p(double x)
 #endif
 
 #ifndef C99_MATH_LIB
-/* stable hypotenuse: sqrt(a^2+b^2) without overflow */
-static double c90_hypot(double a, double b)
+static double c90_hypot(double a, double b) 
 {
   double aa = fabs(a), bb = fabs(b), t;
-  if (aa == 0.0) return bb;
-  if (bb == 0.0) return aa;
-  if (aa < bb) { t = aa; aa = bb; bb = t; } /* ensure aa >= bb */
+  if (aa == HUGE_VAL || bb == HUGE_VAL) return HUGE_VAL;
+  if (aa != aa || bb == 0.0) return aa;
+  if (bb != bb || aa == 0.0) return bb;
+  if (aa < bb) { t = aa; aa = bb; bb = t; }
   t = bb / aa;
   return aa * sqrt(1.0 + t*t);
 }
 #define hypot(a, b) c90_hypot(a, b)
 #endif
 
-/* stable real asinh for C90 */
-static double c90_asinh(double x)
+/* c90_asinh, stable for all magnitudes */
+static double c90_asinh(double x) 
 {
-  double ax, r, s;
-  ax = fabs(x);
+  double ax = fabs(x), r;
   if (ax == 0.0) return x;
   if (ax > 1.0e154) {
     r = log(ax) + M_LN2;
+  } else if (ax > 1.0) {
+    /* Correct identity: log(x) + log(1 + sqrt(1 + 1/x^2)) */
+    r = log(ax) + log1p(sqrt(1.0 + 1.0/(ax*ax)));
   } else {
-    s = sqrt(1.0 + ax * ax);
-    r = log1p(ax + (ax * ax) / (1.0 + s));
+    r = log1p(ax + (ax*ax)/(1.0 + sqrt(1.0 + ax*ax)));
   }
   return copysign(r, x);
 }
 
-/* exp(z) = e^rx * (cos(ix) + i*sin(ix)) */
-void cmath_exp(double rx, double ix, double *prz, double *piz)
+/* c90_sinhcosh: handles large arguments to avoid inf*0 = NaN */
+static void c90_sinhcosh(double x, double *sh, double *ch) 
 {
-  double er; int ix_neg = (ix < 0.0) || (ix == 0.0 && 1.0/ix < 0.0);
-  /* handle ix = +/-0: exp(x +/- i0) = exp(x) +/- i0 (preserves sign of zero) */
+  double ax = fabs(x);
+  if (ax != ax) { *sh = *ch = x + x; return; } /* NaN */
+  if (ax < 0.25) {
+    /* truncation after x^10/11! is < 1e-17 relative for |x| < 0.25. */
+    double x2 = x*x;
+    *sh = x * (1.0 + x2*(1.0/6.0
+             + x2*(1.0/120.0
+             + x2*(1.0/5040.0
+             + x2*(1.0/362880.0
+             + x2*(1.0/39916800.0))))));
+    *ch = sqrt(1.0 + (*sh)*(*sh)); /* accurate: result is ~1 */
+    return;
+  }
+  if (ax < 22.0) { /* cancellation now costs <2 bits */
+    double e = exp(ax), r = 1.0/e;
+    *sh = (x < 0.0 ? -0.5 : 0.5) * (e - r);
+    *ch = 0.5 * (e + r);
+    return;
+  }
+  /* e^-ax < e^-44 < eps/2: sinh == cosh == e^ax/2 to full precision.
+     Compute as exp(ax - ln2) so we only overflow when the result really does. */
+  { double t = exp(ax - M_LN2);
+    *ch = t;
+    *sh = (x < 0.0) ? -t : t; }
+}
+
+/* c90_cbrt: C90 replacement for C99 cbrt(), Halley-refined */
+double c90_cbrt(double x) 
+{
+  double a, y, y3, r;
+  int neg;
+  if (x == 0.0 || x != x || x > DBL_MAX || x < -DBL_MAX) return x;
+  neg = (x < 0.0);
+  a = neg ? -x : x;
+  y = pow(a, 1.0 / 3.0);
+  if (y == 0.0) return neg ? -0.0 : 0.0;
+  y3 = y * y * y;
+  if (y3 == 0.0 || y3 > DBL_MAX || y3 < -DBL_MAX) r = a / y / y / y;
+  else r = a / y3;
+  y = y * (1.0 + 2.0 * r) / (2.0 + r);
+  return neg ? -y : y;
+}
+
+/* cmath_exp: exp(rx + i*ix), with overflow scaling for small |ix| */
+void cmath_exp(double rx, double ix, double *prz, double *piz) 
+{
+  double er;
+  int ix_neg = (ix < 0.0) || (ix == 0.0 && 1.0/ix < 0.0);
   if (ix == 0.0) { *prz = exp(rx); *piz = ix; return; }
-  /* handle rx = NaN: exp(NaN + iy) = NaN + i*NaN, unless y=0 (handled above) */
   if (rx != rx) { *prz = rx; *piz = ix; return; }
-  er = exp(rx); /* overflow, but |ix| < 1: use logarithmic scaling */
+  er = exp(rx);
   if (er == HUGE_VAL && fabs(ix) < 1.0) {
     double log_ix = log(fabs(ix)), scaled = rx + log_ix;
-    *prz = HUGE_VAL; /* use log(DBL_MAX) =~ 709.0  */
-    if (scaled < 709.0) *piz = (ix_neg ? -1.0 : 1.0) * exp(scaled);
+    *prz = HUGE_VAL;
+    if (scaled < CMATH_LOG_DBL_MAX) *piz = (ix_neg ? -1.0 : 1.0) * exp(scaled);
     else *piz = ix_neg ? -HUGE_VAL : HUGE_VAL;
     return;
   }
@@ -92,46 +144,27 @@ void cmath_exp(double rx, double ix, double *prz, double *piz)
   *piz = er * sin(ix);
 }
 
-/* log(z) = ln|z| + i*atan2(ix, rx) (principal branch) */
-void cmath_log(double rx, double ix, double *prz, double *piz)
+/* cmath_log: ln|z| + i*arg(z), principal branch, log1p near z=1 */
+void cmath_log(double rx, double ix, double *prz, double *piz) 
 {
   double ar = fabs(rx), ai = fabs(ix), t;
-  if (ar == 0.0 && ai == 0.0) {
-    *prz = -HUGE_VAL;
-  } else {
-    if (ar < ai) { t = ar; ar = ai; ai = t; }
-    t = ai / ar;
-    *prz = log(ar) + 0.5 * log(1.0 + t*t);
-  }
+  if (ar == 0.0 && ai == 0.0) *prz = -HUGE_VAL;
+  else if (ar < ai) { t = ar / ai; *prz = log(ai) + 0.5 * log1p(t*t); }
+  else { t = ai / ar; *prz = log(ar) + 0.5 * log1p(t*t); }
   *piz = atan2(ix, rx);
 }
 
-/* sqrt(z) - principal root, Re(result) >= 0 (Numerical Recipes 5.4) */
-void cmath_sqrt(double rx, double ix, double *prz, double *piz)
+/* cmath_sqrt: principal sqrt, Re >= 0 (Numerical Recipes 5.4) */
+void cmath_sqrt(double rx, double ix, double *prz, double *piz) 
 {
   double m, re, im;
   int ix_neg = (ix < 0.0) || (ix == 0.0 && 1.0/ix < 0.0);
   int rx_neg = (rx < 0.0) || (rx == 0.0 && 1.0/rx < 0.0);
-  if (rx != rx || ix != ix) {
-    /* NaNs spoil both parts of the result */
-    *prz = *piz = HUGE_VAL-HUGE_VAL;
-    return;
-  } 
-  if (ix == HUGE_VAL || ix == -HUGE_VAL) {
-    /* csqrt(x +/- i*inf) = inf +/- i*inf */
-    *prz = HUGE_VAL; *piz = ix_neg ? -HUGE_VAL : HUGE_VAL;
-    return;
-  }
-  if (rx == HUGE_VAL) {
-    /* csqrt(+inf + i*y) = inf + i*0 (preserves sign of y) */
-    *prz = HUGE_VAL; *piz = ix_neg ? -0.0 : 0.0;
-    return;
-  }
-  if (rx == -HUGE_VAL) {
-    /* csqrt(-inf + i*y) = 0 + i*inf (preserves sign of y) */
-    *prz = 0.0; *piz = ix_neg ? -HUGE_VAL : HUGE_VAL;
-    return;
-  }
+  if (rx != rx || ix != ix) { *prz = *piz = HUGE_VAL - HUGE_VAL; return; }
+  if (ix == HUGE_VAL || ix == -HUGE_VAL) 
+    { *prz = HUGE_VAL; *piz = ix_neg ? -HUGE_VAL : HUGE_VAL; return; }
+  if (rx == HUGE_VAL) { *prz = HUGE_VAL; *piz = ix_neg ? -0.0 : 0.0; return; }
+  if (rx == -HUGE_VAL) { *prz = 0.0; *piz = ix_neg ? -HUGE_VAL : HUGE_VAL; return; }
   m = hypot(rx, ix);
   if (!rx_neg) {
     re = sqrt((m + rx) * 0.5);
@@ -145,137 +178,159 @@ void cmath_sqrt(double rx, double ix, double *prz, double *piz)
   *piz = im;
 }
 
-/* cosh(t) = (e^t + e^-t) / 2, sinh(t) = (e^t - e^-t) / 2 */
-static void c90_sinhcosh(double t, double *psh, double *pch)
+/* cmath_sin: sin(rx+ix) = sin(rx)cosh(ix) + i*cos(rx)sinh(ix) */
+void cmath_sin(double rx, double ix, double *prz, double *piz) 
 {
-  double ep = exp(t), em = exp(-t);
-  *psh = (ep - em) * 0.5;
-  *pch = (ep + em) * 0.5;
-}
-
-/* sin(z) = sin(rx)*cosh(ix) + i*cos(rx)*sinh(ix) */
-void cmath_sin(double rx, double ix, double *prz, double *piz)
-{
-  double sh, ch;
+  double sh, ch, srx = sin(rx), crx = cos(rx);
   c90_sinhcosh(ix, &sh, &ch);
-  *prz = sin(rx) * ch;
-  *piz = cos(rx) * sh;
+  *prz = (srx == 0.0) ? srx : (srx * ch);
+  *piz = (crx == 0.0) ? crx * copysign(1.0, sh) : (crx * sh);
 }
 
-/* cos(z) = cos(rx)*cosh(ix) - i*sin(rx)*sinh(ix) */
-void cmath_cos(double rx, double ix, double *prz, double *piz)
+/* cmath_cos: cos(rx+ix) = cos(rx)cosh(ix) - i*sin(rx)sinh(ix) */
+void cmath_cos(double rx, double ix, double *prz, double *piz) 
 {
-  double sh, ch;
+  double sh, ch, srx = sin(rx), crx = cos(rx);
   c90_sinhcosh(ix, &sh, &ch);
-  *prz =  cos(rx) * ch;
-  *piz = -sin(rx) * sh;
+  *prz = (crx == 0.0) ? crx : (crx * ch);
+  *piz = (srx == 0.0) ? (-srx) * copysign(1.0, sh) : -(srx * sh);
 }
 
-/* tan(z) = sin(z)/cos(z) */
+/* cmath_tan: tan(z), asymptotic for large |Im(z)|, handles inf/NaN */
 void cmath_tan(double rx, double ix, double *prz, double *piz) 
 {
-  if (fabs(ix) > 20.0) { /* tan(x + iy) converges to sign(y) * i */
-    *prz = 0.0; *piz = (ix > 0.0) ? 1.0 : -1.0;
-  } else {
-    double cos_rx = cos(rx), sinh_ix = sinh(ix);
-    double d = cos_rx * cos_rx + sinh_ix * sinh_ix;
-    if (d == 0.0) { /* singular pole at rx = pi/2 + k*pi, ix = 0 */
-      *prz = 0.0; *piz = 0.0;
-    } else {
-      *prz = (sin(rx) * cos_rx) / d;
-      *piz = (sinh_ix * cosh(ix)) / d;
-    }
+  if (rx != rx || ix != ix) { *prz = *piz = HUGE_VAL - HUGE_VAL; return; }
+  if (ix == HUGE_VAL || ix == -HUGE_VAL) {
+    *prz = 0.0; *piz = (ix > 0.0) ? 1.0 : -1.0; return;
+  }
+  if (fabs(ix) > 20.0) { *prz = 0.0; *piz = (ix > 0.0) ? 1.0 : -1.0; return; }
+  { double cos_rx = cos(rx), sinh_ix, cosh_ix, d;
+    c90_sinhcosh(ix, &sinh_ix, &cosh_ix);
+    d = cos_rx*cos_rx + sinh_ix*sinh_ix;
+    if (d == 0.0) { *prz = HUGE_VAL; *piz = 0.0; }
+    else { *prz = (sin(rx)*cos_rx)/d; *piz = (sinh_ix*cosh_ix)/d; }
   }
 }
 
-/* asin(z) = -i * log(i*z + sqrt(1 - z^2)) */
-void cmath_asin(double rx, double ix, double *prz, double *piz)
+/* cmath_asin: -i*log(iz + sqrt(1-z^2)), principal branch */
+void cmath_asin(double rx, double ix, double *prz, double *piz) 
 {
   double ar, ai, br, bi, den, arg;
   cmath_sqrt(1.0 - rx, -ix, &ar, &ai);
   cmath_sqrt(1.0 + rx, ix, &br, &bi);
-  den = ar * br - ai * bi;
-  arg = ar * bi - ai * br;
+  den = ar*br - ai*bi;
+  arg = ar*bi - ai*br;
   *prz = atan2(rx, den);
   *piz = c90_asinh(arg);
 }
 
-/* acos(z) = -i * log(z + i*sqrt(1 - z^2)) */
+/* cmath_acos: pi/2 - asin(z), principal branch */
 void cmath_acos(double rx, double ix, double *prz, double *piz) 
 {
-  double temp_r, temp_i;
-  cmath_asin(rx, ix, &temp_r, &temp_i);
-  *prz = M_PI_2 - temp_r;
-  *piz = -temp_i;
+  double tr, ti;
+  cmath_asin(rx, ix, &tr, &ti);
+  *prz = M_PI_2 - tr;
+  *piz = -ti;
 }
 
-#define C90_BIG 1.0e154
-
-/* atan(z) = (i/2) * log((1 - i*z) / (1 + i*z)) */
+/* cmath_atan: atan(z) = (i/2)*log((1-iz)/(1+iz)), Kahan-stable.
+ * Re = 0.5  * atan2(2x, 1 - x^2 - y^2)
+ * Im = 0.25 * log1p( 4|y| / (x^2 + (|y|-1)^2) ), sign taken from y
+ * requires C90_BIG <= sqrt(DBL_MAX/2) ~ 9.5e153 so x*x+d*d cannot overflow */
 void cmath_atan(double rx, double ix, double *pre, double *pim)
 {
   double x = rx, y = ix, ax = fabs(x), ay = fabs(y), re, im;
-  /* corner case: isinf(x) */
-  if (x <= -HUGE_VAL || x >= HUGE_VAL) {
+
+  /* non-finite? */
+  if (ay == HUGE_VAL) { /* x + i*(+-inf) */
+    *pre = (x != x) ? x : copysign(M_PI_2, x);
+    *pim = copysign(0.0, y);
+    return;
+  }
+  if (ax == HUGE_VAL) { /* (+-inf) + iy, y may be NaN */
     *pre = copysign(M_PI_2, x);
     *pim = copysign(0.0, y);
     return;
   }
-  /* re part */
+  if (x != x || y != y) { *pre = *pim = x + y; return; }   /* NaN */
+
+  /* real part */
   if (x == 0.0) {
-    if (ay > 1.0) re = copysign(M_PI_2, x);
-    else re = x; /* preserve +0.0 / -0.0 */
+    re = (ay > 1.0) ? copysign(M_PI_2, x) : x;
   } else if (ax >= C90_BIG || ay >= C90_BIG) {
     re = copysign(M_PI_2, x);
   } else {
-    double den;
-    if (ax < ay) den = (1.0 - ay) * (1.0 + ay) - x * x;
-    else den = (1.0 - ax) * (1.0 + ax) - y * y;
-    re = 0.5 * atan2(2.0 * x, den);
+    double den = (ax < ay) ? (1.0 - ay)*(1.0 + ay) - x*x : (1.0 - ax)*(1.0 + ax) - y*y;
+    re = 0.5 * atan2(2.0*x, den);
   }
-  /* im part */
-  if (fabs(ay - 1.0) < 0.5) { /* avoid losing x*x */
-    double hp = hypot(x, y + 1.0);
-    double hm = hypot(x, y - 1.0);
-    if (hp == 0.0) im = -HUGE_VAL; /* z = -i */
-    else if (hm == 0.0) im = HUGE_VAL;  /* z = +i */
-    else im = 0.5 * (log(hp) - log(hm));
-  } else { /* 1/4 log1p(4y / (x^2 + (y-1)^2)) */
-    double ym = y - 1.0, h = hypot(x, ym), t;
-    if (h == 0.0) im = HUGE_VAL;  /* z = +i */
-    else {
-      if (h >= C90_BIG) { /* avoid h*h overflow */
-        t = (4.0 / h) * (y / h);
-      } else {
-        double den = x * x + ym * ym;
-        t = 4.0 * y / den;
-      }
-      im = 0.25 * log1p(t);
-    }
+
+  /* imaginary part: argument always >= 0 */
+  if (ax >= C90_BIG || ay >= C90_BIG) {
+    /* atan z ~ +-pi/2 - 1/z  =>  Im ~ y/(x^2+y^2); scaled, cannot overflow */
+    double h = hypot(x, y);
+    im = (y / h) / h;
+  } else if (ay == 1.0 && ax < 1.0e-150) {
+    /* at the pole x*x would underflow: 0.25*log(4/x^2) = (ln2 - ln|x|)/2 */
+    im = copysign(0.5 * (M_LN2 - log(ax)), y);
+  } else {
+    double d = ay - 1.0;  /* exact for 0.5 <= ay <= 2 (Sterbenz) */
+    double q = x*x + d*d; /* > 0 here, no cancellation possible  */
+    im = copysign(0.25 * log1p(4.0*ay / q), y);
   }
+  
   *pre = re;
   *pim = im;
 }
 
-/* pow(z, w) = exp(w * log(z)) */
-void cmath_pow(double rx, double ix, double ry, double iy, double *prz, double *piz)
+/* inf/NaN-safe complex multiply: short-circuits when any component is zero */
+static void cmath_cmul(double ar, double ai, double br, double bi, double *cr, double *ci) 
 {
-  double lr, li, pr, pi;
-  if (iy == 0.0) {
-    if      (ry ==  0.0) { *prz = 1.0; *piz = 0.0; return; }
-    else if (ry ==  0.5) { cmath_sqrt(rx,ix, prz,piz); return; }
-    else if (ry ==  1.0) { *prz = rx;  *piz = ix;  return; }
-    else if (ry ==  2.0) { *prz = rx*rx-ix*ix; *piz = 2.0*rx*ix; return; }
-    else if (ry == -1.0) { cmath_cdiv(1.0,0.0, rx,ix, prz,piz); return; }
-  }
-  cmath_log(rx, ix, &lr, &li); /* log(z) */
-  pr = ry*lr - iy*li; pi = ry*li + iy*lr; /* w * log(z) */
-  cmath_exp(pr, pi, prz, piz); /* exp(...) */
+  if (ai == 0.0 && bi == 0.0) { *cr = ar*br;  *ci = 0.0;   return; }
+  if (ai == 0.0)              { *cr = ar*br;  *ci = ar*bi;  return; }
+  if (bi == 0.0)              { *cr = ar*br;  *ci = ai*br;  return; }
+  if (ar == 0.0)              { *cr = -ai*bi; *ci = ai*br;  return; }
+  if (br == 0.0)              { *cr = -ai*bi; *ci = ar*bi;  return; }
+  { double r = ar*br - ai*bi, i = ar*bi + ai*br; *cr = r; *ci = i; }
 }
 
+/* cmath_pow: z^w, integer exponents via repeated squaring (bound |n|<=1024
+ * prevents LONG_MIN overflow), else exp(w*log z). */
+void cmath_pow(double rx, double ix, double ry, double iy, double *prz, double *piz) 
+{
+  if (iy == 0.0 && ry == floor(ry) && fabs(ry) <= 1024.0) {
+    long n = (long)ry;
+    double rr = 1.0, ri = 0.0, br = rx, bi = ix;
+    int neg = (n < 0), have = 0;
+    if (neg) n = -n;
+    while (n > 0) {
+      if (n & 1) {
+        if (!have) { rr = br; ri = bi; have = 1; }
+        else { cmath_cmul(rr, ri, br, bi, &rr, &ri); }
+      }
+      n >>= 1;
+      if (n > 0) { cmath_cmul(br, bi, br, bi, &br, &bi); }
+    }
+    /* n == 0 leaves have == 0 ? rr,ri = 1,0 which is the correct z^0 */
+    if (neg) cmath_cdiv(1.0, 0.0, rr, ri, &rr, &ri);
+    *prz = rr; *piz = ri;
+    return;
+  }
+  if (iy == 0.0) {
+    if (ry == 0.0) { *prz = 1.0; *piz = 0.0; return; }
+    if (ry == 0.5) { cmath_sqrt(rx, ix, prz, piz); return; }
+    if (ry == 1.0) { *prz = rx; *piz = ix; return; }
+    if (ry == -1.0) { cmath_cdiv(1.0, 0.0, rx, ix, prz, piz); return; }
+  }
+  { double lr, li, pr, pi;
+    cmath_log(rx, ix, &lr, &li);
+    pr = ry*lr - iy*li;
+    pi = ry*li + iy*lr;
+    cmath_exp(pr, pi, prz, piz);
+  }
+}
 
-/* hypot(x, y) = sqrt(x*x + y*y) */
-double cmath_hypot(double x, double y)
+/* cmath_hypot: C99-compliant hypot with NaN/inf handling */
+double cmath_hypot(double x, double y) 
 {
   double ax = fabs(x), ay = fabs(y), t;
   if (ax != ax) return ax; /* NaN */
@@ -289,6 +344,31 @@ double cmath_hypot(double x, double y)
   if (ay + ay == ay && ay > 0.0) return ay;
   /* we can go with C90 version now */
   return hypot(x, y);
+}
+
+/* cmath_cbrt: principal complex cube root, overflow-safe via scaling */
+void cmath_cbrt(double rx, double ix, double *prz, double *piz) 
+{
+  double m, r_cbrt, theta, max_val;
+  int ix_neg = (ix < 0.0) || (ix == 0.0 && 1.0/ix < 0.0);
+  if (rx != rx || ix != ix) { *prz = *piz = rx + ix; return; }
+  if (rx == HUGE_VAL || rx == -HUGE_VAL || ix == HUGE_VAL || ix == -HUGE_VAL) {
+    if (rx == -HUGE_VAL && fabs(ix) < HUGE_VAL) 
+      { *prz = HUGE_VAL; *piz = ix_neg ? -HUGE_VAL : HUGE_VAL; return; }
+    if (rx == HUGE_VAL && fabs(ix) < HUGE_VAL) 
+      { *prz = HUGE_VAL; *piz = ix_neg ? -0.0 : 0.0; return; }
+    *prz = HUGE_VAL; *piz = ix_neg ? -HUGE_VAL : HUGE_VAL; return;
+  }
+  if (rx == 0.0 && ix == 0.0) { *prz = 0.0; *piz = ix_neg ? -0.0 : 0.0; return; }
+  max_val = fabs(rx) > fabs(ix) ? fabs(rx) : fabs(ix);
+  if (max_val > 1.0e150) 
+    { m = hypot(ldexp(rx, -600), ldexp(ix, -600)); r_cbrt = ldexp(c90_cbrt(m), 200); }
+  else if (max_val < 1.0e-150) 
+    { m = hypot(ldexp(rx, 600), ldexp(ix, 600)); r_cbrt = ldexp(c90_cbrt(m), -200); }
+  else { m = hypot(rx, ix); r_cbrt = c90_cbrt(m); }
+  theta = atan2(ix, rx);
+  *prz = r_cbrt * cos(theta / 3.0);
+  *piz = r_cbrt * sin(theta / 3.0);
 }
 
 
