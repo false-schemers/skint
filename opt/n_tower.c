@@ -19,84 +19,6 @@ static void cmath_cdiv(double a, double b, double c, double d, double *pr, doubl
   }
 }
 
-#ifdef HAVE_C99_COMPLEX
-#include <complex.h>
-
-/* Convenience macro: pack two doubles into a _Complex double */
-#define CMPLX2(r,i)  ((r) + (i)*_Complex_I)
-#define UNPACK(z,pr,pi)  do { *(pr) = creal(z); *(pi) = cimag(z); } while(0)
-
-void cmath_exp(double rx, double ix, double *prz, double *piz)
-{ double complex z = cexp(CMPLX2(rx,ix)); UNPACK(z,prz,piz); }
-
-void cmath_log(double rx, double ix, double *prz, double *piz)
-{
-  double complex z = clog(CMPLX2(rx, ix));
-  double re = creal(z), im = cimag(z);
-  /* clog(-0.0 +/- i*0.0) should have imag = +/i pi, not 0 */
-  if (re <= -HUGE_VAL) {
-    if (rx == 0.0 && 1.0/rx < 0.0)
-      im = (ix == 0.0 && 1.0/ix < 0.0) ? -M_PI : M_PI;
-    else if (rx == 0.0)
-      im = (ix == 0.0 && 1.0/ix < 0.0) ? -0.0 : 0.0; 
-  }
-  *prz = re; *piz = im;
-}
-
-void cmath_sqrt(double rx, double ix, double *prz, double *piz)
-{ double complex z = csqrt(CMPLX2(rx,ix)); UNPACK(z,prz,piz); }
-
-void cmath_sin(double rx, double ix, double *prz, double *piz)
-{ double complex z = csin(CMPLX2(rx,ix)); UNPACK(z,prz,piz); }
-
-void cmath_cos(double rx, double ix, double *prz, double *piz)
-{ double complex z = ccos(CMPLX2(rx,ix)); UNPACK(z,prz,piz); }
-
-void cmath_tan(double rx, double ix, double *prz, double *piz)
-{
-  double complex z = ctan(CMPLX2(rx, ix));
-  double re = creal(z), im = cimag(z);
-  /* preserve signs of zero if incorrect */
-  if (re == 0.0 && rx == 0.0 && 1.0/rx < 0.0) re = -0.0;
-  if (im == 0.0 && ix == 0.0 && 1.0/ix < 0.0) im = -0.0;
-  *prz = re; *piz = im;
-}
-
-void cmath_asin(double rx, double ix, double *prz, double *piz)
-{ double complex z = casin(CMPLX2(rx,ix)); UNPACK(z,prz,piz); }
-
-void cmath_acos(double rx, double ix, double *prz, double *piz)
-{ double complex z = cacos(CMPLX2(rx,ix)); UNPACK(z,prz,piz); }
-
-void cmath_atan(double rx, double ix, double *prz, double *piz)
-{ 
-  double complex z = catan(CMPLX2(rx,ix)); 
-  double re = creal(z); double im = cimag(z);
-  /* catan(-0.0 + y*i) should return -pi/2, not of pi/2 */
-  if (rx == 0.0 && 1.0/rx < 0.0 && ix > 0.0 && re > 0.0) re = -re;
-  *prz = re; *piz = im;
-}
-
-/* pow(z, w) = exp(w * log(z)) */
-void cmath_pow(double rx, double ix, double ry, double iy, double *prz, double *piz)
-{
-  double lr, li, pr, pi;
-  if (iy == 0.0) {
-    if      (ry ==  0.0) { *prz = 1.0; *piz = 0.0; return; }
-    else if (ry ==  0.5) { cmath_sqrt(rx,ix, prz,piz); return; }
-    else if (ry ==  1.0) { *prz = rx;  *piz = ix;  return; }
-    else if (ry ==  2.0) { *prz = rx*rx-ix*ix; *piz = 2.0*rx*ix; return; }
-    else if (ry == -1.0) { double complex z = 1.0/CMPLX2(rx,ix); UNPACK(z,prz,piz); return; }
-  }
-  cmath_log(rx, ix, &lr, &li); /* log(z) */
-  pr = ry*lr - iy*li; pi = ry*li + iy*lr; /* w * log(z) */
-  cmath_exp(pr, pi, prz, piz); /* exp(...) */
-}
-
-#define cmath_hypot hypot
-
-#else  /* C90 fallback */
-
 #ifndef C99_MATH_LIB
 /* helper to copy sign of y to x, correctly handling signed zero */
 static double c90_copysign(double x, double y) 
@@ -368,8 +290,6 @@ double cmath_hypot(double x, double y)
   /* we can go with C90 version now */
   return hypot(x, y);
 }
-
-#endif /* HAVE_C99_COMPLEX */
 
 
 /* validating generic number syntax */
@@ -3112,6 +3032,16 @@ static unsigned long bn_mag_modl(const bignum_t *n, long m)
   return (unsigned long)(r % m);
 }
 
+/* |x| has a chance to be an exact square */
+static int bnx_maybe_square(const bignum_t *x)
+{
+  if (BNZERO(x)) return 1;
+  if (!sq64[bn_mag_modl(x, 64)]) return 0;
+  if (!sq63[bn_mag_modl(x, 63)]) return 0;
+  if (!sq65[bn_mag_modl(x, 65)]) return 0;
+  if (!sq11[bn_mag_modl(x, 11)]) return 0;
+  return 1; /* <2% of random inputs */
+}
 
 /* bignum square root of |n| */
 int bntrysqrt(const bignum_t *n, bignum_t **out_root)
@@ -3125,10 +3055,7 @@ int bntrysqrt(const bignum_t *n, bignum_t **out_root)
     return 1;
   }
 
-  if (!sq64[bn_mag_modl(n, 64)]) return 0;
-  if (!sq63[bn_mag_modl(n, 63)]) return 0;
-  if (!sq65[bn_mag_modl(n, 65)]) return 0;
-  if (!sq11[bn_mag_modl(n, 11)]) return 0;
+  if (!bnx_maybe_square(n)) return 0;
 
   bnisqrt(n, &root, &rem);
 
@@ -4834,27 +4761,8 @@ void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const 
     for (q = 1; q*q > x || x > q*(q+2); q = (q + x/q)/2);
     *pqt = setfix(qp, q), *prt = setfix(rp, x-q*q);
   } else {
-#if 1
     bignum_t *bx = getbig(xp), *bq = NULL, *br = NULL;
     bnisqrt(bx, &bq, &br); assert(bq != NULL && br != NULL);
-#else  
-    bignum_t *bx = getbig(xp), *bq = bn1, *bq2, *bl, *bu;
-    bignum_t *bn2 = ltobn(2), *br;
-  loop:
-    bl = bnmul(bq, bq), bq2 = bnmul(bq, bn2), bu = bnadd(bl, bq2);
-    if (bncmp(bl, bx) <= 0 && bncmp(bx, bu) <= 0) {
-      br = bnsub(bx, bl);
-    } else {
-      bignum_t *bt1 = bndiv(bx, bq), *bt2 = bnadd(bq, bt1);
-      bignum_t *bq1 = bndiv(bt2, bn2);
-      if (bq != bn1) bnfree(bq);
-      bq = bq1;
-      bnfree(bl), bnfree(bq2), bnfree(bu);
-      bnfree(bt1), bnfree(bt2);
-      goto loop;
-    }
-    bnfree(bl), bnfree(bq2), bnfree(bu), bnfree(bn2);
-#endif
     if (bnwidths(bq) > FIXNUM_WIDTH) *pqt = setbig(qp, bq);
     else (*pqt = setfix(qp, bntol(bq))), bnfree(bq);
     if (bnwidths(br) > FIXNUM_WIDTH) *prt = setbig(rp, br);
@@ -5110,19 +5018,12 @@ static size_t intfmtsize(numt_t xt, const nump_t *xp, int radix)
   assert(radix >= 2 && radix <= 36);
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   if (isfix(xt)) {
-#if 1 /* quick estimate */
+    /* quick estimate */
     if (radix < 4)       return FIXNUM_WIDTH/1+3;
     else if (radix < 8)  return FIXNUM_WIDTH/2+3;
     else if (radix < 16) return FIXNUM_WIDTH/3+3;
     else if (radix < 32) return FIXNUM_WIDTH/4+3;
     else                 return FIXNUM_WIDTH/5+3;
-#else /* too slow */
-    size_t cnt;
-    long lx = labs(getfix(xp));
-    for (cnt = 1; lx > 0; lx /= radix) ++cnt;
-    if (getfix(xp) <= 0) ++cnt;
-    return cnt;
-#endif
   } else {
     return bnfmtsize(getbig(xp), radix);
   }
@@ -7034,7 +6935,6 @@ numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
   if (isrect(xt)) {
     /* exact: try integer sqrt first, then fall back to inexact */
     if (isint(xt)) {
-#if 1
       if (isfix(xt)) {
         long x = getfix(xp), ax = labs(x), q;
         for (q = 1; q*q > ax || ax > q*(q+2); q = (q + ax/q)/2);
@@ -7059,36 +6959,8 @@ numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
           return NUMT_MKCOM(setflo(zp, 0.0), setflo(zp+2, q));
         }
       }
-#else    
-      nump_t qp[1]; numt_t qt; nump_t rp[1]; numt_t rt;
-      if (intsign(xt, xp) < 0) {
-        nump_t tp[1]; numt_t tt = intneg(tp, xt, xp);
-        intsqrt(&qt, qp, &rt, rp, tt, tp);
-        numfini(tt, tp);
-      } else {
-        intsqrt(&qt, qp, &rt, rp, xt, xp);
-      }
-      if (isfix(rt) && getfix(rp) == 0) {
-        /* perfect square: return exact result */
-        /* no need for numfini(rt, rp); */
-        if (intsign(xt, xp) < 0) {
-          zp[2] = qp[0]; return NUMT_MKCOM(setfix(zp, 0), qt);
-        } else {
-          zp[0] = qp[0]; return qt;
-        }
-      }
-      numfini(qt, qp); numfini(rt, rp);
-      /* no exact sqrt; handle bignum case here */
-      if (isbig(xt)) {
-        bignum_t *x = getbig(xp);
-        double r = bnsqrttod(x); /* ignores x sign, returns nonnegative r */
-        if (bnsign(x) >= 0) return setflo(zp, r);
-        return NUMT_MKCOM(setflo(zp, 0.0), setflo(zp+2, r));
-      } 
-#endif
     }
     if (!isint(xt) && israt(xt)) {
-#if 1
       bignumll_t nxll, dxll; bignum_t *nq = NULL, *dq = NULL;
       numt_t nxt = NUMT_RAT_N(xt), dxt = NUMT_RAT_D(xt);
       bignum_t *nx = isbig(nxt) ? getbig(xp)   : bnx_makell(&nxll, getfix(xp));
@@ -7107,20 +6979,12 @@ numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
         if (bnsign(nx) >= 0) return setflo(zp, q);
         else return NUMT_MKCOM(setflo(zp, 0.0), setflo(zp+2, q));
       }   
-#else
-      nump_t np[4]; numt_t nt = gnumsqrt(np, NUMT_RAT_N(xt), xp);
-      nump_t dp[4]; numt_t dt = gnumsqrt(dp, NUMT_RAT_D(xt), xp+1);
-      numt_t zt = (nt == NUMT_NONE || dt == NUMT_NONE) ? NUMT_NONE : gnumdiv(zp, nt, np, dt, dp); 
-      numfini(nt, np); numfini(dt, dp);
-      return zt;
-#endif
     }
     if (isreal(xt)) {
       double x = rattod(xt, xp);
       if (x >= 0.0) return setflo(zp, sqrt(x));
       return NUMT_MKCOM(setflo(zp, 0.0), setflo(zp+2, sqrt(-x)));
     } else {
-#if 1
       /* exact complex, with nonzero imag part */
       bignumll_t nrll, drll, nill, dill; 
       bignum_t *nrz = NULL, *drz = NULL, *niz = NULL, *diz = NULL;
@@ -7145,13 +7009,6 @@ numt_t gnumsqrt(nump_t *zp, numt_t xt, const nump_t *xp)
         double zr, zi; bncsqrttodd(&zr, &zi, nr, dr, ni, di);
         return NUMT_MKCOM(setflo(zp, zr), setflo(zp+2, zi));
       }
-#else
-      /* exact complex: convert to inexact and do complex sqrt */
-      double rx, ix, re, im;
-      recttodd(xt, xp, &rx, &ix);
-      cmath_sqrt(rx, ix, &re, &im);
-      return NUMT_MKCOM(setflo(zp, re), setflo(zp+2, im));
-#endif
     }
   } else if (isreal(xt) && getflo(xp) != getflo(xp)) { /* NaN */
     /* traditionally imag NaN is not added (although it makes sense) */
@@ -7812,7 +7669,6 @@ numt_t gnumacos(nump_t *zp, numt_t xt, const nump_t *xp)
 }
 
 /* z = atan(x) [1-argument] */
-/* z = atan(x) [1-argument] */
 numt_t gnumatan(nump_t *zp, numt_t xt, const nump_t *xp)
 {
   double rx, ix, re, im;
@@ -7822,7 +7678,6 @@ numt_t gnumatan(nump_t *zp, numt_t xt, const nump_t *xp)
   } else if (isreal(xt)) {
     rx = isflo(xt) ? getflo(xp) : rattod(xt, xp);
     ix = 0.0;
-#if 1
   } else if (isrect(xt)) {
     bignumll_t nrll, drll, nill, dill;
     numt_t rt = NUMT_COM_R(xt), nrt = NUMT_RAT_N(rt), drt = NUMT_RAT_D(rt); 
@@ -7836,11 +7691,6 @@ numt_t gnumatan(nump_t *zp, numt_t xt, const nump_t *xp)
   } else {
     comptodd(xt, xp, &rx, &ix);
   }
-#else
-  } else {
-    if (iscomp(xt)) comptodd(xt, xp, &rx, &ix); else recttodd(xt, xp, &rx, &ix);
-  }
-#endif
   if (ix == 0.0) {
     if (isreal(xt)) return setflo(zp, atan(rx));
     return NUMT_MKCOM(setflo(zp, atan(rx)), setflo(zp+2, 0.0));

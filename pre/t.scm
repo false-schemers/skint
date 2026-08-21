@@ -2812,7 +2812,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.7.6")
+(define *skint-version* "0.7.7")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
@@ -2835,7 +2835,11 @@
   (define (del-feature! f)
     (features (set-minus (features) (list (string->symbol f)))))
   (define (print-help!)
-    (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
+    (format #t "SKINT Scheme Interpreter v~a" *skint-version*)
+    (if opt-tower (format #t "t"))
+    (if opt-unicode (format #t "u"))
+    (if opt-enhtty (format #t "e"))
+    (format #t "~%")
     (format #t "usage: skint [OPTION]... [FILE] [ARG]...~%")
     (format #t "~%")
     (format #t "Options:~%")
@@ -2868,6 +2872,10 @@
   ; falling through to interactive mode
   (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
     ; quick check for non-interactive use failed, greet
-    (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
+    (format #t "SKINT Scheme Interpreter v~a" *skint-version*)
+    (if opt-tower (format #t "t"))
+    (if opt-unicode (format #t "u"))
+    (if opt-enhtty (format #t "e"))
+    (format #t "~%")
     (format #t "Copyright (c) 2024-2026 False Schemers~%"))
   #t) ; exited normally
