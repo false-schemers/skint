@@ -2873,7 +2873,7 @@ double bnrtod(const bignum_t *n, const bignum_t *d)
   return bnrldexp(m, e);
 }
 
-/* bnreduce: reduce *pp/*pq in place by their GCD */
+/* bnreduce: reduce *pp / *pq in place by their GCD */
 static void bnreduce(bignum_t **pp, bignum_t **pq) 
 {
   bignum_t *g = bngcd(*pp, *pq);
@@ -3381,16 +3381,14 @@ void bncsqrttodd(double *prd, double *pid, const bignum_t *rn, const bignum_t *r
 /* Helper: count trailing zero bits in unsigned bignum */
 static size_t bnx_trailing_zeros(const bignum_t *x)
 {
-  size_t tz = 0;
-  size_t i;
+  size_t tz = 0, i;
   if (BNZERO(x)) return 0;
-
   for (i = 0; i < x->size; i++) {
     if (x->limb[i] == 0) {
-      tz += sizeof(unsigned long) * 8;
+      tz += sizeof(limb_t) * 8;
     } else {
-      unsigned long l = x->limb[i];
-      while ((l & 1UL) == 0) {
+      limb_t l = x->limb[i];
+      while ((l & 1) == 0) {
         tz++;
         l >>= 1;
       }
