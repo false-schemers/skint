@@ -4,7 +4,18 @@
 #define CMATH_LOG_DBL_MAX 709.782712893384
 #define C90_BIG 1.0e154
 
-/* cmath_cdiv: z/w via Smith's algorithm, handles inf/NaN */
+/* x*y, handles inf/NaN properly */
+static void cmath_cmul(double ar, double ai, double br, double bi, double *cr, double *ci) 
+{
+  /* purely real multiplicand (e.g. log(x) for x > 0): preserves signed zero */
+  if (bi == 0.0) { *cr =  ar * br; *ci = ai * br; return; }
+  if (ai == 0.0) { *cr =  ar * br; *ci = ar * bi; return; }
+  if (ar == 0.0) { *cr = -ai * bi; *ci = ai * br; return; }
+  if (br == 0.0) { *cr = -ai * bi; *ci = ar * bi; return; }
+  { double r = ar * br - ai * bi, i = ar * bi + ai * br; *cr = r; *ci = i; }
+}
+
+/* x/y via Smith's algorithm, handles inf/NaN */
 void cmath_cdiv(double rx, double ix, double ry, double iy, double *prz, double *piz) 
 {
   double ar, ai, den, t;
@@ -282,21 +293,17 @@ void cmath_atan(double rx, double ix, double *pre, double *pim)
   *pim = im;
 }
 
-/* inf/NaN-safe complex multiply: short-circuits when any component is zero */
-static void cmath_cmul(double ar, double ai, double br, double bi, double *cr, double *ci) 
-{
-  if (ai == 0.0 && bi == 0.0) { *cr = ar*br;  *ci = 0.0;   return; }
-  if (ai == 0.0)              { *cr = ar*br;  *ci = ar*bi;  return; }
-  if (bi == 0.0)              { *cr = ar*br;  *ci = ai*br;  return; }
-  if (ar == 0.0)              { *cr = -ai*bi; *ci = ai*br;  return; }
-  if (br == 0.0)              { *cr = -ai*bi; *ci = ar*bi;  return; }
-  { double r = ar*br - ai*bi, i = ar*bi + ai*br; *cr = r; *ci = i; }
-}
-
 /* cmath_pow: z^w, integer exponents via repeated squaring (bound |n|<=1024
  * prevents LONG_MIN overflow), else exp(w*log z). */
 void cmath_pow(double rx, double ix, double ry, double iy, double *prz, double *piz) 
 {
+  if (rx == 0.0 && ix == 0.0) { /* 0.0^y */
+    if (ry > 0.0) { *prz = 0.0; *piz = 0.0; } 
+    else if (ry < 0.0) { *prz = *piz = HUGE_VAL-HUGE_VAL; } 
+    else if (iy == 0.0) { *prz = 1.0; *piz = 0.0; }
+    else { *prz = *piz = HUGE_VAL-HUGE_VAL; }
+    return;
+  }
   if (iy == 0.0 && ry == floor(ry) && fabs(ry) <= 1024.0) {
     long n = (long)ry;
     double rr = 1.0, ri = 0.0, br = rx, bi = ix;
@@ -2805,6 +2812,7 @@ static const bignum_t plus3 = {1, DUP_STATIC, 0, {3}}, *bn3 = &plus3;
 double bnratan2tod(const bignum_t *ny, const bignum_t *dy, const bignum_t *nx, const bignum_t *dx);
 void bnrsincostod(const bignum_t *n, const bignum_t *d, double *psin, double *pcos);
 double bnrlogtod(const bignum_t *n, const bignum_t *d);
+void bnclogtodd(double *pre, double *pim, const bignum_t *nr, const bignum_t *dr, const bignum_t *ni, const bignum_t *di);
 
 /* bnrfrexp: extract normalized mantissa m in [0.5, 1.0) and binary exponent *pe.
  * Mathematically: (n / d) == m * 2^(*pe).
@@ -3423,7 +3431,7 @@ int bniroot(const bignum_t *x, size_t n, bignum_t **out_root, bignum_t **out_rem
   }
   if (n == 1) { *out_root = bndup(x); if (out_rem) *out_rem = bn0; return 1; }
   if (n == 2) { bignum_t *xa = bnabs(x); int res = bnisqrt(xa, out_root, out_rem); bnfree(xa); return res; }
-  /////////////////if (n == 3) return bnicbrt(x, out_root, out_rem);
+  /* if (n == 3) return bnicbrt(x, out_root, out_rem); */
 
   neg = x->isneg;
   abs_x = neg ? (x_abs_alloc = bnabs(x)) : x;
@@ -3640,7 +3648,7 @@ static const long prime_bound_table[] = {
 
 #define NUM_SUPPORTED_PRIMES (sizeof(prime_bound_table) / (2 * sizeof(prime_bound_table[0])))
 
-/* compurte Chebyshev polynomial P_n(p, u) via recurrence
+/* compute Chebyshev polynomial P_n(p, u) via recurrence
  * P_0 = 1, P_1 = p, P_{k+1} = 2p*P_k - u*P_{k-1} */
 static bignum_t *chebyshev_pn(const bignum_t *p, const bignum_t *u, unsigned long long n)
 {
@@ -3726,7 +3734,7 @@ static bignum_t *compute_principal_bound(const bignum_t *u, unsigned long long n
   bignum_t *D;
   size_t i;
 
-  /* Linear search for the prime in the unified table */
+  /* linear search for the prime in the unified table */
   for (i = 0; i < NUM_SUPPORTED_PRIMES; i++) {
     if ((unsigned long long)prime_bound_table[2 * i] == n) {
       C = prime_bound_table[2 * i + 1];
@@ -3735,7 +3743,7 @@ static bignum_t *compute_principal_bound(const bignum_t *u, unsigned long long n
   }
   if (C == 0) return NULL;  /* unsupported prime */
 
-  /* Conservative RZ guard for u * C^2 */
+  /* conservative RZ guard for u * C^2 */
   if (IN_RZ2(u, u)) return NULL;
 
   /* rad = u * C^2 */
@@ -3747,7 +3755,7 @@ static bignum_t *compute_principal_bound(const bignum_t *u, unsigned long long n
   bnisqrt(rad, &root, &rem);
   bnfree(rad);
 
-  /* If C*sqrt(u) was not integral, use its ceiling */
+  /* if C*sqrt(u) was not integral, use its ceiling */
   if (!BNZERO(rem)) {
     t = bnaddll(root, 1);
     bnfree(root);
@@ -3771,10 +3779,10 @@ static int bnctryprimeroot(unsigned long long n, /* n is prime >= 3 */
   const bignum_t *nrx, const bignum_t *drx, const bignum_t *nix, const bignum_t *dix,
   bignum_t **pnrr, bignum_t **pdrr, bignum_t **pnir, bignum_t **pdir)
 {
-  bignum_t *g_den, *L, *d, *Ln1;
+  bignum_t *g_den, *ll, *d, *Ln1;
   bignum_t *scale_r, *scale_i;
-  bignum_t *X0, *Y0, *X, *Y;
-  bignum_t *X2, *Y2, *norm, *u;
+  bignum_t *xx0, *yy0, *xx, *yy;
+  bignum_t *xx2, *yy2, *norm, *u;
   bignum_t *p = NULL, *p2 = NULL, *s2 = NULL, *s = NULL;
   bignum_t *max_p, *mb_n;
   int found = 0, negate_s = 0, is_principal = 0;
@@ -3786,55 +3794,55 @@ static int bnctryprimeroot(unsigned long long n, /* n is prime >= 3 */
 
   if (BNZERO(nrx) && BNZERO(nix)) return 0;
 
-  /* Step 1: Scale to Gaussian integer over L^n */
+  /* Step 1: Scale to Gaussian integer over ll^n */
   if (IN_RZ2(drx, dix)) return 0;
   g_den = bngcd(drx, dix);
   { bignum_t *prod = bnmul(drx, dix);
-    L = bndiv(prod, g_den);
+    ll = bndiv(prod, g_den);
     bnfree(prod);
   }
   bnfree(g_den);
 
-  d = bndup(L);
-  if (IN_RZ2(L, L)) { bnfree(L); bnfree(d); return 0; }
+  d = bndup(ll);
+  if (IN_RZ2(ll, ll)) { bnfree(ll); bnfree(d); return 0; }
 
-  scale_r = bndiv(L, drx);
-  scale_i = bndiv(L, dix);
+  scale_r = bndiv(ll, drx);
+  scale_i = bndiv(ll, dix);
 
   if (IN_RZ2(nrx, scale_r) || IN_RZ2(nix, scale_i)) {
-    bnfree(scale_r); bnfree(scale_i); bnfree(L); bnfree(d);
+    bnfree(scale_r); bnfree(scale_i); bnfree(ll); bnfree(d);
     return 0;
   }
 
-  X0 = bnmul(nrx, scale_r);
-  Y0 = bnmul(nix, scale_i);
-  bnfree(scale_r); bnfree(scale_i); bnfree(L);
+  xx0 = bnmul(nrx, scale_r);
+  yy0 = bnmul(nix, scale_i);
+  bnfree(scale_r); bnfree(scale_i); bnfree(ll);
 
   if (d->size > 0 && (n - 1) > (BIGNUM_RZ_LIMBS - 1) / d->size) {
-    bnfree(X0); bnfree(Y0); bnfree(d);
+    bnfree(xx0); bnfree(yy0); bnfree(d);
     return 0;
   }
   Ln1 = bnexptull(d, n - 1);
-  if (IN_RZ2(X0, Ln1) || IN_RZ2(Y0, Ln1)) {
-    bnfree(X0); bnfree(Y0); bnfree(Ln1); bnfree(d);
+  if (IN_RZ2(xx0, Ln1) || IN_RZ2(yy0, Ln1)) {
+    bnfree(xx0); bnfree(yy0); bnfree(Ln1); bnfree(d);
     return 0;
   }
-  X = bnmul(X0, Ln1);
-  Y = bnmul(Y0, Ln1);
-  bnfree(X0); bnfree(Y0); bnfree(Ln1);
+  xx = bnmul(xx0, Ln1);
+  yy = bnmul(yy0, Ln1);
+  bnfree(xx0); bnfree(yy0); bnfree(Ln1);
 
-  if (IN_RZ2(X, X) || IN_RZ2(Y, Y)) {
-    bnfree(X); bnfree(Y); bnfree(d);
+  if (IN_RZ2(xx, xx) || IN_RZ2(yy, yy)) {
+    bnfree(xx); bnfree(yy); bnfree(d);
     return 0;
   }
-  X2 = bnmul(X, X);
-  Y2 = bnmul(Y, Y);
-  norm = bnadd(X2, Y2);
-  bnfree(X2); bnfree(Y2);
+  xx2 = bnmul(xx, xx);
+  yy2 = bnmul(yy, yy);
+  norm = bnadd(xx2, yy2);
+  bnfree(xx2); bnfree(yy2);
 
   /* Step 2: |z|^2 must be a perfect nth power */
   if (!bntryroot(norm, (size_t)n, &u)) {
-    bnfree(norm); bnfree(X); bnfree(Y); bnfree(d);
+    bnfree(norm); bnfree(xx); bnfree(yy); bnfree(d);
     return 0;
   }
   bnfree(norm);
@@ -3845,67 +3853,139 @@ static int bnctryprimeroot(unsigned long long n, /* n is prime >= 3 */
   mb_n = compute_principal_bound(u, n);
   if (!mb_n) {
     bnfree(max_p);
-    bnfree(d); bnfree(u); bnfree(X); bnfree(Y);
+    bnfree(d); bnfree(u); bnfree(xx); bnfree(yy);
     return 0;
   }
 
-  /* Step 3: Binary search for p in [mb_n, max_p]
-   * P_n(p, u) is strictly increasing on this interval, so binary search is valid. */
+  /* secant-accelerated binary search for p in [mb_n, max_p]
+   * P_n(p, u) is strictly increasing on this interval */
   {
-    bignum_t *lo = bndup(mb_n);
-    bignum_t *hi = bndup(max_p);
+    bignum_t *lo = bndup(mb_n), *hi = bndup(max_p);
+    bignum_t *prev_mid = NULL,  *prev_pn = NULL;
+    bignum_t *mid = NULL;
+    
+    { /* standard bisection midpoint */
+      bignum_t *sum = bnadd(lo, hi);
+      mid = bnashll(sum, -1);
+      bnfree(sum);
+    }
 
     while (bncmp(lo, hi) <= 0) {
-      bignum_t *sum = bnadd(lo, hi);
-      bignum_t *mid = bnashll(sum, -1);
-      bignum_t *pn_val;
+      bignum_t *pn_val = chebyshev_pn(mid, u, n);
       int cmp;
-      bnfree(sum);
 
-      pn_val = chebyshev_pn(mid, u, n);
       if (!pn_val) {
-        /* Size overflow during evaluation   bail */
+        /* size overflow during evaluation and bail */
         bnfree(mid);
+        bnfree(prev_mid);
+        bnfree(prev_pn);
         bnfree(lo); bnfree(hi);
         goto cleanup_early;
       }
 
-      cmp = bncmp(pn_val, X);
-      bnfree(pn_val);
+      cmp = bncmp(pn_val, xx);
 
       if (cmp == 0) {
-        /* Found the unique p. Transfer ownership of mid to p. */
+        /* exact match! transfer ownership of mid to p. */
         p = mid;
+        bnfree(pn_val);
+        bnfree(prev_mid);
+        bnfree(prev_pn);
         bnfree(lo); bnfree(hi);
         goto verify;
-      } else if (cmp < 0) {
-        /* P_n(mid) < X, search right half */
-        bignum_t *next = bnadd(mid, bn1);
-        bnfree(mid);
+      }
+
+      /* tighten bounds immediately based on current probe 'mid' */
+      if (cmp < 0) {
+        /* P_n(mid) < xx ==> root is strictly greater than mid */
+        bignum_t *next_lo = bnadd(mid, bn1);
         bnfree(lo);
-        lo = next;
+        lo = next_lo;
       } else {
-        /* P_n(mid) > X, search left half */
-        bignum_t *next = bnsub(mid, bn1);
-        bnfree(mid);
+        /* P_n(mid) > xx ==> root is strictly less than mid */
+        bignum_t *next_hi = bnsub(mid, bn1);
         bnfree(hi);
-        hi = next;
+        hi = next_hi;
+      }
+
+      /* check if search interval is exhausted */
+      if (bncmp(lo, hi) > 0) {
+        bnfree(pn_val);
+        break;
+      }
+
+      { /* compute next probe: secant prediction with symmetric rounding */
+        bignum_t *next_mid = NULL;
+
+        if (prev_mid && prev_pn) {
+          bignum_t *dd    = bnsub(xx, pn_val);
+          bignum_t *d_mid = bnsub(mid, prev_mid);
+          bignum_t *d_pn  = bnsub(pn_val, prev_pn);
+
+          if (!BNZERO(d_pn) && !BNZERO(d_mid)) {
+            /* exact round-to-nearest quotient:
+             * |step| = (|dd| * |d_mid| + |d_pn| / 2) / |d_pn| */
+            bignum_t *abs_dd   = bnabs(dd);
+            bignum_t *abs_dmid = bnabs(d_mid);
+            bignum_t *abs_dpn  = bnabs(d_pn);
+
+            bignum_t *abs_N    = bnmul(abs_dd, abs_dmid);
+            bignum_t *half_dpn = bnashll(abs_dpn, -1);
+            bignum_t *N_round  = bnadd(abs_N, half_dpn);
+            bignum_t *abs_step = bndiv(N_round, abs_dpn);
+
+            /* combine signs: step_is_neg = (dd < 0) xor (d_mid < 0) xor (d_pn < 0) */
+            int step_is_neg = (dd->isneg != 0) ^ (d_mid->isneg != 0) ^ (d_pn->isneg != 0);
+            bignum_t *step = step_is_neg ? bnneg(abs_step) : bndup(abs_step);
+            bignum_t *cand = bnadd(mid, step);
+
+            bnfree(abs_dd); bnfree(abs_dmid); bnfree(abs_dpn);
+            bnfree(abs_N); bnfree(half_dpn); bnfree(N_round);
+            bnfree(abs_step); bnfree(step);
+
+            /* accept candidate ONLY if strictly within shrunken [lo, hi] and moves away from mid */
+            if (bncmp(cand, lo) >= 0 && bncmp(cand, hi) <= 0 && bncmp(cand, mid) != 0) {
+              next_mid = cand;
+            } else {
+              bnfree(cand);
+            }
+          }
+
+          bnfree(dd); bnfree(d_mid); bnfree(d_pn);
+        }
+
+        /* fallback to standard bisection midpoint if secant was unavailable or out-of-bounds */
+        if (!next_mid) {
+          bignum_t *sum = bnadd(lo, hi);
+          next_mid = bnashll(sum, -1);
+          bnfree(sum);
+        }
+
+        /* Update history pointers for next iteration */
+        bnfree(prev_mid);
+        bnfree(prev_pn);
+        prev_mid = mid;
+        prev_pn = pn_val;
+        mid = next_mid;
       }
     }
 
-    /* No match found in the interval */
+    /* Cleanup if search space exhausted without finding exact root */
+    bnfree(mid);
+    bnfree(prev_mid);
+    bnfree(prev_pn);
     bnfree(lo); bnfree(hi);
   }
 
-  /* Cleanup and return failure */
+  /* cleanup and return failure */
   bnfree(mb_n); bnfree(max_p);
-  bnfree(d); bnfree(u); bnfree(X); bnfree(Y);
+  bnfree(d); bnfree(u); bnfree(xx); bnfree(yy);
   return 0;
 
 verify:
   bnfree(mb_n); bnfree(max_p);
 
-  /* Step 4 & 5: Verify imaginary part and principality */
+  /* verify imaginary part and principality */
   p2 = bnmul(p, p);
   s2 = bnsub(u, p2);
 
@@ -3915,13 +3995,13 @@ verify:
     if (!im_val) {
       bnfree(s); s = NULL;
       found = 0;
-    } else if (bncmp(im_val, Y) == 0) {
+    } else if (bncmp(im_val, yy) == 0) {
       found = 1;
       negate_s = 0;
       bnfree(im_val);
     } else {
       bignum_t *neg_im = bnneg(im_val);
-      if (bncmp(neg_im, Y) == 0) {
+      if (bncmp(neg_im, yy) == 0) {
         found = 1;
         negate_s = 1;
       }
@@ -3945,7 +4025,7 @@ verify:
     if (s) { bnfree(s); s = NULL; }
   }
 
-  /* Step 6: Reduce and output */
+  /* reduce and output */
   if (found && p && s) {
     bignum_t *gp = bngcd(p, d);
     bignum_t *p_out = bndiv(p, gp);
@@ -3968,14 +4048,14 @@ verify:
     bnfree(d);
   }
 
-  bnfree(u); bnfree(X); bnfree(Y);
+  bnfree(u); bnfree(xx); bnfree(yy);
   return found;
 
 cleanup_early:
   bnfree(mb_n); bnfree(max_p);
   if (p) bnfree(p);
   if (s) bnfree(s);
-  bnfree(d); bnfree(u); bnfree(X); bnfree(Y);
+  bnfree(d); bnfree(u); bnfree(xx); bnfree(yy);
   return 0;
 }
 
@@ -3985,17 +4065,13 @@ static unsigned long long compute_root_cost(unsigned long long pr, size_t limbs,
   unsigned long long ul_limbs = (unsigned long long)limbs;
   unsigned long long factor1, factor2;
 
-  if (pr != 0 && ul_limbs > ULLONG_MAX / pr)
-    return ULLONG_MAX;
+  if (pr != 0 && ul_limbs > ULLONG_MAX / pr) return ULLONG_MAX;
   factor1 = pr * ul_limbs;
 
-  if ((unsigned long long)bits > ULLONG_MAX - pr)
-    return ULLONG_MAX;
+  if ((unsigned long long)bits > ULLONG_MAX - pr) return ULLONG_MAX;
   factor2 = pr + (unsigned long long)bits;
 
-  if (factor1 != 0 && factor2 > ULLONG_MAX / factor1)
-    return ULLONG_MAX;
-
+  if (factor1 != 0 && factor2 > ULLONG_MAX / factor1) return ULLONG_MAX;
   return factor1 * factor2;
 }
 static unsigned long long compute_root_budget(size_t limbs)
@@ -4004,12 +4080,10 @@ static unsigned long long compute_root_budget(size_t limbs)
   unsigned long long max_limbs = (unsigned long long)BIGNUM_MAX_LIMBS;
   unsigned long long base;
 
-  if (ul_limbs != 0 && max_limbs > ULLONG_MAX / ul_limbs)
-    return ULLONG_MAX;
+  if (ul_limbs != 0 && max_limbs > ULLONG_MAX / ul_limbs) return ULLONG_MAX;
   base = ul_limbs * max_limbs;
 
-  if (base != 0 && 100ULL > ULLONG_MAX / base)
-    return ULLONG_MAX;
+  if (base != 0 && 100ULL > ULLONG_MAX / base) return ULLONG_MAX;
 
   return base * 100ULL;
 }
@@ -4039,11 +4113,11 @@ static int bnctryoddroot(const bignum_t *nrx, const bignum_t *drx, const bignum_
   cur_rn = bndup(nrx); cur_rd = bndup(drx);
   cur_in = bndup(nix); cur_id = bndup(dix);
 
-  /* Iterate through supported primes from the unified table */
-  for (i = 0; i < NUM_SUPPORTED_PRIMES; i++) {
+  /* reverse-iterate through supported primes from the unified table */
+  for (i = NUM_SUPPORTED_PRIMES-1; i >= 0; --i) {
     unsigned long long pr = (unsigned long long)prime_bound_table[2 * i];
     int ok;
-
+    if (pr > temp_m) continue;
     while (temp_m % pr == 0) {
       unsigned long long cost;
       size_t approx_bits;
@@ -4060,11 +4134,7 @@ static int bnctryoddroot(const bignum_t *nrx, const bignum_t *drx, const bignum_
       }
       cost_budget -= cost;
 
-      /* Dispatch: cube root has a specialized fast path */
-      ////if (pr == 3)
-      ////  ok = bnctryoddroot_cbrt(cur_rn, cur_rd, cur_in, cur_id, &next_rn, &next_rd, &next_in, &next_id);
-      ////else 
-        ok = bnctryprimeroot(pr, cur_rn, cur_rd, cur_in, cur_id, &next_rn, &next_rd, &next_in, &next_id);
+      ok = bnctryprimeroot(pr, cur_rn, cur_rd, cur_in, cur_id, &next_rn, &next_rd, &next_in, &next_id);
 
       bnfree(cur_rn); bnfree(cur_rd);
       bnfree(cur_in); bnfree(cur_id);
@@ -4078,7 +4148,7 @@ static int bnctryoddroot(const bignum_t *nrx, const bignum_t *drx, const bignum_
   }
 
   if (temp_m != 1) {
-    /* Unsupported prime factor (not in table) */
+    /* unsupported prime factor (not in table) */
     bnfree(cur_rn); bnfree(cur_rd);
     bnfree(cur_in); bnfree(cur_id);
     return 0;
@@ -4143,7 +4213,6 @@ static int bnx_maybe_nth_power(const bignum_t *x, size_t n)
 
   return 1;
 }
-
 
 /* try to calculate the exact principal power of a real rational.
  *
@@ -4988,6 +5057,25 @@ void bncpowtodd(double *pre, double *pim,
   if (pre) *pre = bnx_scale_expmul(m, cos(phi));
   if (pim) *pim = bnx_scale_expmul(m, sin(phi));
 }
+
+/* x^y where x is exact non-zero complex, y is inexact complex */
+void bncpowddtodd(double *pr, double *pi,
+  const bignum_t *nr, const bignum_t *dr, const bignum_t *ni, const bignum_t *di,
+  double yr, double yi)
+{
+  double log_r, log_i, lr, li;
+
+  /* fast path: x^0 = 1 (should be caller-filtered but cheap to check) */
+  if (yr == 0.0 && yi == 0.0) { *pr = 1.0; *pi = 0.0; return; }
+
+  /* precondition: x != 0 (caller handles exact-zero base) */
+  assert(!(BNZERO(nr) && BNZERO(ni)));
+
+  bnclogtodd(&log_r, &log_i, nr, dr, ni, di);
+  cmath_cmul(yr, yi, log_r, log_i, &lr, &li);
+  cmath_exp(lr, li, pr, pi);
+}
+
 
 /* [esl] end of power bundles */
 
@@ -7685,6 +7773,7 @@ static numt_t compmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
   if (isflo(xt) && isflo(yt)) {
     return setflo(zp, getflo(xp) * getflo(yp));
   } else {
+    /* FIXME: use cmath_cmul */
     double rx = getflo(xp), ix = NUMT_COM_I(xt) ? getflo(xp+2) : 0.0;
     double ry = getflo(yp), iy = NUMT_COM_I(yt) ? getflo(yp+2) : 0.0;
     return NUMT_MKCOM(setflo(zp, rx*ry - ix*iy), setflo(zp+2, rx*iy + ix*ry));
@@ -7699,6 +7788,7 @@ static numt_t compdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
   if (isflo(xt) && isflo(yt)) {
     return setflo(zp, getflo(xp) / getflo(yp));
   } else {
+    /* FIXME: use cmath_cdiv */
     double rx = getflo(xp), ix = NUMT_COM_I(xt) ? getflo(xp+2) : 0.0;
     double ry = getflo(yp), iy = NUMT_COM_I(yt) ? getflo(yp+2) : 0.0;
     double d = ry*ry + iy*iy;
@@ -8352,10 +8442,11 @@ static numt_t gnummul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
   } else if (isrect(xt) && isrect(yt)) {
     return rectmul(zp, xt, xp, yt, yp);
   } else {
-    double rx, ix, ry, iy;
+    double rx, ix, ry, iy, rz, iz;
     if (isrect(xt)) recttodd(xt, xp, &rx, &ix); else comptodd(xt, xp, &rx, &ix);
     if (isrect(yt)) recttodd(yt, yp, &ry, &iy); else comptodd(yt, yp, &ry, &iy);
-    return NUMT_MKCOM(setflo(zp, rx*ry - ix*iy), setflo(zp+2, rx*iy + ix*ry));
+    cmath_cmul(rx, ix, ry, iy, &rz, &iz);
+    return NUMT_MKCOM(setflo(zp, rz), setflo(zp+2, iz));
   }
 }
 
@@ -8373,11 +8464,11 @@ static numt_t gnumdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
   } else if (isreal(xt) && isreal(yt)) {
     return realdiv(zp, xt, xp, yt, yp);
   } else {
-    double rx, ix, ry, iy, d;
+    double rx, ix, ry, iy, rz, iz;
     if (isrect(xt)) recttodd(xt, xp, &rx, &ix); else comptodd(xt, xp, &rx, &ix);
     if (isrect(yt)) recttodd(yt, yp, &ry, &iy); else comptodd(yt, yp, &ry, &iy);
-    d = ry*ry + iy*iy;
-    return NUMT_MKCOM(setflo(zp, (rx*ry + ix*iy)/d), setflo(zp+2, (ix*ry - rx*iy)/d));
+    cmath_cdiv(rx, ix, ry, iy, &rz, &iz);
+    return NUMT_MKCOM(setflo(zp, rz), setflo(zp+2, iz));
   }
 }
 
@@ -8906,16 +8997,7 @@ static numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const
     zt = gnumdiv(zp, NUMT_FIX, &numfix_1, tt, tp);
     numfini(tt, tp);
     return zt;
-#if 0
-  } else if (israt(xt) && isreal(yt) && ratsign(xt, xp) > 0) {
-    /* x^y = exp(log(x)*y) via inexacts, but w/lower chances of overflow */
-    nump_t lp[4]; numt_t lt = gnumlog(lp, xt, xp);
-    nump_t mp[4]; numt_t mt = gnummul(mp, lt, lp, yt, yp);
-    numt_t zt = gnumexp(zp, mt, mp); 
-    numfini(lt, lp); numfini(mt, mp);
-    return zt;
-#endif
-  } else if (isrect(xt) && isrect(yt)) { /* try not to loose precision */
+  } else if (isrect(xt) && isrect(yt)) { /* try get an exact result */
     bignumll_t nrxll, drxll, nixll, dixll, nryll, dryll, niyll, diyll;
     numt_t rxt = NUMT_COM_R(xt), nrxt = NUMT_RAT_N(rxt), drxt = NUMT_RAT_D(rxt); 
     bignum_t *nrx = isbig(nrxt) ? getbig(xp)   : bnx_makell(&nrxll, getfix(xp));
@@ -8943,12 +9025,30 @@ static numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const
       else { l = bntol(diz); bnfree(diz); if (l != 1) dit = setfix(zp+3, l); }
       if (nit == NUMT_FIX && dit == NUMT_NONE && getfix(zp+2) == 0) return NUMT_MKRAT(nrt, drt);
       else return NUMT_MKCOM(NUMT_MKRAT(nrt, drt), NUMT_MKRAT(nit, dit));
-    } else {
+    } else { /* no exact result exists or calculation is not feasible */
       double rz, iz; bncpowtodd(&rz, &iz, nrx, drx, nix, dix, nry, dry, niy, diy); 
       /* if inputs were purely real, and xt is positive, result is real */
       if (israt(xt) && israt(yt) && bnsign(nrx) > 0 && iz == 0.0) return setflo(zp, rz); 
       else return NUMT_MKCOM(setflo(zp, rz), setflo(zp+2, iz));
     }
+  } else if (isfix(xt) && getfix(xp) == 0 && iscomp(yt)) {
+    double rx = 0.0, ix = 0.0, ry, iy, rz, iz;
+    comptodd(yt, yp, &ry, &iy);
+    cmath_pow(rx, ix, ry, iy, &rz, &iz);
+    return NUMT_MKCOM(setflo(zp, rz), setflo(zp+2, iz));
+  } else if (isrect(xt)) { /* x is exact, y is not */
+    bignumll_t nrxll, drxll, nixll, dixll; double ry, iy, rz, iz;
+    numt_t rxt = NUMT_COM_R(xt), nrxt = NUMT_RAT_N(rxt), drxt = NUMT_RAT_D(rxt); 
+    bignum_t *nrx = isbig(nrxt) ? getbig(xp)   : bnx_makell(&nrxll, getfix(xp));
+    bignum_t *drx = isbig(drxt) ? getbig(xp+1) : bnx_makell(&drxll, drxt ? getfix(xp+1) : 1);
+    numt_t ixt = NUMT_COM_I(xt), nixt = NUMT_RAT_N(ixt), dixt = NUMT_RAT_D(ixt); 
+    bignum_t *nix = isbig(nixt) ? getbig(xp+2) : bnx_makell(&nixll, nixt ? getfix(xp+2) : 0);
+    bignum_t *dix = isbig(dixt) ? getbig(xp+3) : bnx_makell(&dixll, dixt ? getfix(xp+3) : 1);
+    comptodd(yt, yp, &ry, &iy);
+    bncpowddtodd(&rz, &iz, nrx, drx, nix, dix, ry, iy);
+    /* if inputs were purely real, and xt is positive, result is real */
+    if (israt(xt) && isreal(yt) && bnsign(nrx) > 0 && iz == 0.0) return setflo(zp, rz); 
+    else return NUMT_MKCOM(setflo(zp, rz), setflo(zp+2, iz));
   } else { /* general case: go inexact via polar form: (r,theta)^(c+di) */
     double rx, ix, ry, iy, rz, iz;
     if (isrect(xt)) recttodd(xt, xp, &rx, &ix); else comptodd(xt, xp, &rx, &ix);
