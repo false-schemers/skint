@@ -137,6 +137,9 @@ ifeq ($(USE_UNICODE),1)
 	$(exe) test/test-unicode.scm
 endif
 
+opttest:
+	$(exe) test/test-options.scm
+
 libtest:
 	$(exe) test/test-libraries.scm
 
