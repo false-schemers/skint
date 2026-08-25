@@ -1541,6 +1541,11 @@
     [(k) (read-subbytevector k (current-input-port))]
     [(k p) (read-subbytevector k p)]))
 
+(define (symbol-downcase x)
+  (if (symbol? x)
+      (string->symbol (string-downcase (symbol->string x)))
+      x))
+
 (define (%read port simple? ci?)
   (define-syntax r-error
     (syntax-rules () [(_ p msg a ...) (read-error p msg a ...)]))
@@ -1671,7 +1676,7 @@
                                     (symbol->shebang name)
                                     (r-error p "unexpected name after #!" name))]))]
                      [(or (char-ci=? c #\t) (char-ci=? c #\f) (char-ci=? c #\s) (char-ci=? c #\u) (char-ci=? c #\c))
-                      (let ([name (sub-read-carefully p)])
+                      (let* ([n (sub-read-carefully p)] [name (symbol-downcase n)])
                         (case name 
                           [(t true) #t] 
                           [(f false) #f]
@@ -1687,7 +1692,7 @@
                           [(f64) (list->numvector (sub-read-numerical-list p name) 11)]
                           [(c64) (list->numvector (sub-read-numerical-list p name) 14)]
                           [(c128) (list->numvector (sub-read-numerical-list p name) 15)]
-                          [else (r-error p "unexpected name after #" name)]))]
+                          [else (r-error p "unexpected name after #" n)]))]
                      [(char=? c #\&)
                       (read-char p)
                       (box (sub-read-carefully p))]
