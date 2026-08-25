@@ -2216,7 +2216,7 @@
     ; selected extracts from r7rs-large and srfis
     (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format) (printf) (fprintf)
     (format-pretty-print) (format-exponential-print) (format-fixed-print) 
-    (format-general-print) (format-fresh-line) (format-help-string)
+    (format-general-print) (format-fresh-line) (format-help-string) (clear-input-port)
     ; skint extras go into repl and (skint) library; the rest goes to (skint hidden)
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length) (expand)
     (record?) (make-record) (record-length) (record-ref) (record-set!) (record-type-descriptor) 
@@ -2747,6 +2747,7 @@
             (display (error-object-message err) p) (newline p)
             (for-each (lambda (arg) (write arg p) (newline p)) 
               (error-object-irritants err)))
+           (when (read-error? err) (clear-input-port ip)) ; don't get stuck!
            (set-current-file-stack! cfs) 
            (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))]

@@ -1325,8 +1325,10 @@
 (define (read-error port msg . args)
   (define fn #f) (define lno #f) 
   (define line #f) (define pfx #f)
-  (when (%port-location port (set& fn) (set& lno) (set& line) (set& pfx))
-    (set! msg (format "~a:~a:~a: ~a~%~a~%~a^" fn lno (string-length pfx) msg line pfx)))
+  (cond [(%port-location port (set& fn) (set& lno) (set& line) (set& pfx))
+         (set! msg (format "~a:~a:~a: ~a~%~a~%~a^" fn lno (string-length pfx) msg line pfx))]
+        [(tty-port? port)
+         (set! msg (format "-: ~a" msg))])
   (raise (error-object 'read msg args)))
 
 (define (read-error? obj)
@@ -1485,8 +1487,9 @@
 ; (read-u8 (p (current-input-port)))
 ; (peek-u8 (p (current-input-port)))
 ; (u8-ready? (p (current-input-port)))
-; (set-port-fold-case! p fold?)
-; (port-fold-case? p)
+; (clear-input-port (p (current-input-port))) +
+; (set-port-fold-case! p fold?) +
+; (port-fold-case? p) +
 ; (eof-object? x)
 ; (eof-object)
 ; (%read-ahead fold-case? p) +

@@ -701,8 +701,8 @@ char *s_code[] = {
   "P", "read-error",
   "%!2#2,,,,#0#1#2#3f.!0f.!1f.!2f.!3${.5,.5,.5,.5,.(i11),@(y14:%25port-lo"
   "cation)[05}?{${.5^,.5^,.(i10)^,.8^S3,.7^,.7^,'(s21:~a:~a:~a: ~a~%25~a~"
-  "%25~a^),@(y6:format)[07}.!6}${.6,.9^,'(y4:read),@(y12:error-object)[03"
-  "},@(y5:raise)[71",
+  "%25~a^),@(y6:format)[07}.!6}{.5P09?{${.8^,'(s5:-: ~a),@(y6:format)[02}"
+  ".!6}{f}}${.6,.9^,'(y4:read),@(y12:error-object)[03},@(y5:raise)[71",
 
   "P", "read-error?",
   "%1${.2,@(y13:error-object?)[01}?{'(y4:read),${.3,@(y17:error-object-ki"

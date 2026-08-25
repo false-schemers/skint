@@ -647,8 +647,6 @@ int cbputc(int c, cbuf_t* pcb) {
   *(pcb->fill)++ = c; return c;
 }
 
-static int cbflush(cbuf_t* pcb) { return 0; }
-
 static void cbfini(cbuf_t* pcb) { free(pcb->buf); pcb->buf = NULL; }
 
 size_t cblen(cbuf_t* pcb) { return pcb->fill - pcb->buf; }
@@ -670,8 +668,6 @@ static int nogetch(void *p) { return EOF; }
 static int noungetch(int c) { return c; }
 
 static int noputch(int c, void *p) { return EOF; }
-
-static int noflush(void *p) { return EOF; }
 
 static int noctl(ctlop_t op, void *p, ...) { return -1; }
 
@@ -723,6 +719,12 @@ static int tiungetch(int c, tifile_t *tp) {
 
 static int tictl(ctlop_t op, tifile_t *tp, ...) {
   switch (op) {
+    case CTLOP_ICL: {
+      /* ignore current buffer; next tigetch will refill */
+      tp->next = tp->cb.fill;
+      assert(tp->next[0] == 0);
+      return 0;
+    } break;
     case CTLOP_RDLN: {
       va_list args; int c, n, **pd;
       va_start(args, tp); 
@@ -819,6 +821,19 @@ static int bvigetch(bvifile_t *fp) {
 static int bviungetch(int c, bvifile_t *fp) {
   assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }
 
+/* file output ports */
+
+static int fctl(ctlop_t op, FILE *fp, ...) {
+  switch (op) {
+    case CTLOP_OFL: {
+      fflush(fp);
+      return 0;
+    } break;
+  }
+  return -1;
+}
+
+
 /* optional enhanced tty ports */
 #ifdef OPT_ENHTTY
 #include "opt/n_enhtty.h"
@@ -830,64 +845,52 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_CLOSED_PTINDEX     0
   { "closed-input-port", (void (*)(void*))nofree, SPT_INPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))noputch, (int (*)(void*))noflush, 
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))noctl },
 #define IPORT_FILE_PTINDEX       1
   { "file-input-port", (void (*)(void*))tifree, SPT_INPUT,
     (int (*)(void*))tigetch, (int (*)(int, void*))tiungetch,
-    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(ctlop_t, void *, ...))tictl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))tictl },
 #define IPORT_BYTEFILE_PTINDEX   2
   { "binary-file-input-port", ffree, SPT_INPUT|SPT_BINARY,
     (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
-    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))noctl },
 #define IPORT_STRING_PTINDEX     3
   { "string-input-port", (void (*)(void*))sifree, SPT_INPUT,
     (int (*)(void*))sigetch, (int (*)(int, void*))siungetch,
-    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(ctlop_t, void *, ...))sictl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))sictl },
 #define IPORT_BYTEVECTOR_PTINDEX 4
   { "bytevector-input-port", (void (*)(void*))bvifree, SPT_INPUT|SPT_BINARY,
     (int (*)(void*))bvigetch, (int (*)(int, void*))bviungetch,
-    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_CLOSED_PTINDEX     5
   { "closed-output-port", (void (*)(void*))nofree, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_FILE_PTINDEX       6
   { "file-output-port", ffree, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))(ufputc), (int (*)(void*))fflush,
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))(ufputc), (int (*)(ctlop_t, void *, ...))fctl },
 #define OPORT_BYTEFILE_PTINDEX   7
   { "binary-file-output-port", ffree, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))(fputc), (int (*)(void*))fflush,
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))(fputc), (int (*)(ctlop_t, void *, ...))fctl },
 #define OPORT_STRING_PTINDEX     8
   { "string-output-port", (void (*)(void*))freecb, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))ucbputc, (int (*)(void*))cbflush,
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))ucbputc, (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEVECTOR_PTINDEX 9
   { "bytevector-output-port", (void (*)(void*))freecb, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))cbputc, (int (*)(void*))cbflush,
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))cbputc, (int (*)(ctlop_t, void *, ...))noctl },
 #ifdef OPT_ENHTTY /* + tty */
 #define IPORT_TTY_PTINDEX 10
   { "tty-input-port", (void (*)(void*))ttfree, SPT_INPUT,
     (int (*)(void*))ttgetch, (int (*)(int, void*))ttungetch,
-    (int (*)(int, void*))noputch, (int (*)(void*))noflush,
-    (int (*)(ctlop_t, void *, ...))ttctl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))ttctl },
 #define OPORT_TTY_PTINDEX 11
   { "tty-output-port", (void (*)(void*))ttfree, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))ttputch, (int (*)(void*))ttflush,
-    (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))ttputch, (int (*)(ctlop_t, void *, ...))ttctl },
 #endif
 };
 

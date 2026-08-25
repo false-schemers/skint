@@ -3987,9 +3987,17 @@ define_instruction(cop) {
   gonexti();
 }
 
+define_instruction(fip) {
+  ckr(ac);
+  iportclear(ac);
+  ac = void_obj();
+  gonexti();
+}
+
 define_instruction(fop) {
   ckw(ac);
   oportflush(ac);
+  ac = void_obj();
   gonexti();
 }
 
@@ -4138,10 +4146,10 @@ define_instruction(rdln) {
 
 define_instruction(rdah) {
   cxtype_iport_t *vt; int fold = (ac != bool_obj(0));
-  obj o = bool_obj(0); fatnum4_t f4; int *p; 
-  ac = spop();
+  obj o = bool_obj(0); fatnum4_t f4; int *p; void *d;
+  ac = spop(); d = iportdata(ac);
   ckr(ac); vt = iportvt(ac); assert(vt);
-  switch (rdah(fold, vt->getch, vt->ungetch, iportdata(ac), &o, &f4, &p)) {
+  switch (rdah(fold, vt->getch, vt->ungetch, d, &o, &f4, &p)) {
     case 'o': ac = o; break;
     case 'e': ac = fixnum_obj(f4.p[0].fix); break;
     case 'i': ac = flonum_obj(f4.p[0].flo); break;

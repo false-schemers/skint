@@ -573,7 +573,12 @@ extern obj* procedureref(obj o, int i);
 #define getshebang(o) getimmu(o, SHEBANG_ITAG)
 
 /* input/output ports */
-typedef enum { CTLOP_RDLN, CTLOP_CI, CTLOP_SETCI, CTLOP_SETPROMPT } ctlop_t;
+typedef enum { 
+  CTLOP_OFL, CTLOP_ICL, 
+  CTLOP_RDLN, 
+  CTLOP_CI, CTLOP_SETCI, 
+  CTLOP_SETPROMPT 
+} ctlop_t;
 typedef struct { /* extends cxtype_t */
   const char *tname;
   void (*free)(void*);
@@ -581,7 +586,6 @@ typedef struct { /* extends cxtype_t */
   int  (*getch)(void*);
   int  (*ungetch)(int, void*);
   int  (*putch)(int, void*);
-  int  (*flush)(void*);
   int  (*ctl)(ctlop_t, void*, ...);
 } cxtype_port_t, cxtype_iport_t, cxtype_oport_t;
 #ifdef OPT_ENHTTY /* + tty */
@@ -623,6 +627,10 @@ static int iportgetc(obj o) {
 static int iportpeekc(obj o) {
   cxtype_iport_t *vt = iportvt(o); void *pp = iportdata(o); int c;
   assert(vt); c = vt->getch(pp); if (c != EOF) vt->ungetch(c, pp); return c;
+}
+static void iportclear(obj o) {
+  cxtype_iport_t *vt = iportvt(o); void *pp = iportdata(o);
+  assert(vt); vt->ctl(CTLOP_ICL, pp);
 }
 extern char *rdns(int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, cbuf_t *pcb);
 extern int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, 
@@ -680,7 +688,7 @@ static void oportwrite(const char *s, int n, obj o) {
 }
 static void oportflush(obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
-  assert(vt); vt->flush(pp);
+  assert(vt); vt->ctl(CTLOP_OFL, pp);
 }
 /* file output ports */
 #define mkoport_file(l, fp) hpushptr(fp, OPORT_FILE_NTAG, l)

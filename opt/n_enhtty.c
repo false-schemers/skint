@@ -604,7 +604,7 @@ void ttyputs(const char *line)
 static ttfile_t ttyin, ttyout;
 
 static void ttfini(void) {
-  ttflush(&ttyout);
+  ttctl(CTLOP_OFL, &ttyout);
   cbfini(&ttyin.cb);
   cbfini(&ttyout.cb);
 }
@@ -629,7 +629,7 @@ static void ttfree(ttfile_t *tp) {
 static int ttgetch(ttfile_t *tp) {
   int c; 
   assert(tp->next >= tp->cb.buf && tp->next <= tp->cb.fill);
-  if (!cbempty(&ttyout.cb)) ttflush(&ttyout);
+  if (!cbempty(&ttyout.cb)) ttctl(CTLOP_OFL, &ttyout);
   retry: c = unextc_check(tp->next);
   if (c == 0x1A) goto eof; /* handle ^Z manually! */
   if (c != 0 || tp->next <= tp->cb.fill) return c; 
@@ -658,6 +658,15 @@ static int ttungetch(int c, ttfile_t *tp) {
 
 static int ttctl(ctlop_t op, ttfile_t *tp, ...) {
   switch (op) {
+    case CTLOP_OFL: {
+      if (!cbempty(&tp->cb)) ttyputs(cbdata(&tp->cb));
+      cbclear(&tp->cb);
+      return 0;
+    }  break;
+    case CTLOP_ICL: {
+      tp->next = tp->cb.fill;
+      return 0;
+    } break;
     case CTLOP_RDLN: {
       va_list args; int c, n, **pd;
       va_start(args, tp); 
@@ -707,12 +716,7 @@ static int ttputch(int c, ttfile_t *tp) {
   /* note: there is no point in writing NULs to tty, 
    * so we just skip them */
   if (c) ucbputc(c, &tp->cb);
-  if (c == '\n') ttflush(tp);
+  if (c == '\n') ttctl(CTLOP_OFL, tp);
   return c;
 }
 
-static int ttflush(ttfile_t *tp) {
-  if (!cbempty(&tp->cb)) ttyputs(cbdata(&tp->cb));
-  cbclear(&tp->cb);
-  return 0;
-}
