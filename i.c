@@ -3492,7 +3492,7 @@ define_instruction(ston) {
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
-  switch (strtonum(&f4, s, NULL, radix)) {
+  switch (strtonum4(&f4, s, NULL, radix)) {
     case NUMT_FIX: ac = fixnum_obj(f4.p[0].fix); break;
     case NUMT_FLO: ac = flonum_obj(f4.p[0].flo); break;
     /* no big/fat numbers here */
@@ -5030,7 +5030,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
       cbuf_t *pcb = newcb(); fatnum4_t f4; char *s;
       cxtype_iport_t *vt = iportvt(port); assert(vt);     
       s = rdns(vt->getch, vt->ungetch, iportdata(port), pcb);
-      switch (strtonum(&f4, s, NULL, 16)) {
+      switch (strtonum4(&f4, s, NULL, 16)) {
         case NUMT_FIX:  ra = obj_from_fixnum(f4.p[0].fix); break;
         case NUMT_FLO:  ra = obj_from_flonum((int)(sp-r), f4.p[0].flo); break;
         case NUMT_BIG:  ra = obj_from_bignum((int)(sp-r), f4.p[0].big); break;

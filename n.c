@@ -829,6 +829,7 @@ static int fctl(ctlop_t op, FILE *fp, ...) {
       fflush(fp);
       return 0;
     } break;
+    default: break;
   }
   return -1;
 }
@@ -1262,7 +1263,7 @@ in_numsym:
   } else if (s[0] == '.' && s[1] == 0) {
     *po = obj_from_char('.'); xc = 'o';
   } else { 
-    switch (strtonum(pf, cbdata(pcb), NULL, 10)) {
+    switch (strtonum4(pf, cbdata(pcb), NULL, 10)) {
       case NUMT_FIX: xc = 'e'; break;
       case NUMT_FLO: xc = 'i'; break;
 #ifdef OPT_TOWER
@@ -1972,8 +1973,8 @@ err:
   return NUMT_NONE;
 }
 
-/* towerless version of strtonum */
-numt_t strtonum(fatnum4_t *fn, const char *s, char **endp, int radix) 
+/* towerless version of strtonum4 */
+numt_t strtonum4(fatnum4_t *fn, const char *s, char **endp, int radix) 
 {
   int eno = errno; char *ep = NULL;
   numt_t t = strtoreal(&fn->p[0], s, &ep, radix);

@@ -10094,8 +10094,8 @@ int wrfn(const fatnum_t *n, int radix, int mode, int prc, int (*pf)(int, void*),
 }
 
 
-/* tower version of strtonum */
-numt_t strtonum(fatnum4_t *f4, const char *s, char **endp, int radix)
+/* tower version of strtonum4 */
+numt_t strtonum4(fatnum4_t *f4, const char *s, char **endp, int radix)
 { 
   int eno = errno; errno = 0;
   f4->t = strtognum(&f4->p[0], s, endp, radix);

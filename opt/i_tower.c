@@ -1050,7 +1050,7 @@ define_instruction(ston) {
   obj x = ac, y = spop(); cks(x); ckk(y);
   s = stringchars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
-  switch (strtonum(&f4, s, NULL, radix)) {
+  switch (strtonum4(&f4, s, NULL, radix)) {
     case NUMT_NONE: ac = bool_obj(0);  errno = 0; break;
     case NUMT_FIX:  ac = fixnum_obj(f4.p[0].fix); break;
     case NUMT_FLO:  ac = flonum_obj(f4.p[0].flo); break;

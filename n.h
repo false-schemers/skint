@@ -384,7 +384,7 @@ typedef struct fatnum4 {
 } fatnum4_t;
 
 /* returns NUMT_NONE and sets errno on failure */
-extern numt_t strtonum(fatnum4_t *f4, const char *s, char **endp, int radix);
+extern numt_t strtonum4(fatnum4_t *f4, const char *s, char **endp, int radix);
 
 /* other numbers */
 #ifdef OPT_TOWER
