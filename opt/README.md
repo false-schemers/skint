@@ -15,6 +15,9 @@ Even more effort is devoted to extracting exact results from exact arguments. Fo
 
 For exact reals, there is no limit on the prime factors of root degrees, though both intermediate bignum size and estimated computational cost are capped. When finding an exact solution is deemed impractical, an inexact result is returned instead. This extra effort directly benefits downstream operations that rely on exact reductions, such as computing the magnitudes of exact complex numbers.
 
+Note that activating this option automatically enables support for the following additional types of homogenous
+numerical vectors: `u32`, `s32`, `u64`, `s64`, `c128`.
+
 When compiled with the `OPT_TOWER` option, SKINT supports the full R7RS Scheme numerical tower. Internally, numbers are
 represented as fixnums (30-bit immediate integers), flonums (double-precision floats), bignums (dynamically allocated integers),
 and fatnums (compound numbers), further differentiated into ratnums (exact rationals), rectnums (exact complex), and

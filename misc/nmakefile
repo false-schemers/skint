@@ -27,7 +27,12 @@ CFLAGS = $(CFLAGS) /DNAN_BOXING
 !MESSAGE x86_64 architecture detected
 !ENDIF
 
-# Optional features - enable on command line with OPT_UNICODE=1, OPT_ENHTTY=1
+# Optional features - enable on command line with OPT_TOWER=1, OPT_UNICODE=1, OPT_ENHTTY=1
+!IF "$(OPT_TOWER)" == "1"
+CFLAGS = $(CFLAGS) /DOPT_TOWER
+!MESSAGE Full Tower support enabled
+!ENDIF
+
 !IF "$(OPT_UNICODE)" == "1"
 CFLAGS = $(CFLAGS) /DOPT_UNICODE
 !MESSAGE Unicode support enabled
