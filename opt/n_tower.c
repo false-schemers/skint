@@ -2935,6 +2935,19 @@ static unsigned long bnx_mag_modl(const bignum_t *n, long m)
 }
 
 /* bnx_maybe_square: quick filter using quadratic residue tables */
+#if 1
+static int bnx_maybe_square(const bignum_t *x)
+{
+  unsigned long r;
+  if (BNZERO(x)) return 1;
+  if (!sq64[x->limb[0] & 63UL]) return 0;
+  r = bnx_mag_modl(x, 63 * 65 * 11);
+  if (!sq63[r % 63UL]) return 0;
+  if (!sq65[r % 65UL]) return 0;
+  if (!sq11[r % 11UL]) return 0;
+  return 1;
+}
+#else
 static int bnx_maybe_square(const bignum_t *x)
 {
   if (BNZERO(x)) return 1;
@@ -2944,6 +2957,7 @@ static int bnx_maybe_square(const bignum_t *x)
   if (!sq11[bnx_mag_modl(x, 11)]) return 0;
   return 1;
 }
+#endif
 
 /* fast approximate conversion of a bignum to a hardware double */
 double bntod_approx(const bignum_t *n)
@@ -4160,6 +4174,64 @@ static int bnctryoddroot(const bignum_t *nrx, const bignum_t *drx, const bignum_
 }
 
 /* quick O(1) filter to check if x might be an exact nth power */
+#if 1
+static int bnx_maybe_nth_power(const bignum_t *x, size_t n)
+{
+  size_t tz, l;
+
+  if (n == 1 || BNZERO(x) || BNONE(x, 0)) return 1;
+  if (BNONE(x, 1)) return (n & 1) != 0;
+  if (x->isneg && (n & 1) == 0) return 0;
+
+  l = bnwidthu(x);
+  if (l <= n) return 0;
+
+  tz = bnx_trailing_zeros(x);
+  if (tz > 0 && (tz % n) != 0) return 0;
+
+  if ((n & 1) == 0) { if (!bnx_maybe_square(x)) return 0; }
+
+  if (n >= 2) {
+    /* 2 bundles of primes, each product fitting safely within a single limb */
+    static const struct { long mod; size_t num_primes; long primes[4]; } bundles[] = {
+      { 7*11*13*17,  4, { 7, 11, 13, 17 } }, { 19*23*29*31, 4, { 19, 23, 29, 31 } }
+    };
+    size_t b, i;
+    for (b = 0; b < sizeof(bundles) / sizeof(bundles[0]); ++b) {
+      long rb = bnx_mag_modl(x, bundles[b].mod);
+      
+      for (i = 0; i < bundles[b].num_primes; ++i) {
+        long p = bundles[b].primes[i], pm1 = p - 1;
+        long a1, b1, exp, r_mod = rb % p;
+        unsigned long ubase, ures, up;
+        if (r_mod == 0) continue;
+
+        /* compute gcd(n, p-1) */
+        a1 = pm1; b1 = (long)(n % (size_t)pm1);
+        while (b1) { long t = a1 % b1; a1 = b1; b1 = t; }
+
+        /* if gcd(n, p-1) == 1, all non-zero residues are nth powers mod p */
+        if (a1 == 1) continue;
+
+        exp = pm1 / a1;
+        ubase = (unsigned long)r_mod;
+        ures = 1;
+        up = (unsigned long)p;
+
+        while (exp > 0) {
+          if (exp & 1) ures = (ures * ubase) % up;
+          ubase = (ubase * ubase) % up;
+          exp >>= 1;
+        }
+
+        if (ures != 1) return 0;
+      }
+    }
+  }
+
+  return 1;
+}
+#else
 static int bnx_maybe_nth_power(const bignum_t *x, size_t n)
 {
   size_t tz, l;
@@ -4213,6 +4285,7 @@ static int bnx_maybe_nth_power(const bignum_t *x, size_t n)
 
   return 1;
 }
+#endif
 
 /* try to calculate the exact principal power of a real rational.
  *
