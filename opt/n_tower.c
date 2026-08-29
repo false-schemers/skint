@@ -587,6 +587,12 @@ static int parse_zero(const char *s, char **ep)
 
 /* bignum version 0.6.0rc4 $Id: bnversion.c 382 2009-08-15 16:57:45Z avp $ */
 
+/* esl** to simplify calculations, we limit the size of bignums to FIXNUM_MAX;
+* for 30-bit fixnums, it is ~64MB, which is well in the degrading usability
+* territory, outside of very special tasks. Having FIXNUM_MAX as the
+* limit allows us not to deal with bignum exponents in expt */
+#define BIGNUM_MAX_BITS FIXNUM_MAX
+
 /* esl** invariants and naming conventions
 * internal procedures not returning bignums directly are named bnx_foo
 * internal procedures always returning fresh new bignums are named bny_foo
@@ -1076,7 +1082,6 @@ static bignum_t *bny_maddl(const bignum_t *n, limb_t w, limb_t c)
   return_NEW(r);
 }
 
-/* IMPROV */
 size_t bnx_mul(limb_t *r, size_t rs,
   const limb_t *a, size_t as, 
   const limb_t *b, size_t bs) /* ignores isneg */
@@ -1802,40 +1807,6 @@ bignum_t *bnashll(const bignum_t *a, int64_t sh)
   return_NORMALIZE(r, "bnashll");
 }
 
-bignum_t *bnmul(const bignum_t *a, const bignum_t *b)
-{
-  size_t rs;
-  bignum_t *r;
-
-  assert(a != NULL);
-  assert(b != NULL);
-  CHECKSIGN(a);
-  CHECKSIGN(b);
-
-  if (BNZERO(a))
-    return bn0;
-  if (BNPLUSONE(a))
-    return bndup(b);
-  if (BNMINUSONE(a))
-    return bnneg(b);
-
-  if (BNZERO(b))
-    return bn0;
-  if (BNPLUSONE(b))
-    return bndup(a);
-  if (BNMINUSONE(b))
-    return bnneg(a);
-
-  rs = a->size + b->size;
-  if (rs < a->size)
-    bnx_failure("bnmul");
-  NEWBN(r, rs, "bnmul");
-
-  r->size = bnx_mul(r->limb, rs, a->limb, a->size, b->limb, b->size);
-  r->isneg = a->isneg != b->isneg;
-  return_NORMALIZE(r, "bnmul");
-}
-
 bignum_t *bnmulll(const bignum_t *n, int64_t v)
 {
   struct bignum_ll b;
@@ -1899,6 +1870,40 @@ bignum_t *bnmulll(const bignum_t *n, int64_t v)
     r->isneg = !n->isneg;
   }
   return_NORMALIZE(r, "bnmulll");
+}
+
+bignum_t *bnmul(const bignum_t *a, const bignum_t *b)
+{
+  size_t rs;
+  bignum_t *r;
+
+  assert(a != NULL);
+  assert(b != NULL);
+  CHECKSIGN(a);
+  CHECKSIGN(b);
+
+  if (BNZERO(a))
+    return bn0;
+  if (BNPLUSONE(a))
+    return bndup(b);
+  if (BNMINUSONE(a))
+    return bnneg(b);
+
+  if (BNZERO(b))
+    return bn0;
+  if (BNPLUSONE(b))
+    return bndup(a);
+  if (BNMINUSONE(b))
+    return bnneg(a);
+
+  rs = a->size + b->size;
+  if (rs < a->size)
+    bnx_failure("bnmul");
+  NEWBN(r, rs, "bnmul");
+
+  r->size = bnx_mul(r->limb, rs, a->limb, a->size, b->limb, b->size);
+  r->isneg = a->isneg != b->isneg;
+  return_NORMALIZE(r, "bnmul");
 }
 
 bignum_t *bnexptull(const bignum_t *a, uint64_t n)
@@ -2173,7 +2178,8 @@ from_limb:
 #endif
 }
 
-bignum_t *bngcd(const bignum_t *x, const bignum_t *y)
+bignum_t *
+bngcd(const bignum_t *x, const bignum_t *y)
 {
   bignum_t *a, *b;
   bignum_t *r;
@@ -2786,12 +2792,6 @@ int wrbn(const bignum_t *n, int radix, int (*pf)(int, void*), void *pd)
 }
 
 /* [esl++] */
-/* to simplify calculations, we limit the size of bignums to FIXNUM_MAX;
-* for 30-bit fixnums, it is ~64MB, which is well in the degrading usability
-* territory, outside of very special tasks. Having FIXNUM_MAX as the
-* limit allows us not to deal with bignum exponents in expt */
-#define BIGNUM_MAX_BITS FIXNUM_MAX
-
 #define BIGNUM_MAX_LIMBS   ((size_t)(BIGNUM_MAX_BITS / LIMB_BITS))
 #define BIGNUM_RZ_LIMBS    ((BIGNUM_MAX_LIMBS / 128) < 4 ? 4 : (BIGNUM_MAX_LIMBS / 128))
 
@@ -2935,7 +2935,6 @@ static unsigned long bnx_mag_modl(const bignum_t *n, long m)
 }
 
 /* bnx_maybe_square: quick filter using quadratic residue tables */
-#if 1
 static int bnx_maybe_square(const bignum_t *x)
 {
   unsigned long r;
@@ -2947,17 +2946,6 @@ static int bnx_maybe_square(const bignum_t *x)
   if (!sq11[r % 11UL]) return 0;
   return 1;
 }
-#else
-static int bnx_maybe_square(const bignum_t *x)
-{
-  if (BNZERO(x)) return 1;
-  if (!sq64[bnx_mag_modl(x, 64)]) return 0;
-  if (!sq63[bnx_mag_modl(x, 63)]) return 0;
-  if (!sq65[bnx_mag_modl(x, 65)]) return 0;
-  if (!sq11[bnx_mag_modl(x, 11)]) return 0;
-  return 1;
-}
-#endif
 
 /* fast approximate conversion of a bignum to a hardware double */
 double bntod_approx(const bignum_t *n)
@@ -4173,8 +4161,7 @@ static int bnctryoddroot(const bignum_t *nrx, const bignum_t *drx, const bignum_
   return 1;
 }
 
-/* quick O(1) filter to check if x might be an exact nth power */
-#if 1
+/* O(1) filter to check if x might be an exact nth power */
 static int bnx_maybe_nth_power(const bignum_t *x, size_t n)
 {
   size_t tz, l;
@@ -4231,75 +4218,15 @@ static int bnx_maybe_nth_power(const bignum_t *x, size_t n)
 
   return 1;
 }
-#else
-static int bnx_maybe_nth_power(const bignum_t *x, size_t n)
-{
-  size_t tz, l;
 
-  if (n == 1 || BNZERO(x) || BNONE(x, 0)) return 1;
-  /* -1 is an nth power iff n is odd: (-1)^n = -1 for odd n */
-  if (BNONE(x, 1)) return (n & 1) != 0;
-
-  /* Negative numbers cannot be even powers (in reals) */
-  if (x->isneg && (n & 1) == 0) return 0;
-
-  /* If bit length <= n, and |x| > 1, it cannot be an nth power of an integer >= 2 */
-  l = bnwidthu(x);
-  if (l <= n) return 0;
-
-  /* trailing zeros must be a multiple of n */
-  tz = bnx_trailing_zeros(x);
-  if (tz > 0 && (tz % n) != 0) return 0;
-
-  /* even n: must be a perfect square */
-  if ((n & 1) == 0) { if (!bnx_maybe_square(x)) return 0; }
-
-  /* small-prime modular checks (valid for all n >= 2, not just odd n).
-   * catches cases like n=4, x=784 (a square but not a 4th power) */
-  if (n >= 2) {
-    static const long small_primes[] = { 7, 11, 13, 17, 19, 23, 29, 31 };
-    size_t i;
-    for (i = 0; i < sizeof(small_primes)/sizeof(small_primes[0]); i++) {
-      long p = small_primes[i], r_mod = (long)bnx_mag_modl(x, p);
-      long pm1, r, a1, b1, exp; unsigned long ubase, ures, up; 
-      if (r_mod == 0) continue;
-      pm1 = p - 1;
-      /* compute gcd(n, p-1) cleanly with separate variables */
-      r = (long)(n % (size_t)pm1);
-      a1 = pm1; b1 = r;
-      while (b1) { long t = a1 % b1; a1 = b1; b1 = t; }
-      /* a1 = gcd(n, p-1) */
-      exp = pm1 / a1;
-      /* use unsigned long to prevent overflow in base*base for larger primes */
-      ubase = (unsigned long)r_mod;
-      ures = 1; up = (unsigned long)p;
-      while (exp > 0) {
-        if (exp & 1) ures = (ures * ubase) % up;
-        ubase = (ubase * ubase) % up;
-        exp >>= 1;
-      }
-
-      if (ures != 1) return 0;
-    }
-  }
-
-  return 1;
-}
-#endif
-
-/* try to calculate the exact principal power of a real rational.
- *
+/* try to calculate the exact principal power of a real rational;
  * for positive base: returns the positive real root if it exists;
  * for negative base: returns the principal Gaussian rational root
- * if one exists, 0 otherwise. By the principal convention, this
- * only exists for b in {1, 2, 4} with appropriate a mod 2b.
- *
- * preconditions:
+ * if one exists, 0 otherwise. Preconditions:
  *   - nx/dx in lowest terms, dx > 0
  *   - nn/dn in lowest terms, dn > 0
  *   - nn and dn each fit in a single limb
- *
- * postconditions:
+ * Postconditions:
  *  on success, all output fractions are in lowest terms with
  *  positive denominators. */
 int bnrtrypow(const bignum_t *nx, const bignum_t *dx, const bignum_t *nn, const bignum_t *dn,
@@ -4344,7 +4271,7 @@ int bnrtrypow(const bignum_t *nx, const bignum_t *dx, const bignum_t *nn, const 
   if (BNONE(nx, 0) && BNONE(dx, 0)) {
     /* |x| = 1, handle signs for principal root */
     if (x_neg) {
-      /* Principal value of (-1)^(a/b) = e^{i pi a/b} */
+      /* principal value of (-1)^(a/b) = e^{i pi a/b} */
       if ((a & 1) == 0) {
         /* Even a: e^{i pi a/b}. For Gaussian rational, need b | a, but gcd(a,b)=1 -> b=1 */
         if (b == 1) {
@@ -4372,7 +4299,7 @@ int bnrtrypow(const bignum_t *nx, const bignum_t *dx, const bignum_t *nn, const 
       }
       if (b == 4) {
         /* a mod 8: 1 -> (1+i)/sqrt(2)... wait, |x|=1 so r=1 */
-        /* Principal 4th roots of -1: e^{i pi a/4} */
+        /* principal 4th roots of -1: e^{i pi a/4} */
         /* a=1: e^{i pi/4} = (1+i)/sqrt(2) - not Gaussian rational */
         /* Actually for |x|=1, the magnitude is 1, so we need the direction to be Gaussian rational */
         /* e^{i pi/4} is not Gaussian rational (needs sqrt(2)) */
@@ -6408,48 +6335,6 @@ static numt_t intrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
   return zt;
 }
 
-#if 0 /* not used yet */
-/* q = truncate(x/y), r = x-truncate(x/y) (truncate/, a.k.a. quotient&remainder) */
-void intquorem(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  assert(NUMT_IS_INTNUM(xt) && "non-integer number");
-  assert(NUMT_IS_INTNUM(yt) && "non-integer number");
-  if (isfix(xt)) {
-    if (isfix(yt)) {
-      if (!getfix(yp)) bnx_zdiv();
-      else {
-        long x = getfix(xp), y = getfix(yp), q = x / y, r = x % y;
-        if ((r < 0 && y > 0) || (r > 0 && y < 0)) q -= 1, r += y;
-        if (q >= FIXNUM_MIN && q <= FIXNUM_MAX) *pqt = setfix(qp, q);
-        else *pqt = setbig(qp, lltobn(q)); /* FIXNUM_MIN/-1 > FIXNUM_MAX */
-        assert(r >= FIXNUM_MIN && r <= FIXNUM_MAX);
-        *prt = setfix(rp, r);
-      }
-    } else if (getfix(xp) == FIXNUM_MIN && bneql(getbig(yp), FIXNUM_MAX+1)) { 
-      *pqt = setfix(qp, -1);
-      *prt = setfix(rp, 0);
-    } else {
-      *pqt = setfix(qp, 0);
-      *prt = setfix(rp, getfix(xp));
-    }
-  } else {
-    if (isfix(yt)) {
-      long r; 
-      bignum_t *bq = bndmodl(&r, getbig(xp), getfix(yp));
-      if (bnwidths(bq) > FIXNUM_WIDTH) *pqt = setbig(qp, bq);
-      else (*pqt = setfix(qp, bntol(bq))), bnfree(bq);
-      *prt = setfix(rp, r);
-    } else {
-      bignum_t *br, *bq = bndmod(&br, getbig(xp), getbig(yp));
-      if (bnwidths(bq) > FIXNUM_WIDTH) *pqt = setbig(qp, bq);
-      else (*pqt = setfix(qp, bntol(bq))), bnfree(bq);
-      if (bnwidths(br) > FIXNUM_WIDTH) *prt = setbig(rp, br);
-      else (*prt = setfix(rp, bntol(br))), bnfree(br);
-    }
-  }
-}
-#endif
-
 /* z = floor(x/y)  (floor-quotient, pair for modulo) */
 static numt_t intfquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
 {
@@ -6530,57 +6415,6 @@ static numt_t intfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
   }
   return zt;
 }
-
-#if 0 /* not used yet */
-/* q = floor(x/y), r = x-floor(x/y) (floor/, r a.k.a. modulo) */
-void intfquorem(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  assert(NUMT_IS_INTNUM(xt) && "non-integer number");
-  assert(NUMT_IS_INTNUM(yt) && "non-integer number");
-  if (isfix(xt)) {
-    if (isfix(yt)) {
-      if (!getfix(yp)) bnx_zdiv();
-      else {
-        long x = getfix(xp), y = getfix(yp), q = x / y, r = x % y;
-        if ((r < 0 && y > 0) || (r > 0 && y < 0)) q -= 1, r += y;
-        if (q >= FIXNUM_MIN && q <= FIXNUM_MAX) *pqt = setfix(qp, q);
-        else *pqt = setbig(qp, lltobn(q)); /* FIXNUM_MIN/-1 > FIXNUM_MAX */
-        assert(r >= FIXNUM_MIN && r <= FIXNUM_MAX);
-        *prt = setfix(rp, r);
-      }
-    } else if (getfix(xp) == FIXNUM_MIN && bneql(getbig(yp), FIXNUM_MAX+1)) { 
-      *pqt = setfix(qp, -1);
-      *prt = setfix(rp, 0);
-    } else {
-      *pqt = setfix(qp, 0);
-      *prt = setfix(rp, getfix(xp));
-    }
-  } else {
-    if (isfix(yt)) {
-      long y = getfix(yp), r; 
-      bignum_t *bq = bndmodl(&r, getbig(xp), getfix(yp));
-      if ((r < 0 && y > 0) || (r > 0 && y < 0)) {
-        bignum_t *bt = bq; bq = bnsub(bt, bn1), bnfree(bt);
-        r += y;
-      }
-      if (bnwidths(bq) > FIXNUM_WIDTH) *pqt = setbig(qp, bq);
-      else (*pqt = setfix(qp, bntol(bq))), bnfree(bq);
-      *prt = setfix(rp, r);
-    } else {
-      bignum_t *bx = getbig(xp), *by = getbig(yp), *br, *bq = bndmod(&br, bx, by);
-      int sy = bnsign(by), sr = bnsign(br);
-      if ((sr < 0 && sy > 0) || (sr > 0 && sy < 0)) {
-        bignum_t *bt = bq; bq = bnsub(bt, bn1), bnfree(bt);
-        bt = br; bq = bnadd(bt, by), bnfree(bt);
-      }      
-      if (bnwidths(bq) > FIXNUM_WIDTH) *pqt = setbig(qp, bq);
-      else (*pqt = setfix(qp, bntol(bq))), bnfree(bq);
-      if (bnwidths(br) > FIXNUM_WIDTH) *prt = setbig(rp, br);
-      else (*prt = setfix(rp, bntol(br))), bnfree(br);
-    }
-  }
-}
-#endif
 
 /* q = floor(sqrt(x)), r = x-floor(sqrt(x)) x >= 0 */
 void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp)
@@ -7807,69 +7641,6 @@ static numt_t compneg(nump_t *zp, numt_t xt, const nump_t *xp)
     return NUMT_MKCOM(setflo(zp, -getflo(xp)), setflo(zp+2, -getflo(xp+2)));
   }
 }
-
-#if 0 /* cfl ops candidates */
-
-/* z = x + y */
-static numt_t compadd(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
-  assert(NUMT_IS_COMPNUM(yt) && "non-exact-complex number");
-  if (isflo(xt) && isflo(yt)) {
-    return setflo(zp, getflo(xp) + getflo(yp));
-  } else {
-    double rx = getflo(xp), ix = NUMT_COM_I(xt) ? getflo(xp+2) : 0.0;
-    double ry = getflo(yp), iy = NUMT_COM_I(yt) ? getflo(yp+2) : 0.0;
-    return NUMT_MKCOM(setflo(zp, rx+ry), setflo(zp+2, ix+iy));
-  }
-}
-
-/* z = x - y */
-static numt_t compsub(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
-  assert(NUMT_IS_COMPNUM(yt) && "non-exact-complex number");
-  if (isflo(xt) && isflo(yt)) {
-    return setflo(zp, getflo(xp) - getflo(yp));
-  } else {
-    double rx = getflo(xp), ix = NUMT_COM_I(xt) ? getflo(xp+2) : 0.0;
-    double ry = getflo(yp), iy = NUMT_COM_I(yt) ? getflo(yp+2) : 0.0;
-    return NUMT_MKCOM(setflo(zp, rx-ry), setflo(zp+2, ix-iy));
-  }
-}
-
-/* z = x * y */
-static numt_t compmul(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
-  assert(NUMT_IS_COMPNUM(yt) && "non-exact-complex number");
-  if (isflo(xt) && isflo(yt)) {
-    return setflo(zp, getflo(xp) * getflo(yp));
-  } else {
-    /* FIXME: use cmath_cmul */
-    double rx = getflo(xp), ix = NUMT_COM_I(xt) ? getflo(xp+2) : 0.0;
-    double ry = getflo(yp), iy = NUMT_COM_I(yt) ? getflo(yp+2) : 0.0;
-    return NUMT_MKCOM(setflo(zp, rx*ry - ix*iy), setflo(zp+2, rx*iy + ix*ry));
-  }
-}
-
-/* z = x / y */
-static numt_t compdiv(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
-{
-  assert(NUMT_IS_COMPNUM(xt) && "non-exact-complex number");
-  assert(NUMT_IS_COMPNUM(yt) && "non-exact-complex number");
-  if (isflo(xt) && isflo(yt)) {
-    return setflo(zp, getflo(xp) / getflo(yp));
-  } else {
-    /* FIXME: use cmath_cdiv */
-    double rx = getflo(xp), ix = NUMT_COM_I(xt) ? getflo(xp+2) : 0.0;
-    double ry = getflo(yp), iy = NUMT_COM_I(yt) ? getflo(yp+2) : 0.0;
-    double d = ry*ry + iy*iy;
-    return NUMT_MKCOM(setflo(zp, (rx*ry + ix*iy)/d), setflo(zp+2, (ix*ry - rx*iy)/d));
-  }
-}
-
-#endif /* cfl ops candidates */
 
 /* returns NUMT_NONE and sets errno on failure */
 static numt_t strtoflo(nump_t *zp, const char *str, char **endp, int radix)
