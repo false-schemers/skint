@@ -1051,7 +1051,8 @@
   (if (null? esps1) esps2 ; assume esps2 is already checked
       (let ([esp (car esps1)] [esps (adjoin-esps (cdr esps1) esps2)])
         (cond [(member esp esps) esps] ; duplicate, but same rename -- already checked, ok
-              [(assq (car esp) esps) => (lambda (p) (x-error "duplicate identifier exports" esp p))]
+              ;R7RS has no requirement for all exports to have distinct bindings!
+              ;[(assq (car esp) esps) => (lambda (p) (x-error "duplicate identifier exports" esp p))]
               [(rassq (cdr esp) esps) => (lambda (p) (x-error "conflicting identifier exports" esp p))]
               [else (cons esp esps)]))))
 
@@ -2813,7 +2814,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.7.8")
+(define *skint-version* "0.7.9")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

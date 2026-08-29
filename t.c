@@ -600,10 +600,9 @@ char *t_code[] = {
   "or)[53}.1,.3ac]4",
 
   "P", "adjoin-esps",
-  "%2.0u?{.1]2}${.3,.3d,@(y11:adjoin-esps)[02},.1a,.1,.1A2?{.1]4}.1,.1aA3"
-  ",.0?{.0,.0,.3,'(s28:duplicate identifier exports),@(y7:x-error)[63}${."
-  "4,.4d,@(y5:rassq)[02},.0?{.0,.0,.4,'(s30:conflicting identifier export"
-  "s),@(y7:x-error)[73}.3,.3c]6",
+  "%2.0u?{.1]2}${.3,.3d,@(y11:adjoin-esps)[02},.1a,.1,.1A2?{.1]4}${.3,.3d"
+  ",@(y5:rassq)[02},.0?{.0,.0,.3,'(s30:conflicting identifier exports),@("
+  "y7:x-error)[63}.2,.2c]5",
 
   "P", "preprocess-import-sets",
   "%2,,#0#1&0{%1${.2,@(y6:list2?)[01}?{${.2a,@(y3:id?)[01}?{.0da,@(y3:id?"
@@ -1791,7 +1790,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.7.8)@!(y15:*skint-version*)",
+  "'(s5:0.7.9)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",

@@ -50,8 +50,12 @@
 (test-eqv "list->integer" 9 (list->integer '(#t #f #f #t)))
 (test-eqv "list->integer" 9 (list->integer '(#f #f #t #f #f #t)))
 
-#| esl: skint fixnums are less than 32 bits!
-;; tests bignum path
+(test-equal "booleans->integer" 9 (booleans->integer #f #f #t #f #f #t))
+
+(cond-expand ((not full-numeric-tower) (test-end)))
+
+;; bignum tests
+
 (test-eqv "list->integer"
   (+ (expt 2 63) (expt 2 62) (expt 2 31) (expt 2 30) 1)
   (list->integer '(#t #t #f #f #f #f #f #f
@@ -62,8 +66,5 @@
                       #f #f #f #f #f #f #f #f
                       #f #f #f #f #f #f #f #f
                       #f #f #f #f #f #f #f #t)))
-|#
-
-(test-equal "booleans->integer" 9 (booleans->integer #f #f #t #f #f #t))
 
 (test-end)
