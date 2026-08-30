@@ -147,9 +147,9 @@ typedef struct stat stat_t;
 
 /* z is zero, but is it negative zero? */
 #if  (defined(_MSC_VER) && _MSC_VER >= 1800) || defined(signbit)
-#  define zero_is_negative(z) signbit(z)
+#  define zero_is_neg(z) signbit(z)
 #else
-#  define zero_is_negative(z) (1.0 / (z) < 0.0)
+#  define zero_is_neg(z) (1.0/(z) < 0.0)
 #endif
 
 #if !defined(static_inline) 
@@ -193,14 +193,14 @@ static_inline double ieee_fminimum(double x, double y) {
   return (x != x) ? x * 1.0 : (y != y) ? y * 1.0 :
          (x < y)  ? x : (y < x)  ? y :
          (x != 0.0) ? x :
-         (zero_is_negative(x) || zero_is_negative(y)) ? -0.0 : 0.0;
+         (zero_is_neg(x) || zero_is_neg(y)) ? -0.0 : 0.0;
 }
 
 static_inline double ieee_fmaximum(double x, double y) {
   return (x != x) ? x * 1.0 : (y != y) ? y * 1.0 :
          (x > y)  ? x : (y > x)  ? y :
          (x != 0.0) ? x :
-         (zero_is_negative(x) && zero_is_negative(y)) ? -0.0 : 0.0;
+         (zero_is_neg(x) && zero_is_neg(y)) ? -0.0 : 0.0;
 }
 
 #endif

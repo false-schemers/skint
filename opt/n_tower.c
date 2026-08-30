@@ -43,7 +43,7 @@ static double c90_copysign(double x, double y)
 {
   if (y < 0.0) return -fabs(x);
   if (y > 0.0) return fabs(x);
-  return (1.0/y < 0.0) ? -fabs(x) : fabs(x);
+  return zero_is_neg(y) ? -fabs(x) : fabs(x);
 }
 #define copysign(x, y) c90_copysign(x, y)
 #endif
@@ -140,7 +140,7 @@ double c90_cbrt(double x)
 void cmath_exp(double rx, double ix, double *prz, double *piz) 
 {
   double er;
-  int ix_neg = (ix < 0.0) || (ix == 0.0 && 1.0/ix < 0.0);
+  int ix_neg = (ix < 0.0) || (ix == 0.0 && zero_is_neg(ix));
   if (ix == 0.0) { *prz = exp(rx); *piz = ix; return; }
   if (rx != rx) { *prz = rx; *piz = ix; return; }
   er = exp(rx);
@@ -169,8 +169,8 @@ void cmath_log(double rx, double ix, double *prz, double *piz)
 void cmath_sqrt(double rx, double ix, double *prz, double *piz) 
 {
   double m, re, im;
-  int ix_neg = (ix < 0.0) || (ix == 0.0 && 1.0/ix < 0.0);
-  int rx_neg = (rx < 0.0) || (rx == 0.0 && 1.0/rx < 0.0);
+  int ix_neg = (ix < 0.0) || (ix == 0.0 && zero_is_neg(ix));
+  int rx_neg = (rx < 0.0) || (rx == 0.0 && zero_is_neg(rx));
   if (rx != rx || ix != ix) { *prz = *piz = HUGE_VAL - HUGE_VAL; return; }
   if (ix == HUGE_VAL || ix == -HUGE_VAL) 
     { *prz = HUGE_VAL; *piz = ix_neg ? -HUGE_VAL : HUGE_VAL; return; }
@@ -357,7 +357,7 @@ double cmath_hypot(double x, double y)
 void cmath_cbrt(double rx, double ix, double *prz, double *piz) 
 {
   double m, r_cbrt, theta, max_val;
-  int ix_neg = (ix < 0.0) || (ix == 0.0 && 1.0/ix < 0.0);
+  int ix_neg = (ix < 0.0) || (ix == 0.0 && zero_is_neg(ix));
   if (rx != rx || ix != ix) { *prz = *piz = rx + ix; return; }
   if (rx == HUGE_VAL || rx == -HUGE_VAL || ix == HUGE_VAL || ix == -HUGE_VAL) {
     if (rx == -HUGE_VAL && fabs(ix) < HUGE_VAL) 
@@ -7955,7 +7955,7 @@ static int realsign(numt_t xt, const nump_t *xp)
   if (isflo(xt)) {
     double d = getflo(xp); 
     if (d > 0.0) return 1;
-    if (d < 0.0 || 1.0/d < 0.0) return -1; /* -0 */
+    if (d < 0.0 || zero_is_neg(d)) return -1; /* -0 */
     return 0;
   }
   return ratsign(xt, xp);
@@ -8102,7 +8102,7 @@ static int gnumeqv(numt_t xt, const nump_t *xp, numt_t yt, const nump_t *yp)
         double x = getflo(xp), y = getflo(yp);
         if (x != x && y != y) break; /* all NaNs are eqv? to e.o. */
         if (x != y) return 0; /* definitely different */
-        if (!x && !y && 1.0/x != 1.0/y) return 0; /* 0 not eqv? to -0 */
+        if (!x && !y && zero_is_neg(x) != zero_is_neg(y)) return 0; /* 0 not eqv? to -0 */
       } break;
     }
     xt >>= 2; ++xp; ++yp;
@@ -8962,7 +8962,7 @@ static numt_t gnumangl(nump_t *zp, numt_t xt, const nump_t *xp)
   if (isfix(xt) && getfix(xp) == 0) return setfail(EDOM);
   if (isflo(xt)) {
     double x = getflo(xp);
-    int neg = (x == 0.0) ? 1.0/x < 0.0 : x < 0.0; 
+    int neg = (x == 0.0) ? zero_is_neg(x) : x < 0.0; 
     return setflo(zp, neg ? M_PI : 0.0);
   } else if (israt(xt)) {
     return ratsign(xt, xp) < 0 ? setflo(zp, M_PI) : setfix(zp, 0);
@@ -9070,7 +9070,7 @@ static numt_t gnumlog(nump_t *zp, numt_t xt, const nump_t *xp)
     return NUMT_MKCOM(setflo(zp, z), setflo(zp+2, M_PI));
   } else if (isflo(xt)) {
     double x = getflo(xp);
-    /* if (x > 0.0 || x == 0.0 && 1.0/x > 0.0) return setflo(zp, log(x)); */
+    /* if (x > 0.0 || x == 0.0 && !zero_is_neg(x) > 0.0) return setflo(zp, log(x)); */
     if (x >= 0.0) return setflo(zp, log(x));
     return NUMT_MKCOM(setflo(zp, log(-x)), setflo(zp+2, M_PI));
   } else if (isrect(xt)) {
@@ -9249,11 +9249,11 @@ numt_t gnumasin(nump_t *zp, numt_t xt, const nump_t *xp)
     cmath_asin(rx, ix, &re, &im);
     /* C99 conventions => R7RS */
     if (isreal(xt)) { 
-      if       (rx > 1.0) im = -fabs(im);
-      else if (rx < -1.0) im =  fabs(im);
+      if       (rx > 1.0)    im = -fabs(im);
+      else if (rx < -1.0)    im =  fabs(im);
     } else if (ix == 0.0) {
-      if   (1.0/ix < 0.0) im = -fabs(im);
-      else                im = fabs(im);
+      if   (zero_is_neg(ix)) im = -fabs(im);
+      else                   im = fabs(im);
     }
     return NUMT_MKCOM(setflo(zp, re), setflo(zp+2, im));
   }
@@ -9289,11 +9289,11 @@ numt_t gnumacos(nump_t *zp, numt_t xt, const nump_t *xp)
     cmath_acos(rx, ix, &re, &im);
     /* C99 conventions => R7RS */
     if (isreal(xt)) {
-      if       (rx > 1.0) im = fabs(im);
-      else if (rx < -1.0) im = -fabs(im);
+      if       (rx > 1.0)    im = fabs(im);
+      else if (rx < -1.0)    im = -fabs(im);
     } else if (ix == 0.0) {
-      if   (1.0/ix < 0.0) im = fabs(im);
-      else                im = -fabs(im);
+      if   (zero_is_neg(ix)) im = fabs(im);
+      else                   im = -fabs(im);
     }
     return NUMT_MKCOM(setflo(zp, re), setflo(zp+2, im));
   }
@@ -9366,11 +9366,11 @@ static numt_t gnumatan2(nump_t *zp, numt_t yt, const nump_t *yp, numt_t xt, cons
       if (x <= -HUGE_VAL) return setflo(zp, -M_PI+M_PI_4);
     } else if (y == 0.0) {
       /* atan2(-0.0,-1.0) => -pi */
-      if (1.0/y < 0.0 && x == -1.0) return setflo(zp, -M_PI);
+      if (zero_is_neg(y) && x == -1.0) return setflo(zp, -M_PI);
       /* atan2(-0.0,-0.0) => -pi */
-      if (1.0/y < 0.0 && x == 0.0 && 1.0/x < 0.0) return setflo(zp, -M_PI);
+      if (zero_is_neg(y) && x == 0.0 && zero_is_neg(x)) return setflo(zp, -M_PI);
       /* atan2(+0.0,-0.0) => +pi */
-      if (1.0/y >= 0.0 && x == 0.0 && 1.0/x < 0.0) return setflo(zp, M_PI);
+      if (!zero_is_neg(y) && x == 0.0 && zero_is_neg(x)) return setflo(zp, M_PI);
     }
     return setflo(zp, atan2(y, x));
   }

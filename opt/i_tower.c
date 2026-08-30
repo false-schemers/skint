@@ -859,7 +859,7 @@ define_instruction(angl) {
     gonexti(); 
   } else if (likely(is_flonum(ac))) {
     double x = get_flonum(ac);
-    int neg = (x == 0.0) ? 1.0/x < 0.0 : x < 0.0;
+    int neg = (x == 0.0) ? zero_is_neg(x) : x < 0.0;
     ac = flonum_obj(neg ? M_PI : 0.0);
     gonexti(); 
   } else if (likely(is_bignum(ac))) { 
