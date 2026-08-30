@@ -9,6 +9,26 @@
 (define *tests-run* 0)
 (define *tests-passed* 0)
 
+;; variant of good-enough by willc
+(define (approx=? x y)
+  ;; relative error should be with 0.1%, but greater
+  ;; relative error is allowed when the expected value
+  ;; is near zero.
+  (cond ((infinite? x) (= x (* 2.0 y)))
+        ((infinite? y) (= (* 2.0 x) y))
+        ((nan? x)      (nan? y))
+        ((nan? y)      (nan? x))
+        ((> (abs y) 1e-7)
+         (< (/ (abs (- x y)) (abs y)) 1e-10))
+        (else
+         (< (abs (- x y)) 1e-13))))
+
+(define (same? x y)
+  (cond ((and (number? x) (inexact? x) (number? y) (inexact? y))
+         (and (approx=? (real-part x) (real-part y)) 
+              (approx=? (imag-part x) (imag-part y))))
+        (else (equal? x y))))
+
 (define-syntax test
   (syntax-rules ()
     ((test name expect expr)
@@ -51,7 +71,7 @@
 
 (define-syntax test~=
   (syntax-rules ()
-    ((test~= val expr) (test (number->string val) (number->string expr)))))
+    ((test~= val expr) (test #t (same? val expr)))))
 
 
 (define (test-begin . name)
