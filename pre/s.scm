@@ -1768,16 +1768,17 @@
                                  (loop (cons c l))]
                                 [(char=? c #\#) 
                                  (let* ([s (list->string (reverse! l))] [n (string->number s)])
-                                   (cond [(and (fixnum? n) (assq n shared)) => cdr]
+                                   (cond [(and n (assv n shared)) => cdr]
                                          [else (r-error p "unknown #n# reference:" s)]))]   
                                 [(char=? c #\=) 
                                  (let* ([s (list->string (reverse! l))] [n (string->number s)])
-                                   (cond [(not (fixnum? n)) (r-error p "invalid #n= reference:" s)]
-                                         [(assq n shared) (r-error p "duplicate #n= tag:" n)])
-                                   (let ([loc (box #f)])
-                                     (set! shared (cons (cons n (make-shared-ref loc)) shared))
+                                   (cond [(not n) (r-error p "invalid #n= reference:" s)]
+                                         [(assv n shared) (r-error p "duplicate #n= tag:" n)])
+                                   (let* ([loc (box #f)] [ref (make-shared-ref loc)])
+                                     (set! shared (cons (cons n ref) shared))
                                      (let ([form (sub-read-carefully p)])
-                                       (cond [(shared-ref? form) (r-error p "#n= has another label as target" s)]
+                                       (cond [(eq? form ref) (r-error p "#n= has itself as target" s)]
+                                             ;[(shared-ref? form) (r-error p "#n= has another label as target" s)]
                                              [else (set-box! loc form) form]))))]
                                 [else (r-error p "invalid terminator for #N notation")])))]
                      [else (r-error p "unknown # syntax" c)]))]
