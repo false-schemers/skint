@@ -1764,14 +1764,14 @@
                         (let ([c (read-char p)])
                           (cond [(eof-object? c)
                                  (r-error p "end of file within a #N notation")]
-                                [(char-numeric? c)
-                                 (loop (cons c l))]
+                                [(char-numeric? c) ; ignore leading 0s following CL
+                                 (loop (if (and (null? l) (char=? c #\0)) l (cons c l)))]
                                 [(char=? c #\#) 
-                                 (let* ([s (list->string (reverse! l))])
+                                 (let ([s (if (null? l) "0" (list->string (reverse! l)))])
                                    (cond [(assoc s shared) => cdr]
                                          [else (r-error p "unknown #n# reference:" s)]))]   
                                 [(char=? c #\=) 
-                                 (let* ([s (list->string (reverse! l))])
+                                 (let ([s (if (null? l) "0" (list->string (reverse! l)))])
                                    (when (assoc s shared) (r-error p "duplicate #n= tag:" s))
                                    (let* ([loc (box #f)] [ref (make-shared-ref loc)])
                                      (set! shared (cons (cons s ref) shared))
