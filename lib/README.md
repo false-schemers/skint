@@ -53,7 +53,7 @@ This directory contains additional external libraries in a form of .sld files. T
 98
 111
 113
-115*
+115+
 116
 117
 121
@@ -78,7 +78,7 @@ This directory contains additional external libraries in a form of .sld files. T
 153
 156
 158
-160*
+160+
 162
 165
 171
@@ -88,7 +88,7 @@ This directory contains additional external libraries in a form of .sld files. T
 176
 189
 193
-194*
+194+
 196
 197
 214
@@ -108,10 +108,12 @@ This directory contains additional external libraries in a form of .sld files. T
 239
 244
 251
-252*
+252+
 253
 257
 264
 
 Note: SRFIs marked with an asterisk are implemented in abridged form: parts that require support for either full Unicode or a full numerical
-tower (both features are not required by R7RS-small) are omitted.
+tower (both features are not required by R7RS Small) are omitted. SRFIs marked with a plus are implemented in abridged form in basic 
+configuration, but automatically provide full functionality if the corresponding option (`OPT_TOWER` / `OPT_UNICODE`) was configured
+or selected at SKINT build time. 
