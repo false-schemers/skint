@@ -37,8 +37,8 @@ Fine-tuning the manual build
 
 - `-DNDEBUG` removes internal assertions.  
 - `-DNAN_BOXING` activates NaN-boxing (needs 48-bit address space, typical on 64-bit Linux/MacOS/Windows).
-- `-DOPT_UNICODE` enables full Unicode support (otherwise, strings are 8-bit clean and use the system locale).
 - `-DOPT_TOWER` enables full numerical tower support (otherwise, only 30-bit fixnums and double-precision flonums are supported).
+- `-DOPT_UNICODE` enables full Unicode support (otherwise, strings are 8-bit clean and use the system locale).
 - `-DOPT_ENHTTY` enables built-in REPL console line editing. Note that on Linux, this option requires linking against the dynamic linking library via `-ldl`. 
 
 Traditional build (Un*x & MacOS)
@@ -61,17 +61,22 @@ Traditional build (Un*x & MacOS)
    make           # uses the included Makefile
    ```
 
-4. **Run the test suite** (≈ 2 s)
+4. **Run the basic test suite** (≈ 2 s)
    ```bash
    make test
    ```
    
-5. **Run the external libraries test suite** (≈ 20 s)
+5. **Run the test suite for options** (≈ 5 s)
+   ```bash
+   make opttest
+   ```
+      
+6. **Run the external libraries test suite** (≈ 20 s)
    ```bash
    make libtest
    ```
    
-5. **Install**
+7. **Install**
    ```bash
    sudo make install        # or just `make install` if prefix is writable
    sudo make libinstall     # ditto, install optional external libraries
