@@ -1,6 +1,7 @@
 
 ;[esl] adapted from ref. impl. by Arvydas Silanskas et al.
-;[esl] limited to numbers that Skint supports (fixnums/flonums) 
+;[esl] tailored to numbers supported by Skint (fixnums/flonums/full tower)
+
 ; SPDX-FileCopyrightText: 2020 Arvydas Silanskas
 ; SPDX-License-Identifier: MIT
 
@@ -14,6 +15,8 @@
           (srfi 27)
           (srfi 133)
           (srfi 158))
+
+  (import (only (skint) fixnum?)) ;[esl+] guard for skint's (srfi 27) implementation
 
   (export
     clamp-real-number
@@ -46,6 +49,14 @@
     make-ball-generator
     make-random-source-generator
     gsampling)
+
+  (cond-expand 
+    (full-numeric-tower ;[esl*]
+      (export 
+        make-random-u32-generator make-random-s32-generator
+        make-random-u64-generator make-random-s64-generator
+        make-random-rectangular-generator
+        make-random-polar-generator)))
 
 (begin 
 
@@ -99,7 +110,8 @@
   (unless (< low-bound up-bound)
     (error "upper bound should be greater than lower bound"))
   (let ((range (- up-bound low-bound)))
-    (if (exact? range) ; range fits into a fixnum
+    ;[esl+] guard for skint's (srfi 27) implementation
+    (if (fixnum? range) ; range fits into a positive fixnum as expected by ou RNG
         (let ((rand-int-proc (random-source-make-integers (current-random-source))))
            (lambda () (+ low-bound (rand-int-proc range))))
         ; [esl+] else range is too big to fit into a fixnum: use flonums
@@ -119,14 +131,16 @@
   (make-random-integer-generator 0 65536))
 (define (make-random-s16-generator)
   (make-random-integer-generator -32768 32768))
-#;(define (make-random-u32-generator)
-  (make-random-integer-generator 0 (expt 2 32)))
-#;(define (make-random-s32-generator)
-  (make-random-integer-generator (- (expt 2 31)) (expt 2 31)))
-#;(define (make-random-u64-generator)
-  (make-random-integer-generator 0 (expt 2 64)))
-#;(define (make-random-s64-generator)
-  (make-random-integer-generator (- (expt 2 63)) (expt 2 63)))
+(cond-expand 
+  (full-numeric-tower ;[esl*]
+    (define (make-random-u32-generator)
+      (make-random-integer-generator 0 (expt 2 32)))
+    (define (make-random-s32-generator)
+      (make-random-integer-generator (- (expt 2 31)) (expt 2 31)))
+    (define (make-random-u64-generator)
+      (make-random-integer-generator 0 (expt 2 64)))
+    (define (make-random-s64-generator)
+      (make-random-integer-generator (- (expt 2 63)) (expt 2 63)))))
 
 (define (clamp-real-number lower-bound upper-bound value)
   (cond ((not (real? lower-bound))
@@ -155,48 +169,47 @@
      (+ (* t low-bound)
         (* (- 1.0 t) up-bound)))))
 
-#| [esl-] -- need complex support
-(define (make-random-rectangular-generator
-          real-lower-bound real-upper-bound
-          imag-lower-bound imag-upper-bound)
-  (let ((real-gen (make-random-real-generator real-lower-bound real-upper-bound))
-        (imag-gen (make-random-real-generator imag-lower-bound imag-upper-bound)))
-    (lambda ()
-      (make-rectangular (real-gen) (imag-gen)))))
-
-(define make-random-polar-generator
-  (case-lambda
-    ((magnitude-lower-bound magnitude-upper-bound)
-     (make-random-polar-generator 0+0i magnitude-lower-bound magnitude-upper-bound 0 (* 2 PI)))
-    ((origin magnitude-lower-bound magnitude-upper-bound)
-     (make-random-polar-generator origin magnitude-lower-bound magnitude-upper-bound 0 (* 2 PI)))
-    ((magnitude-lower-bound magnitude-upper-bound angle-lower-bound angle-upper-bound)
-     (make-random-polar-generator 0+0i magnitude-lower-bound magnitude-upper-bound angle-lower-bound angle-upper-bound))
-    ((origin magnitude-lower-bound magnitude-upper-bound angle-lower-bound angle-upper-bound)
-     (unless (complex? origin)
-       (error "origin should be complex number"))
-     (unless (and (real? magnitude-lower-bound)
-                  (real? magnitude-upper-bound)
-                  (real? angle-lower-bound)
-                  (real? angle-upper-bound))
-       (error "magnitude and angle bounds should be real numbers"))
-     (unless (and (<= 0 magnitude-lower-bound)
-                  (<= 0 magnitude-upper-bound))
-       (error "magnitude bounds should be positive"))
-     (unless (< magnitude-lower-bound magnitude-upper-bound)
-       (error "magnitude lower bound should be less than upper bound"))
-     (when (= angle-lower-bound angle-upper-bound)
-       (error "angle bounds shouldn't be equal"))
-     (let* ((b (square magnitude-lower-bound))
-            (m (- (square magnitude-upper-bound) b))
-            (t-gen (make-random-real-generator 0. 1.))
-            (phi-gen (make-random-real-generator angle-lower-bound angle-upper-bound)))
-       (lambda ()
-         (let* ((t (t-gen))
-                (phi (phi-gen))
-                (r (sqrt (+ (* m t) b))))
-          (+ origin (make-polar r phi))))))))
-|#
+(cond-expand 
+  (full-numeric-tower ;[esl*]
+    (define (make-random-rectangular-generator
+              real-lower-bound real-upper-bound
+              imag-lower-bound imag-upper-bound)
+      (let ((real-gen (make-random-real-generator real-lower-bound real-upper-bound))
+            (imag-gen (make-random-real-generator imag-lower-bound imag-upper-bound)))
+        (lambda ()
+          (make-rectangular (real-gen) (imag-gen)))))
+    (define make-random-polar-generator
+      (case-lambda
+        ((magnitude-lower-bound magnitude-upper-bound)
+        (make-random-polar-generator 0 magnitude-lower-bound magnitude-upper-bound 0 (* 2 PI))) ; [esl*] first 0 was 0+0i
+        ((origin magnitude-lower-bound magnitude-upper-bound)
+        (make-random-polar-generator origin magnitude-lower-bound magnitude-upper-bound 0 (* 2 PI)))
+        ((magnitude-lower-bound magnitude-upper-bound angle-lower-bound angle-upper-bound)
+        (make-random-polar-generator 0 magnitude-lower-bound magnitude-upper-bound angle-lower-bound angle-upper-bound)) ; [esl*] 0 was 0+0i
+        ((origin magnitude-lower-bound magnitude-upper-bound angle-lower-bound angle-upper-bound)
+        (unless (complex? origin)
+          (error "origin should be complex number"))
+        (unless (and (real? magnitude-lower-bound)
+                      (real? magnitude-upper-bound)
+                      (real? angle-lower-bound)
+                      (real? angle-upper-bound))
+          (error "magnitude and angle bounds should be real numbers"))
+        (unless (and (<= 0 magnitude-lower-bound)
+                      (<= 0 magnitude-upper-bound))
+          (error "magnitude bounds should be positive"))
+        (unless (< magnitude-lower-bound magnitude-upper-bound)
+          (error "magnitude lower bound should be less than upper bound"))
+        (when (= angle-lower-bound angle-upper-bound)
+          (error "angle bounds shouldn't be equal"))
+        (let* ((b (square magnitude-lower-bound))
+                (m (- (square magnitude-upper-bound) b))
+                (t-gen (make-random-real-generator 0. 1.))
+                (phi-gen (make-random-real-generator angle-lower-bound angle-upper-bound)))
+          (lambda ()
+            (let* ((t (t-gen))
+                    (phi (phi-gen))
+                    (r (sqrt (+ (* m t) b))))
+              (+ origin (make-polar r phi))))))))))
 
 (define (make-random-boolean-generator)
   (define u1 (make-random-u1-generator))

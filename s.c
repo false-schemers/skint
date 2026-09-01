@@ -278,43 +278,22 @@ char *s_code[] = {
   "%2.1,.1Nr,.2,.2Nq,@(y6:values)[22",
 
   "P", "lcm",
-  "%!0.0u?{'1]1}.0d,.1a,,#0.0,&1{%2.1u?{.0]2}.1a,.0,.2Ng,.3d,.1=0?{.1}{.2"
-  "Na,.2,.5NaNq*},:0^[42}.!0.0^_1[12",
+  "%!0.0u?{'1]1}.0d,.1aNa,,#0.0,&1{%2.1u?{.0]2}.1aNa,.0,.2Ng,.3d,.1=0?{.1"
+  "}{.2,.2,.5Nq*},:0^[42}.!0.0^_1[12",
 
-  "P", "numerator",
-  "%1.0]1",
-
-  "P", "denominator",
-  "%1'1]1",
-
-  "P", "rationalize",
-  "%2.0]2",
+  "C", 0,
+  ",,#0#1.1,&1{%2'0,.1>?{.1,.1,:0^[22}'0,.2<?{${.2-!,.4-!,:0^[02}-!]2}.0T"
+  "i?{.1Ti}{f}?{'0]2}'(j0.0)]2}.!0.1,&1{%2.1Nb,.1Nb,.2,.1=?{.0]4}.1,.1=?{"
+  "${.2,.5-,'1/,.4,.7-,'1/,:0^[02},'1/,.1+]4}'1,.1+]4}.!1.0,&1{%2.0Ns~?{$"
+  "{.2,'(s30:rationalize: not a real number),@(y5:error)[02}}.1Ns~?{${.3,"
+  "'(s30:rationalize: not a real number),@(y5:error)[02}}.1,.1+,.2,.2-,.1"
+  ",.1<?{.1,.1,:0^[42}.0,.2<?{.0,.2,:0^[42}.0]4}_2@!(y11:rationalize)",
 
   "P", "square",
   "%1.0,.1*]1",
 
   "P", "exact-integer-sqrt",
-  "%1'0,#0.0,.2It,.1^,.1,@(y6:values)[32",
-
-  "P", "make-rectangular",
-  "%2'0,.2=?{.0]2}.1,'(s49:make-rectangular: nonzero imag part not suppor"
-  "ted),@(y5:error)[22",
-
-  "P", "make-polar",
-  "%2'0,.2=?{.0]2}'(j3.1415926535897931),.2=?{.0-!]2}.1,'(s31:make-polar:"
-  " angle not supported),@(y5:error)[22",
-
-  "P", "real-part",
-  "%1.0]1",
-
-  "P", "imag-part",
-  "%1'0]1",
-
-  "P", "magnitude",
-  "%1.0Na]1",
-
-  "P", "angle",
-  "%1.0<0?{'(j3.1415926535897931)]1}'0]1",
+  "%1'0,#0.0,.2Gt,.1^,.1,@(y6:values)[32",
 
   "P", "%append",
   "%!0.0,,#0.0,&1{%1.0u?{n]1}.0du?{.0a]1}${.2d,:0^[01},.1aL6]1}.!0.0^_1[1"
@@ -722,8 +701,8 @@ char *s_code[] = {
   "P", "read-error",
   "%!2#2,,,,#0#1#2#3f.!0f.!1f.!2f.!3${.5,.5,.5,.5,.(i11),@(y14:%25port-lo"
   "cation)[05}?{${.5^,.5^,.(i10)^,.8^S3,.7^,.7^,'(s21:~a:~a:~a: ~a~%25~a~"
-  "%25~a^),@(y6:format)[07}.!6}${.6,.9^,'(y4:read),@(y12:error-object)[03"
-  "},@(y5:raise)[71",
+  "%25~a^),@(y6:format)[07}.!6}{.5P09?{${.8^,'(s5:-: ~a),@(y6:format)[02}"
+  ".!6}{f}}${.6,.9^,'(y4:read),@(y12:error-object)[03},@(y5:raise)[71",
 
   "P", "read-error?",
   "%1${.2,@(y13:error-object?)[01}?{'(y4:read),${.3,@(y17:error-object-ki"
@@ -857,6 +836,9 @@ char *s_code[] = {
   "&0{%2.1,.1,@(y18:read-subbytevector)[22}%x,&0{%1Pi,.1,@(y18:read-subby"
   "tevector)[12}%x,&2{|10|21%%}@!(y15:read-bytevector)",
 
+  "P", "symbol-downcase",
+  "%1.0Y0?{.0X4SdX5]1}.0]1",
+
   "P", "%read",
   "%3,,,,,,,,,,,,,,,,,,,,,,,#0#1#2#3#4#5#6#7#8#9#(i10)#(i11)#(i12)#(i13)#"
   "(i14)#(i15)#(i16)#(i17)#(i18)#(i19)#(i20)#(i21)#(i22).(i25),.0?{.0}{.("
@@ -878,99 +860,109 @@ char *s_code[] = {
   ",'(s17:unexpected token:),.3,@(y10:read-error)[23}.0]2}.!(i16).(i16),&"
   "1{%1'(c ),.1R1v?{${.2R6,@(y22:string-trim-whitespace)[01}X5]1}.0,:0^[1"
   "1}.!(i17).0,.(i12),.(i14),.(i24),.(i21),.(i25),.(i24),.(i17),.(i27),.("
-  "i31),.(i25),.(i14),.(i28),.(i15),.(i15),.(i39),&(i16){%1.0,:(i15)^Ra,."
-  "0C0~?{.0]2}'(c(),.1C=?{t,:8^,.3,.3,:7^[24}'(c)),.1C=?{:8^]2}'(c[),.1C="
-  "?{t,:(i14)^,.3,.3,:7^[24}'(c]),.1C=?{:(i14)^]2}'(c.),.1C=?{:(i13)^]2}'"
-  "(c'),.1C=?{${.3,:3^[01},'(y5:quote),l2]2}'(c`),.1C=?{${.3,:3^[01},'(y1"
-  "0:quasiquote),l2]2}'(cn),.1C=?{'(s54:unsupported number syntax (implem"
-  "entation restriction)),.2,@(y10:read-error)[22}'(cd),.1C=?{'(s17:inval"
-  "id delimiter),.2,@(y10:read-error)[22}'(cy),.1C=?{'(s25:unsupported sy"
-  "mbol syntax),.2,@(y10:read-error)[22}'(cz),.1C=?{'(s13:invalid token),"
-  ".2,@(y10:read-error)[22}'(c,),.1C=?{.1R1,.0R8?{'(s19:end of file after"
-  " ,),.3,@(y10:read-error)[32}'(c@),.1C=?{.2R0${.4,:3^[01},'(y16:unquote"
-  "-splicing),l2]3}${.4,:3^[01},'(y7:unquote),l2]3}'(c%22),.1C=?{n,,#0.3,"
-  ":(i12),.2,&3{%1:2R0,.0R8?{'(s27:end of file within a string),:2,@(y10:"
-  "read-error)[22}'(c%5c),.1C=?{${'(y6:string),:2,:1^[02},.0?{.2,.1c}{.2}"
-  ",:0^[31}'(c%22),.1C=?{.1A9X3]2}.1,.1c,:0^[21}.!0.0^_1[21}'(c|),.1C=?{n"
-  ",,#0.3,:(i12),.2,&3{%1:2R0,.0R8?{'(s29:end of file within a |symbol|),"
-  ":2,@(y10:read-error)[22}'(c%5c),.1C=?{${'(y6:symbol),:2,:1^[02},.0?{.2"
-  ",.1c}{.2},:0^[31}'(c|),.1C=?{.1A9X3X5]2}.1,.1c,:0^[21}.!0.0^_1[21}'(c#"
-  "),.1C=?{.1R1,.0R8?{'(s19:end of file after #),.3,@(y10:read-error)[32}"
-  "'(c!),.1C=?{.2R0${.4,:(i11)^[01},.0,'(l2:y9:fold-case;y12:no-fold-case"
-  ";),.1A1?{'(y9:fold-case),.2q:!(i15):(i15)^,.5P79.4,:9^[51}.1Y0?{.1Y6]5"
-  "}.1,'(s24:unexpected name after #!),.6,@(y10:read-error)[53}'(ct),.1Ci"
-  "=,.0?{.0}{'(cf),.2Ci=,.0?{.0}{'(cs),.3Ci=,.0?{.0}{'(cu),.4Ci=}_1}_1}_1"
-  "?{${.4,:3^[01},.0,'(l2:y1:t;y4:true;),.1A1?{t]5}'(l2:y1:f;y5:false;),."
-  "1A1?{f]5}'(y2:u8),.1v?{'0,${.4,.8,:(i10)^[02}E2]5}'(y2:s8),.1v?{'1,${."
-  "4,.8,:(i10)^[02}E2]5}'(y3:u16),.1v?{'2,${.4,.8,:(i10)^[02}E2]5}'(y3:s1"
-  "6),.1v?{'3,${.4,.8,:(i10)^[02}E2]5}'(y3:f32),.1v?{'(i10),${.4,.8,:(i10"
-  ")^[02}E2]5}'(y3:f64),.1v?{'(i11),${.4,.8,:(i10)^[02}E2]5}.1,'(s23:unex"
-  "pected name after #),.6,@(y10:read-error)[53}'(c&),.1C=?{.2R0${.4,:3^["
-  "01}b]3}'(c;),.1C=?{.2R0${.4,:3^[01}.2,:9^[31}'(c|),.1C=?{.2R0${,#0.5,."
-  "1,&2{%0:1R0,.0R8?{'(s25:end of file in #| comment),:1,@(y10:read-error"
-  ")[12}'(c|),.1C=?{:1R1,.0R8?{'(s25:end of file in #| comment),:1,@(y10:"
-  "read-error)[22}'(c#),.1C=?{:1R0]2}:0^[20}'(c#),.1C=?{:1R1,.0R8?{'(s25:"
-  "end of file in #| comment),:1,@(y10:read-error)[22}'(c|),.1C=?{:1R0${:"
-  "0^[00}:0^[20}:0^[20}:0^[10}.!0.0^_1[00}.2,:9^[31}'(c(),.1C=?{.2R0${f,:"
-  "8^,.6,.5,:7^[04}X1]3}'(c%5c),.1C=?{.2R0.2R1,.0R8?{'(s20:end of file af"
-  "ter #%5c),.4,@(y10:read-error)[42}.0,'(cx)C=?{.3R0${.5R1,:5^[01}?{.0]4"
-  "}f,.4,:6^[42}.0C4?{${.5,:3^[01},'1,.1X4S3=?{.1]5}.0,'(y4:null),.1v?{'0"
-  "X9]6}'(y5:space),.1v?{'(c )]6}'(y5:alarm),.1v?{'(c%07)]6}'(y9:backspac"
-  "e),.1v?{'(c%08)]6}'(y6:delete),.1v?{'(i127)X9]6}'(y6:escape),.1v?{'(i2"
-  "7)X9]6}'(y3:tab),.1v?{'(c%09)]6}'(l2:y7:newline;y8:linefeed;),.1A1?{'("
-  "c%0a)]6}'(y4:vtab),.1v?{'(c%0b)]6}'(y4:page),.1v?{'(c%0c)]6}'(y6:retur"
-  "n),.1v?{'(c%0d)]6}.1,'(s15:unknown #%5c name),.7,@(y10:read-error)[63}"
-  ".3R0.0]4}.0C5?{:0?{${'(s44:#N=/#N# notation is not allowed in this mod"
-  "e),.5,@(y10:read-error)[02}}n,,#0.4,.1,:4,:3,:2,:1,&6{%1:5R0,.0R8?{'(s"
-  "32:end of file within a #N notation),:5,@(y10:read-error)[22}.0C5?{.1,"
-  ".1c,:4^[21}'(c#),.1C=?{.1A9X3,'(i10),.1E9,.0I0?{:0^,.1A3}{f},.0?{.0d]5"
-  "}.2,'(s22:unknown #n# reference:),:5,@(y10:read-error)[53}'(c=),.1C=?{"
-  ".1A9X3,'(i10),.1E9,.0I0~?{${.3,'(s22:invalid #n= reference:),:5,@(y10:"
-  "read-error)[03}}{:0^,.1A3?{${.2,'(s18:duplicate #n= tag:),:5,@(y10:rea"
-  "d-error)[03}}{f}}fb,:0^,${.3,:1^[01},.3cc:!0${:5,:2^[01},${.2,:3^[01}?"
-  "{.3,'(s31:#n= has another label as target),:5,@(y10:read-error)[63}.0,"
-  ".2sz.0]6}'(s34:invalid terminator for #N notation),:5,@(y10:read-error"
-  ")[22}.!0.0^_1[31}.0,'(s16:unknown # syntax),.4,@(y10:read-error)[33}.0"
-  ",'(s22:illegal character read),.3,@(y10:read-error)[23}.!(i18).(i18),."
-  "(i14),.(i18),.(i15),&4{%4${.3,:3^[01},:0^,.1q?{'(s42:missing car -- ( "
-  "immediately followed by .),.3,@(y10:read-error)[52}.0,,#0.0,.5,:3,:2,."
-  "(i10),:1,.(i11),:0,&8{%1.0R8?{'(s41:eof inside list -- unbalanced pare"
-  "ntheses),:6,@(y10:read-error)[12}:1,.1q?{n]1}:0^,.1q?{:3?{${:6,:2^[01}"
-  ",${:6,:5^[01},:1,.1q?{.1]3}.0,'(s31:randomness after form after dot),:"
-  "6,@(y10:read-error)[33}'(s13:dot in #(...)),:6,@(y10:read-error)[12}${"
-  ".2,:4^[01}?{.0d,'(s20:error inside list --),:6,@(y10:read-error)[13}${"
-  "${:6,:5^[01},:7^[01},.1c]1}.!0.0^_1[51}.!(i19).(i13),.(i11),.(i20),&3{"
-  "%2'(c(),.1R0q~?{${${.5,'(s23:invalid ~avector syntax),@(y6:format)[02}"
-  ",.3,@(y10:read-error)[02}}${.2,:0^[01},,#0.3,.3,:0,.3,:2,:1,&6{%1.0R8?"
-  "{${:5,'(s19:eof inside ~avector),@(y6:format)[02},:4,@(y10:read-error)"
-  "[12}:0^,.1q?{n]1}${.2,:1^[01}?{.0d,${:5,'(s24:error inside ~avector --"
-  "),@(y6:format)[02},:4,@(y10:read-error)[13}'(y2:u8),:5q?{.0I0?{'(i255)"
-  ",.1,,'0I>!;I>!}{f}}{f},.0?{.0}{'(y2:s8),:5q?{.1I0?{'(i127),.2,,'(i-128"
-  ")I>!;I>!}{f}}{f},.0?{.0}{'(y3:u16),:5q?{.2I0?{'(i65535),.3,,'0I>!;I>!}"
-  "{f}}{f},.0?{.0}{'(y3:s16),:5q?{.3I0?{'(i32767),.4,,'(i-32768)I>!;I>!}{"
-  "f}}{f},.0?{.0}{'(y3:f32),:5q?{.4J0}{f},.0?{.0}{'(y3:f64),:5q?{.5J0}{f}"
-  "}_1}_1}_1}_1}_1?{${${:4,:3^[01},:2^[01},.1c]1}.0,${:5,:5,'(s29:invalid"
-  " ~a inside ~avector --),@(y6:format)[03},:4,@(y10:read-error)[13}.!0.0"
-  "^_1[21}.!(i20).(i22),&1{%2.0R0,.0R8?{${.4,'(s20:end of file within a),"
-  ".5,@(y10:read-error)[03}}'(c%5c),.1C=,.0?{.0}{'(c%22),.2C=,.0?{.0}{'(c"
-  "|),.3C=}_1}_1?{.0]3}'(ca),.1C=?{'(c%07)]3}'(cb),.1C=?{'(c%08)]3}'(ct),"
-  ".1C=?{'(c%09)]3}'(cn),.1C=?{'(c%0a)]3}'(cv),.1C=?{'(c%0b)]3}'(cf),.1C="
-  "?{'(c%0c)]3}'(cr),.1C=?{'(c%0d)]3}'(cx),.1C=?{t,.2,:0^[32}'(y6:string)"
-  ",.3q?{.0C1}{f}?{.1R1,'(c%0a),.2C=,,#0.0,.5,&2{%2.1R8,.0?{.0}{.2C1~}_1?"
-  "{.0?{f]2}'(s32:no newline in line ending escape),:0,@(y10:read-error)["
-  "22}.0?{'(c%0a),.2C=}{f}?{f]2}:0R0:0R1,.1,.0?{.0}{'(c%0a),.4C=}_1,:1^[2"
-  "2}.!0.0^_1[32}.0,'(y1::),.4,'(s22:invalid char escape in),.5,@(y10:rea"
-  "d-error)[35}.!(i21).7,.(i16),.(i16),.(i11),&4{%2,#0:3,.2,&2{%1.0u?{'(s"
-  "31:%5cx escape sequence is too short),:0,@(y10:read-error)[12}'(i16),."
-  "1A9X3X7,:1^,.1>?{'(s27:%5cx escape sequence overflow),:0,@(y10:read-er"
-  "ror)[22}.0X9]2}.!0'0,n,.3R1,,#0.0,.6,:0,:1,.8,.(i11),:2,&7{%3.0R8?{:1?"
-  "{'(s27:end of file within a string),:5,@(y10:read-error)[32}.1,:2^[31}"
-  ":1?{'(c;),.1C=}{f}?{:5R0.1,:2^[31}:1~?{${.2,:0^[01}}{f}?{.1,:2^[31}${."
-  "2,:3^[01}~?{.0,'(s37:unexpected char in %5cx escape sequence),:5,@(y10"
-  ":read-error)[33}:4^,.3>?{'(s30:%5cx escape sequence is too long),:5,@("
-  "y10:read-error)[32}:5R0'1,.3+,.2,.2c,:5R1,:6^[33}.!0.0^_1[33}.!(i22)${"
-  ".(i25),.(i21)^[01},${.2,.(i17)^[01}~?{.2^u?{.0](i27)}.0,.8^[(i27)1}.0d"
-  ",'(s17:unexpected token:),.(i26),@(y10:read-error)[(i27)3",
+  "i31),.(i25),.(i27),.(i13),.(i15),.(i38),&(i15){%1.0,:(i14)^Ra,.0C0~?{."
+  "0]2}'(c(),.1C=?{t,:7^,.3,.3,:6^[24}'(c)),.1C=?{:7^]2}'(c[),.1C=?{t,:(i"
+  "13)^,.3,.3,:6^[24}'(c]),.1C=?{:(i13)^]2}'(c.),.1C=?{:(i12)^]2}'(c'),.1"
+  "C=?{${.3,:3^[01},'(y5:quote),l2]2}'(c`),.1C=?{${.3,:3^[01},'(y10:quasi"
+  "quote),l2]2}'(cn),.1C=?{'(s54:unsupported number syntax (implementatio"
+  "n restriction)),.2,@(y10:read-error)[22}'(cd),.1C=?{'(s17:invalid deli"
+  "miter),.2,@(y10:read-error)[22}'(cy),.1C=?{'(s25:unsupported symbol sy"
+  "ntax),.2,@(y10:read-error)[22}'(cz),.1C=?{'(s13:invalid token),.2,@(y1"
+  "0:read-error)[22}'(c,),.1C=?{.1R1,.0R8?{'(s19:end of file after ,),.3,"
+  "@(y10:read-error)[32}'(c@),.1C=?{.2R0${.4,:3^[01},'(y16:unquote-splici"
+  "ng),l2]3}${.4,:3^[01},'(y7:unquote),l2]3}'(c%22),.1C=?{n,,#0.3,:(i11),"
+  ".2,&3{%1:2R0,.0R8?{'(s27:end of file within a string),:2,@(y10:read-er"
+  "ror)[22}'(c%5c),.1C=?{${'(y6:string),:2,:1^[02},.0?{.2,.1c}{.2},:0^[31"
+  "}'(c%22),.1C=?{.1A9X3]2}.1,.1c,:0^[21}.!0.0^_1[21}'(c|),.1C=?{n,,#0.3,"
+  ":(i11),.2,&3{%1:2R0,.0R8?{'(s29:end of file within a |symbol|),:2,@(y1"
+  "0:read-error)[22}'(c%5c),.1C=?{${'(y6:symbol),:2,:1^[02},.0?{.2,.1c}{."
+  "2},:0^[31}'(c|),.1C=?{.1A9X3X5]2}.1,.1c,:0^[21}.!0.0^_1[21}'(c#),.1C=?"
+  "{.1R1,.0R8?{'(s19:end of file after #),.3,@(y10:read-error)[32}'(c!),."
+  "1C=?{.2R0${.4,:(i10)^[01},.0,'(l2:y9:fold-case;y12:no-fold-case;),.1A1"
+  "?{'(y9:fold-case),.2q:!(i14):(i14)^,.5P79.4,:8^[51}.1Y0?{.1Y6]5}.1,'(s"
+  "24:unexpected name after #!),.6,@(y10:read-error)[53}'(ct),.1Ci=,.0?{."
+  "0}{'(cf),.2Ci=,.0?{.0}{'(cs),.3Ci=,.0?{.0}{'(cu),.4Ci=,.0?{.0}{'(cc),."
+  "5Ci=}_1}_1}_1}_1?{${.4,:3^[01},${.2,@(y15:symbol-downcase)[01},.0,'(l2"
+  ":y1:t;y4:true;),.1A1?{t]6}'(l2:y1:f;y5:false;),.1A1?{f]6}'(y2:u8),.1v?"
+  "{'0,${.4,.9,:9^[02}E2]6}'(y2:s8),.1v?{'1,${.4,.9,:9^[02}E2]6}'(y3:u16)"
+  ",.1v?{'2,${.4,.9,:9^[02}E2]6}'(y3:s16),.1v?{'3,${.4,.9,:9^[02}E2]6}'(y"
+  "3:u32),.1v?{'4,${.4,.9,:9^[02}E2]6}'(y3:s32),.1v?{'5,${.4,.9,:9^[02}E2"
+  "]6}'(y3:u64),.1v?{'6,${.4,.9,:9^[02}E2]6}'(y3:s64),.1v?{'7,${.4,.9,:9^"
+  "[02}E2]6}'(y3:f32),.1v?{'(i10),${.4,.9,:9^[02}E2]6}'(y3:f64),.1v?{'(i1"
+  "1),${.4,.9,:9^[02}E2]6}'(y3:c64),.1v?{'(i14),${.4,.9,:9^[02}E2]6}'(y4:"
+  "c128),.1v?{'(i15),${.4,.9,:9^[02}E2]6}.2,'(s23:unexpected name after #"
+  "),.7,@(y10:read-error)[63}'(c&),.1C=?{.2R0${.4,:3^[01}b]3}'(c;),.1C=?{"
+  ".2R0${.4,:3^[01}.2,:8^[31}'(c|),.1C=?{.2R0${,#0.5,.1,&2{%0:1R0,.0R8?{'"
+  "(s25:end of file in #| comment),:1,@(y10:read-error)[12}'(c|),.1C=?{:1"
+  "R1,.0R8?{'(s25:end of file in #| comment),:1,@(y10:read-error)[22}'(c#"
+  "),.1C=?{:1R0]2}:0^[20}'(c#),.1C=?{:1R1,.0R8?{'(s25:end of file in #| c"
+  "omment),:1,@(y10:read-error)[22}'(c|),.1C=?{:1R0${:0^[00}:0^[20}:0^[20"
+  "}:0^[10}.!0.0^_1[00}.2,:8^[31}'(c(),.1C=?{.2R0${f,:7^,.6,.5,:6^[04}X1]"
+  "3}'(c%5c),.1C=?{.2R0.2R1,.0R8?{'(s20:end of file after #%5c),.4,@(y10:"
+  "read-error)[42}.0,'(cx)C=?{.3R0${.5R1,:4^[01}?{.0]4}f,.4,:5^[42}.0C4?{"
+  "${.5,:3^[01},'1,.1X4S3=?{.1]5}.0,'(y4:null),.1v?{'0X9]6}'(y5:space),.1"
+  "v?{'(c )]6}'(y5:alarm),.1v?{'(c%07)]6}'(y9:backspace),.1v?{'(c%08)]6}'"
+  "(y6:delete),.1v?{'(i127)X9]6}'(y6:escape),.1v?{'(i27)X9]6}'(y3:tab),.1"
+  "v?{'(c%09)]6}'(l2:y7:newline;y8:linefeed;),.1A1?{'(c%0a)]6}'(y4:vtab),"
+  ".1v?{'(c%0b)]6}'(y4:page),.1v?{'(c%0c)]6}'(y6:return),.1v?{'(c%0d)]6}."
+  "1,'(s15:unknown #%5c name),.7,@(y10:read-error)[63}.3R0.0]4}.0C5?{:0?{"
+  "${'(s44:#N=/#N# notation is not allowed in this mode),.5,@(y10:read-er"
+  "ror)[02}}n,,#0.4,.1,:3,:2,:1,&5{%1:4R0,.0R8?{'(s32:end of file within "
+  "a #N notation),:4,@(y10:read-error)[22}.0C5?{.1u?{'(c0),.1C=}{f}?{.1}{"
+  ".1,.1c},:3^[21}'(c#),.1C=?{.1u?{'(s1:0)}{.1A9X3},:1^,.1A5,.0?{.0d]4}.1"
+  ",'(s22:unknown #n# reference:),:4,@(y10:read-error)[43}'(c=),.1C=?{.1u"
+  "?{'(s1:0)}{.1A9X3},:1^,.1A5?{${.2,'(s18:duplicate #n= tag:),:4,@(y10:r"
+  "ead-error)[03}}fb,${.2,:0^[01},:1^,.1,.4cc:!1${:4,:2^[01},.1,.1q?{.3,'"
+  "(s24:#n= has itself as target),:4,@(y10:read-error)[63}.0,.3sz.0]6}'(s"
+  "34:invalid terminator for #N notation),:4,@(y10:read-error)[22}.!0.0^_"
+  "1[31}.0,'(s16:unknown # syntax),.4,@(y10:read-error)[33}.0,'(s22:illeg"
+  "al character read),.3,@(y10:read-error)[23}.!(i18).(i18),.(i14),.(i18)"
+  ",.(i15),&4{%4${.3,:3^[01},:0^,.1q?{'(s42:missing car -- ( immediately "
+  "followed by .),.3,@(y10:read-error)[52}.0,,#0.0,.5,:3,:2,.(i10),:1,.(i"
+  "11),:0,&8{%1.0R8?{'(s41:eof inside list -- unbalanced parentheses),:6,"
+  "@(y10:read-error)[12}:1,.1q?{n]1}:0^,.1q?{:3?{${:6,:2^[01},${:6,:5^[01"
+  "},:1,.1q?{.1]3}.0,'(s31:randomness after form after dot),:6,@(y10:read"
+  "-error)[33}'(s13:dot in #(...)),:6,@(y10:read-error)[12}${.2,:4^[01}?{"
+  ".0d,'(s20:error inside list --),:6,@(y10:read-error)[13}${${:6,:5^[01}"
+  ",:7^[01},.1c]1}.!0.0^_1[51}.!(i19).(i13),.(i11),.(i20),&3{%2'(l6:y3:u3"
+  "2;y3:s32;y3:u64;y3:s64;y3:c64;y4:c128;),.2A0?{@(y9:opt-tower)~}{f}?{${"
+  "@(y4:name),'(s33:unsupported numerical vector type),.4,@(y10:read-erro"
+  "r)[03}}'(c(),.1R0q~?{${${.5,'(s23:invalid ~avector syntax),@(y6:format"
+  ")[02},.3,@(y10:read-error)[02}}${.2,:0^[01},,#0.3,.3,:0,.3,:2,:1,&6{%1"
+  ".0R8?{${:5,'(s19:eof inside ~avector),@(y6:format)[02},:4,@(y10:read-e"
+  "rror)[12}:0^,.1q?{n]1}${.2,:1^[01}?{.0d,${:5,'(s24:error inside ~avect"
+  "or --),@(y6:format)[02},:4,@(y10:read-error)[13}'(y2:u8),:5q?{.0I0?{'("
+  "i255),.1,,'0I>!;I>!}{f}}{f},.0?{.0}{'(y2:s8),:5q?{.1I0?{'(i127),.2,,'("
+  "i-128)I>!;I>!}{f}}{f},.0?{.0}{'(y3:u16),:5q?{.2I0?{'(i65535),.3,,'0I>!"
+  ";I>!}{f}}{f},.0?{.0}{'(y3:s16),:5q?{.3I0?{'(i32767),.4,,'(i-32768)I>!;"
+  "I>!}{f}}{f},.0?{.0}{'(y3:u32),:5q?{.4Nw!?{'0,.5<!?{'(i32),.5G8I>!}{f}}"
+  "{f}}{f},.0?{.0}{'(y3:s32),:5q?{.5Nw!?{'(i32),.6G8I<}{f}}{f},.0?{.0}{'("
+  "y3:u64),:5q?{.6Nw!?{'0,.7<!?{'(i64),.7G8I>!}{f}}{f}}{f},.0?{.0}{'(y3:s"
+  "64),:5q?{.7Nw!?{'(i64),.8G8I<}{f}}{f},.0?{.0}{'(y3:f32),:5q?{.8J0}{f},"
+  ".0?{.0}{'(y3:f64),:5q?{.9J0}{f},.0?{.0}{'(y3:c64),:5q?{.(i10)Tj}{f},.0"
+  "?{.0}{'(y4:c128),:5q?{.(i11)Tj}{f}}_1}_1}_1}_1}_1}_1}_1}_1}_1}_1}_1?{$"
+  "{${:4,:3^[01},:2^[01},.1c]1}.0,${:5,:5,'(s29:invalid ~a inside ~avecto"
+  "r --),@(y6:format)[03},:4,@(y10:read-error)[13}.!0.0^_1[21}.!(i20).(i2"
+  "2),&1{%2.0R0,.0R8?{${.4,'(s20:end of file within a),.5,@(y10:read-erro"
+  "r)[03}}'(c%5c),.1C=,.0?{.0}{'(c%22),.2C=,.0?{.0}{'(c|),.3C=}_1}_1?{.0]"
+  "3}'(ca),.1C=?{'(c%07)]3}'(cb),.1C=?{'(c%08)]3}'(ct),.1C=?{'(c%09)]3}'("
+  "cn),.1C=?{'(c%0a)]3}'(cv),.1C=?{'(c%0b)]3}'(cf),.1C=?{'(c%0c)]3}'(cr),"
+  ".1C=?{'(c%0d)]3}'(cx),.1C=?{t,.2,:0^[32}'(y6:string),.3q?{.0C1}{f}?{.1"
+  "R1,'(c%0a),.2C=,,#0.0,.5,&2{%2.1R8,.0?{.0}{.2C1~}_1?{.0?{f]2}'(s32:no "
+  "newline in line ending escape),:0,@(y10:read-error)[22}.0?{'(c%0a),.2C"
+  "=}{f}?{f]2}:0R0:0R1,.1,.0?{.0}{'(c%0a),.4C=}_1,:1^[22}.!0.0^_1[32}.0,'"
+  "(y1::),.4,'(s22:invalid char escape in),.5,@(y10:read-error)[35}.!(i21"
+  ").7,.(i16),.(i16),.(i11),&4{%2,#0:3,.2,&2{%1.0u?{'(s31:%5cx escape seq"
+  "uence is too short),:0,@(y10:read-error)[12}'(i16),.1A9X3X7,:1^,.1>?{'"
+  "(s27:%5cx escape sequence overflow),:0,@(y10:read-error)[22}.0X9]2}.!0"
+  "'0,n,.3R1,,#0.0,.6,:0,:1,.8,.(i11),:2,&7{%3.0R8?{:1?{'(s27:end of file"
+  " within a string),:5,@(y10:read-error)[32}.1,:2^[31}:1?{'(c;),.1C=}{f}"
+  "?{:5R0.1,:2^[31}:1~?{${.2,:0^[01}}{f}?{.1,:2^[31}${.2,:3^[01}~?{.0,'(s"
+  "37:unexpected char in %5cx escape sequence),:5,@(y10:read-error)[33}:4"
+  "^,.3>?{'(s30:%5cx escape sequence is too long),:5,@(y10:read-error)[32"
+  "}:5R0'1,.3+,.2,.2c,:5R1,:6^[33}.!0.0^_1[33}.!(i22)${.(i25),.(i21)^[01}"
+  ",${.2,.(i17)^[01}~?{.2^u?{.0](i27)}.0,.8^[(i27)1}.0d,'(s17:unexpected "
+  "token:),.(i26),@(y10:read-error)[(i27)3",
 
   "C", 0,
   "&0{%1f,f,.2,@(y5:%25read)[13}%x,&0{%0f,f,Pi,@(y5:%25read)[03}%x,&2{|00"
@@ -1037,6 +1029,10 @@ char *s_code[] = {
   "opt-enhtty)",
 
   "C", 0,
+  "'(i13),@(y10:*host-sig*)S4,'(ct),.1v?{'(y18:full-numeric-tower)}{f}_1@"
+  "!(y9:opt-tower)",
+
+  "C", 0,
   "${'(i18),'(i16),@(y10:*host-sig*)S7X5,@(y14:make-parameter)[01}@!(y16:"
   "current-language)",
 
@@ -1083,6 +1079,23 @@ char *s_code[] = {
   "c@!(y10:*features*)}",
 
   "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),'(y6:ratios)c@!(y10:*features*)}",
+
+  "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),'(y7:complex)c@!(y10:*features*)}",
+
+  "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),'(y13:exact-complex)c@!(y10:*featur"
+  "es*)}",
+
+  "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),'(y12:exact-closed)c@!(y10:*feature"
+  "s*)}",
+
+  "C", 0,
+  "@(y9:opt-tower)?{@(y10:*features*),@(y9:opt-tower)c@!(y10:*features*)}",
+
+  "C", 0,
   "@(y11:opt-unicode)?{@(y10:*features*),@(y11:opt-unicode)c@!(y10:*featu"
   "res*)}",
 
@@ -1122,16 +1135,30 @@ char *s_code[] = {
   "C", 0,
   "${@(y5:write),@(y14:make-parameter)[01}@!(y19:format-pretty-print)",
 
+  "P", "make-inexact-formatter",
+  "%1.0,&1{%4,,,,#0#1#2#3'0,.7<!?{:0}{f}.!0'0,.7<!?{'(i100),.7>!?{.6}{f}}"
+  "{f}.!1.4N0?{${.3^,.3^,'(i10),.9Nj,@(y15:inexact->string)[04}}{.4}.!2.2"
+  "^S0?{.2^S3}{f}.!3.3^?{.3^,.6>}{f}?{.7,'(c ),.5^,.8-S2W4}.7,.3^W4]8}]1",
+
   "C", 0,
-  "${&0{%4.3,.1W4]4},@(y14:make-parameter)[01}@!(y18:format-fixed-print)",
+  "${${'(cf),@(y22:make-inexact-formatter)[01},@(y14:make-parameter)[01}@"
+  "!(y18:format-fixed-print)",
+
+  "C", 0,
+  "${${'(ce),@(y22:make-inexact-formatter)[01},@(y14:make-parameter)[01}@"
+  "!(y24:format-exponential-print)",
+
+  "C", 0,
+  "${${'(cg),@(y22:make-inexact-formatter)[01},@(y14:make-parameter)[01}@"
+  "!(y20:format-general-print)",
 
   "C", 0,
   "${@(y7:newline),@(y14:make-parameter)[01}@!(y17:format-fresh-line)",
 
   "C", 0,
-  "${'(s83:supported directives: ~~ ~%25 ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d"
-  " ~x ~f ~? ~k ~* ~N@* ~!),@(y14:make-parameter)[01}@!(y18:format-help-s"
-  "tring)",
+  "${'(s89:supported directives: ~~ ~%25 ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d"
+  " ~x ~e ~f ~g ~? ~k ~* ~N@* ~!),@(y14:make-parameter)[01}@!(y18:format-"
+  "help-string)",
 
   "P", "fprintf",
   "%!2,,,,,#0#1#2#3#4&0{%1.0p?{.0a]1}'(s35:format: no argument for ~ dire"
@@ -1156,14 +1183,20 @@ char *s_code[] = {
   "'(cx),.1v?{${:5,${.(i11),:3^[01},'(i16),:4^[03}${.8,:2^[01},.2d,:6^[72"
   "}'(ch),.1v?{:5,${@(y18:format-help-string)[00}W4.6,.2d,:6^[72}'(cy),.1"
   "v?{${:5,${.(i11),:3^[01},${@(y19:format-pretty-print)[00}[02}${.8,:2^["
-  "01},.2d,:6^[72}'(cf),.1v?{${:5,.6^,.8^,${.(i13),:3^[01},${@(y18:format"
-  "-fixed-print)[00}[04}${.8,:2^[01},.2d,:6^[72}'(l2:c?;ck;),.1A1?{${${${"
-  ".(i12),:2^[01},:3^[01},${.(i11),:3^[01}X2,:6^[02}${${.(i10),:2^[01},:2"
-  "^[01},.2d,:6^[72}'(c*),.1v?{.2^?{:1g,.5^,,'0>!;>!}{f}?{.4^,:1A6,.2d,:6"
-  "^[72}.6g,.5^,,'0>!;>!?{.4^,.7A6,.2d,:6^[72}'(i-1),.5^=?{${.8,:2^[01},."
-  "2d,:6^[72}'(s28:format: invalid ~* directive),@(y5:error)[71}.1a,'(s32"
-  ":format: unrecognized ~ directive),@(y5:error)[72}:5,.1aW0.1,.1d,:6^[2"
-  "2}.!0.0^_1[82",
+  "01},.2d,:6^[72}'(ce),.1v?{${:5,.6^,.8^,${.(i13),:3^[01},${@(y24:format"
+  "-exponential-print)[00}[04}${.8,:2^[01},.2d,:6^[72}'(cf),.1v?{${:5,.6^"
+  ",.8^,${.(i13),:3^[01},${@(y18:format-fixed-print)[00}[04}${.8,:2^[01},"
+  ".2d,:6^[72}'(cg),.1v?{${:5,.6^,.8^,${.(i13),:3^[01},${@(y20:format-gen"
+  "eral-print)[00}[04}${.8,:2^[01},.2d,:6^[72}'(l2:c?;ck;),.1A1?{${${${.("
+  "i12),:2^[01},:3^[01},${.(i11),:3^[01}X2,:6^[02}${${.(i10),:2^[01},:2^["
+  "01},.2d,:6^[72}'(c*),.1v?{.2^?{:1g,.5^,,'0>!;>!}{f}?{.4^,:1A6,.2d,:6^["
+  "72}.6g,.5^,,'0>!;>!?{.4^,.7A6,.2d,:6^[72}'(i-1),.5^=?{${.8,:2^[01},.2d"
+  ",:6^[72}'(s28:format: invalid ~* directive),@(y5:error)[71}.1a,'(s32:f"
+  "ormat: unrecognized ~ directive),@(y5:error)[72}:5,.1aW0.1,.1d,:6^[22}"
+  ".!0.0^_1[82",
+
+  "P", "printf",
+  "%!1.0,Poc,@(y7:fprintf),@(y13:apply-to-list)[22",
 
   "P", "format",
   "%!1f,.2q,.0?{.0}{.2S0}_1?{P51,.2?{.1,.3c}{.1},${.2,.4c,@(y7:fprintf),@"

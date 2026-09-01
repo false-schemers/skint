@@ -70,13 +70,14 @@ make libinstall
 SKINT supports optional features that can be configured prior to compilation. When using the 
 `configure` script, you can enable these features with the following flags:
 
+*   `--use-tower`: Enables full numerical tower support by defining `OPT_TOWER`.
 *   `--use-unicode`: Enables full Unicode support by defining `OPT_UNICODE`.
 *   `--use-enhanced-tty`: Enables built-in REPL console line editing by defining `OPT_ENHTTY`.
 
-For example, to configure and install SKINT with both features enabled to a custom directory:
+For example, to configure and install SKINT with the first two features enabled to a custom directory:
 
 ```
-./configure --prefix=/home/gwendolyn/tools/skint --use-unicode --use-enhanced-tty
+./configure --prefix=/home/gwendolyn/tools/skint --use-tower --use-unicode
 make
 make install
 ```
@@ -86,7 +87,7 @@ directly to your C compiler. Note that when enabling enhanced TTY on Linux, you 
 link against the dynamic linking library (`-ldl`):
 
 ```
-clang -o skint -O3 -D NDEBUG -D NAN_BOXING -D OPT_UNICODE -D OPT_ENHTTY [skint].c -lm -ldl
+clang -o skint -O3 -D NDEBUG -D NAN_BOXING -D OPT_TOWER -D OPT_UNICODE -D OPT_ENHTTY [skint].c -lm -ldl
 ```
 
 ---
@@ -105,7 +106,7 @@ SKINT is true to basic Scheme principles -- it features a precise garbage collec
 with R7RS-small, but has the following known limitations and deviations from the standard:
 
   *  fixnums are 30 bit long, flonums are doubles
-  *  no support for bignums/rational/complex numbers
+  *  no support for bignums/rational/complex numbers (unless compiled with the `OPT_TOWER` / `--use-tower` option)
   *  no support for Unicode; strings are 8-bit clean, use system locale (unless compiled with the `OPT_UNICODE` / `--use-unicode` option)
   *  source code literals cannot be circular (R7RS allows this)
   
@@ -159,7 +160,7 @@ the `lib/README.md` file for details.
 `t.c`: Bytecode definitions for the internal expander, compiler, library, and REPL procedures    
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/t.scm`
 
-`opt`: Sources for optional features (Unicode, Enhanced TTY)
+`opt`: Sources for optional features (Numerical Tower, Unicode, Enhanced TTY)
 
 `pre`: Sources for generated files, with scripts to generate them
 

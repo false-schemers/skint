@@ -5,19 +5,28 @@ for arg in "$@"; do
        --prefix=*)
            PREFIX="${arg#*=}"
            ;;
-       --use-unicode)
+       --use-tower)
+           USE_TOWER=1
+           ;;
+        --use-unicode)
            USE_UNICODE=1
            ;;
        --use-enhanced-tty)
            USE_ENHTTY=1
            ;;
+       --use-all)
+           USE_TOWER=1
+           USE_UNICODE=1
+           USE_ENHTTY=1
+           ;;
        *)
-           echo "Usage: $0 [--prefix=PATH] [--use-unicode] [--use-enhanced-tty]" >&2
+           echo "Usage: $0 [--prefix=PATH] [--use-tower] [--use-unicode] [--use-enhanced-tty] [--use-all]" >&2
            exit 1
            ;;
    esac
 done
 
 echo PREFIX="${PREFIX:-/usr/local}" > config.mk
+echo USE_TOWER="${USE_TOWER:-0}" >> config.mk
 echo USE_UNICODE="${USE_UNICODE:-0}" >> config.mk 
 echo USE_ENHTTY="${USE_ENHTTY:-0}" >> config.mk 

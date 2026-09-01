@@ -13,4 +13,4 @@ static int ttgetch(ttfile_t *tp);
 static int ttungetch(int c, ttfile_t *tp);
 static int ttctl(ctlop_t op, ttfile_t *tp, ...);
 static int ttputch(int c, ttfile_t *tp);
-static int ttflush(ttfile_t *tp);
+static int ttctl(ctlop_t op, ttfile_t *tp, ...);

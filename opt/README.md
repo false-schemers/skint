@@ -1,5 +1,25 @@
-This directory contains option-specific implementations of parts of `n.h` and `n.c` source files to be used when the
-`OPT_UNICODE` and/or `OPT_ENHTTY` options are set.
+This directory contains option-specific implementations of parts of `i.c`, `n.h` and `n.c` source files to be used when the
+`OPT_TOWER`, `OPT_UNICODE` and/or `OPT_ENHTTY` options are set.
+
+When compiled with the `OPT_TOWER` option, SKINT supports the full R7RS numerical tower. The following types of numbers are added: bignums (unlimited-precision exact integers), ratnums (exact rationals), rectnums (exact complex numbers), and compnums (inexact complex numbers). These types are disjoint; numbers are always kept in the simplest
+form possible, and the results of all generic arithmetic procedures are normalized automatically. General complex numbers 
+of mixed exactness are not supported; the only numbers of mixed exactness treated as such in complex operations are 
+flonums, which are considered inexact complex numbers with an exact zero imaginary part.
+
+SKINT's numerical tower strives to be fast and precise while paying close attention to corner cases. For inexact arithmetic, it follows IEEE 754 and C99 conventions for infinities, NaNs, denormals, overflow, and underflow. When an operation is mathematically real-valued on real inputs, SKINT returns a flonum for flonum arguments; no artificial `+0.0i` (or `+nan.0i`) imaginary part is appended, even when doing so might otherwise be defensible. This preserves compatibility with implementations lacking support for complex numbers, as well as programs expecting no such support.
+
+Special attention is paid to preserving precision in operations on exact arguments that are not closed under exact arithmetic. To avoid internal overflow and catastrophic cancellation from rounding intermediate values to floating point, conversion to inexact form is deferred as long as possible. This occasionally produces a paradox: calling the sine function with a large flonum such as `1e200` returns the expected — yet wildly off-the-mark — C library value (`-0.6439687185395058`), whereas passing its exact equivalent, `#e1e200`, yields a mathematically correct but entirely different result (`0.969171481070263`).
+
+Even more effort is devoted to extracting exact results from exact arguments. For exact complex numbers, SKINT can compute exact principal roots whose degree has prime factors no larger than 1000, enabling equalities such as:
+
+```scheme
+(let ([x 10000000000000000021+2i]) (eqv? x (expt (expt x 365) 1/365)))
+```
+
+For exact reals, there is no limit on the prime factors of root degrees, though both intermediate bignum size and estimated computational cost are capped. When finding an exact solution is deemed impractical, an inexact result is returned instead. This extra effort directly benefits downstream operations that rely on exact reductions, such as computing the magnitudes of exact complex numbers.
+
+Note that activating this option automatically enables support for the following additional types of homogenous
+numerical vectors: `u32`, `s32`, `u64`, `s64`, `c128`.
 
 When compiled with the `OPT_UNICODE` option, SKINT represents strings internally as UTF-8 encoded byte sequences prefixed 
 by metadata headers containing both the logical character count and the total byte length. File I/O, file system paths, 

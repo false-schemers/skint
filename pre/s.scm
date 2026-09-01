@@ -410,7 +410,7 @@
 ; (fxabs x)
 ; (fxgcd x y)
 ; (fxexpt x y)
-; (fxsqrt x (box #f))
+; (%fxsqrt x (box #f))
 ; (fxnot x)
 ; (fxand x ...)
 ; (fxior x ...)
@@ -418,23 +418,16 @@
 ; (fxsll x y)
 ; (fxsra x y)
 ; (fxsrl x y)
+; (fxlength x)
+; (fxbit-count x)
 ; (fixnum->flonum x)
 ; (fixnum->string x (radix 10))
 ; (string->fixnum s (radix 10))
 
 ;TBD:
 ;
-;fx-width
 ;fx-greatest
 ;fx-least
-;fxarithmetic-shift-right
-;fxarithmetic-shift-left
-;fxlength cf. integer-length (+ 1 (integer-length i)) 
-;  is the number of bits needed to represent i in a signed twos-complement representation
-;  0 => 0, 1 => 1, -1 => 0, 7 => 3, -7 => 3, 8 => 4, -8 => 3
-;fxbit-count cf. bit-count
-;  Returns the population count of 1's (i >= 0) or 0's (i < 0)
-;  0 => 0, -1 => 0, 7 => 3, 13 => 3, -13 => 2  
 
 
 ;---------------------------------------------------------------------------------------------
@@ -488,19 +481,19 @@
 
 
 ;---------------------------------------------------------------------------------------------
-; Numbers (fixnums or flonums)
+; Numbers (fixnums, flonums, ...)
 ;---------------------------------------------------------------------------------------------
 
 ; integrables:
 ;
 ; (number? x)
-; (complex? x) == number? what about inf and nan?
-; (real? x) == number? what about inf and nan?
+; (complex? x)
+; (real? x)
 ; (rational? x)
 ; (integer? x)
 ; (exact? x)
 ; (inexact? x)
-; (exact-integer? x) == fixnum?
+; (exact-integer? x)
 ; (finite? x)
 ; (infinite? x)
 ; (nan? x)
@@ -545,6 +538,24 @@
 ; (expt x y)
 ; (inexact x)
 ; (exact x)
+; (numerator x)
+; (denominator x)
+; (magnitude x)
+; (angle x)
+; (make-rectangular r i)
+; (make-polar m a)
+; (%gsqrt x (box #f)) +
+; (bitwise-not x) +
+; (bitwise-and x ...) +
+; (bitwise-ior x ...) +
+; (bitwise-xor x ...) +
+; (arithmetic-shift x y) +
+; (integer-length x) +
+; (bit-count) +
+; (bignum? x) +
+; (ratnum? x) +
+; (compnum? x) +
+; (rectnum? x) +
 ; (number->string x (radix 10))
 ; (string->number x (radix 10))
 
@@ -556,38 +567,33 @@
 
 (define (lcm . args)
   (if (null? args) 1
-      (let loop ([x (car args)] [args (cdr args)])
+      (let loop ([x (abs (car args))] [args (cdr args)])
         (if (null? args) x
-            (let* ([y (car args)] [g (gcd x y)])
-              (loop (if (zero? g) g (* (quotient (abs x) g) (abs y))) (cdr args)))))))
+            (let* ([y (abs (car args))] [g (gcd x y)])
+              (loop (if (zero? g) g (* (quotient x g) y)) (cdr args)))))))
 
-(define (numerator n) n)
-
-(define (denominator n) 1)
-
-(define (rationalize n d) n)
+(define rationalize ; Alan Bawden's algorithm
+  (letrec
+    ([rat1 (lambda (x y)
+             (cond [(> x 0) (rat2 x y)]
+                   [(< y 0) (- (rat2 (- y) (- x)))]
+                   [else (if (and (exact? x) (exact? y)) 0 0.0)]))]
+     [rat2 (lambda (x y)
+             (let ([fx (floor x)] [fy (floor y)])
+               (cond [(= fx x) fx]
+                     [(= fx fy) (+ fx (/ (rat2 (/ (- y fy)) (/ (- x fx)))))]
+                     [else (+ fx 1)])))])
+    (lambda (x e)
+      (unless (real? x) (error "rationalize: not a real number" x))
+      (unless (real? e) (error "rationalize: not a real number" e))
+      (let ([x (- x e)] [y (+ x e)])
+        (cond [(< x y) (rat1 x y)] [(< y x) (rat1 y x)] [else x])))))
 
 (define (square x) (* x x))
 
 (define (exact-integer-sqrt x)
-  (let* ([rem 0] [srt (%fxsqrt x (set& rem))])
+  (let* ([rem 0] [srt (%gsqrt x (set& rem))])
     (values srt rem)))
-
-(define (make-rectangular r i)
-  (if (= i 0) r (error "make-rectangular: nonzero imag part not supported" i)))
-
-(define (make-polar m a)
-  (cond [(= a 0) m]
-        [(= a 3.141592653589793238462643) (- m)]
-        [else (error "make-polar: angle not supported" a)]))
-
-(define (real-part x) x)
-
-(define (imag-part x) 0)
-
-(define (magnitude x) (abs x))
-
-(define (angle x) (if (negative? x) 3.141592653589793238462643 0))
 
 
 ;---------------------------------------------------------------------------------------------
@@ -1319,8 +1325,10 @@
 (define (read-error port msg . args)
   (define fn #f) (define lno #f) 
   (define line #f) (define pfx #f)
-  (when (%port-location port (set& fn) (set& lno) (set& line) (set& pfx))
-    (set! msg (format "~a:~a:~a: ~a~%~a~%~a^" fn lno (string-length pfx) msg line pfx)))
+  (cond [(%port-location port (set& fn) (set& lno) (set& line) (set& pfx))
+         (set! msg (format "~a:~a:~a: ~a~%~a~%~a^" fn lno (string-length pfx) msg line pfx))]
+        [(tty-port? port)
+         (set! msg (format "-: ~a" msg))])
   (raise (error-object 'read msg args)))
 
 (define (read-error? obj)
@@ -1479,10 +1487,12 @@
 ; (read-u8 (p (current-input-port)))
 ; (peek-u8 (p (current-input-port)))
 ; (u8-ready? (p (current-input-port)))
-; (set-port-fold-case! p fold?)
-; (port-fold-case? p)
+; (clear-input-port (p (current-input-port))) +
+; (set-port-fold-case! p fold?) +
+; (port-fold-case? p) +
 ; (eof-object? x)
 ; (eof-object)
+; (%read-ahead fold-case? p) +
 
 (define (read-substring! str start end p)
   (let loop ([i start])
@@ -1533,6 +1543,11 @@
   (case-lambda
     [(k) (read-subbytevector k (current-input-port))]
     [(k p) (read-subbytevector k p)]))
+
+(define (symbol-downcase x)
+  (if (symbol? x)
+      (string->symbol (string-downcase (symbol->string x)))
+      x))
 
 (define (%read port simple? ci?)
   (define-syntax r-error
@@ -1663,8 +1678,8 @@
                           [else (if (symbol? name) 
                                     (symbol->shebang name)
                                     (r-error p "unexpected name after #!" name))]))]
-                     [(or (char-ci=? c #\t) (char-ci=? c #\f) (char-ci=? c #\s) (char-ci=? c #\u))
-                      (let ([name (sub-read-carefully p)])
+                     [(or (char-ci=? c #\t) (char-ci=? c #\f) (char-ci=? c #\s) (char-ci=? c #\u) (char-ci=? c #\c))
+                      (let* ([n (sub-read-carefully p)] [name (symbol-downcase n)])
                         (case name 
                           [(t true) #t] 
                           [(f false) #f]
@@ -1672,9 +1687,15 @@
                           [(s8)  (list->numvector (sub-read-numerical-list p name) 1)]
                           [(u16) (list->numvector (sub-read-numerical-list p name) 2)]
                           [(s16) (list->numvector (sub-read-numerical-list p name) 3)]
+                          [(u32) (list->numvector (sub-read-numerical-list p name) 4)]
+                          [(s32) (list->numvector (sub-read-numerical-list p name) 5)]
+                          [(u64) (list->numvector (sub-read-numerical-list p name) 6)]
+                          [(s64) (list->numvector (sub-read-numerical-list p name) 7)]
                           [(f32) (list->numvector (sub-read-numerical-list p name) 10)]
                           [(f64) (list->numvector (sub-read-numerical-list p name) 11)]
-                          [else (r-error p "unexpected name after #" name)]))]
+                          [(c64) (list->numvector (sub-read-numerical-list p name) 14)]
+                          [(c128) (list->numvector (sub-read-numerical-list p name) 15)]
+                          [else (r-error p "unexpected name after #" n)]))]
                      [(char=? c #\&)
                       (read-char p)
                       (box (sub-read-carefully p))]
@@ -1743,20 +1764,19 @@
                         (let ([c (read-char p)])
                           (cond [(eof-object? c)
                                  (r-error p "end of file within a #N notation")]
-                                [(char-numeric? c)
-                                 (loop (cons c l))]
+                                [(char-numeric? c) ; ignore leading 0s following CL
+                                 (loop (if (and (null? l) (char=? c #\0)) l (cons c l)))]
                                 [(char=? c #\#) 
-                                 (let* ([s (list->string (reverse! l))] [n (string->number s)])
-                                   (cond [(and (fixnum? n) (assq n shared)) => cdr]
+                                 (let ([s (if (null? l) "0" (list->string (reverse! l)))])
+                                   (cond [(assoc s shared) => cdr]
                                          [else (r-error p "unknown #n# reference:" s)]))]   
                                 [(char=? c #\=) 
-                                 (let* ([s (list->string (reverse! l))] [n (string->number s)])
-                                   (cond [(not (fixnum? n)) (r-error p "invalid #n= reference:" s)]
-                                         [(assq n shared) (r-error p "duplicate #n= tag:" n)])
-                                   (let ([loc (box #f)])
-                                     (set! shared (cons (cons n (make-shared-ref loc)) shared))
+                                 (let ([s (if (null? l) "0" (list->string (reverse! l)))])
+                                   (when (assoc s shared) (r-error p "duplicate #n= tag:" s))
+                                   (let* ([loc (box #f)] [ref (make-shared-ref loc)])
+                                     (set! shared (cons (cons s ref) shared))
                                      (let ([form (sub-read-carefully p)])
-                                       (cond [(shared-ref? form) (r-error p "#n= has another label as target" s)]
+                                       (cond [(eq? form ref) (r-error p "#n= has itself as target" s)]
                                              [else (set-box! loc form) form]))))]
                                 [else (r-error p "invalid terminator for #N notation")])))]
                      [else (r-error p "unknown # syntax" c)]))]
@@ -1783,6 +1803,8 @@
                   [else (cons form (recur (sub-read p)))])))))
 
   (define (sub-read-numerical-list p ts)
+    (when (and (memq ts '(u32 s32 u64 s64 c64 c128)) (not opt-tower))
+      (r-error p "unsupported numerical vector type" name))
     (unless (eq? (read-char p) #\()
       (r-error p (format "invalid ~avector syntax" ts)))
     (let recur ([form (sub-read p)])
@@ -1795,8 +1817,14 @@
                  (and (eq? ts 's8)  (fixnum? form) (fx<=? -128 form 127))
                  (and (eq? ts 'u16) (fixnum? form) (fx<=? 0 form 65535))
                  (and (eq? ts 's16) (fixnum? form) (fx<=? -32768 form 32767))
+                 (and (eq? ts 'u32) (exact-integer? form) (>= form 0) (fx<=? (integer-length form) 32))
+                 (and (eq? ts 's32) (exact-integer? form) (fx<? (integer-length form) 32))
+                 (and (eq? ts 'u64) (exact-integer? form) (>= form 0) (fx<=? (integer-length form) 64))
+                 (and (eq? ts 's64) (exact-integer? form) (fx<? (integer-length form) 64))
                  (and (eq? ts 'f32) (flonum? form))
-                 (and (eq? ts 'f64) (flonum? form)))
+                 (and (eq? ts 'f64) (flonum? form))
+                 (and (eq? ts 'c64) (inexact? form))
+                 (and (eq? ts 'c128) (inexact? form)))
              (cons form (recur (sub-read p)))]
             [else (r-error p (format "invalid ~a inside ~avector --" ts ts) form)])))
 
@@ -1935,6 +1963,7 @@
 (define skint-host-endianness (case (string-ref *host-sig* 4) [(#\l) 'little-endian] [(#\b) 'big-endian] [else #f]))
 (define opt-unicode (case (string-ref *host-sig* 11) [(#\u) 'full-unicode] [else #f]))
 (define opt-enhtty (case (string-ref *host-sig* 12) [(#\e) 'enhanced-tty] [else #f]))
+(define opt-tower (case (string-ref *host-sig* 13) [(#\t) 'full-numeric-tower] [else #f]))
 (define current-language (make-parameter (string->symbol (substring *host-sig* 16 18))))
 (define current-country (make-parameter (string->symbol (substring *host-sig* 18 20))))
 (define current-locale-details (make-parameter (cond [(%host-facet 1) => (lambda (s) (list (string->symbol s)))] [else '()])))
@@ -1960,6 +1989,11 @@
 (if skint-host-endianness (set! *features* (cons skint-host-endianness *features*)))
 (if c99-math-available (set! *features* (cons c99-math-available *features*)))
 (if xsi-math-available (set! *features* (cons xsi-math-available *features*)))
+(if opt-tower (set! *features* (cons 'ratios *features*)))
+(if opt-tower (set! *features* (cons 'complex *features*)))
+(if opt-tower (set! *features* (cons 'exact-complex *features*)))
+(if opt-tower (set! *features* (cons 'exact-closed *features*)))
+(if opt-tower (set! *features* (cons opt-tower *features*)))
 (if opt-unicode (set! *features* (cons opt-unicode *features*)))
 (if opt-enhtty (set! *features* (cons opt-enhtty *features*)))
 (set! *features* (reverse *features*))
@@ -2005,12 +2039,22 @@
 
 (define format-pretty-print 
   (make-parameter write))
-(define format-fixed-print ; TODO: add (number->string/fixed arg ww dd) instruction
-  (make-parameter (lambda (arg wd dd p) (display arg p))))
+(define (make-inexact-formatter mc)
+  (lambda (arg wd dd p)
+    (define md (and (>= dd 0) mc))
+    (define pr (and (>= dd 0) (<= dd 100) dd))
+    (define s (if (number? arg) (inexact->string (inexact arg) 10 md pr) arg))
+    (define l (and (string? s) (string-length s)))
+    (when (and l (> wd l)) (display (make-string (- wd l) #\space) p))
+    (display s p)))
+(define format-fixed-print (make-parameter (make-inexact-formatter #\f)))
+(define format-exponential-print (make-parameter (make-inexact-formatter #\e)))
+(define format-general-print (make-parameter (make-inexact-formatter #\g)))
+
 (define format-fresh-line ; TODO: add (fresh-line [p]) instruction for source ports
   (make-parameter newline))
 (define format-help-string 
-  (make-parameter "supported directives: ~~ ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~f ~? ~k ~* ~N@* ~!"))
+  (make-parameter "supported directives: ~~ ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~e ~f ~g ~? ~k ~* ~N@* ~!"))
 
 (define (fprintf p fs . allargs)
   (define (hd args)
@@ -2052,7 +2096,9 @@
                [(#\x) (write-num 16 (hd args) p) (lp (cdr fl) (tl args))]
                [(#\h) (display (format-help-string) p) (lp (cdr fl) args)]
                [(#\y) ((format-pretty-print) (hd args) p) (lp (cdr fl) (tl args))]
+               [(#\e) ((format-exponential-print) (hd args) w d p) (lp (cdr fl) (tl args))]
                [(#\f) ((format-fixed-print) (hd args) w d p) (lp (cdr fl) (tl args))]
+               [(#\g) ((format-general-print) (hd args) w d p) (lp (cdr fl) (tl args))]
                [(#\? #\k) (lp (string->list (hd args)) (hd (tl args))) (lp (cdr fl) (tl (tl args)))]
                [(#\*) (cond [(and at (<= 0 w (length allargs))) (lp (cdr fl) (list-tail allargs w))]
                             [(<= 0 w (length args)) (lp (cdr fl) (list-tail args w))]
@@ -2060,6 +2106,9 @@
                             [else (error "format: invalid ~* directive")])]
                [else  (error "format: unrecognized ~ directive" (car fl))]))]
           [else (write-char (car fl) p) (lp (cdr fl) args)])))
+
+(define (printf fs . allargs)
+  (apply fprintf (current-output-port) allargs))
 
 (define (format arg . args)
   (cond [(or (eq? arg #f) (string? arg))
