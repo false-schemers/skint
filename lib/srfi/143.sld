@@ -36,8 +36,8 @@
    fxarithmetic-shift
    fxarithmetic-shift-left
    fxarithmetic-shift-right
-   fxbit-count
-   fxlength
+   fxbit-count         ; builtin
+   fxlength            ; builtin
    fxif
    fxbit-set?
    fxcopy-bit
@@ -89,11 +89,13 @@
 (define (popc i c) ; internal; adds count of raw bits in i to c 
   (if (fxzero? i) c (popc (fxand i (fx- i 1)) (fx+ c 1))))
 
-(define (fxbit-count i) ; same, but treats negatives specially
+; builtin now
+#;(define (fxbit-count i) ; same, but treats negatives specially
   (let ([c (popc i 0)])
     (if (fxnegative? i) (fx- fx-width c) c)))
 
-(define (fxlength n)
+; builtin now
+#;(define (fxlength n)
   (let loop ([n n] [t 0])
     (case n
       [(0 -1) t]

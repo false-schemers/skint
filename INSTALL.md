@@ -29,13 +29,15 @@ Fine-tuning the manual build
 | Goal | Example command |
 |---|---|
 | Maximum speed, 64-bit | `clang -O3 -DNDEBUG -DNAN_BOXING [skint].c -lm` |
-| Same, with Unicode support | `clang -O3 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE s.c k.c i.c n.c t.c -lm` |
-| Same, with REPL line editing |	`clang -O3 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE -DOPT_ENHTTY s.c k.c i.c n.c t.c -lm -ldl` |
+| Same, with Unicode support | `clang -O3 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE [skint].c -lm` |
+| Same, with full numeric tower | `clang -O3 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE -DOPT_TOWER [skint].c -lm` |
+| Same, with REPL line editing |	`clang -O3 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE -DOPT_TOWER -DOPT_ENHTTY [skint].c -lm -ldl` |
 | Tiny debug build | `gcc -O0 -g -DDEBUG [skint].c -lm` |
 | Static binary | `gcc -static -O2 [skint].c -lm` |
 
 - `-DNDEBUG` removes internal assertions.  
 - `-DNAN_BOXING` activates NaN-boxing (needs 48-bit address space, typical on 64-bit Linux/MacOS/Windows).
+- `-DOPT_TOWER` enables full numerical tower support (otherwise, only 30-bit fixnums and double-precision flonums are supported).
 - `-DOPT_UNICODE` enables full Unicode support (otherwise, strings are 8-bit clean and use the system locale).
 - `-DOPT_ENHTTY` enables built-in REPL console line editing. Note that on Linux, this option requires linking against the dynamic linking library via `-ldl`. 
 
@@ -51,7 +53,7 @@ Traditional build (Un*x & MacOS)
    Default installation path is `/usr/local`.  
    To install elsewhere, or to enable optional features (such as full Unicode support and REPL line editing), run:
    ```bash
-   ./configure --prefix=$HOME/opt/skint --use-unicode --use-enhanced-tty
+   ./configure --prefix=$HOME/opt/skint --use-unicode --use-tower --use-enhanced-tty
    ```
 
 3. **Build**
@@ -59,17 +61,22 @@ Traditional build (Un*x & MacOS)
    make           # uses the included Makefile
    ```
 
-4. **Run the test suite** (≈ 2 s)
+4. **Run the basic test suite** (≈ 2 s)
    ```bash
    make test
    ```
    
-5. **Run the external libraries test suite** (≈ 20 s)
+5. **Run the test suite for options** (≈ 5 s)
+   ```bash
+   make opttest
+   ```
+      
+6. **Run the external libraries test suite** (≈ 20 s)
    ```bash
    make libtest
    ```
    
-5. **Install**
+7. **Install**
    ```bash
    sudo make install        # or just `make install` if prefix is writable
    sudo make libinstall     # ditto, install optional external libraries
@@ -81,12 +88,12 @@ Windows (MSVC / MinGW)
 ----------------------
 - **MSVC (Developer Prompt)**  
   ```cmd
-  cl /O2 /DNDEBUG /DNAN_BOXING /DOPT_UNICODE /DOPT_ENHTTY /Fe"skint.exe" s.c k.c i.c n.c t.c
+  cl /O2 /DNDEBUG /DNAN_BOXING /DOPT_UNICODE /DOPT_TOWER /DOPT_ENHTTY /Fe"skint.exe" s.c k.c i.c n.c t.c
   ```
 - **NMAKE** – see `misc/README.md` for the ready-made makefile.  
 - **MinGW** – same flags as Unix:  
   ```cmd
-  gcc -O2 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE -DOPT_ENHTTY -o skint.exe s.c k.c i.c n.c t.c -lm 
+  gcc -O2 -DNDEBUG -DNAN_BOXING -DOPT_UNICODE -DOPT_TOWER -DOPT_ENHTTY -o skint.exe s.c k.c i.c n.c t.c -lm 
   ```
 
 The resulting `skint.exe` is fully self-contained and can be copied between Windows machines.

@@ -19,14 +19,16 @@ The executable will be installed into the `skint\bin` subdirectory of your Home 
 If this is not what you want, just copy it manually wherever you wish.
 
 If you'd like to build a version of the Skint executable with additional options,
-you may replace the `nmake /f misc\nmakefile` with any of the following:
+you may replace the `nmake /f misc\nmakefile` with any combination of the `OPT_TOWER=1`,
+`OPT_UNICODE=1`, and `OPT_ENHTTY=1` options, e.g.:
 
 ```
-nmake /f nmakefile OPT_UNICODE=1
+nmake /f nmakefile OPT_TOWER=1
 nmake /f nmakefile OPT_UNICODE=1 OPT_ENHTTY=1
+nmake /f nmakefile OPT_TOWER=1 OPT_UNICODE=1 OPT_ENHTTY=1
 ```
 
-The first one adds Unicode support, the second one also adds support for Unicode
-input/output when using the console/terminal in REPL mode.
-
+The first one adds support for the full numerical tower, the seconds one adds Unicode support, 
+as well as support for Unicode input/output when using the console/terminal in REPL mode,
+the last one adds all of the above.
 

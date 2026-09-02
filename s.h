@@ -41,7 +41,6 @@
 #include <direct.h>
 #include <sys/types.h>
 #include <process.h> /* for getpid */
-#include <locale.h> /* for setlocale */
 #include <sys/stat.h> /* for _S_IREAD|_S_IWRITE */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -143,4 +142,69 @@ typedef struct stat stat_t;
 #include <signal.h>
 #else
 #error "s.h: add your platform here" 
+#endif
+
+
+/* z is zero, but is it negative zero? */
+#if  (defined(_MSC_VER) && _MSC_VER >= 1800) || defined(signbit)
+#  define zero_is_neg(z) signbit(z)
+#else
+#  define zero_is_neg(z) (1.0/(z) < 0.0)
+#endif
+
+#if !defined(static_inline) 
+#  if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#    define static_inline static inline
+#  elif defined(_MSC_VER) || defined(__GNUC__)
+#    define static_inline static __inline
+#  else
+#    define static_inline static
+#  endif
+#endif
+
+#ifndef __has_builtin
+#  define __has_builtin(x) 0
+#endif
+
+/* ieee_fminimum / ieee_fmaximum */
+
+/* Detect availability of fminimum/fmaximum in the C library;
+ * do not treat -std=c23 as proof of a C23 libm */
+#if defined(__GLIBC_PREREQ)
+#  if __GLIBC_PREREQ(2, 38) && (defined(_GNU_SOURCE) || defined(_ISOC23_SOURCE) \
+        || defined(_ISOC2X_SOURCE) \
+        || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L))
+#    define SK_HAS_FMINIMUM_LIB
+#  endif
+#endif
+
+#if __has_builtin(__builtin_fminimum) && __has_builtin(__builtin_fmaximum) \
+    && defined(SK_HAS_FMINIMUM_LIB)
+#  define ieee_fminimum(x, y) __builtin_fminimum((x), (y))
+#  define ieee_fmaximum(x, y) __builtin_fmaximum((x), (y))
+
+#elif defined(SK_HAS_FMINIMUM_LIB)
+#  define ieee_fminimum(x, y) fminimum((x), (y))
+#  define ieee_fmaximum(x, y) fmaximum((x), (y))
+
+#else
+
+static_inline double ieee_fminimum(double x, double y) {
+  return (x != x) ? x * 1.0 : (y != y) ? y * 1.0 :
+         (x < y)  ? x : (y < x)  ? y :
+         (x != 0.0) ? x :
+         (zero_is_neg(x) || zero_is_neg(y)) ? -0.0 : 0.0;
+}
+
+static_inline double ieee_fmaximum(double x, double y) {
+  return (x != x) ? x * 1.0 : (y != y) ? y * 1.0 :
+         (x > y)  ? x : (y > x)  ? y :
+         (x != 0.0) ? x :
+         (zero_is_neg(x) && zero_is_neg(y)) ? -0.0 : 0.0;
+}
+
+#endif
+
+#ifdef SK_HAS_FMINIMUM_LIB
+#  undef SK_HAS_FMINIMUM_LIB
 #endif

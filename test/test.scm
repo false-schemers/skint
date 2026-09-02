@@ -9,6 +9,26 @@
 (define *tests-run* 0)
 (define *tests-passed* 0)
 
+;; variant of good-enough by willc
+(define (approx=? x y)
+  ;; relative error should be with 0.1%, but greater
+  ;; relative error is allowed when the expected value
+  ;; is near zero.
+  (cond ((infinite? x) (= x (* 2.0 y)))
+        ((infinite? y) (= (* 2.0 x) y))
+        ((nan? x)      (nan? y))
+        ((nan? y)      (nan? x))
+        ((> (abs y) 1e-7)
+         (< (/ (abs (- x y)) (abs y)) 1e-10))
+        (else
+         (< (abs (- x y)) 1e-13))))
+
+(define (same? x y)
+  (cond ((and (number? x) (inexact? x) (number? y) (inexact? y))
+         (and (approx=? (real-part x) (real-part y)) 
+              (approx=? (imag-part x) (imag-part y))))
+        (else (equal? x y))))
+
 (define-syntax test
   (syntax-rules ()
     ((test name expect expr)
@@ -45,9 +65,13 @@
     ((test-values vals expr) 
      (test (call-with-values (lambda () vals) list) (call-with-values (lambda () expr) list)))))
 
+(define-syntax test=
+  (syntax-rules ()
+    ((test= val expr) (test #t (= expr val)))))
+
 (define-syntax test~=
   (syntax-rules ()
-    ((test~= val expr) (test (number->string val) (number->string expr)))))
+    ((test~= val expr) (test #t (same? val expr)))))
 
 
 (define (test-begin . name)
@@ -58,7 +82,7 @@
   (display " out of ")
   (write *tests-run*)
   (display " passed (")
-  (write (/ (floor (* (/ *tests-passed* *tests-run*) 10000)) 100))
+  (write (/ (floor (* (/ *tests-passed* *tests-run*) 10000.0)) 100))
   (display "%)")
   (newline))
 
@@ -1482,7 +1506,7 @@
 ;(test #i1/3 (rationalize .3 1/10))
 
 (test 1.0 (inexact (exp 0))) ;; may return exact number
-(test~= 20.08553692318767 (exp 3))
+(test~= 20.085536923187668 (exp 3))
 
 (test 0.0 (inexact (log 1))) ;; may return exact number
 (test 1.0 (log (exp 1)))
@@ -1495,10 +1519,10 @@
 (test 1.0 (inexact (cos 0))) ;; may return exact number
 (test -1.0 (cos 3.14159265358979))
 (test 0.0 (inexact (tan 0))) ;; may return exact number
-(test~= 1.557407724654902 (tan 1))
+(test~= 1.5574077246549023 (tan 1))
 
 (test 0.0 (inexact (asin 0))) ;; may return exact number
-(test~= 1.570796326794897 (asin 1))
+(test~= 1.5707963267948966 (asin 1))
 (test 0.0 (inexact (acos 1))) ;; may return exact number
 (test~= 3.141592653589793 (acos -1))
 
@@ -1508,12 +1532,12 @@
 (test 0.0 (atan 0.0 1.0))
 (test -0.0 (atan -0.0 1.0))
 (test~= 0.7853981633974483 (atan 1.0 1.0))
-(test~= 1.570796326794897 (atan 1.0 0.0))
+(test~= 1.5707963267948966 (atan 1.0 0.0))
 (test~= 2.356194490192345 (atan 1.0 -1.0))
 (test~= 3.141592653589793 (atan 0.0 -1.0))
-(test~= -3.141592653589793 (atan -0.0 -1.0)) ;
+(test~= -3.141592653589793 (atan -0.0 -1.0))
 (test~= -2.356194490192345 (atan -1.0 -1.0))
-(test~= -1.570796326794897 (atan -1.0 0.0))
+(test~= -1.5707963267948966 (atan -1.0 0.0))
 (test~= -0.7853981633974483 (atan -1.0 1.0))
 ;; (test undefined (atan 0.0 0.0))
 
@@ -1521,7 +1545,7 @@
 (test 4 (square 2))
 
 (test 3.0 (inexact (sqrt 9)))
-(test~= 1.414213562373095 (sqrt 2))
+(test~= 1.4142135623730951 (sqrt 2))
 ;(test 0.0+1.0i (inexact (sqrt -1)))
 
 (test '(0 0) (call-with-values (lambda () (exact-integer-sqrt 0)) list))
@@ -1537,8 +1561,8 @@
 (test 27 (expt 3 3))
 (test 1 (expt 0 0))
 (test 0 (expt 0 1))
-(test 1.0 (expt 0.0 0))
-(test 0.0 (expt 0 1.0))
+(test= 1.0 (expt 0.0 0))
+(test= 0.0 (expt 0 1.0))
 
 ;(test 1+2i (make-rectangular 1 2))
 
@@ -3081,14 +3105,14 @@
 (test #f (eq? (string-append s) s))
 (test #f (eq? (vector-append v) v))
 
-; expt should overflow
+; expt may overflow into flonum
 (test 1 (expt 0 0))
-(test 0.1 (expt 10 -1))
-(test 0.0009765625 (expt 2 -10))
+(test= 0.0625 (expt 16 -1))
+(test= 0.0009765625 (expt 2 -10))
 (test -32768 (expt -2 15))
 (test -536870912 (expt -2 29))
-(test 536870912.0 (expt 2 29))
-(test 6.80564733841877e+038 (expt 2 129))
+(test= 536870912.0 (expt 2 29))
+(test= 6.80564733841877e+038 (expt 2 129))
 
 ; fixnum ops shouldn't fail on overflow, but may return whatever
 (test #t (fixnum? (fx- -536870912 1)))

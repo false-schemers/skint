@@ -3,10 +3,10 @@
 # Cheap and fast R7RS Scheme Interpreter
                          
 SKINT is a portable interpreter for the R7RS Scheme programming language. 
-It can be built from five C source files (~11K lines of code) with a single command. You don't have to rely on any distributives or packages; 
+Its basic configuration can be built from five C source files (~13K lines of code) with a single command. You don't have to rely on any distributives or packages; 
 just compile the source files with your favorite C compiler, link them with the standard C runtime libraries, 
 and you're done. Standard libraries are built in; ports of more than 100 SRFIs are available as an optional external 
-directory of .sld library files.
+directory of .sld library files. Additional functionality not required by R7RS Small is available in a form of compile-time options (see below). 
 
 ## Installation
 
@@ -29,8 +29,8 @@ clang -o skint -O3 -D NDEBUG -D NAN_BOXING [skint].c -lm
 The NAN_BOXING option assumes that the upper 16 bits of heap pointers are zero (48-bit address space). It is recommended to use this
 option on 64-bit systems that guarantee this (most of them do).
 
-The resulting interpreter has no dependencies (except for C runtime and standard -lm math library) and can be run from any location.
-If linked statically, it can be easily moved between systems with the same ABI. Note that this interpreter is a complete R7RS-small
+The resulting interpreter has no dependencies (except for C runtime and standard `-lm` math library) and can be run from any location.
+If linked statically, it can be easily moved between systems with the same ABI. Note that this interpreter is a complete R7RS Small
 system in the sense that it does not require any external files to operate (all standard libraries are built in).
 
 In addition to the standard libraries built into the interpreter, SKINT provides external libraries in the distribution’s 
@@ -70,13 +70,14 @@ make libinstall
 SKINT supports optional features that can be configured prior to compilation. When using the 
 `configure` script, you can enable these features with the following flags:
 
+*   `--use-tower`: Enables full numerical tower support by defining `OPT_TOWER`.
 *   `--use-unicode`: Enables full Unicode support by defining `OPT_UNICODE`.
 *   `--use-enhanced-tty`: Enables built-in REPL console line editing by defining `OPT_ENHTTY`.
 
-For example, to configure and install SKINT with both features enabled to a custom directory:
+For example, to configure and install SKINT with the first two features enabled to a custom directory:
 
 ```
-./configure --prefix=/home/gwendolyn/tools/skint --use-unicode --use-enhanced-tty
+./configure --prefix=/home/gwendolyn/tools/skint --use-tower --use-unicode
 make
 make install
 ```
@@ -86,7 +87,7 @@ directly to your C compiler. Note that when enabling enhanced TTY on Linux, you 
 link against the dynamic linking library (`-ldl`):
 
 ```
-clang -o skint -O3 -D NDEBUG -D NAN_BOXING -D OPT_UNICODE -D OPT_ENHTTY [skint].c -lm -ldl
+clang -o skint -O3 -D NDEBUG -D NAN_BOXING -D OPT_TOWER -D OPT_UNICODE -D OPT_ENHTTY [skint].c -lm -ldl
 ```
 
 ---
@@ -102,17 +103,16 @@ the instructions in `misc/README.md`.
 
 SKINT is true to basic Scheme principles -- it features a precise garbage collector, supports proper tail recursion, `call/cc`, 
 `dynamic-wind`, multiple return values, has a hygienic macro system, and a library system. It is almost fully compatible 
-with R7RS-small, but has the following known limitations and deviations from the standard:
+with R7RS Small, but has the following known limitations and deviations from the standard:
 
   *  fixnums are 30 bit long, flonums are doubles
-  *  no support for bignums/rational/complex numbers
+  *  no support for bignums/rational/complex numbers (unless compiled with the `OPT_TOWER` / `--use-tower` option)
   *  no support for Unicode; strings are 8-bit clean, use system locale (unless compiled with the `OPT_UNICODE` / `--use-unicode` option)
   *  source code literals cannot be circular (R7RS allows this)
   
-Some features of the R7RS-Small standard are not yet implemented or implemented in a simplified or non-conforming way:
+Some features of the R7RS Small standard are not yet implemented or implemented in a simplified or non-conforming way:
 
   *  `current-jiffy` and `jiffies-per-second` return inexact integers
-  *  `current-second` is defined as C `difftime(time(0), 0)+37`
 
 Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and evaluation/libraries support:
 
@@ -133,8 +133,8 @@ Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and eva
   *  on Un*x-like systems, interactive use of SKINT with line editing requires external readline wrapper
      such as [rlwrap](https://github.com/hanslub42/rlwrap) (unless compiled with the `OPT_ENHTTY` / `--use-enhanced-tty option`) 
   
-Please note that SKINT's interaction environment exposes bindings for all R7RS-small procedures 
-and syntax forms directly, so there is no need to use `import`. All R7RS-small libraries are built-in and
+Please note that SKINT's interaction environment exposes bindings for all R7RS Small procedures 
+and syntax forms directly, so there is no need to use `import`. All R7RS Small libraries are built-in and
 do not rely on any external .sld files.
 
 ### SRFI support
@@ -159,7 +159,7 @@ the `lib/README.md` file for details.
 `t.c`: Bytecode definitions for the internal expander, compiler, library, and REPL procedures    
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/t.scm`
 
-`opt`: Sources for optional features (Unicode, Enhanced TTY)
+`opt`: Sources for optional features (Numerical Tower, Unicode, Enhanced TTY)
 
 `pre`: Sources for generated files, with scripts to generate them
 
@@ -187,5 +187,5 @@ Supporting library code comes from #F's [LibL library](https://raw.githubusercon
 
 ## Family
 
-Please see [SIOF](https://github.com/false-schemers/siof) repository for a single-file R7RS-small interpreter. It is
+Please see [SIOF](https://github.com/false-schemers/siof) repository for a single-file R7RS Small interpreter. It is
 more portable and easier to build, but is less complete and runs significantly slower.

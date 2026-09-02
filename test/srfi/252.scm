@@ -1,5 +1,5 @@
 ;[esl] adapted from the original tests by Antero Mejr
-;[esl] limited to numbers supported by Skint (fixnums/flonums) 
+;[esl] tailored to numbers supported by Skint (fixnums/flonums/full tower)
 
 (import (srfi 1) (srfi 27) (srfi 64) (srfi 158) (srfi 194) (srfi 252))
 
@@ -90,15 +90,15 @@
 
 ;; Testing exact generators
 
-#;(cond-expand
- (exact-complex
-  (test-group "exact-complex-generator"
-    (test-property (lambda (x)
-                     (and (complex? x)
-                          (exact? (real-part x))
-                          (exact? (imag-part x))))
-                   (list (exact-complex-generator)))))
- (else))
+(cond-expand
+  (full-numeric-tower ;[esl*]
+    (test-group "exact-complex-generator"
+      (test-property (lambda (x)
+                       (and (complex? x)
+                            (exact? (real-part x))
+                            (exact? (imag-part x))))
+                     (list (exact-complex-generator)))))
+  (else))
 
 (test-group "exact-integer-generator"
   (test-property (lambda (x)
@@ -108,36 +108,42 @@
 (test-group "exact-number-generator"
   (test-property exact? (list (exact-number-generator))))
 
-#;(test-group "exact-rational-generator"
-  (test-property (lambda (x)
-                   (and (exact? x) (rational? x)))
-                 (list (exact-rational-generator))))
+(cond-expand
+  (full-numeric-tower ;[esl*]
+    (test-group "exact-rational-generator"
+      (test-property (lambda (x)
+                        (and (exact? x) (rational? x)))
+                     (list (exact-rational-generator)))))
+  (else))
 
 (test-group "exact-real-generator"
   (test-property (lambda (x)
                    (and (exact? x) (real? x)))
                  (list (exact-real-generator))))
 
-#;(test-group "exact-integer-complex-generator"
-  (cond-expand
-   (exact-complex
-    (test-property (lambda (x)
-                     (and (complex? x)
-                          (exact? (real-part x))
-                          (exact? (imag-part x))
-                          (integer? (real-part x))
-                          (integer? (imag-part x))))
-                   (list (exact-integer-complex-generator))))
-   (else)))
+(cond-expand
+  (full-numeric-tower ;[esl*]
+    (test-group "exact-integer-complex-generator"
+      (test-property (lambda (x)
+                       (and (complex? x)
+                            (exact? (real-part x))
+                            (exact? (imag-part x))
+                            (integer? (real-part x))
+                            (integer? (imag-part x))))
+                     (list (exact-integer-complex-generator)))))
+  (else))
 
 ;; Testing inexact generators
 
-#;(test-group "inexact-complex-generator"
-  (test-property (lambda (x)
-                   (and (complex? x)
-                        (inexact? (real-part x))
-                        (inexact? (imag-part x))))
-                 (list (inexact-complex-generator))))
+(cond-expand
+  (full-numeric-tower ;[esl*]
+    (test-group "inexact-complex-generator"
+      (test-property (lambda (x)
+                       (and (complex? x)
+                            (inexact? (real-part x))
+                            (inexact? (imag-part x))))
+                     (list (inexact-complex-generator)))))
+  (else))
 
 (test-group "inexact-integer-generator"
   (test-property (lambda (x)
@@ -147,10 +153,13 @@
 (test-group "inexact-number-generator"
   (test-property inexact? (list (inexact-number-generator))))
 
-#;(test-group "inexact-rational-generator"
-  (test-property (lambda (x)
-                   (and (inexact? x) (rational? x)))
-                 (list (inexact-rational-generator))))
+(cond-expand
+  (full-numeric-tower ;[esl*]
+    (test-group "inexact-rational-generator"
+      (test-property (lambda (x)
+                       (and (inexact? x) (rational? x)))
+                     (list (inexact-rational-generator)))))
+  (else))
 
 (test-group "inexact-integer-generator"
   (test-property (lambda (x)
@@ -159,8 +168,11 @@
 
 ;; Testing union generators
 
-#;(test-group "complex-generator"
-  (test-property complex? (list (complex-generator))))
+(cond-expand
+  (full-numeric-tower ;[esl*]
+    (test-group "complex-generator"
+      (test-property complex? (list (complex-generator)))))
+  (else))
 
 (test-group "integer-generator"
   (test-property integer? (list (integer-generator))))
@@ -168,8 +180,11 @@
 (test-group "number-generator"
   (test-property number? (list (number-generator))))
 
-#;(test-group "rational-generator"
-  (test-property rational? (list (rational-generator))))
+(cond-expand
+  (full-numeric-tower ;[esl*]
+    (test-group "rational-generator"
+      (test-property rational? (list (rational-generator)))))
+  (else))
 
 (test-group "real-generator"
   (test-property real? (list (real-generator))))

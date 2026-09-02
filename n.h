@@ -16,15 +16,64 @@
 #include <stdlib.h>
 #include <assert.h>
 /* extra includes */
+#include <stdint.h>
 #include <math.h>
 #include <errno.h>
 #include <ctype.h>
 #include <string.h>
+#include <float.h>
+#include <limits.h>
 #include <time.h>
+/* old lib patches */
+#if defined(_MSC_VER) && (_MSC_VER <= 1700)
+#define strtoll  _strtoi64
+#define strtoull _strtoui64
+#define PRId64 "I64d"
+#define PRIu64 "I64u"
+#else
+#include <inttypes.h>
+#endif
+#ifndef DBL_DECIMAL_DIG
+#ifdef DECIMAL_DIG
+#define DBL_DECIMAL_DIG DECIMAL_DIG
+#else
+#define DBL_DECIMAL_DIG 17
+#endif
+#endif
+#ifndef FLT_DECIMAL_DIG
+#define FLT_DECIMAL_DIG 9
+#endif
+/* useful math constants */
+#ifndef M_PI
+#define M_PI 3.141592653589793238462643383279502884
+#endif
+#ifndef M_PI_2
+#define M_PI_2 1.570796326794896619231321691639751442
+#endif
+#ifndef M_PI_4
+#define M_PI_4 0.785398163397448309615660845819875721
+#endif
+#ifndef M_SQRT2
+#define M_SQRT2 1.414213562373095048801688724209698079
+#endif
+#ifndef M_SQRT1_2
+#define M_SQRT1_2 0.707106781186547524400844362104849039
+#endif
+#ifndef M_LN2
+#define M_LN2 0.693147180559945309417232121458176568
+#endif
+#ifndef M_PI_LN2
+#define M_PI_LN2 4.53236014182719380962768294571666681
+#endif
+#ifndef M_PI_LN10
+#define M_PI_LN10 1.36437635384184134748578362543135577
+#endif
+#ifndef M_LOG2E
+#define M_LOG2E 1.442695040888963407359924681001892137
+#endif
 
 /* standard definitions */
 #ifdef NAN_BOXING
-#include <stdint.h>
 typedef int64_t obj;          /* pointers are this size, higher 16 bits and lower bit zero */
 typedef int64_t cxoint_t;     /* same thing, used as integer */
 typedef struct {              /* type descriptor */
@@ -243,13 +292,14 @@ extern long fxpow(long x, long y);
 /* returns 0 if result is not representable as a fixnum */
 extern long fxsqrt(long x);
 extern int fxifdv(long x, long y, long *pi, double *pd);
+extern int fxlen(long x); /* srfi-143 fxlength */
+extern int fxbtc(long x); /* srfi-143 fxfxbit-count */
 extern double flquo(double x, double y);
 extern double flrem(double x, double y);
 extern double flmqu(double x, double y);
 extern double flmlo(double x, double y);
 extern double flgcd(double x, double y);
 extern double flround(double x);
-extern int strtofxfl(const char *s, int radix, long *pl, double *pd);
 
 /* fixnums */
 typedef long fixnum_t;
@@ -295,7 +345,7 @@ static obj obj_from_flonum(int rc, double d) {
 #else
 extern cxtype_t *FLONUM_NTAG;
 typedef double flonum_t;
-typedef long long flobits_t; /* has to be the same size as flonum_t! */
+typedef int64_t flobits_t; /* has to be the same size as flonum_t! */
 #define is_flonum_obj(o) (isnative(o, FLONUM_NTAG))
 #define is_flonum_flonum(f) ((void)(f), 1)
 #define is_flonum_bool(f) ((void)(f), 0)
@@ -310,6 +360,35 @@ typedef long long flobits_t; /* has to be the same size as flonum_t! */
 #define void_from_flonum(l, f) (void)(f)
 #define obj_from_flonum(l, f) hpushptr(dupflonum(f), FLONUM_NTAG, l)
 extern flonum_t *dupflonum(flonum_t f);
+#endif
+
+/* part of a number */
+typedef union nump { 
+  long fix; 
+  double flo;
+#ifdef OPT_TOWER
+  struct bignum *big;
+#endif
+} nump_t;
+
+/* numerical type */
+typedef unsigned short numt_t;
+#define NUMT_NONE (0)
+#define NUMT_FIX  (1)
+#define NUMT_FLO  (2)
+/* .. extended in n_tower.h" */
+
+typedef struct fatnum4 { 
+  numt_t t; 
+  nump_t p[4]; 
+} fatnum4_t;
+
+/* returns NUMT_NONE and sets errno on failure */
+extern numt_t strtonum4(fatnum4_t *f4, const char *s, char **endp, int radix);
+
+/* other numbers */
+#ifdef OPT_TOWER
+#include "opt/n_tower.h"
 #endif
 
 /* characters */
@@ -405,6 +484,7 @@ extern int *stringrcat(int sc, obj pso[]);
 #define usystem system
 #endif /* end of !OPT_UNICODE block */
 extern int strcmp_ci(const char *s1, const char *s2);
+extern int strncmp_ci(const char *s1, const char *s2, size_t n);
 #define hpushstr(l, s) hpushptr(s, STRING_NTAG, l)
 
 /* vectors */
@@ -493,7 +573,12 @@ extern obj* procedureref(obj o, int i);
 #define getshebang(o) getimmu(o, SHEBANG_ITAG)
 
 /* input/output ports */
-typedef enum { CTLOP_RDLN, CTLOP_CI, CTLOP_SETCI, CTLOP_SETPROMPT } ctlop_t;
+typedef enum { 
+  CTLOP_OFL, CTLOP_ICL, 
+  CTLOP_RDLN, 
+  CTLOP_CI, CTLOP_SETCI, 
+  CTLOP_SETPROMPT 
+} ctlop_t;
 typedef struct { /* extends cxtype_t */
   const char *tname;
   void (*free)(void*);
@@ -501,7 +586,6 @@ typedef struct { /* extends cxtype_t */
   int  (*getch)(void*);
   int  (*ungetch)(int, void*);
   int  (*putch)(int, void*);
-  int  (*flush)(void*);
   int  (*ctl)(ctlop_t, void*, ...);
 } cxtype_port_t, cxtype_iport_t, cxtype_oport_t;
 #ifdef OPT_ENHTTY /* + tty */
@@ -544,8 +628,13 @@ static int iportpeekc(obj o) {
   cxtype_iport_t *vt = iportvt(o); void *pp = iportdata(o); int c;
   assert(vt); c = vt->getch(pp); if (c != EOF) vt->ungetch(c, pp); return c;
 }
-int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), 
-         void *in, obj *po, long *pl, double *pd, int **pp);
+static void iportclear(obj o) {
+  cxtype_iport_t *vt = iportvt(o); void *pp = iportdata(o);
+  assert(vt); vt->ctl(CTLOP_ICL, pp);
+}
+extern char *rdns(int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, cbuf_t *pcb);
+extern int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*), void *in, 
+  obj *po, fatnum4_t *pf, int **pp);
 /* file input ports */
 typedef enum { TIF_NONE = 0, TIF_EOF = 1, TIF_CI = 2 } tiflags_t;
 typedef struct tifile { cbuf_t cb; char *next; FILE *fp; int lno, fns; tiflags_t flags; } tifile_t;
@@ -599,7 +688,7 @@ static void oportwrite(const char *s, int n, obj o) {
 }
 static void oportflush(obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
-  assert(vt); vt->flush(pp);
+  assert(vt); vt->ctl(CTLOP_OFL, pp);
 }
 /* file output ports */
 #define mkoport_file(l, fp) hpushptr(fp, OPORT_FILE_NTAG, l)
@@ -621,6 +710,15 @@ extern obj isassoc(obj x, obj l);
 extern void oportputsimple(obj x, obj p, int disp);
 extern void oportputcircular(obj x, obj p, int disp);
 extern void oportputshared(obj x, obj p, int disp);
+
+/* 'generic' writer for flonums; returns 0 or -1 on invalid radix */
+extern int wrdn(double n, int radix, int mode, int prc, int (*pf)(int, void*), void *pd);
+/* floating-point formatter wit support for radices 10, 2, 4, 8, 16 */
+extern char *dntostr(char *buf, size_t len, double x, int radix, int mode, int prc);
+/* safe for fixed printing at the end of f range */
+#define DN_DEC_BUFSIZE (16 + DBL_DECIMAL_DIG + 32)
+/* safe for fixed binary printing at the end of f range */
+#define DN_MAX_BUFSIZE (DBL_MANT_DIG + DBL_MANT_DIG + 40)
 
 /* detecting math libraries */
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)

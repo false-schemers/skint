@@ -1051,7 +1051,8 @@
   (if (null? esps1) esps2 ; assume esps2 is already checked
       (let ([esp (car esps1)] [esps (adjoin-esps (cdr esps1) esps2)])
         (cond [(member esp esps) esps] ; duplicate, but same rename -- already checked, ok
-              [(assq (car esp) esps) => (lambda (p) (x-error "duplicate identifier exports" esp p))]
+              ;R7RS has no requirement for all exports to have distinct bindings!
+              ;[(assq (car esp) esps) => (lambda (p) (x-error "duplicate identifier exports" esp p))]
               [(rassq (cdr esp) esps) => (lambda (p) (x-error "conflicting identifier exports" esp p))]
               [else (cons esp esps)]))))
 
@@ -1343,7 +1344,9 @@
 (define (write-serialized-numvector-element x t port)  
   (case t 
     [(0 32 33 34 35 36 37 38 39) (write-serialized-byte x port)]
-    [(1 2 3 10 11) (write-string (number->string x 10) port) (write-char #\; port)]))
+    [(1 2 3 4 5 6 7 10 11) (write-string (number->string x 10) port) (write-char #\; port)]
+    [(14 15) (write-string (number->string (real-part x) 10) port) (write-char #\, port)
+             (write-string (number->string (imag-part x) 10) port) (write-char #\; port)]))
 
 (define (write-serialized-sexp x port)
   (cond [(eq? x #f) 
@@ -1361,6 +1364,9 @@
         [(fixnum? x)
          (write-char #\i port)
          (write-string (fixnum->string x) port)]
+        [(number? x)
+         (write-char #\x port)
+         (write-string (number->string x 16) port)]
         [(list? x)
          (write-char #\l port)
          (write-serialized-size (length x) port)
@@ -1400,7 +1406,7 @@
         [else (c-error "cannot encode literal" x)]))
 
 (define (write-serialized-arg arg port)
-  (if (and (number? arg) (exact? arg) (fx<=? 0 arg) (fx<=? arg 9))
+  (if (and (number? arg) (fixnum? arg) (fx<=? 0 arg) (fx<=? arg 9))
       (write-char (string-ref "0123456789" arg) port)
       (begin (write-char #\( port)
              (write-serialized-sexp arg port)
@@ -2209,23 +2215,26 @@
     ; these are special forms in skint!
     (define-library) (import)
     ; selected extracts from r7rs-large and srfis
-    (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format) (fprintf) 
-    (format-pretty-print) (format-fixed-print) (format-fresh-line) (format-help-string)
+    (box? x 111) (box x 111) (unbox x 111) (set-box! x 111) (format) (printf) (fprintf)
+    (format-pretty-print) (format-exponential-print) (format-fixed-print) 
+    (format-general-print) (format-fresh-line) (format-help-string) (clear-input-port)
     ; skint extras go into repl and (skint) library; the rest goes to (skint hidden)
     (set&) (lambda*) (body) (letcc) (withcc) (syntax-lambda) (syntax-length) (expand)
     (record?) (make-record) (record-length) (record-ref) (record-set!) (record-type-descriptor) 
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg) (fxabs) 
-    (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) 
-    (fxexpt) (%fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsra) (fxsrl) (fxeqv)
+    (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) (fxexpt) 
+    (%fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsra) (fxsrl) (fxeqv) (fxlength) (fxbit-count)
     (fxaddc) (fxsubc) (fxmulc) (fxfmar) (fixnum->flonum) (fixnum->string) (string->fixnum) 
     (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
     (flinfinite?) (flfinite?) (fleven?) (flodd?) (fl+) (fl*) (fl-) (fl/) (flneg) (flabs) (flgcd) 
     (flexpt) (flsqrt) (flfloor) (flceiling) (fltruncate) (flround) (flexp) (fllog) (flsin) (flcos) 
     (fltan) (flasin) (flacos) (flatan) (fl<?) (fl<=?) (fl>?) (fl>=?) (fl=?) (fl!=?) (flmin) 
     (flmax) (flremainder) (flmodulo) (flquotient) (flmodquo) (flonum->fixnum) (flonum->string)
-    (flldexp) (flmodf) (flfrexp) (flsinh) (flcosh) (fltanh) (fllog10)
-    (string->flonum) (list-cat) (last-pair) (list-head) (meme) (asse) (memp) (assp) (reverse!) 
+    (flldexp) (flmodf) (flfrexp) (flsinh) (flcosh) (fltanh) (fllog10) (string->flonum) 
+    (bitwise-not) (bitwise-and) (bitwise-ior) (bitwise-xor) (arithmetic-shift) (integer-length) 
+    (bit-count) (bignum?) (ratnum?) (compnum?) (rectnum?) (inexact->string)
+    (list-cat) (last-pair) (list-head) (meme) (asse) (memp) (assp) (reverse!) 
     (circular?) (cons*) (list*) (char-cmp) (char-ci-cmp) (string-cat) (string-position) 
     (string-cmp) (string-ci-cmp) (vector-cat) (bytevector=?) (bytevector->list) (list->bytevector) 
     (subbytevector) (numvector?) (make-numvector) (numvector-length) (numvector-ref) (numvector-set!)
@@ -2739,6 +2748,7 @@
             (display (error-object-message err) p) (newline p)
             (for-each (lambda (arg) (write arg p) (newline p)) 
               (error-object-irritants err)))
+           (when (read-error? err) (clear-input-port ip)) ; don't get stuck!
            (set-current-file-stack! cfs) 
            (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))]
@@ -2804,7 +2814,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.7.1")
+(define *skint-version* "0.8.0")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
@@ -2827,7 +2837,11 @@
   (define (del-feature! f)
     (features (set-minus (features) (list (string->symbol f)))))
   (define (print-help!)
-    (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
+    (format #t "SKINT Scheme Interpreter v~a" *skint-version*)
+    (if opt-tower (format #t "t"))
+    (if opt-unicode (format #t "u"))
+    (if opt-enhtty (format #t "e"))
+    (format #t "~%")
     (format #t "usage: skint [OPTION]... [FILE] [ARG]...~%")
     (format #t "~%")
     (format #t "Options:~%")
@@ -2860,6 +2874,10 @@
   ; falling through to interactive mode
   (when (and (tty-port? (current-input-port)) (tty-port? (current-output-port)))
     ; quick check for non-interactive use failed, greet
-    (format #t "SKINT Scheme Interpreter v~a~%" *skint-version*)
+    (format #t "SKINT Scheme Interpreter v~a" *skint-version*)
+    (if opt-tower (format #t "t"))
+    (if opt-unicode (format #t "u"))
+    (if opt-enhtty (format #t "e"))
+    (format #t "~%")
     (format #t "Copyright (c) 2024-2026 False Schemers~%"))
   #t) ; exited normally

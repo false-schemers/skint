@@ -133,7 +133,7 @@ int *sdataput(int *pb, int i, int c)
   oldbc  = pb[1]; bc = oldbc + len - oldlen; e = s + oldbc;
   if (bc < oldbc) memmove(si+len, sip1, e-sip1+1);
   ioff = (int)(si - s); ipoff = (int)(sip1 - s); eoff = (int)(e - s);
-  pb = realloc(pb, sizeof(int)*2 + bc + 1); assert(pb);
+  pb = cxm_cknull(realloc(pb, sizeof(int)*2 + bc + 1), "realloc(sdataput)");
   s = sdatachars(pb); 
   si = s + ioff; sip1 = s + ipoff; e = s + eoff;
   if (bc > oldbc) memmove(si+len, sip1, e-sip1+1); 
@@ -712,7 +712,7 @@ int cleansymname(const char *s, int blen) {
   if (s[0] == '+' || s[0] == '-') {
     if (blen == 1) return 1;
     if (blen == 2 && (s[1] == 'i' || s[1] == 'I')) return 0;
-    if (blen == 6 && (strcmp_ci(s+1, "inf.0") == 0 || strcmp_ci(s+1, "nan.0") == 0)) return 0;
+    if (blen >= 6 && (strncmp_ci(s+1, "inf.0", 5) == 0 || strncmp_ci(s+1, "nan.0", 5) == 0)) return 0;
     if (blen >= 2 && s[1] == '.' && !isdigit(s[2])) return 1; 
     if (s[1] != '.' && !isdigit(s[1])) return 1;
     return 0;

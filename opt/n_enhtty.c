@@ -41,23 +41,46 @@ int ttyisansi(void)
 
 char* ttygetln(const char *prompt, cbuf_t *pcb) 
 {
-  char *buf = cballoc(cbclear(pcb), 256); int bufsz = 256;
-  HANDLE hin; wchar_t wbuf[256]; DWORD rc, wc; char *res;
+  /* note: in Win7 console, that would limit lines to 512-3=509 chars;
+   * (hard stop in Win7 console is at max(bufsz, 256)-3 characters) 
+   * line buffers are dynamically sized in modern consoles, so we loop */
+  const int bufsz = 512; wchar_t wbuf[512];
+  HANDLE hin = GetStdHandle(STD_INPUT_HANDLE);
+  DWORD rc; size_t total = 0;
   if (prompt) ttyputs(prompt);
-  hin = GetStdHandle(STD_INPUT_HANDLE);
-  rc = 0; res = NULL;
-  if (ReadConsoleW(hin, wbuf, bufsz-1, &rc, NULL)) {
-    if (rc > 0 && wbuf[rc-1] == L'\n') {
-      wbuf[rc-1] = L'\0';
-      if (rc > 1 && wbuf[rc-2] == L'\r') wbuf[rc-2] = L'\0';
-    } else wbuf[rc] = L'\0';
-    wcscat(wbuf, L"\n");
-    wc = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, buf, bufsz, NULL, NULL);
-    if (!wc) return NULL; /* no input or conversion failure */
-    pcb->fill = pcb->buf + wc - 1; /* wc includes terminating 0 */
-    res = cbdata(pcb);
+  cbclear(pcb);
+  for (;;) {
+    rc = 0;
+    if (!ReadConsoleW(hin, wbuf, bufsz-1, &rc, NULL) || !rc) {
+      break; /* EOF / Ctrl-C / Ctrl-Z / etc. */
+    } else {
+      /* append raw UTF-16 chunk */
+      size_t bytes = rc*sizeof(wchar_t);
+      char *dst = cballoc(pcb, bytes);
+      memcpy(dst, wbuf, bytes);
+      total += bytes;
+      if (wbuf[rc-1] == L'\n') break;
+    }
   }
-  return res;
+  /* note: all allocation is done in pcb, which is reused */
+  if (total == 0) { 
+    return NULL;
+  } else {
+    wchar_t *full = (wchar_t*)pcb->buf;
+    size_t wlen = total / sizeof(wchar_t);
+    int mbc, rc; char *s;
+    if (wlen > 0 && full[wlen-1] == L'\n') {
+      --wlen; if (wlen > 0 && full[wlen-1] == L'\r') --wlen;
+      full[wlen++] = L'\n';
+    }
+    full[wlen] = L'\0';
+    mbc = WideCharToMultiByte(CP_UTF8, 0, full, wlen+1, NULL, 0, NULL, NULL);
+    s = cballoc(pcb, mbc); /* NB: may invalidate 'full', so we don't use it */
+    rc = WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)pcb->buf, wlen+1, s, mbc, NULL, NULL);
+    if (rc > 0) memmove(pcb->buf, s, rc);
+    pcb->fill = pcb->buf + (rc > 0 ? rc-1 : 0);
+    return cbdata(pcb);
+  }
 }
 
 void ttyputs(const char *str) 
@@ -581,7 +604,7 @@ void ttyputs(const char *line)
 static ttfile_t ttyin, ttyout;
 
 static void ttfini(void) {
-  ttflush(&ttyout);
+  ttctl(CTLOP_OFL, &ttyout);
   cbfini(&ttyin.cb);
   cbfini(&ttyout.cb);
 }
@@ -606,7 +629,7 @@ static void ttfree(ttfile_t *tp) {
 static int ttgetch(ttfile_t *tp) {
   int c; 
   assert(tp->next >= tp->cb.buf && tp->next <= tp->cb.fill);
-  if (!cbempty(&ttyout.cb)) ttflush(&ttyout);
+  if (!cbempty(&ttyout.cb)) ttctl(CTLOP_OFL, &ttyout);
   retry: c = unextc_check(tp->next);
   if (c == 0x1A) goto eof; /* handle ^Z manually! */
   if (c != 0 || tp->next <= tp->cb.fill) return c; 
@@ -635,6 +658,15 @@ static int ttungetch(int c, ttfile_t *tp) {
 
 static int ttctl(ctlop_t op, ttfile_t *tp, ...) {
   switch (op) {
+    case CTLOP_OFL: {
+      if (!cbempty(&tp->cb)) ttyputs(cbdata(&tp->cb));
+      cbclear(&tp->cb);
+      return 0;
+    }  break;
+    case CTLOP_ICL: {
+      tp->next = tp->cb.fill;
+      return 0;
+    } break;
     case CTLOP_RDLN: {
       va_list args; int c, n, **pd;
       va_start(args, tp); 
@@ -684,12 +716,7 @@ static int ttputch(int c, ttfile_t *tp) {
   /* note: there is no point in writing NULs to tty, 
    * so we just skip them */
   if (c) ucbputc(c, &tp->cb);
-  if (c == '\n') ttflush(tp);
+  if (c == '\n') ttctl(CTLOP_OFL, tp);
   return c;
 }
 
-static int ttflush(ttfile_t *tp) {
-  if (!cbempty(&tp->cb)) ttyputs(cbdata(&tp->cb));
-  cbclear(&tp->cb);
-  return 0;
-}
