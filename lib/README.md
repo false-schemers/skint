@@ -112,6 +112,7 @@ This directory contains additional external libraries in a form of .sld files. T
 253
 257
 264
+273
 
 Note: SRFIs marked with an asterisk are implemented in abridged form: parts that require support for either full Unicode or a full numerical
 tower (both features are not required by R7RS Small) are omitted. SRFIs marked with a plus are implemented in abridged form in basic 
