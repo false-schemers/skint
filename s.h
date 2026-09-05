@@ -76,6 +76,7 @@ typedef struct _stat stat_t;
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
 #include <dlfcn.h>
@@ -89,6 +90,7 @@ typedef struct stat stat_t;
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
 #include <dlfcn.h>
@@ -106,6 +108,7 @@ typedef struct stat stat_t;
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
 #include <dlfcn.h>
@@ -127,6 +130,7 @@ typedef struct stat stat_t;
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
 #include <dirent.h>

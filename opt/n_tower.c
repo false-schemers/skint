@@ -6285,15 +6285,13 @@ static numt_t intquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
   if (!xt || !yt) return setfail(EDOM);
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
+  if (isfix(yt) && !getfix(yp)) return setfail(EDOM); /* zero division */
   if (isfix(xt)) {
     if (isfix(yt)) {
-      if (!getfix(yp)) bnx_zdiv();
-      else {
-        long x = getfix(xp), y = getfix(yp), q = x / y;
-        if (q <= FIXNUM_MAX) zt = setfix(zp, q);
-        else zt = setbig(zp, lltobn(q)); /* FIXNUM_MIN/-1 > FIXNUM_MAX */
-      }
-    } else if (getfix(xp) == FIXNUM_MIN && bneql(getbig(yp), FIXNUM_MAX+1)) {
+      long x = getfix(xp), y = getfix(yp), q = x / y;
+      if (q <= FIXNUM_MAX) zt = setfix(zp, q);
+      else zt = setbig(zp, lltobn(q)); /* FIXNUM_MIN/-1 > FIXNUM_MAX */
+    } else if (getfix(xp) == FIXNUM_MIN && bneql(getbig(yp), FIXNUM_MAX + 1)) {
       zt = setfix(zp, -1);
     } else {
       zt = setfix(zp, 0);
@@ -6315,13 +6313,11 @@ static numt_t intrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
   if (!xt || !yt) return setfail(EDOM);
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
+  if (isfix(yt) && !getfix(yp)) return setfail(EDOM); /* zero division */
   if (isfix(xt)) {
     if (isfix(yt)) {
-      if (!getfix(yp)) bnx_zdiv();
-      else {
-        long x = getfix(xp), y = getfix(yp), r = x % y;
-        zt = setfix(zp, r);
-      }
+      long x = getfix(xp), y = getfix(yp), r = x % y;
+      zt = setfix(zp, r);
     } else if (getfix(xp) == FIXNUM_MIN && bneql(getbig(yp), FIXNUM_MAX+1)) {
       zt = setfix(zp, 0);
     } else {
@@ -6348,19 +6344,22 @@ static numt_t intfquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
   if (!xt || !yt) return setfail(EDOM);
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
+  if (isfix(yt) && !getfix(yp)) return setfail(EDOM); /* zero division */
   if (isfix(xt)) {
     if (isfix(yt)) {
-      if (!getfix(yp)) bnx_zdiv();
-      else {
-        long x = getfix(xp), y = getfix(yp), q = x / y, r = x % y;
-        if ((r < 0 && y > 0) || (r > 0 && y < 0)) q -= 1;
-        if (q >= FIXNUM_MIN && q <= FIXNUM_MAX) zt = setfix(zp, q);
-        else zt = setbig(zp, lltobn(q)); /* FIXNUM_MIN/-1 > FIXNUM_MAX */
-      }
-    } else if (getfix(xp) == FIXNUM_MIN && bneql(getbig(yp), FIXNUM_MAX+1)) {
-      zt = setfix(zp, -1);
+      long x = getfix(xp), y = getfix(yp), q = x / y, r = x % y;
+      if ((r < 0 && y > 0) || (r > 0 && y < 0)) q -= 1;
+      if (q >= FIXNUM_MIN && q <= FIXNUM_MAX) zt = setfix(zp, q);
+      else zt = setbig(zp, lltobn(q));
     } else {
-      zt = setfix(zp, 0);
+      long x = getfix(xp);
+      int xsign = (x < 0) ? -1 : (x > 0 ? 1 : 0);
+      int ysign = intsign(yt, yp);
+      if (xsign != 0 && xsign != ysign) {
+        zt = setfix(zp, -1);
+      } else {
+        zt = setfix(zp, 0);
+      }
     }
     return zt; 
   } else {
@@ -6378,6 +6377,7 @@ static numt_t intfquo(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
       if ((sr < 0 && sy > 0) || (sr > 0 && sy < 0)) {
         bignum_t *bt = bq; bq = bnsub(bt, bn1), bnfree(bt);
       }      
+      bnfree(br);
     }
     if (bnwidths(bq) > FIXNUM_WIDTH) zt = setbig(zp, bq);
     else (zt = setfix(zp, bntol(bq))), bnfree(bq);
@@ -6392,25 +6392,31 @@ static numt_t intfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
   if (!xt || !yt) return setfail(EDOM);
   assert(NUMT_IS_INTNUM(xt) && "non-integer number");
   assert(NUMT_IS_INTNUM(yt) && "non-integer number");
+  if (isfix(yt) && !getfix(yp)) return setfail(EDOM); /* zero division */
   if (isfix(xt)) {
     if (isfix(yt)) {
-      if (!getfix(yp)) bnx_zdiv();
-      else {
-        long x = getfix(xp), y = getfix(yp), r = x % y;
-        if ((r < 0 && y > 0) || (r > 0 && y < 0)) r += y;
-        assert(r >= FIXNUM_MIN && r <= FIXNUM_MAX);
-        zt = setfix(zp, r);
-      }
+      long x = getfix(xp), y = getfix(yp), r = x % y;
+      if ((r < 0 && y > 0) || (r > 0 && y < 0)) r += y;
+      assert(r >= FIXNUM_MIN && r <= FIXNUM_MAX);
+      zt = setfix(zp, r);
     } else {
-      zt = setfix(zp, 0);
+      long x = getfix(xp);
+      int xsign = (x < 0) ? -1 : (x > 0 ? 1 : 0);
+      int ysign = intsign(yt, yp);
+      if ((xsign < 0 && ysign > 0) || (xsign > 0 && ysign < 0)) {
+        zt = intadd(zp, xt, xp, yt, yp);
+      } else {
+        zt = setfix(zp, x);
+      }
     }
     return zt; 
   } else {
     int ysign, zsign;
     if (isfix(yt)) zt = setfix(zp, bnmodl(getbig(xp), getfix(yp)));
     else zt = setbig(zp, bnmod(getbig(xp), getbig(yp)));
-    ysign = intsign(yt, yp), zsign = intsign(zt, zp);
-    if (ysign != zsign) {
+    ysign = intsign(yt, yp);
+    zsign = intsign(zt, zp);
+    if (zsign != 0 && ysign != zsign) {
       numt_t tt; nump_t tp[1];
       tt = zt; tp[0] = zp[0];
       zt = intadd(zp, tt, tp, yt, yp);

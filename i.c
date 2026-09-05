@@ -648,6 +648,7 @@ define_instruction(exit) {
   unwindi(0);
 }
 
+
 define_instruction(lit) { 
   ac = *ip++; 
   gonexti();
@@ -4724,6 +4725,26 @@ define_instruction(cursec) {
   ac = flonum_obj(d);
   gonexti(); 
 }
+
+define_instruction(utime) {
+  double d = microtime();
+  ac = flonum_obj(d);
+  gonexti(); 
+}
+
+define_instruction(uclock) {
+  double d = microclock();
+  ac = flonum_obj(d);
+  gonexti(); 
+}
+
+define_instruction(tzoff) {
+  long l = tz_offset();
+  assert(FIXNUM_MIN <= l && l <= FIXNUM_MAX);
+  ac = fixnum_obj(l);
+  gonexti(); 
+}
+
 
 define_instruction(system) {
   int res; cks(ac);

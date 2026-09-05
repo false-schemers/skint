@@ -2231,6 +2231,115 @@ extern const char* host_facet(int fno)
   return NULL;
 }
 
+/* current time as whole microseconds since the Unix epoch, NaN on failure */
+double microtime(void)
+{
+#if defined(_WIN32) || defined(_WIN64)
+  FILETIME ft; unsigned long long ticks;
+  typedef void (WINAPI *PreciseTimeFunc)(LPFILETIME);
+  static PreciseTimeFunc precise_func = NULL;
+  static int initialized = 0;
+
+  /* Lazy dynamic lookup (single-threaded). Uses high-precision clock on Windows 8+ 
+   * without causing executable load failures on Windows 7. */
+  if (!initialized) {
+    HMODULE hMod = GetModuleHandleA("kernel32.dll");
+    if (hMod) precise_func = (PreciseTimeFunc)GetProcAddress(hMod, "GetSystemTimePreciseAsFileTime");
+    initialized = 1;
+  }
+
+  if (precise_func) precise_func(&ft);
+  else GetSystemTimeAsFileTime(&ft);
+  ticks = ((unsigned long long)ft.dwHighDateTime << 32) | (unsigned long long)ft.dwLowDateTime;
+  /* Convert 100-ns ticks (1601 epoch) to 1-us intervals (1970 epoch) */
+  if (ticks >= 116444736000000000ULL)
+    return (double)(long long)((ticks - 116444736000000000ULL) / 10ULL);
+  else 
+    return (double)-(long long)((116444736000000000ULL - ticks) / 10ULL);
+
+#else /* POSIX (Linux, macOS, BSD) */
+#if defined(CLOCK_REALTIME)
+  struct timespec ts;
+  if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
+    return (double)ts.tv_sec * 1000000.0 + (double)(ts.tv_nsec / 1000);
+  }
+#endif
+  {
+    struct timeval tv;
+    if (gettimeofday(&tv, NULL) == 0) {
+      return (double)tv.tv_sec * 1000000.0 + (double)tv.tv_usec;
+    }
+  }
+#endif
+  return HUGE_VAL-HUGE_VAL; /* failed! */
+}
+
+/* process time as whole microseconds, NaN on failure */
+double microclock(void)
+{
+#if defined(_WIN32) || defined(_WIN64)
+  FILETIME creation, exit, kernel, user;
+  if (GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)) {
+    unsigned long long k = ((unsigned long long)kernel.dwHighDateTime << 32) | kernel.dwLowDateTime;
+    unsigned long long u = ((unsigned long long)user.dwHighDateTime << 32) | user.dwLowDateTime;
+    return (double)((k + u) / 10ULL);
+  }
+#elif defined(CLOCK_PROCESS_CPUTIME_ID)
+  struct timespec ts;
+  if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
+    return (double)ts.tv_sec * 1000000.0 + (double)(ts.tv_nsec / 1000L);
+  }
+#elif defined(RUSAGE_SELF)
+  struct rusage ru;
+  if (getrusage(RUSAGE_SELF, &ru) == 0) {
+    return (double)(ru.ru_utime.tv_sec + ru.ru_stime.tv_sec) * 1000000.0 +
+           (double)(ru.ru_utime.tv_usec + ru.ru_stime.tv_usec);
+  }
+#else
+  clock_t c = clock();
+  if (c != (clock_t)-1) {
+    return (double)c / (double)CLOCKS_PER_SEC * 1000000.0;
+  }
+#endif
+  return HUGE_VAL - HUGE_VAL;
+}
+
+
+/* 
+ * Returns local UTC offset in seconds (e.g., +10800 for UTC+3, -18000 for UTC-5).
+ * Mathematically exact, immune to DST transition gaps, and highly performant.
+ * offsets are -86400 < tzoff < 86400 seconds(+/-24 hours)
+ */
+long tz_offset(void)
+{ 
+  time_t now = time(NULL); struct tm g, l, *tmp;
+  long offset; int days;
+
+  tmp = gmtime(&now);
+  if (!tmp) return 0L;
+  g = *tmp; /* copy static buffer safely */
+  tmp = localtime(&now);
+  if (!tmp) return 0L;
+  l = *tmp;
+
+  /* calculate basic clock-face difference in seconds */
+  offset = (long)(l.tm_hour - g.tm_hour) * 3600L +
+           (long)(l.tm_min - g.tm_min) * 60L +
+           (long)(l.tm_sec - g.tm_sec);
+
+  /* handle day wraps (and year wraps across Dec 31 <-> Jan 1)
+   * days=0: same day; =1, =-1: local is 1 day ahead/behind GMT */
+  days = l.tm_yday - g.tm_yday;
+  if (days != 0) {
+    if (days < -1) days = 1; /* local is Jan 1, GMT is Dec 31 */
+    else if (days > 1) days = -1; /* local is Dec 31, GMT is Jan 1 */
+    offset += (long)days * 86400L;
+  }
+
+  return offset;
+}
+
+
 #ifdef OPT_ENHTTY
 #include "opt/n_enhtty.c"
 #endif
