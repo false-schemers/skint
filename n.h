@@ -739,3 +739,8 @@ extern char *dntostr(char *buf, size_t len, double x, int radix, int mode, int p
 #if defined(XSI_MATH_LIB) && defined(NOXMATH)
 #undef XSI_MATH_LIB
 #endif
+
+/* time */
+extern double microtime(void);
+extern double microclock(void);
+extern long tz_offset(void);
