@@ -213,8 +213,10 @@ char *t_code[] = {
   "%3.2,.2,'(y3:ref),l2,.2,@(y17:extend-xenv-local)[33",
 
   "P", "xenv-lookup",
-  "%3${.4,.4,.4[02},.0?{.0]4}.3,${.5,@(y17:xpand-sexp->datum)[01},.4,l3,'"
-  "(s38:transformer: invalid identifier access),@(y6:error*)[42",
+  "%3${.4,.4,.4[02},.0?{.0]4}.2p?{'(y3:ref),.4q}{f}?{${.4,@(y17:xpand-sex"
+  "p->datum)[01},l1,'(s17:library not found),@(y6:error*)[42}.3,${.5,@(y1"
+  "7:xpand-sexp->datum)[01},.4,l3,'(s38:transformer: invalid identifier a"
+  "ccess),@(y6:error*)[42",
 
   "P", "xenv-ref",
   "%2'(y3:ref),.2,.2,@(y11:xenv-lookup)[23",

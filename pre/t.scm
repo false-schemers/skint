@@ -358,7 +358,9 @@
 
 (define (xenv-lookup env id at)
   (or (env id at)
-      (error* "transformer: invalid identifier access" (list id (xpand-sexp->datum id) at))))
+      (if (and (pair? id) (eq? at 'ref))
+          (error* "library not found" (list (xpand-sexp->datum id)))
+          (error* "transformer: invalid identifier access" (list id (xpand-sexp->datum id) at)))))
 
 (define (xenv-ref env id) (xenv-lookup env id 'ref))
 

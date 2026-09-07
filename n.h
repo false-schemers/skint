@@ -743,4 +743,4 @@ extern char *dntostr(char *buf, size_t len, double x, int radix, int mode, int p
 /* time */
 extern double microtime(void);
 extern double microclock(void);
-extern long tz_offset(void);
+extern long tzoffset(void);
