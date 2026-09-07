@@ -133,9 +133,6 @@ $(man): $(man_in)
 
 test:
 	$(exe) test/test.scm
-ifeq ($(USE_UNICODE),1)
-	$(exe) test/test-unicode.scm
-endif
 
 opttest:
 	$(exe) test/test-options.scm

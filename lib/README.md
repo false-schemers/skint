@@ -118,3 +118,11 @@ Note: SRFIs marked with an asterisk are implemented in abridged form: parts that
 tower (both features are not required by R7RS Small) are omitted. SRFIs marked with a plus are implemented in abridged form in basic 
 configuration, but automatically provide full functionality if the corresponding option (`OPT_TOWER` / `OPT_UNICODE`) was configured
 or selected at SKINT build time. 
+
+The `skint` subtree contains SKINT-specific libraries:
+
+| Library | Contents | Documentation |
+|---|---|---|
+| `(skint format)` | `format`, `fprintf`, `printf` and their control parameters; SRFI 48 directives plus extensions | [doc/skint/format.md](../doc/skint/format.md) |
+| `(skint getopt)` | AT&T/POSIX-style command line option parser and `--help` formatter, as used by SKINT itself | [doc/skint/getopt.md](../doc/skint/getopt.md) |
+| `(skint ivset)` | Sets of exact integers as sorted vectors of disjoint intervals; backs the SRFI 14/115/252 implementations | [doc/skint/ivset.md](../doc/skint/ivset.md) |

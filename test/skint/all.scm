@@ -2,6 +2,8 @@
 (import (only (skint hidden) file-resolve-relative-to-current %system %command-line))
 
 (define *tests* '(
+format
+getopt
 ivset
 ))
 
