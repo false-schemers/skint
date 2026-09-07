@@ -1251,10 +1251,29 @@ define_instruction(meme) {
 }
 
 define_instruction(assq) {
-  obj l = spop(); 
+  obj l = spop();
+  /* on critical path, try to hand-optimize */
+#if defined(NDEBUG)
+  for (;;) {
+    if (notobjptr(l)) break; 
+    else { /* l is a heap object */
+      obj* lh = objptr_from_obj(l), p;
+      if (lh[-1] != obj_from_size(2+1) || lh[0] != obj_from_size(PAIR_BTAG)) break;
+      p = lh[1]; /* car(l) */
+      if (notobjptr(p)) goto next;
+      else { /* p is a heap object */
+        obj* ph = objptr_from_obj(p);
+        if (ph[-1] != obj_from_size(2+1) || ph[0] != obj_from_size(PAIR_BTAG)) goto next;
+        if (ph[1] == ac) { ac = p; gonexti(); }
+      }
+      next: l = lh[2]; /* cdr(l) */
+    }
+  }
+#else   
   for (; is_pair(l); l = pair_cdr(l)) {
     obj p = pair_car(l); if (is_pair(p) && pair_car(p) == ac) { ac = p; gonexti(); }
   }
+#endif
   ac = bool_obj(0);
   gonexti();
 }
@@ -4739,7 +4758,7 @@ define_instruction(uclock) {
 }
 
 define_instruction(tzoff) {
-  long l = tz_offset();
+  long l = tzoffset();
   assert(FIXNUM_MIN <= l && l <= FIXNUM_MAX);
   ac = fixnum_obj(l);
   gonexti(); 

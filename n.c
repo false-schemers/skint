@@ -2305,12 +2305,8 @@ double microclock(void)
 }
 
 
-/* 
- * Returns local UTC offset in seconds (e.g., +10800 for UTC+3, -18000 for UTC-5).
- * Mathematically exact, immune to DST transition gaps, and highly performant.
- * offsets are -86400 < tzoff < 86400 seconds(+/-24 hours)
- */
-long tz_offset(void)
+/* local UTC offset in seconds (-86400 < tzoffset < 86400 secs), 0 if unavailable */
+long tzoffset(void)
 { 
   time_t now = time(NULL); struct tm g, l, *tmp;
   long offset; int days;
@@ -2327,8 +2323,7 @@ long tz_offset(void)
            (long)(l.tm_min - g.tm_min) * 60L +
            (long)(l.tm_sec - g.tm_sec);
 
-  /* handle day wraps (and year wraps across Dec 31 <-> Jan 1)
-   * days=0: same day; =1, =-1: local is 1 day ahead/behind GMT */
+  /* handle day wraps (and year wraps across Dec 31 <-> Jan 1) */
   days = l.tm_yday - g.tm_yday;
   if (days != 0) {
     if (days < -1) days = 1; /* local is Jan 1, GMT is Dec 31 */

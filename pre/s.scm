@@ -2040,10 +2040,13 @@
 (define format-pretty-print 
   (make-parameter write))
 (define (make-inexact-formatter mc)
+  (define (num->string n md pr)
+    (cond [pr (inexact->string (inexact n) 10 md pr)]
+          [else (number->string n)])) 
   (lambda (arg wd dd p)
     (define md (and (>= dd 0) mc))
     (define pr (and (>= dd 0) (<= dd 100) dd))
-    (define s (if (number? arg) (inexact->string (inexact arg) 10 md pr) arg))
+    (define s (if (number? arg) (num->string arg md pr) arg))
     (define l (and (string? s) (string-length s)))
     (when (and l (> wd l)) (display (make-string (- wd l) #\space) p))
     (display s p)))
@@ -2108,7 +2111,7 @@
           [else (write-char (car fl) p) (lp (cdr fl) args)])))
 
 (define (printf fs . allargs)
-  (apply fprintf (current-output-port) allargs))
+  (apply fprintf (current-output-port) fs allargs) (void))
 
 (define (format arg . args)
   (cond [(or (eq? arg #f) (string? arg))
@@ -2181,7 +2184,7 @@
 
 ; printer for optmap options used for --help; returns offset of help lines
 (define (print-command-line-options optmap . ?port)
-  (define port (if (pair? ?port) (car ?port) (standard-output-port)))
+  (define port (if (pair? ?port) (car ?port) (current-output-port)))
   (define (optlen i)
     (let ([co (cadr i)] [lo (caddr i)] [oa (cadddr i)])
       (define colen (if co (string-length co) 0))
