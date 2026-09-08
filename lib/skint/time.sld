@@ -3,7 +3,7 @@
   (import (scheme base) (scheme inexact)
           (only (skint hidden) %microtime %microclock %tz-offset))
 
-  (export current-second current-microsecond 
+  (export current-microsecond 
           current-timezone-offset process-microsecond
           time-duration time-monotonic time-utc time-tai time-process time-thread
           make-time time? time-type time-nanosecond time-second
@@ -32,14 +32,6 @@
    (define-syntax tower-exact
      (syntax-rules ()
        ((_ exp) exp)))))
-
-;; improved R7RS (scheme time) standard procedure
-(define (current-second)
-  (let ((utc-us (%microtime)))
-    (when (nan? utc-us)
-      (error "current-second: system clock unavailable"))
-    (let ((utc-sec (/ utc-us 1000000.0)))
-      (tower-exact (+ utc-sec (leap-second-delta utc-sec))))))
 
 ;; microsecond-precision TAI anchor
 (define (current-microsecond)

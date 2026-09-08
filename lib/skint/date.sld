@@ -5,10 +5,11 @@
 
   (export
     ;; Re-exported verbatim from (skint time)
-    current-second current-microsecond 
+    current-microsecond 
     current-timezone-offset process-microsecond
     time-duration time-monotonic time-utc time-tai time-process time-thread
     make-time time? time-type time-nanosecond time-second
+    set-time-type! set-time-nanosecond! set-time-second!
     time-resolution current-time
     time-utc->time-tai time-tai->time-utc
     time-monotonic->time-utc time-monotonic->time-tai
@@ -29,7 +30,6 @@
 
     ;; ISO 8601 / RFC 3339 I/O
     date->iso-8601 iso-8601->date)
-  (export leap-second-delta) ; debugging only
   
 (begin
 
