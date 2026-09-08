@@ -1577,6 +1577,156 @@
  )
 
 
+;; skint test files are executed as scripts, so this is the standard paradigm for
+;; testing feature-dependent parts that rely on a modified reader
+
+(cond-expand
+  ((not full-numeric-tower)
+   (display "\n--- All tests complete. ---\n")
+   (test-end)))
+
+
+;; if the script hasn't exited, we are executing in tower mode here.
+;;
+;; The tests below sample the exact-closed condition: given only exact integer
+;; arguments, and date and time objects built from exact integers, the procedures
+;; should hand back exact integers. They are the `test=` cases from above with the
+;; inexact literals written exactly, and with `test` in place of `test=` so that
+;; the comparison is `equal?` and an inexact result is caught rather than
+;; silently accepted.
+;;
+;; Epoch-scale literals are written exactly here, which only reads because this
+;; section is never reached, and so never read, in a build without the tower.
+
+(display "\n--- exact-closed: time object accessors ---\n")
+
+(let ((t (make-time 'time-utc 7 5)))
+  (set-time-nanosecond! t 43)
+  (set-time-second! t 58)
+  (test "set-time-nanosecond! keeps the nanosecond exact" 43 (time-nanosecond t))
+  (test "set-time-second! keeps the second exact" 58 (time-second t))
+  (let ((c (copy-time t)))
+    (test "copy-time keeps the nanosecond exact" 43 (time-nanosecond c))
+    (test "copy-time keeps the second exact" 58 (time-second c))))
+
+
+(display "\n--- exact-closed: time arithmetic ---\n")
+
+(test "time-difference second stays exact"
+      50 (time-second (time-difference (make-time 'time-duration 30 750)
+                                       (make-time 'time-duration 20 700))))
+(test "time-difference nanosecond stays exact"
+      10 (time-nanosecond (time-difference (make-time 'time-duration 30 750)
+                                           (make-time 'time-duration 20 700))))
+(test "negative time-difference second stays exact"
+      -50 (time-second (time-difference (make-time 'time-duration 20 700)
+                                        (make-time 'time-duration 30 750))))
+(test "add-duration second stays exact"
+      1750 (time-second (add-duration (make-time 'time-utc 30 1000)
+                                      (make-time 'time-duration 5 750))))
+(test "add-duration nanosecond stays exact"
+      35 (time-nanosecond (add-duration (make-time 'time-utc 30 1000)
+                                        (make-time 'time-duration 5 750))))
+(test "subtract-duration second stays exact"
+      250 (time-second (subtract-duration (make-time 'time-utc 30 1000)
+                                          (make-time 'time-duration 5 750))))
+(test "subtract-duration nanosecond stays exact"
+      25 (time-nanosecond (subtract-duration (make-time 'time-utc 30 1000)
+                                             (make-time 'time-duration 5 750))))
+
+
+(display "\n--- exact-closed: date to time ---\n")
+
+(test "(date->time-utc) second stays exact"
+      1483279199 (time-second (date->time-utc (make-date 0 0 0 14 1 1 2017 1))))
+(test "(date->time-tai) second stays exact"
+      1483279236 (time-second (date->time-tai (make-date 0 0 0 14 1 1 2017 1))))
+(test "(date->time-monotonic) second stays exact"
+      1483279236 (time-second (date->time-monotonic (make-date 0 0 0 14 1 1 2017 1))))
+
+
+(display "\n--- exact-closed: conversions between time scales ---\n")
+
+(test "(time-utc->time-tai) second stays exact"
+      1483279236 (time-second (time-utc->time-tai (make-time 'time-utc 0 1483279199))))
+(test "(time-utc->time-monotonic) second stays exact"
+      1483279236 (time-second (time-utc->time-monotonic (make-time 'time-utc 0 1483279199))))
+(test "(time-tai->time-utc) second stays exact"
+      1483279196 (time-second (time-tai->time-utc (make-time 'time-tai 0 1483279233))))
+(test "(time-monotonic->time-tai) second stays exact"
+      1483099234 (time-second (time-monotonic->time-tai (make-time 'time-monotonic 0 1483099234))))
+(test "(time-monotonic->time-utc) second stays exact"
+      1483099198 (time-second (time-monotonic->time-utc (make-time 'time-monotonic 0 1483099234))))
+
+
+(display "\n--- exact-closed: day numbers to time and date ---\n")
+
+(test "(julian-day->time-utc) second stays exact"
+      1483272000 (time-second (julian-day->time-utc 2457755)))
+(test "(julian-day->time-tai) second stays exact"
+      1483272037 (time-second (julian-day->time-tai 2457755)))
+(test "(julian-day->time-monotonic) second stays exact"
+      1483272037 (time-second (julian-day->time-monotonic 2457755)))
+(test "(modified-julian-day->time-utc) second stays exact"
+      208843315200 (time-second (modified-julian-day->time-utc 2457755)))
+(test "(modified-julian-day->time-tai) second stays exact"
+      208843315237 (time-second (modified-julian-day->time-tai 2457755)))
+
+(let ((d (julian-day->date 2457755 0)))
+  (test "(julian-day->date) year stays exact" 2017 (date-year d))
+  (test "(julian-day->date) nanosecond stays exact" 0 (date-nanosecond d)))
+(let ((d (modified-julian-day->date 57754 0)))
+  (test "(modified-julian-day->date) year stays exact" 2017 (date-year d))
+  (test "(modified-julian-day->date) nanosecond stays exact" 0 (date-nanosecond d)))
+
+
+(display "\n--- exact-closed: time to date, and date queries ---\n")
+
+(let ((d (time-utc->date (make-time 'time-utc 0 1483279199) 0)))
+  (test "(time-utc->date) year stays exact" 2017 (date-year d))
+  (test "(time-utc->date) nanosecond stays exact" 0 (date-nanosecond d))
+  (test "(date-year-day) stays exact" 1 (date-year-day d))
+  (test "(date-week-day) stays exact" 0 (date-week-day d)))
+
+(let ((d (time-tai->date (make-time 'time-tai 0 1483279236) 0)))
+  (test "(time-tai->date) year stays exact" 2017 (date-year d))
+  (test "(time-tai->date) second stays exact" 59 (date-second d)))
+
+(test "(date-week-number) stays exact"
+      4 (date-week-number (make-date 0 0 0 0 25 1 2017 0) 0))
+(test "(current-date) zone offset stays exact"
+      0 (date-zone-offset (current-date 0)))
+
+
+;; a whole-day result is promoted to exact by the tower-exact wrapper
+(test "(time-tai->julian-day) stays exact on a whole day"
+      2440588 (time-tai->julian-day (make-time 'time-tai 0 43200)))
+(test "(date->julian-day) stays exact on a whole day"
+      2451545 (date->julian-day (make-date 0 0 0 12 1 1 2000 0)))
+
+;; [cc-] a day number with a fractional part is still inexact. tower-exact only
+;;       promotes a result that already satisfies integer?, and these are built
+;;       on the flonum constants 2440587.5 / 40587.0 and a division by 86400.0,
+;;       so the fraction never becomes an exact rational. Making them exact
+;;       throughout would mean writing those constants exactly (4881175/2,
+;;       40587, 86400), after which these would hold. Observed values, all
+;;       inexact: time-utc->julian-day 2457755.0833217595,
+;;       time-monotonic->julian-day 2457752.999976852,
+;;       time-utc->modified-julian-day 57754.58332175926,
+;;       time-tai->modified-julian-day 40587.5,
+;;       time-monotonic->modified-julian-day 57752.49997685185,
+;;       date->modified-julian-day 51544.5.
+#;(begin
+  (test "(time-utc->julian-day) stays exact"
+        212350039199/86400 (time-utc->julian-day (make-time 'time-utc 0 1483279199)))
+  (test "(time-utc->modified-julian-day) stays exact"
+        4990397999/86400 (time-utc->modified-julian-day (make-time 'time-utc 0 1483279199)))
+  (test "(time-tai->modified-julian-day) stays exact"
+        81175/2 (time-tai->modified-julian-day (make-time 'time-tai 0 43200)))
+  (test "(date->modified-julian-day) stays exact"
+        103089/2 (date->modified-julian-day (make-date 0 0 0 12 1 1 2000 0))))
+
+
 (display "\n--- All tests complete. ---\n")
 
 (test-end)

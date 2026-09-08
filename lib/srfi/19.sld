@@ -47,6 +47,17 @@
   
 (begin
 
+;; cast to exact if tower is supported
+(cond-expand
+  (full-numeric-tower
+   (define-syntax tower-exact
+     (syntax-rules ()
+       ((_ exp) (let ((x exp)) (if (integer? x) (exact x) x))))))
+  (else
+   (define-syntax tower-exact
+     (syntax-rules ()
+       ((_ exp) exp)))))
+
 (define (copy-time t)
   (make-time (time-type t) (time-nanosecond t) (time-second t)))
 
@@ -77,7 +88,8 @@
 (define (time-utc->julian-day time)
   (unless (and (time? time) (eq? (time-type time) time-utc))
     (error "time-utc->julian-day: expected time-utc object" time))
-  (+ 2440587.5 (/ (+ (time-second time) (/ (time-nanosecond time) 1000000000.0)) 86400.0)))
+  (tower-exact
+    (+ 2440587.5 (/ (+ (time-second time) (/ (time-nanosecond time) 1000000000.0)) 86400.0))))
 
 (define (julian-day->time-utc jd)
   (unless (finite-real? jd)
@@ -124,7 +136,8 @@
 (define (time-utc->modified-julian-day time)
   (unless (and (time? time) (eq? (time-type time) time-utc))
     (error "time-utc->modified-julian-day: expected time-utc object" time))
-  (+ 40587.0 (/ (+ (time-second time) (/ (time-nanosecond time) 1000000000.0)) 86400.0)))
+  (tower-exact
+    (+ 40587.0 (/ (+ (time-second time) (/ (time-nanosecond time) 1000000000.0)) 86400.0))))
 
 (define (modified-julian-day->time-utc mjd)
   (unless (finite-real? mjd)
