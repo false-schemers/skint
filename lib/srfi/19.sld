@@ -1,48 +1,54 @@
 (define-library (srfi 19)
 
   (import 
-    (scheme base) (scheme inexact) (scheme char) (scheme write)
+    (scheme base) (scheme inexact) (scheme cxr) (scheme char) (scheme write)
     (skint date))  ; (skint date) re-exports (skint time) API
 
   (export
-    ;; --- Constants & Time Object API ---
+    ;; Constants
     time-duration time-monotonic time-process time-tai time-thread time-utc
+    ;; Current time and clock resolution
+    current-date current-julian-day current-modified-julian-day
+    current-time time-resolution
+    ;; Time object and accessors
     make-time time? time-type time-nanosecond time-second
     set-time-type! set-time-nanosecond! set-time-second!
-    time-resolution current-time
-    time-utc->time-tai time-tai->time-utc
-    time-monotonic->time-utc time-monotonic->time-tai
-    time-utc->time-monotonic time-tai->time-monotonic
-    time-difference add-duration subtract-duration
-    time-compare time<=? time<? time=? time>=? time>?
-
-    ;; --- Date Object API ---
+    copy-time
+    ;; Time comparison procedures
+    time<=? time<? time=? time>=? time>?
+    ;; Time arithmetic procedures
+    time-difference (rename time-difference time-difference!)
+    add-duration (rename add-duration add-duration!)
+    subtract-duration (rename subtract-duration subtract-duration!)
+    ;; Date object and accessors
     make-date date? date-nanosecond date-second date-minute date-hour
     date-day date-month date-year date-zone-offset
-    date-year-day date-week-day date-week-number current-date
-
-    ;; --- Time <-> Date Conversions ---
-    time-utc->date time-tai->date time-monotonic->date
-    date->time-utc date->time-tai date->time-monotonic
-
-    ;; --- Julian Day (JD) ---
-    date->julian-day julian-day->date
-    time-utc->julian-day julian-day->time-utc
-    time-tai->julian-day julian-day->time-tai
-    time-monotonic->julian-day julian-day->time-monotonic
-    current-julian-day
-
-    ;; --- Modified Julian Day (MJD) ---
-    date->modified-julian-day modified-julian-day->date
-    time-utc->modified-julian-day modified-julian-day->time-utc
-    time-tai->modified-julian-day modified-julian-day->time-tai
-    time-monotonic->modified-julian-day modified-julian-day->time-monotonic
-    current-modified-julian-day
-
-    ;; Formatted I/O
+    date-year-day date-week-day date-week-number 
+    ;; Time/Date/Julian Day/Modified Julian Day Converters
+    date->julian-day date->modified-julian-day 
+    date->time-monotonic date->time-tai date->time-utc
+    julian-day->date julian-day->time-monotonic
+    julian-day->time-tai julian-day->time-utc
+    modified-julian-day->date modified-julian-day->time-monotonic
+    modified-julian-day->time-tai modified-julian-day->time-utc
+    time-monotonic->date time-monotonic->julian-day
+    time-monotonic->modified-julian-day 
+    time-monotonic->time-tai (rename time-monotonic->time-tai time-monotonic->time-tai!)
+    time-monotonic->time-utc (rename time-monotonic->time-utc time-monotonic->time-utc!)
+    time-tai->date time-tai->julian-day time-tai->modified-julian-day 
+    time-tai->time-monotonic (rename time-tai->time-monotonic time-tai->time-monotonic!)
+    time-tai->time-utc (rename time-tai->time-utc time-tai->time-utc!)
+    time-utc->date time-utc->julian-day
+    time-utc->modified-julian-day 
+    time-utc->time-monotonic (rename time-utc->time-monotonic time-utc->time-monotonic!)
+    time-utc->time-tai (rename time-utc->time-tai time-utc->time-tai!)
+    ;; Date to String/String to Date Converters
     date->string string->date)
   
 (begin
+
+(define (copy-time t)
+  (make-time (time-type t) (time-nanosecond t) (time-second t)))
 
 ;; Precision-Quantized Seconds Decoder & Internal Helpers
 
@@ -454,8 +460,7 @@
                   (when (and (not (eof-object? (peek-char port)))
                              (char=? (peek-char port) #\:))
                     (read-char port))
-                  (let ((m1 (read-char port))
-                        (m2 (read-char port)))
+                  (let* ((m1 (read-char port)) (m2 (read-char port)))
                     (if (or (eof-object? m1) (eof-object? m2)
                             (not (char-ascii-numeric? m1)) (not (char-ascii-numeric? m2)))
                         (error "string->date: malformed time zone minutes")
