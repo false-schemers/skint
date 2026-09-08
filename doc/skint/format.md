@@ -1,4 +1,4 @@
-# `(skint format)` — formatted output
+## (skint format) — formatted output
 
 SKINT's built-in formatting procedures: `format`, `fprintf` and `printf`, plus the
 six parameters that control the directives with pluggable behaviour. The directive
@@ -14,16 +14,16 @@ script does not need this import to call `format` — the library exists so that
 programs and libraries, which start with nothing imported, can ask for them by
 name.
 
-## Procedures
+### Procedures
 
-### `(format destination format-string arg ...)`
+`(format destination format-string arg ...)`
 
 The destination selects where the output goes and what is returned:
 
 | `destination` | Output goes to | Returns |
 |---|---|---|
-| `#f` | nowhere | the formatted **string** |
-| a string | nowhere — the string is the format string | the formatted **string** |
+| `#f` | nowhere | the formatted *string* |
+| a string | nowhere — the string is the format string | the formatted *string* |
 | `#t` | current output port | unspecified |
 | a port | that port | unspecified |
 
@@ -38,7 +38,7 @@ The second row is the shorthand that makes `(format "[~a]" 42)` work: when the
 first argument is a string it is taken as the format string itself, with `#f`
 implied as the destination.
 
-### `(fprintf port format-string arg ...)`
+`(fprintf port format-string arg ...)`
 
 Writes to `port`. This is the underlying engine — `format` is a thin dispatcher
 over it.
@@ -49,7 +49,7 @@ over it.
   (get-output-string p))                    ; => "to port: 42"
 ```
 
-### `(printf format-string arg ...)`
+`(printf format-string arg ...)`
 
 `fprintf` to the current output port. Equivalent to `(format #t ...)`.
 
@@ -57,11 +57,11 @@ over it.
 (printf "hello ~a~%" 42)        ; writes "hello 42\n"
 ```
 
-## Directives
+### Directives
 
 Directive characters are case-insensitive: `~A` and `~a` are the same.
 
-### Literal text and whitespace
+#### Literal text and whitespace
 
 | Directive | Effect |
 |---|---|
@@ -81,9 +81,9 @@ Directive characters are case-insensitive: `~A` and `~a` are the same.
 
 `~&` is nominally a fresh-line — a newline only if not already at the start of one
 — but SKINT does not track output columns, so it behaves exactly like `~%`. See
-[`~&` always emits a newline](#-always-emits-a-newline).
+[`~&` may emit a newline where another implementation would not](#-may-emit-a-newline-where-another-implementation-would-not).
 
-### Objects
+#### Objects
 
 | Directive | Effect |
 |---|---|
@@ -100,9 +100,9 @@ Directive characters are case-insensitive: `~A` and `~a` are the same.
 ```
 
 `~y` behaves as `~s`, since SKINT has no pretty printer. See
-[`~y` writes rather than pretty-prints](#y-writes-rather-than-pretty-prints).
+[`~y` output is not laid out](#y-output-is-not-laid-out).
 
-### Numbers by radix
+#### Numbers by radix
 
 | Directive | Radix |
 |---|---|
@@ -121,10 +121,10 @@ Directive characters are case-insensitive: `~A` and `~a` are the same.
 
 It is an error if the argument is not a number.
 
-#### Flonums in a non-decimal radix
+##### Flonums in a non-decimal radix
 
-These directives call `number->string`, which in SKINT accepts **flonums in every
-radix** — not just exact integers. The result is exact and round-trips through
+These directives call `number->string`, which in SKINT accepts *flonums in every
+radix* — not just exact integers. The result is exact and round-trips through
 `string->number` at the same radix, so no precision is lost.
 
 ```scheme
@@ -145,7 +145,7 @@ When the value needs an exponent, the marker and its base differ by radix:
 | `~b` | `e` | 2 | binary |
 | `~o` | `e` | 8 | octal |
 | `~d` | `e` | 10 | decimal |
-| `~x` | `p` | **2** (C99 hex-float convention) | **decimal** |
+| `~x` | `p` | *2* (C99 hex-float convention) | *decimal* |
 
 ```scheme
 (format #f "~d" 1e30)   ; => "1e30"
@@ -171,7 +171,7 @@ SRFI 48 says only that the argument "is a number which is output in *radix*
 radix", so it neither requires nor forbids this; implementations that restrict
 these directives to exact integers are equally conformant.
 
-### Inexact numbers, with width and precision
+#### Inexact numbers, with width and precision
 
 | Directive | Style |
 |---|---|
@@ -184,7 +184,7 @@ then a comma, then the number of digits after the point. Either may be omitted.
 Output is right-aligned in the given width; the width is a minimum, never a
 truncation.
 
-**The precision is what selects the style.** Given one, the argument is converted
+*The precision is what selects the style.* Given one, the argument is converted
 to inexact and rendered fixed, exponential or general as the directive says:
 
 ```scheme
@@ -195,7 +195,7 @@ to inexact and rendered fixed, exponential or general as the directive says:
 (format #f "~8,2f" 3.14159)     ; => "    3.14"
 ```
 
-With **no** precision, all three behave alike: the number is printed by
+With *no* precision, all three behave alike: the number is printed by
 `number->string`, with no coercion and no exponential form, then padded to the
 width. So an exact argument stays exact.
 
@@ -219,7 +219,7 @@ specifies. It is an error if the argument is neither a number nor a string.
 
 Note that the exponential form is SKINT's own (`1.235e3`), not C's `1.235e+03`.
 
-### Control
+#### Control
 
 | Directive | Effect |
 |---|---|
@@ -250,13 +250,13 @@ every supported directive:
 ; => "supported directives: ~~ ~% ~& ~t ~_ ~a ~s ~w ~y ~c ~b ~o ~d ~x ~e ~f ~g ~? ~k ~* ~N@* ~!"
 ```
 
-### Unknown directives
+#### Unknown directives
 
 Any directive character not in the tables above raises *"unrecognized ~ directive"*,
 carrying the offending character as its irritant. Typos are loud rather than
 silent — there is no pass-through of unrecognized escapes.
 
-## Parameters
+### Parameters
 
 Six directives dispatch through parameter objects, so their behaviour can be
 replaced — globally by calling the parameter, or for a dynamic extent with
@@ -290,7 +290,7 @@ parameters hold a procedure of four arguments, `(arg width digits port)`, where
   (format #f "~h"))                         ; => "my help"
 ```
 
-## Malformed format strings
+### Malformed format strings
 
 These are errors:
 
@@ -305,9 +305,9 @@ as mistakes to fix in the format string, not as a signalling mechanism.
 
 It is also an error to supply more arguments than the format string consumes.
 
-## Conformance with SRFI 48
+### Conformance with SRFI 48
 
-SKINT implements **every directive in the SRFI 48 table** — `~a ~s ~w ~d ~x ~o ~b
+SKINT implements *every directive in the SRFI 48 table* — `~a ~s ~w ~d ~x ~o ~b
 ~c ~y ~? ~k ~F ~~ ~t ~% ~& ~_ ~h` — and the `format` signature matches: the port
 argument is optional, `#f` or omission returns a string, `#t` and a port write and
 return an unspecified value.
@@ -331,7 +331,7 @@ output it gives, with nothing extra imported:
 Three directives are worth knowing about if you are porting code between
 implementations.
 
-### `~&` may emit a newline where another implementation would not
+#### ~& may emit a newline where another implementation would not
 
 SRFI 48 describes freshline as emitting a newline "if it is known that the
 previous output was not a newline". SKINT does not track output columns, so `~&`
@@ -339,19 +339,19 @@ emits one unconditionally and consecutive `~&` directives each produce a line. D
 not rely on `~&` collapsing. Supply your own `format-fresh-line` if you need
 column tracking.
 
-### `~y` output is not laid out
+#### ~y output is not laid out
 
 `~y` pretty-prints its argument. SRFI 48 permits a pretty printer that simply
 writes, which is what the default renderer does, so do not depend on any
 particular layout. Supply your own `format-pretty-print` for real formatting.
 
-### `~h`
+#### ~h
 
 `~h` inserts a single line naming the supported directives, rather than the
 multi-line synopsis some implementations produce. Rebind `format-help-string` to
 change it.
 
-## Relationship to the SRFI ports
+### Relationship to the SRFI ports
 
 Three libraries expose `format`:
 
@@ -361,7 +361,7 @@ Three libraries expose `format`:
 | `(srfi 48)` | `format` | Bare re-export of the built-in procedure |
 | `(skint format)` | `format` `printf` `fprintf` + 6 parameters | The full native interface |
 
-All three are views onto one engine and **behave identically** — same directive
+All three are views onto one engine and *behave identically* — same directive
 set, same output, no import-order effects. Which one you import is a statement
 about portability, not behaviour: reach for `(srfi 28)` or `(srfi 48)` in code
 meant to run on other Schemes, and `(skint format)` when you want `printf`,
@@ -370,7 +370,7 @@ meant to run on other Schemes, and `(skint format)` when you want `printf`,
 Importing `(srfi 48)` neither adds nor removes conformance; the directives behave
 as the section above describes whichever library you came through.
 
-## Extensions beyond SRFI 48
+### Extensions beyond SRFI 48
 
 Directives the SRFI 48 table does not include:
 
@@ -384,6 +384,6 @@ Plus `printf` and `fprintf` themselves, and the six parameters, which make `~y`,
 they are the supported way to change how a directive renders without writing your
 own `format`.
 
-Note that `~w` is **not** an extension: it is in the SRFI 48 table as
+Note that `~w` is *not* an extension: it is in the SRFI 48 table as
 *WriteCircular*, specified as `write-with-shared-structure`, which is what SKINT's
 `write-shared` provides.

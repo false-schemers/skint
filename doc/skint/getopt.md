@@ -1,4 +1,4 @@
-# `(skint getopt)` — command line option parsing
+## (skint getopt) — command line option parsing
 
 A small AT&T/POSIX-style command line option parser, plus a matching `--help`
 formatter. This is the parser SKINT itself uses for its own command line; the
@@ -19,9 +19,9 @@ The library exports two procedures:
 The library needs nothing but `(scheme base)` on the client side, so it is usable
 from ordinary R7RS programs.
 
-## The option map
+### The option map
 
-Both procedures are driven by an **option map**: a list of five-element records,
+Both procedures are driven by an *option map*: a list of five-element records,
 one per option.
 
 ```scheme
@@ -50,9 +50,11 @@ length, not by dashes: a token of exactly two characters is matched against the
 *short* field, anything longer against the *long* field. So a short option must be
 two characters (`"-v"`, not `"-vv"`), and a long option must be longer than two.
 
-## `(get-next-command-line-option args optmap return)`
+### get-next-command-line-option
 
-Parses **one** option from the front of `args` and calls
+`(get-next-command-line-option args optmap return)`
+
+Parses *one* option from the front of `args` and calls
 
 ```scheme
 (return keysym optarg restargs)
@@ -60,10 +62,10 @@ Parses **one** option from the front of `args` and calls
 
 exactly once, with:
 
-- **`keysym`** — the symbol from the matched record, or `#f` if there are no more
+- *`keysym`* — the symbol from the matched record, or `#f` if there are no more
   options to parse;
-- **`optarg`** — the option's argument as a string, or `#f` if it takes none;
-- **`restargs`** — the arguments remaining after what was just consumed.
+- *`optarg`* — the option's argument as a string, or `#f` if it takes none;
+- *`restargs`* — the arguments remaining after what was just consumed.
 
 The procedure returns whatever `return` returns, which makes a driving loop
 natural to write:
@@ -81,7 +83,7 @@ natural to write:
 ; => ((verbose . #f) (output . "out.txt"))  and  ("a.scm" "b.scm")
 ```
 
-### Accepted syntax
+#### Accepted syntax
 
 Arguments may be attached or separate, in both short and long forms:
 
@@ -107,7 +109,7 @@ An option argument is taken verbatim, so values that look like options are fine:
 "-n-5"              ; => count="-5"
 ```
 
-### Where parsing stops
+#### Where parsing stops
 
 `keysym` comes back `#f` in four situations, which differ in what they leave in
 `restargs`:
@@ -115,14 +117,14 @@ An option argument is taken verbatim, so values that look like options are fine:
 | Input | `restargs` | Note |
 |---|---|---|
 | `()` | `()` | Nothing left |
-| `("--" …)` | the `…` | The `--` is **consumed** |
-| `("-" …)` | `("-" …)` | The `-` is **kept** — conventionally means stdin |
+| `("--" …)` | the `…` | The `--` is *consumed* |
+| `("-" …)` | `("-" …)` | The `-` is *kept* — conventionally means stdin |
 | `("file" …)` | `("file" …)` | First non-option operand, kept |
 
 Note the third and fourth rows: a lone `-` and an ordinary operand are both left
 in place for you to handle.
 
-**Options are not permuted.** Parsing stops at the first non-option argument, and
+*Options are not permuted.* Parsing stops at the first non-option argument, and
 anything option-shaped after it is left untouched:
 
 ```scheme
@@ -133,7 +135,7 @@ anything option-shaped after it is left untouched:
 This is POSIX behaviour, not GNU behaviour. It is what lets a script pass its own
 trailing arguments through to a program it invokes without them being eaten.
 
-### Bad command lines
+#### Bad command lines
 
 These are errors, and since command lines come from users rather than from your
 own code, they are the cases to think about:
@@ -155,7 +157,9 @@ If your program takes negative numbers as operands, put them after `--`. As an
 If you want to print your own usage message, check the arguments before parsing
 rather than relying on how a bad command line is reported.
 
-## `(print-command-line-options optmap [port])`
+### print-command-line-options
+
+`(print-command-line-options optmap [port])`
 
 Writes the option map as an aligned `--help` listing. `port` defaults to the
 current output port, so the listing follows `parameterize` and
@@ -181,7 +185,7 @@ call above returns `23`, the offset of the help column.
 
 A record must have at least one of the two forms; one with neither is an error.
 
-## Worked example: SKINT's own command line
+### Worked example: SKINT's own command line
 
 SKINT parses its own command line with these two procedures. Reduced to its
 structure, the option map and driver look like this:
@@ -241,18 +245,18 @@ extra piece of state — whether a REPL should still be entered at the end:
 
 Three things in this driver are worth copying:
 
-- **The `(#f)` clause is where the operands are handled.** Reaching it means
+- *The `(#f)` clause is where the operands are handled.* Reaching it means
   options are exhausted; `restargs` then holds the script name and everything
   after it. `run-script` gets `(car restargs)` as the file and `(cdr restargs)` as
   the script's own arguments — which is precisely why the parser must not permute,
   since a script's arguments may themselves look like options.
-- **Terminating options loop with `'()`.** `--version` and `--help` recurse with
+- *Terminating options loop with `'()`.* `--version` and `--help` recurse with
   an empty argument list rather than returning directly, so control still lands in
   the `(#f)` clause and exits along one path.
-- **`-s` and `-p` never come back.** They hand `restargs` straight to the script or
+- *`-s` and `-p` never come back.* They hand `restargs` straight to the script or
   program and `exit` with its status.
 
-## A complete program
+### A complete program
 
 ```scheme
 (import (scheme base) (scheme write) (scheme process-context) (skint getopt))
@@ -287,7 +291,7 @@ output: "out.txt"
 files: ("a.scm" "b.scm")
 ```
 
-## Limitations
+### Limitations
 
 - No optional option arguments — an option either always takes one or never does.
 - No permutation of options past the first operand (by design; see above).

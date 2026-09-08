@@ -1,4 +1,4 @@
-# `(skint ivset)` — integer interval sets
+## (skint ivset) — integer interval sets
 
 Sets of exact integers represented as sorted vectors of disjoint, non-touching
 closed intervals. The representation is compact and the set operations cost time
@@ -6,7 +6,7 @@ proportional to the number of *intervals*, not the number of *elements*, which
 makes it practical to manipulate sets spanning the whole Unicode code point range.
 
 Because the intervals are held sorted in a flat vector, membership testing is a
-**binary search: O(log N), where N is the number of intervals** — independent of
+*binary search: O(log N), where N is the number of intervals* — independent of
 how many integers the set actually contains. A set covering all 1114112 Unicode
 code points in a handful of intervals is searched in a handful of steps.
 
@@ -21,10 +21,10 @@ The library needs nothing but `(scheme base)`, so it is portable R7RS.
 (import (skint ivset))
 ```
 
-## Representation
+### Representation
 
-An **interval set** (*ivs*) is a vector of an even number of exact integers, read
-as consecutive `first`/`last` pairs. Both endpoints are **inclusive**:
+An *interval set* (*ivs*) is a vector of an even number of exact integers, read
+as consecutive `first`/`last` pairs. Both endpoints are *inclusive*:
 
 ```scheme
 #()                  ; the empty set
@@ -32,20 +32,20 @@ as consecutive `first`/`last` pairs. Both endpoints are **inclusive**:
 #(1 3 7 8 20 20)     ; {1,2,3} ∪ {7,8} ∪ {20}
 ```
 
-An **interval list** (*ivl*) is the same information as a list of pairs, which is
+An *interval list* (*ivl*) is the same information as a list of pairs, which is
 often more convenient to write and to pattern-match:
 
 ```scheme
 ((1 . 3) (7 . 8) (20 . 20))
 ```
 
-### Canonical form
+#### Canonical form
 
 Every ivs produced by this library satisfies three invariants:
 
-1. **Sorted** — intervals appear in increasing order.
-2. **Valid** — in each interval, `first <= last`.
-3. **Separated** — consecutive intervals are neither overlapping nor *touching*;
+1. *Sorted* — intervals appear in increasing order.
+2. *Valid* — in each interval, `first <= last`.
+3. *Separated* — consecutive intervals are neither overlapping nor *touching*;
    there is always a gap of at least one integer between them. So `{1,2,3}` and
    `{4,5}` merge into the single interval `1..5`, never `(1 . 3) (4 . 5)`.
 
@@ -55,9 +55,9 @@ with the same members always have the same representation.
 Every procedure here that returns an interval set returns a canonical one, and
 every procedure that takes one expects a canonical one.
 
-## Conversions
+### Conversions
 
-### `(ivs->ivl ivs)` → *interval list*
+`(ivs->ivl ivs)` → *interval list*
 
 Unpacks an ivs into a list of `(first . last)` pairs.
 
@@ -66,7 +66,7 @@ Unpacks an ivs into a list of `(first . last)` pairs.
 (ivs->ivl #())                 ; => ()
 ```
 
-### `(ivl->ivs ivl)` → *ivs*
+`(ivl->ivs ivl)` → *ivs*
 
 Packs a list of `(first . last)` pairs into an ivs. It is an error if `ivl` is not
 in canonical form as described above.
@@ -95,7 +95,7 @@ Dropping intervals, as above, keeps the list canonical. Transforming endpoints
 generally does not, so build such results with `list->ivs` or the set operations
 instead.
 
-### `(ivs->list ivs)` → *list of integers*
+`(ivs->list ivs)` → *list of integers*
 
 Every member, in increasing order. Cost is proportional to the *cardinality*, so
 do not call this on a set covering a large range.
@@ -104,7 +104,7 @@ do not call this on a set covering a large range.
 (ivs->list #(1 3 7 8 20 20))   ; => (1 2 3 7 8 20)
 ```
 
-### `(list->ivs list)` → *ivs*
+`(list->ivs list)` → *ivs*
 
 Builds a canonical set from a list of exact integers. The input need not be
 sorted or duplicate-free; runs of consecutive integers are coalesced.
@@ -117,9 +117,9 @@ sorted or duplicate-free; runs of consecutive integers are coalesced.
 (list->ivs '(-5 -4 -3 0 1))    ; => #(-5 -3 0 1)
 ```
 
-### `(predicate->ivs pred start end)` → *ivs*
+`(predicate->ivs pred start end)` → *ivs*
 
-Applies `pred` to each integer in the **half-open** range `[start, end)` and
+Applies `pred` to each integer in the *half-open* range `[start, end)` and
 returns the set of those for which it returned a true value.
 
 ```scheme
@@ -132,9 +132,9 @@ than the inclusive convention used by the intervals themselves. Calling `pred`
 once per integer in the range makes this a tool for building a table once at
 startup, not something to call in a loop.
 
-## Queries
+### Queries
 
-### `(ivs-size ivs)` → *exact integer*
+`(ivs-size ivs)` → *exact integer*
 
 Cardinality — the number of members, not the number of intervals.
 
@@ -144,10 +144,10 @@ Cardinality — the number of members, not the number of intervals.
 (ivs-size #(0 1114111))        ; => 1114112
 ```
 
-### `(ivs-contains? ivs e)` → *boolean*
+`(ivs-contains? ivs e)` → *boolean*
 
-Membership test. Performs a **binary search** over the interval vector, so it
-runs in **O(log N) time, where N is the number of intervals** — not the number of
+Membership test. Performs a *binary search* over the interval vector, so it
+runs in *O(log N) time, where N is the number of intervals* — not the number of
 members. A table of several hundred intervals — the scale of a Unicode character
 class — settles in about ten comparisons, whatever its cardinality.
 
@@ -159,7 +159,7 @@ class — settles in about ten comparisons, whatever its cardinality.
 This is the operation the representation is optimized for, and the reason a
 character-class test is cheap enough to put in an inner loop.
 
-### `(ivs=? ivs1 ivs2)` → *boolean*
+`(ivs=? ivs1 ivs2)` → *boolean*
 
 Set equality. Canonical form is unique, so two sets with the same members are
 always represented the same way.
@@ -168,7 +168,7 @@ always represented the same way.
 (ivs=? (list->ivs '(1 2 3)) (ivl->ivs '((1 . 3))))   ; => #t
 ```
 
-### `(ivs<=? ivs1 ivs2)` → *boolean*
+`(ivs<=? ivs1 ivs2)` → *boolean*
 
 Subset test: true when every member of `ivs1` is a member of `ivs2`.
 
@@ -177,7 +177,7 @@ Subset test: true when every member of `ivs1` is a member of `ivs2`.
 (ivs<=? (list->ivs '(2 9)) (list->ivs '(1 2 3 4)))   ; => #f
 ```
 
-### `(ivs-disjoint? ivs1 ivs2)` → *boolean*
+`(ivs-disjoint? ivs1 ivs2)` → *boolean*
 
 True when the two sets share no members.
 
@@ -186,13 +186,13 @@ True when the two sets share no members.
 (ivs-disjoint? (list->ivs '(1 2)) (list->ivs '(2 6)))   ; => #f
 ```
 
-## Set operations
+### Set operations
 
 All three take two ivs arguments and return a fresh canonical ivs. They work on
 the interval structure, so cost scales with the number of intervals rather than
 the number of members.
 
-### `(ivs-union ivs1 ivs2)` → *ivs*
+`(ivs-union ivs1 ivs2)` → *ivs*
 
 ```scheme
 (ivs-union (list->ivs '(1 2 3)) (list->ivs '(4 5)))   ; => #(1 5)
@@ -202,13 +202,13 @@ the number of members.
 The first case shows the separation invariant at work: `1..3` and `4..5` touch,
 so they are merged into one interval.
 
-### `(ivs-intersection ivs1 ivs2)` → *ivs*
+`(ivs-intersection ivs1 ivs2)` → *ivs*
 
 ```scheme
 (ivs-intersection (list->ivs '(1 2 3 4)) (list->ivs '(3 4 5)))   ; => #(3 4)
 ```
 
-### `(ivs-difference ivs1 ivs2)` → *ivs*
+`(ivs-difference ivs1 ivs2)` → *ivs*
 
 Members of `ivs1` that are not members of `ivs2`.
 
@@ -216,9 +216,9 @@ Members of `ivs1` that are not members of `ivs2`.
 (ivs-difference (list->ivs '(1 2 3 4 5)) (list->ivs '(3)))       ; => #(1 2 4 5)
 ```
 
-## Iteration
+### Iteration
 
-### `(ivs-for-each proc ivs)` → *unspecified*
+`(ivs-for-each proc ivs)` → *unspecified*
 
 Applies `proc` to each member in increasing order. Like `ivs->list`, this visits
 every *element*, so the cost is the cardinality.
@@ -236,9 +236,9 @@ through `ivs->ivl`:
 (for-each (lambda (iv) (report (car iv) (cdr iv))) (ivs->ivl big-set))
 ```
 
-## Idioms
+### Idioms
 
-### Complement
+#### Complement
 
 There is no complement operation, because a set has no inherent universe.
 Subtract from an explicit one:
@@ -252,7 +252,7 @@ Subtract from an explicit one:
 A universe need not be one interval: a set of all valid Unicode code points, for
 instance, excludes the surrogate range and the non-characters, and so has several.
 
-### Adding or removing single elements
+#### Adding or removing single elements
 
 There is no `ivs-adjoin` / `ivs-delete`; compose from a singleton:
 
@@ -264,7 +264,7 @@ There is no `ivs-adjoin` / `ivs-delete`; compose from a singleton:
 For adding several elements at once, `(ivs-union ivs (list->ivs elements))` is
 better than repeated adjoining.
 
-### Literal tables
+#### Literal tables
 
 Because an ivs is an ordinary vector of integers, generated tables can be
 embedded directly as self-evaluating literals — no constructor call, no
@@ -278,24 +278,24 @@ This is the practical way to ship a large character-class table: compute it once
 with `predicate->ivs`, write the resulting vector out, and paste the literal into
 your source.
 
-## Summary
+### Summary
 
 | Procedure | Result | Cost scales with |
 |---|---|---|
 | `(ivs->ivl ivs)` | interval list | intervals |
 | `(ivl->ivs ivl)` | ivs (`ivl` must be canonical) | intervals |
-| `(ivs->list ivs)` | list of integers | **members** |
+| `(ivs->list ivs)` | list of integers | *members* |
 | `(list->ivs list)` | ivs | length of list |
 | `(predicate->ivs pred start end)` | ivs | `end - start` |
 | `(ivs-size ivs)` | exact integer | intervals |
-| `(ivs-contains? ivs e)` | boolean | **O(log N)** — binary search |
+| `(ivs-contains? ivs e)` | boolean | *O(log N)* — binary search |
 | `(ivs=? ivs1 ivs2)` | boolean | intervals |
 | `(ivs<=? ivs1 ivs2)` | boolean | intervals |
 | `(ivs-disjoint? ivs1 ivs2)` | boolean | intervals |
 | `(ivs-union ivs1 ivs2)` | ivs | intervals |
 | `(ivs-intersection ivs1 ivs2)` | ivs | intervals |
 | `(ivs-difference ivs1 ivs2)` | ivs | intervals |
-| `(ivs-for-each proc ivs)` | unspecified | **members** |
+| `(ivs-for-each proc ivs)` | unspecified | *members* |
 
 Throughout, *N* is the number of intervals in the set, not its cardinality.
 `ivs-contains?` is the standout at O(log N); `ivs->list` and `ivs-for-each` are

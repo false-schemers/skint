@@ -1,4 +1,4 @@
-# `(skint date)` — calendar dates
+## (skint date) — calendar dates
 
 Date objects in the style of SRFI 19: a point in time expressed in the Gregorian
 calendar, with a time zone offset. Conversions to and from the time objects of
@@ -15,11 +15,11 @@ enough to work with both times and dates.
 Together the two libraries are the foundation a full `(srfi 19)` will be built
 on.
 
-## Date objects
+### Date objects
 
 A date is immutable once created.
 
-### `(make-date nanosecond second minute hour day month year zone-offset)` → *date*
+`(make-date nanosecond second minute hour day month year zone-offset)` → *date*
 
 The components run from the smallest unit to the largest, followed by the zone
 offset in seconds east of UTC.
@@ -35,20 +35,20 @@ allows, month 1 to 12 with 1 meaning January, and any integer year. It is an
 error to supply a component outside its range, or a date that does not exist in
 the calendar.
 
-### `(date? obj)` → *boolean*
+`(date? obj)` → *boolean*
 
-### `(date-nanosecond date)` → *integer*
-### `(date-second date)` → *integer*
-### `(date-minute date)` → *integer*
-### `(date-hour date)` → *integer*
-### `(date-day date)` → *integer*
-### `(date-month date)` → *integer*
-### `(date-year date)` → *integer*
-### `(date-zone-offset date)` → *integer*
+`(date-nanosecond date)` → *integer*
+<br>`(date-second date)` → *integer*
+<br>`(date-minute date)` → *integer*
+<br>`(date-hour date)` → *integer*
+<br>`(date-day date)` → *integer*
+<br>`(date-month date)` → *integer*
+<br>`(date-year date)` → *integer*
+<br>`(date-zone-offset date)` → *integer*
 
-## Calendar queries
+### Calendar queries
 
-### `(date-year-day date)` → *integer*
+`(date-year-day date)` → *integer*
 
 The ordinal day within the year; 1 January is 1.
 
@@ -59,7 +59,7 @@ The ordinal day within the year; 1 January is 1.
 
 The Gregorian century rule is observed, so 1900 is not a leap year while 2000 is.
 
-### `(date-week-day date)` → *integer*
+`(date-week-day date)` → *integer*
 
 The day of the week, Sunday 0 through Saturday 6.
 
@@ -68,7 +68,7 @@ The day of the week, Sunday 0 through Saturday 6.
 (date-week-day (make-date 0 0 0 0 1 1 2000 0))   ; => 6, a Saturday
 ```
 
-### `(date-week-number date day-of-week-starting-week)` → *integer*
+`(date-week-number date day-of-week-starting-week)` → *integer*
 
 The ordinal week of the year holding this date, where the second argument names
 the day the week begins on, in the same numbering as `date-week-day`. A partial
@@ -79,19 +79,19 @@ week at the start of the year is not counted.
 (date-week-number (make-date 0 0 0 0 2 1 2000 0) 1)   ; => 1, weeks from Monday
 ```
 
-### `(current-date [zone-offset])` → *date*
+`(current-date [zone-offset])` → *date*
 
 The current date, in the local time zone unless an offset is given.
 
-## Converting between dates and times
+### Converting between dates and times
 
-### `(date->time-utc date)` → *time*
-### `(date->time-tai date)` → *time*
-### `(date->time-monotonic date)` → *time*
+`(date->time-utc date)` → *time*
+<br>`(date->time-tai date)` → *time*
+<br>`(date->time-monotonic date)` → *time*
 
-### `(time-utc->date time [zone-offset])` → *date*
-### `(time-tai->date time [zone-offset])` → *date*
-### `(time-monotonic->date time [zone-offset])` → *date*
+`(time-utc->date time [zone-offset])` → *date*
+<br>`(time-tai->date time [zone-offset])` → *date*
+<br>`(time-monotonic->date time [zone-offset])` → *date*
 
 The zone offset defaults to the local one. It is an error to hand one of the
 `time-…->date` procedures a time whose type is not the one named.
@@ -114,13 +114,13 @@ end of 1998 is a date in its own right:
 That second and the one that follows it share a single UTC instant, since UTC is
 what the leap second is inserted into.
 
-## ISO 8601 timestamps
+### ISO 8601 timestamps
 
 Two procedures read and write timestamps in the profile of ISO 8601 used by RFC
 3339. They are not part of SRFI 19, which specifies the different
 `date->string` and `string->date` pair.
 
-### `(date->iso-8601 date)` → *string*
+`(date->iso-8601 date)` → *string*
 
 ```scheme
 (date->iso-8601 (make-date 0 0 0 0 1 1 1970 0))
@@ -143,7 +143,7 @@ year before 1 CE, `+12345-01-01T00:00:00Z` beyond 9999.
 
 It is an error if the argument is not a date.
 
-### `(iso-8601->date string)` → *date*
+`(iso-8601->date string)` → *date*
 
 ```scheme
 (date-year (iso-8601->date "2023-12-25T12:45:30Z"))            ; => 2023
@@ -172,7 +172,7 @@ every form the writer produces:
 ; => "2020-06-15T10:30:00+05:30"
 ```
 
-## How numbers are represented
+### How numbers are represented
 
 Date components are small enough to be exact integers in any build. The second
 counts of the time objects these procedures produce and consume are not, and
@@ -183,7 +183,7 @@ The practical consequence for date code is confined to writing literal time
 values, which should use flonums — `915148800.0` — so that they read in either
 configuration.
 
-## Relationship to SRFI 19
+### Relationship to SRFI 19
 
 This library implements the date half of SRFI 19, together with the time half in
 [`(skint time)`](time.md).
