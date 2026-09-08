@@ -4768,8 +4768,8 @@ define_instruction(tzoff) {
 define_instruction(system) {
   int res; cks(ac);
   res = usystem(stringchars(ac));
-#ifdef _WIN32 /* Windows system() returns exit_code << 8 */
-  res = res >> 8;
+#ifdef _WIN32 /* Windows system() returns exit code as-is */
+  /* do not decode */
 #else /* POSIX (Linux, macOS, BSD): decode wexit status */
   if (WIFEXITED(res)) res = WEXITSTATUS(res);
   else res = 255;  /* out of range/killed/terminated */

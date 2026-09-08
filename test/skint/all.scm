@@ -2,7 +2,11 @@
 (import (only (skint hidden) file-resolve-relative-to-current %system %command-line))
 
 (define *tests* '(
+format
+getopt
 ivset
+time
+date
 ))
 
 (define *results* '())
@@ -32,9 +36,11 @@ ivset
 (define *total-fail-count* 0)
 
 (define (show-result n&r)
+  (define nlen (string-length (symbol->string (car n&r))))
+  (define sp (make-string (max (- 10 nlen) 1) #\space))
   (if (zero? (cdr n&r))
-      (format #t "~a: \tok~%" (car n&r))
-      (format #t "~a: \t~a failed~%" (car n&r) (cdr n&r)))
+      (format #t "~a:~aok~%" (car n&r) sp)
+      (format #t "~a:~a~a failed~%" (car n&r) sp (cdr n&r)))
   (set! *total-fail-count* (+ *total-fail-count* (cdr n&r))) 
 )
  
