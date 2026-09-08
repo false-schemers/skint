@@ -13,6 +13,7 @@ This directory contains additional external libraries in a form of .sld files. T
 14
 16
 17
+19+
 22
 23
 25
@@ -117,14 +118,14 @@ This directory contains additional external libraries in a form of .sld files. T
 Note: SRFIs marked with an asterisk are implemented in abridged form: parts that require support for either full Unicode or a full numerical
 tower (both features are not required by R7RS Small) are omitted. SRFIs marked with a plus are implemented in abridged form in basic 
 configuration, but automatically provide full functionality if the corresponding option (`OPT_TOWER` / `OPT_UNICODE`) was configured
-or selected at SKINT build time. 
+or selected at SKINT build time. SRFI-19 is exact-integer-closed under OPT_TOWER configurations, falling back to inexact integers in tower-less ones. 
 
 The `skint` subtree contains SKINT-specific libraries:
 
 | Library | Contents | Documentation |
 |---|---|---|
-| `(skint date)` | Calendar dates in the style of SRFI 19, with conversions to and from times and ISO 8601 timestamps | [doc/skint/date.md](../doc/skint/date.md) |
-| `(skint format)` | `format`, `fprintf`, `printf` and their control parameters; SRFI 48 directives plus extensions | [doc/skint/format.md](../doc/skint/format.md) |
-| `(skint getopt)` | AT&T/POSIX-style command line option parser and `--help` formatter, as used by SKINT itself | [doc/skint/getopt.md](../doc/skint/getopt.md) |
-| `(skint ivset)` | Sets of exact integers as sorted vectors of disjoint intervals; backs the SRFI 14/115/252 implementations | [doc/skint/ivset.md](../doc/skint/ivset.md) |
-| `(skint time)` | Points in time and durations in the style of SRFI 19, on the UTC, TAI and monotonic scales | [doc/skint/time.md](../doc/skint/time.md) |
+| `(skint format)` | `format`, `fprintf`, `printf` and their control parameters | [doc/skint/format.md](../doc/skint/format.md) |
+| `(skint getopt)` | AT&T/POSIX-style command line option parser and `--help` formatter | [doc/skint/getopt.md](../doc/skint/getopt.md) |
+| `(skint ivset)` | Sets of exact integers as sorted vectors of disjoint intervals | [doc/skint/ivset.md](../doc/skint/ivset.md) |
+| `(skint time)` | Points in time and durations in the style of SRFI 19 | [doc/skint/time.md](../doc/skint/time.md) |
+| `(skint date)` | Calendar dates in the style of SRFI 19, ISO 8601 timestamps | [doc/skint/date.md](../doc/skint/date.md) |
