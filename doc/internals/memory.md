@@ -16,9 +16,9 @@ standard runtime the `#F` compiler emits for any program it compiles, and it arr
 in `k.c` because `k.sf` is compiled by `sfc`. `pre/ksf2c.ssc` then applies a short
 list of line-level patches to it — dropping `static` from `cxg_hsize`,
 `cxg_gccount` and `cxg_bumpcount` so that `i.c` can expose them to Scheme, and
-replacing three `(char*)` casts with `(cxoint_t)` casts so the pointer arithmetic is
-correct when `obj` is an `int64_t` under `NAN_BOXING`. Changing the collector means
-changing it in `sfc` and regenerating, or adding to that patch list.
+replacing the `(char*)` casts in the pointer tests with `(cxoint_t)` casts so the
+arithmetic is correct when `obj` is an `int64_t` under `NAN_BOXING`. Changing the
+collector means changing it in `sfc` and regenerating, or adding to that patch list.
 
 ### Two memory models
 
@@ -188,7 +188,7 @@ typedef struct cxroot_tag {
 } cxroot_t;
 ```
 
-At present exactly one module does: `k.c` registers sixteen globals, among them
+At present exactly one module does: `k.c` registers its globals, among them
 `*globals*` (the vector in which every Scheme global's box is interned),
 `*transformers*`, `*dynamic-state*` and the three current-port cells. Everything
 else in the Scheme world is reachable from those. `s.c` and `t.c` contain no `obj`

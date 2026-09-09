@@ -199,6 +199,44 @@ dynamic state at capture. `wck` and `wckr` reinstate it, either by copying the s
 stack straight back when the dynamic state still matches, or by routing through the
 adapter closure so that the `dynamic-wind` chain can be unwound and rewound first.
 
+#### One result per instruction, and the box convention
+
+An instruction leaves exactly one value, in the accumulator. Returning several is
+possible — a tuple built by `hend_tuple`, with `sdmv` (`values`), `cwmv`
+(`call-with-values`) and the continuation adapter between them arranging for the
+consumer to receive it — but that path is involved and comparatively slow, and none
+of it belongs on the fast path of a builtin.
+
+So a builtin with a second result to deliver does not return two values. It takes an
+extra argument, a box, and stores the second result there: `%fxsqrt` puts the
+remainder in its box, `flmodf` the integral part, `flfrexp` the exponent,
+`%flremquo` the quotient bits, and `fxaddc`, `fxsubc` and `fxmulc` the low half of
+the split. This is a C out-parameter carried across the boundary unchanged, and it
+keeps each of these to a single instruction.
+
+The conventional Scheme interface is then a thin wrapper in whichever library wants
+it, written with the `set&` special form — which makes a box aliasing a variable —
+and `values`:
+
+```scheme
+(define (fxsqrt x)
+  (let* ([rem 0] [srt (%fxsqrt x (set& rem))])
+    (values srt rem)))
+```
+
+`(srfi 143)` and `(srfi 144)` are where those wrappers live: `fxsqrt`,
+`fx+/carry`, `fx-/carry`, `fx*/carry`, `flremquo`, `flinteger-fraction` and
+`flnormalized-fraction-exponent` all have this shape. The cost of multiple values is
+paid once, in Scheme, by the callers who want that interface — never by the
+instruction.
+
+The `%` on two of those names is not a mark of the convention itself. It is there
+because the plain name was already spoken for by the wrapper: `(srfi 143)` defines
+`fxsqrt` and `(srfi 144)` defines `flremquo`, so the primitives underneath had to be
+called something else. `flmodf`, `flfrexp` and the carry instructions keep plain
+names because their standard counterparts are called `flinteger-fraction`,
+`flnormalized-fraction-exponent` and `fx+/carry` — no collision to avoid.
+
 ### Allocating inside an instruction
 
 The reserve-then-build discipline is the same as in `#F`-generated code, but the

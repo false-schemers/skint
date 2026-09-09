@@ -129,3 +129,5 @@ The `skint` subtree contains SKINT-specific libraries:
 | `(skint ivset)` | Sets of exact integers as sorted vectors of disjoint intervals | [doc/skint/ivset.md](../doc/skint/ivset.md) |
 | `(skint time)` | Points in time and durations in the style of SRFI 19 | [doc/skint/time.md](../doc/skint/time.md) |
 | `(skint date)` | Calendar dates in the style of SRFI 19, ISO 8601 timestamps | [doc/skint/date.md](../doc/skint/date.md) |
+| `(skint fx)` | Built-in fixnum operations: a subset of SRFI 143 plus a few extras | [doc/skint/fx.md](../doc/skint/fx.md) |
+| `(skint fl)` | Built-in flonum operations: a subset of SRFI 144 plus a few extras | [doc/skint/fl.md](../doc/skint/fl.md) |

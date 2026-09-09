@@ -7,6 +7,8 @@ getopt
 ivset
 time
 date
+fx
+fl
 ))
 
 (define *results* '())

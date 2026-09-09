@@ -37,8 +37,8 @@ twenty-four bits of payload:
 #define mkimm(v, t) (obj)((((v) & 0xffffff) << 8) | ((t) << 2) | 1)
 ```
 
-The tag field is six bits wide, so up to 64 immediate types are possible. Eight are
-assigned:
+The tag field is six bits wide, so up to 64 immediate types are possible. Those
+assigned so far:
 
 | Tag | Name | Payload |
 |---|---|---|
@@ -50,11 +50,12 @@ assigned:
 | 7 | `EOF_ITAG` | none |
 | 8 | `SHEBANG_ITAG` | directive index |
 
-Tags 5 and 6 are unused. Symbols carry an index into `symt`, a table of interned
-string data held in `n.c` entirely outside the Scheme heap; `internsym`,
-`internsdata`, `symbolname` and `symsdata` are its interface. Because the payload is
-twenty-four bits, a symbol index is bounded well below the heap's capacity, and
-because the table is C-side, symbols cost the collector nothing.
+The gaps in that column are free for new immediate types. Symbols carry an index
+into `symt`, a table of interned string data held in `n.c` entirely outside the
+Scheme heap; `internsym`, `internsdata`, `symbolname` and `symsdata` are its
+interface. Because the payload is twenty-four bits, a symbol index is bounded well
+below the heap's capacity, and because the table is C-side, symbols cost the
+collector nothing.
 
 Three further immediates are built with `obj_from_size` rather than `mkimm`, and are
 compared for identity rather than decoded:

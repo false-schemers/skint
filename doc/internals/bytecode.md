@@ -99,9 +99,9 @@ The file is an X-macro table, included several times with different definitions 
 - with `VM_GEN_INTGTABLE`, to build `intgtab`, the integrables table;
 - with none of them, to emit `extern` declarations for everything.
 
-There are 591 `declare_instruction` lines and 35 `declare_integrable` lines — the
-latter for integrables that reuse another instruction's encoding, or that are
-compiled inline with no instruction of their own.
+Most lines are `declare_instruction`. The `declare_integrable` lines are for
+integrables that reuse another instruction's encoding, or that are compiled inline
+with no instruction of their own.
 
 Two instructions have `enc` of `NULL` and so never appear in bytecode at all.
 `halt` is appended by the decoder when it reaches the end of a stream, and `br` is
@@ -187,8 +187,8 @@ laid out so that the decoder's greedy walk collapses the common combinations:
 | `[` + `0` + `0` | `call0` | call with no arguments |
 | `[` + `2` + `3` | `scall23` | shift 2, call with 3 arguments |
 
-The families are systematic. `sref` takes one operand and `sref0`…`sref9` are the
-ten specialisations with that operand baked in; `scall` takes two and `[1`…`[4`
+The families are systematic. `sref` takes one operand and `sref0`…`sref9` are its
+specialisations with that operand baked in; `scall` takes two, and `[1`…`[4`
 bake the first while `[10`…`[44` bake both. Each fused form is a single C function
 that does in a few machine instructions what the pieces would have done in several
 tail calls.
@@ -233,6 +233,88 @@ One instruction needs a note of its own. `andbo` (`;`, `etyp` `'a'`) explicitly
 consumes the *following* instruction as its operand, and requires that instruction to
 have `etyp` 0. That is how comparison chains short-circuit: `codegen` emits `;`
 between the repeated comparison operations for `fx<?` and friends.
+
+### Naming conventions
+
+The design rule above says what an encoding must not do. The conventions below are
+the discipline that keeps it satisfied without anyone having to re-derive it each
+time. They hold across the table as it stands, and they are worth following for a
+new encoding even where a deviation would happen to be safe.
+
+It helps to separate two things. Call an encoding a *root* when no shorter encoding
+is a prefix of it, and *derived* otherwise. The roots are the instruction names; the
+derived ones are the fused and specialised forms the decoder collapses into. Every
+rule in the next section is a rule about roots.
+
+#### Roots
+
+*A digit never starts an encoding.* No exceptions anywhere in the table, root or
+derived. This is the keystone: because operands are digits, and because an
+instruction can never begin with one, the decoder can treat a digit following a
+complete instruction as belonging to that instruction rather than to whatever comes
+next.
+
+*A root beginning with a lowercase letter is one letter long, unless it begins with
+`s`.* So `a` is car, `c` is cons, `q` is `eq?`.
+
+*`s` is a prefix, not a name.* There is no bare `s` encoding and there should not be
+one; in leading position `s` reads as *set* — `sa` is `set-car!`, `sd` is
+`set-cdr!`, `sz` is `set-box!`. The same prefix appears inside a family: `Psi`,
+`Pso` and `Pse` are the `%set-current-…-port!` instructions. Note that `s`
+elsewhere in a name means whatever its family means — `%s` is a *string* check, and
+the whole `S` family is strings.
+
+*A root beginning with a capital letter starts a family, and the capital is always
+followed by a digit, a lowercase letter, or one of `+ - * / < = >`.* Never by
+another capital, which is what makes a capital unambiguously the start of a family
+rather than a continuation of one. The operator-symbol forms are the arithmetic and
+comparison families: `I+` is fixnum addition, `J<` flonum less-than, `C=` char
+equality, `S<` string less-than.
+
+*Within one family the digit run is a fixed width.* A family uses one digit
+throughout or two throughout, never a mixture — `M` (the extended math library) and
+`P` (ports) are two-digit families, the others one-digit. This is what keeps a name
+digit from being read as an operand digit, or the reverse: if both `Z3` and `Z30`
+existed, one of them would be unreachable.
+
+*A root beginning with a symbol is exactly one character.* Longer symbol-initial
+encodings exist in quantity, but every one of them is derived.
+
+The `enc` column of `i.h` is the authority on which characters are already taken,
+and on which letters and family prefixes are still free. Read it before choosing;
+do not work from the examples above, which are only illustrative.
+
+#### Extending a root
+
+Derived encodings are formed in a handful of ways, and the reason each is safe is
+always the same — the extending character comes from a class that could not legally
+have followed the shorter encoding, so the greedy walk cannot take a wrong turn.
+
+| Extension | Example | Why it is unambiguous |
+|---|---|---|
+| digits | `.` + `3` → `sref3` | a digit here is the baked-in operand |
+| digits then `,` or `^` | `.` + `3` + `,` → `pushsref3` | neither can start an operand |
+| `!` | `^` iref + `!` → `iset` | `!` starts no encoding, and no operand |
+| a lowercase letter | `%` + `p` → `ckp`; `a` + `d` → `cdar` | a letter cannot start an operand |
+| `%` | `%` atest + `%` → `aerr` | as above |
+| a whole second instruction | `~` not + `?` brnot → `brt` | genuine fusion |
+
+*`!` never starts an encoding*, which is precisely what makes it available as the
+universal extender. It reads as "the related other one" rather than as a fusion:
+`^`/`^!` is ref and set, `@`/`@!` and `.`/`.!` and `:`/`:!` likewise, and `<`/`<!`,
+`>`/`>!`, `=`/`=!` are a comparison and its complement. Because `!` cannot be
+confused with anything, it also lifts the length rules — `k!` and `w!` are
+two-character lowercase-initial encodings, and `Ci<!` is four characters — without
+creating an ambiguity.
+
+Two of these extensions deserve a caution, because they are the places where the
+longest-match rule holds mechanically but *not* semantically. `%p`, `%l`, `%v` and
+the rest of the type checks are not `atest` followed by `pairp`; they are a
+`%`-prefixed family that happens to share its first character with `atest`. `%%`
+(`aerr`) is the same. Both are safe only because `atest` takes an operand and an
+operand can begin only with a digit or `(`, so a letter or a `%` can never follow
+`%` in its `atest` reading. Anything added in that space has to be checked the same
+way rather than assumed.
 
 ### Integrables
 
@@ -314,8 +396,9 @@ declare_integrable(NULL, NULL, 0, "values",           '@', "K6")
 
 The dependencies run in one direction, which makes the order of work clear.
 
-1. Add the `declare_instruction` line to `i.h`, choosing an encoding against the
-   longest-match rule above.
+1. Add the `declare_instruction` line to `i.h`, choosing an encoding that follows
+   the naming conventions above — they exist to keep the longest-match rule
+   satisfied, and a new encoding that respects them cannot break an old one.
 2. Write `define_instruction(name)` in `i.c`, reading exactly as many operands with
    `*ip++` as the `etyp` column promises.
 3. If the compiler should emit it, teach `codegen` in `pre/t.scm` to write those
