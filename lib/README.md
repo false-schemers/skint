@@ -131,3 +131,4 @@ The `skint` subtree contains SKINT-specific libraries:
 | `(skint date)` | Calendar dates in the style of SRFI 19, ISO 8601 timestamps | [doc/skint/date.md](../doc/skint/date.md) |
 | `(skint fx)` | Built-in fixnum operations: a subset of SRFI 143 plus a few extras | [doc/skint/fx.md](../doc/skint/fx.md) |
 | `(skint fl)` | Built-in flonum operations: a subset of SRFI 144 plus a few extras | [doc/skint/fl.md](../doc/skint/fl.md) |
+| `(skint trace)` | Tracing procedure calls, modelled on Chez Scheme's trace package | [doc/skint/trace.md](../doc/skint/trace.md) |

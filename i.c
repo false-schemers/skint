@@ -23,6 +23,8 @@ static obj mkintegrable(struct intgtab_entry *);
 static int integrable_type(struct intgtab_entry *pi);
 static const char *integrable_global(struct intgtab_entry *pi);
 static const char *integrable_code(struct intgtab_entry *pi, int n);
+static int enctab_count(void);
+static void enctab_ref(int i, obj *pword, const char **penc, int *petyp);
 static obj *rds_intgtab(obj *r, obj *sp, obj *hp);
 static obj *rds_stox(obj *r, obj *sp, obj *hp);
 static obj *rds_stoc(obj *r, obj *sp, obj *hp);
@@ -301,6 +303,8 @@ static void _sck(obj *s) {
 #define is_box(o) isbox(o)
 #define box_ref(o) boxref(o)
 #define is_proc(o) isvmclo(o)
+#define proc_len(o) vmclolen(o)
+#define proc_ref(o, i) vmcloref(o, i)
 #define is_tuple(o) (isrecord(o) && recordrtd(o) == 0)
 #define tuple_len(o) tuplelen(o)
 #define tuple_ref(o, i) tupleref(o, i)
@@ -4323,6 +4327,42 @@ define_instruction(vmclo) {
   gonexti();
 }
 
+define_instruction(ctov) {
+  int n, i; ckx(ac);
+  n = proc_len(ac);
+  hp_reserve(vecbsz(n));
+  for (i = n; i > 0; --i) *--hp = proc_ref(ac, i-1);
+  ac = hend_vec(n);
+  gonexti();
+}
+
+/* instruction-table => #(word enc etyp  word enc etyp  ...), 3 slots per entry.
+ * word is the instruction as a foreign pointer, eq? to what deserialize-code
+ * puts in a code vector; enc is its encoding, or #f for the instructions the
+ * compiler never emits (halt, br); etyp is a fixnum 0/1/2 for that many
+ * operands, or a character for the structured forms. */
+define_instruction(inst) {
+  int n = enctab_count(), i;
+  /* build the spine first and fill it afterwards: the encodings allocate as we
+   * go, and a vector parked in ac is traced and relocated across that */
+  hp_reserve(vecbsz(3*n));
+  for (i = 3*n; i > 0; --i) *--hp = bool_obj(0);
+  ac = hend_vec(3*n);
+  for (i = 0; i < n; ++i) {
+    obj word; const char *enc; int etyp;
+    enctab_ref(i, &word, &enc, &etyp);
+    vector_ref(ac, 3*i) = word;
+    vector_ref(ac, 3*i+2) = (etyp >= ' ') ? char_obj(etyp) : fixnum_obj(etyp);
+    if (enc != NULL) {
+      /* NB: into a local first -- the lvalue would otherwise be computed
+       * before the allocation that may move ac */
+      obj s = string_obj(newsdata((char*)enc));
+      vector_ref(ac, 3*i+1) = s;
+    }
+  }
+  gonexti();
+}
+
 define_instruction(hshim) {
   uint64_t v = (uint64_t)ac, base = 0; obj b = spop(); 
   if (b) { ckk(b); base = get_fixnum(b); } 
@@ -4925,12 +4965,11 @@ static const char *integrable_global(struct intgtab_entry *pi)
 static const char *integrable_code(struct intgtab_entry *pi, int n)
 {
   char *ps, *code = NULL; int it = pi->igtype;
-  if (it >= ' ') {
+  if (n == 0) code = pi->enc;
+  else if (n == 1 && it && strchr("pmbut", it) != NULL) {
     ps = pi->enc; assert(ps);
-    while (ps && n-- > 0) {
-      ps += strlen(ps) + 1; /* \0 terminates each field */
-      assert(*ps);
-    }
+    ps += strlen(ps) + 1; /* \0 terminates each field */
+    assert(*ps);
     code = ps;
   }
   return code;
@@ -5223,6 +5262,23 @@ static struct { obj *pg; const char *enc; int etyp; } enctab[] = {
 #undef VM_GEN_ENCTABLE
  { NULL, NULL, 0 }
 };
+
+/* enctab is below the point where the instruction globals are defined, so the
+ * inst instruction reaches it through these instead of directly */
+static int enctab_count(void)
+{
+  int n = 0;
+  while (enctab[n].pg != NULL) ++n;
+  return n;
+}
+
+static void enctab_ref(int i, obj *pword, const char **penc, int *petyp)
+{
+  assert(i >= 0 && i < enctab_count());
+  *pword = *(enctab[i].pg);
+  *penc = enctab[i].enc;
+  *petyp = enctab[i].etyp;
+}
 
 struct emtrans { int c; struct embranch *pbr; struct emtrans *ptr; };
 struct embranch { obj g; int etyp; struct emtrans *ptr; };

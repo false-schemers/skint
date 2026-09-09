@@ -9,6 +9,7 @@ time
 date
 fx
 fl
+trace
 ))
 
 (define *results* '())
