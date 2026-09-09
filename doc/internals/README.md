@@ -10,6 +10,7 @@ directory describes the machine underneath.
 | [objects.md](objects.md) | how those five categories are subdivided into Scheme types, and the `n.h` interface |
 | [vm.md](vm.md) | the threaded-code VM: registers, dispatch, the trampoline, and writing instructions |
 | [bytecode.md](bytecode.md) | the compiler's intermediate language and its conversion to threaded code |
+| [builtins.md](builtins.md) | how `i.h` becomes the instruction tables, and how those become Scheme bindings |
 
 ### The layers
 
@@ -37,7 +38,7 @@ intermediate language, converted to threaded code once by a routine inside the V
 
 | File | Holds | Generated from |
 |---|---|---|
-| `n.h`, `n.c` | object representation, strings, ports, numeric helpers | `pre/n.sf` |
+| `n.h`, `n.c` | object representation, strings, ports, numeric helpers | hand-written |
 | `k.c` | bootstrap, `main`, and the garbage collector | `pre/k.sf`, patched by `pre/ksf2c.ssc` |
 | `i.h` | the instruction table — encodings, operand types, integrables | hand-written |
 | `i.c` | the VM: instruction implementations and the bytecode decoder | hand-written |
@@ -46,9 +47,22 @@ intermediate language, converted to threaded code once by a routine inside the V
 | `t.c` | expander, compiler, library system and REPL, as bytecode strings | `pre/t.scm` |
 | `opt/` | tower, Unicode and enhanced-tty subsystems | mixed |
 
-`s.c`, `t.c`, `k.c`, `n.c` and `n.h` are build artifacts and are committed only
-because regenerating them needs a working `skint` and a working `sfc`. Edit the
-`pre/` sources.
+`s.c`, `t.c` and `k.c` are build artifacts and are committed only because
+regenerating them needs a working `skint` and a working `sfc`. Edit the `pre/`
+sources for those three.
+
+`n.h` and `n.c` are not in that category. They were generated from `pre/n.sf`
+originally, but have been maintained by hand for several releases and the script
+that generated them no longer exists; edit them directly. `pre/n.sf` remains only
+because `pre/k.sf` loads it for the runtime definitions it needs in order to
+compile, and it is on its way out — it does not describe `n.h` or `n.c`, and
+changing it will not change them.
+
+`s.h` is where the feature-test macros are selected, and those are only honored
+before the C library headers are read — so **every translation unit must include
+`s.h` before `n.h` and `i.h`**. Both of those check for it and stop the build with
+an `#error` rather than compiling against a different configuration from the rest
+of the program. `k.c`'s include preamble lives in `pre/ksf2c.ssc`.
 
 The collector in `k.c` is a special case: it is `sfc`'s own runtime, not code
 written for SKINT, and `pre/ksf2c.ssc` carries the small list of patches applied to

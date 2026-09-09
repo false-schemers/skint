@@ -1,5 +1,6 @@
 /* k.c -- generated via skint ksf2c.ssc k.sf */
 
+#include "s.h"
 #include "n.h"
 #include "i.h"
 

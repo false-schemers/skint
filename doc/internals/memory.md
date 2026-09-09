@@ -7,9 +7,9 @@ about pairs, strings, closures, or the virtual machine. The next layer up, which
 turns those five categories into Scheme types, is described in
 [objects.md](objects.md).
 
-The code discussed here lives in `n.h` (declarations and macros, generated from
-`pre/n.sf`) and in the "basic runtime" section at the end of `k.c`, which holds the
-collector itself.
+The code discussed here lives in `n.h` (declarations and macros, hand-maintained)
+and in the "basic runtime" section at the end of `k.c`, which holds the collector
+itself.
 
 That second half is worth a word of warning. It is not SKINT's code: it is the
 standard runtime the `#F` compiler emits for any program it compiles, and it arrives

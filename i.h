@@ -1,5 +1,9 @@
 /* i.h -- instructions */
 
+#ifndef SKINT_S_H_SEEN
+#error "s.h must be included before i.h -- feature-test macros are selected there"
+#endif
+
 #ifndef glue
 #define glue(a, b) a##b
 #endif

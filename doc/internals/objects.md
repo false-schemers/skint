@@ -6,9 +6,9 @@ describes the layer that subdivides three of those categories into actual Scheme
 types, and the macro and function layer in `n.h` that the rest of the system uses to
 work with them.
 
-Everything here is declared in `n.h` and generated from `pre/n.sf`; the
-implementations that are not macros live in `n.c`. Optional types are added by the
-headers under `opt/`, which `n.h` includes conditionally.
+Everything here is declared in `n.h`; the implementations that are not macros live
+in `n.c`. Both are hand-maintained. Optional types are added by the headers under
+`opt/`, which `n.h` includes conditionally.
 
 ### Immediates
 
@@ -249,6 +249,7 @@ automatically.
 it must not contain `obj` values — if it needs to reference Scheme objects, it
 should be a block, not a native.
 
-In all three cases the corresponding entries in `pre/n.sf` are the source of truth;
-`n.h` and `n.c` are generated from it. Changing them directly is fine for
-experimenting but will be lost on the next regeneration.
+In all three cases `n.h` and `n.c` are themselves the source of truth and are edited
+directly. They were generated from `pre/n.sf` in an early version; that has not been
+true for several releases, and the generator is gone — `pre/n.sf` is not the place to
+make the change.

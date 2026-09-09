@@ -1,5 +1,9 @@
 /* n.h -- native/platform interfaces */
 
+#ifndef SKINT_S_H_SEEN
+#error "s.h must be included before n.h -- feature-test macros are selected there"
+#endif
+
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Wparentheses-equality"
 #pragma GCC diagnostic ignored "-Wignored-attributes"
