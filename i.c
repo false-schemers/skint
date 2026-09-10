@@ -4824,9 +4824,12 @@ define_instruction(libdir) {
   gonexti();
 }
 
-#define VM_GEN_DEFGLOBAL
+#define declare_instruction(name, enc, etyp, igname, arity, lcode) \
+  declare_instruction_global(name)
+#define declare_integrable(name, enc, etyp, igname, arity, lcode)
 #include "i.h"
-#undef  VM_GEN_DEFGLOBAL
+#undef declare_instruction
+#undef declare_integrable
 
 /* integrables table */
 struct intgtab_entry { int sym; char *igname; int igtype; char *enc; char *lcode; };
@@ -4834,9 +4837,13 @@ struct intgtab_entry { int sym; char *igname; int igtype; char *enc; char *lcode
    { 0, igname, igtype, enc, lcode },
 
 static struct intgtab_entry intgtab[] = {
-#define VM_GEN_INTGTABLE
+#define declare_instruction(name, enc, etyp, igname, arity, lcode) \
+  declare_intgtable_entry(enc, igname, arity, lcode)
+#define declare_integrable(name, enc, etyp, igname, arity, lcode) \
+  declare_intgtable_entry(enc, igname, arity, lcode)
 #include "i.h"
-#undef  VM_GEN_INTGTABLE
+#undef declare_instruction
+#undef declare_integrable
 };
 
 static int intgtab_sorted = 0;
@@ -5215,12 +5222,12 @@ static obj *rds_stox(obj *r, obj *sp, obj *hp)
 }
 
 static struct { obj *pg; const char *enc; int etyp; } enctab[] = {
-#define VM_GEN_ENCTABLE
-#define declare_enctable_entry(name, enc, etyp) \
- { &glue(cx_ins_2D, name), enc, etyp },
+#define declare_instruction(name, enc, etyp, igname, arity, lcode) \
+	{ &glue(cx_ins_2D, name), enc, etyp },
+#define declare_integrable(name, enc, etyp, igname, arity, lcode)
 #include "i.h"
-#undef declare_enctable_entry
-#undef VM_GEN_ENCTABLE
+#undef declare_instruction
+#undef declare_integrable
  { NULL, NULL, 0 }
 };
 

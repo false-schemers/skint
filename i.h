@@ -10,23 +10,13 @@
 #define INLINED ""
 #endif
 
-#if defined(VM_GEN_DEFGLOBAL)
+/* Default case of non-overridden
+ * declare_instruction / declare_integrable.
+ * One ifndef is enough, because these two are always used in tandem. */
+#ifndef declare_instruction
 #define declare_instruction(name, enc, etyp, igname, arity, lcode) \
-  declare_instruction_global(name)
-#define declare_integrable(name, enc, etyp, igname, arity, lcode) 
-#elif defined(VM_GEN_ENCTABLE)
-#define declare_instruction(name, enc, etyp, igname, arity, lcode) \
-  declare_enctable_entry(name, enc, etyp)
-#define declare_integrable(name, enc, etyp, igname, arity, lcode) 
-#elif defined(VM_GEN_INTGTABLE)
-#define declare_instruction(name, enc, etyp, igname, arity, lcode) \
-  declare_intgtable_entry(enc, igname, arity, lcode)
-#define declare_integrable(name, enc, etyp, igname, arity, lcode) \
-  declare_intgtable_entry(enc, igname, arity, lcode)
-#else /* regular include */
-#define declare_instruction(name, enc, etyp, igname, arity, lcode) \
-  extern obj glue(cx_ins_2D, name); 
-#define declare_integrable(name, enc, etyp, igname, arity, lcode) 
+  extern obj glue(cx_ins_2D, name);
+#define declare_integrable(name, enc, etyp, igname, arity, lcode)
 extern obj vmcases[]; /* vm host */
 #endif
 
