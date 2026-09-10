@@ -16,31 +16,43 @@
 
   ; parameters
   (export print-width
+          print-circle
           print-graph
           print-radix
           print-length
           print-level
+          print-indent
           print-brackets)
 
 (begin
 
 ; parameters
 
-; number of columns to print within (ideally)
+; default values are chosen for print to follow write
+; (single-line, no newline at the end, nothing fancy)
+
+; number of columns to print within (ideally) unless
+; we are printing inline (print-indent is #f)
 (define (cv-width x)
   (if (and (number? x) (exact? x) (> x 0)) x
       (error "invalid value for print-width" x)))
 (define print-width (make-parameter 80 cv-width))
 
-; detect and mark shared AND cyclic substructure
+; detect and mark cyclic substructure
 (define (cv-boolean x) (not (not x)))
-(define print-graph (make-parameter #t cv-boolean))
+(define print-circle (make-parameter #t cv-boolean))
 
-; #f or max numbers of subitems to display in a sequence
+; detect and mark shared AND cyclic substructure
+(define print-graph (make-parameter #f cv-boolean))
+
+; initial indent (first line assumption) or #f for inline printing
 (define (cv-indent x)
   (if (or (not x) (and (number? x) (exact? x) (>= x 0))) x
       (error "invalid value for print-indent" x)))
 (define print-indent (make-parameter #f cv-indent)) ; inline
+
+; print argument obj as code, opposed to data (not public)
+(define print-code (make-parameter #f cv-boolean))
 
 ; radix for (at least) exact integers; 2, 8, 10, 16 are supported
 ; if not 10, prefix is printed when needed to keep numbers readable
@@ -61,12 +73,12 @@
       (error "invalid value for print-level" x)))
 (define print-level (make-parameter #f cv-level)) ; no limit
 
-; print r6rs-style square brackets
+; print r6rs-style square brackets if printing code
 (define print-brackets (make-parameter #f cv-boolean))
 
 ; interface to formatting style registry
 (define (pretty-style sym . args)
-  (let ([tab (pp-styles)])
+  (let ([tab (print-styles)])
     (if (null? args)
         (table-ref tab sym #f)
         (begin
@@ -77,26 +89,26 @@
 (define print-hooks (make-parameter '()))
 
 ; adding a hook to the explicit hook registry
-(define (add-pp-hook hooks pred . opt-hook)
+(define (add-print-hook hooks pred . opt-hook)
   (define hook (if (null? opt-hook) #f (car opt-hook)))
   (if (assv pred hooks)
       (alist-addv pred hook hooks) ; replaces at its original pos
       (cons (cons pred hook) hooks))) ; adds to front
 
 ; generalized read macro hook constructor
-(define (rmac-pp-hook pfx reff tomf)
+(define (rmac-print-hook pfx reff tomf)
   (list 'rm pfx reff tomf))
 
 ; generalized list hook constructor
-(define (glist-pp-hook pfx tolf toxf sfx)
+(define (glist-print-hook pfx tolf toxf sfx)
   (list 'gl pfx tolf toxf sfx))
 
 ; binary vector hook constructor
-(define (bvec-pp-hook pfx lenf reff sfx)
+(define (bvec-print-hook pfx lenf reff sfx)
   (list 'bv pfx lenf reff sfx))
 
 ; atomic hook constructor
-(define (atom-pp-hook sh? widf wrtf)
+(define (atom-print-hook sh? widf wrtf)
   (list 'at sh? widf wrtf))
 
 ; portable eq table, similar to R6RS(?) eq-hashtable   
@@ -116,7 +128,7 @@
 
 
 ; formatting style registry (private)
-(define pp-styles (make-parameter (make-eq-table)))
+(define print-styles (make-parameter (make-eq-table)))
 
 ; functional modifications of alists 
 (define (alist-addv key val alist) ; adds new to the end!
@@ -176,21 +188,22 @@
       (cond [(null? a) (param)] ; already converted, no need for conv
             [(and (pair? (cdr a)) (eq? (car a) param)) (conv (cadr a))]
             [(and (pair? (cdr a)) (procedure? (car a))) (loop (cddr a))]
-            [else (error "invalid pp parameter list" a)])))
+            [else (error "invalid printer parameter list" a)])))
 
   ; bring in all external parameters as lexical vars
   (define *width*            (kval kv* print-width cv-width))
+  (define *circle*           (kval kv* print-circle cv-boolean))
   (define *graph*            (kval kv* print-graph cv-boolean))
   (define *radix*            (kval kv* print-radix cv-radix))
   (define *length*           (kval kv* print-length cv-length))
   (define *level*            (kval kv* print-level cv-level))
   (define *indent*           (kval kv* print-indent cv-indent))
-  (define *brackets*         (kval kv* print-brackets cv-boolean))
+  (define *code*             (kval kv* print-code cv-boolean))
+  (define *brackets*         (and *code* (kval kv* print-brackets cv-boolean)))
   (define *tab*              1)
-  (define *alt-tab*          4)
+  (define *alt-tab*          5)
   (define *miser-width*      #f)
   (define *inline-width*     60)
-  (define *code*             #t)   
   (define *length-stub*      "...")
   (define *level-stub*       #t) ; string (e.g. "#") or #t for Chez "shells"
 
@@ -299,19 +312,21 @@
                (let ([hk (or (cdar al) res)])
                  (unless (pair? hk) (error "invalid hook!"))
                  (case (car hk)
-                   ; read macro: rmac-pp-hook pfx reff tomf
+                   ; read macro: rmac-print-hook pfx reff tomf
                    [(rm) (apply retm (cdr hk))]
-                   ; list-like: glist-pp-hook pfx tolf toxf sfx
+                   ; list-like: glist-print-hook pfx tolf toxf sfx
                    [(gl) (apply retl (cdr hk))]
-                   ; binary vector: bvec-pp-hook pfx lenf reff sfx
+                   ; binary vector: bvec-print-hook pfx lenf reff sfx
                    [(bv) (apply retv (cdr hk))]
-                   ; atomic: atom-pp-hook sh? widf wrtf
+                   ; atomic: atom-print-hook sh? widf wrtf
                    [(at) (apply reta (cdr hk))]
                    ; TODO: pre-check, this shouldn't happen! 
                    [else (error "invalid hook!")])))]
             [else (loop (cdr al))])))
 
   ; graph sharing/cycles detection
+  ; NB: if print-graph is off, print-circle determines if it is called with cycles-only? #t
+  ; or not at all. If print-graph is on, mark-shared is called with cycles-only? #f
   (define unique (list 'shared-mark))
   (define (shared-mark? x) 
      (and (vector? x) (= (vector-length x) 4) (eq? (vector-ref x 0) unique)))
@@ -321,7 +336,7 @@
     (values (vector-ref m 1) (vector-ref m 2) (vector-ref m 3)))
   (define (not-shareable? x) ; definitely not shareable
     (or (symbol? x) (number? x) (boolean? x) (char? x)))
-  (define (mark-shared sexp env)
+  (define (mark-shared sexp env cycles-only?)
     (let ([counts (make-eq-table)] [marks? #f])
       ; calculate ref counts in O(N)
       (let scan ([x sexp] [v env])
@@ -355,13 +370,40 @@
                 (let ([c (table-ref counts x 0)])
                   (table-set! counts x (+ c 1))
                   (if (> c 0) (set! marks? #t))))))))
+      ; optionally detect cycles in O(N)
+      (when (and marks? cycles-only?)
+        (set! marks? #f) 
+        (let find-cycles ([x sexp] [v env] [up '()])
+          (unless (not-shareable? x)
+            (let ([c (table-ref counts x 0)])
+              (cond [(eq? c 'cycle)]
+                    [(memq x up) 
+                     (table-set! counts x 'cycle) (set! marks? #t)]
+                    [(eq? c 'visited)]
+                    [else (let ([up (if (> c 1) (cons x up) up)])
+                            (table-set! counts x 'visited)
+                            (dispatch-on-type x ;=>
+                              (lambda (pfx reff tomf) ; read-macro
+                                (unless (cutd? v) ; Caveat: no nesting!
+                                  (find-cycles (reff x) v up)))
+                              (lambda (pfx tolf toxf sfx) ; list-like
+                                (unless (cutd? v)
+                                  (let ([l (tolf x)]) ; beware: l could be eq x
+                                    (when (pair? l) 
+                                      (find-cycles (car l) (nest v) up)
+                                      (let ([l (cdr l)] [v (step v)])
+                                        (unless (and (cuti? v) (pair? l))
+                                          (find-cycles l v up)))))))
+                              ; bytevector-like and atoms can't contain cycles!
+                              (lambda (pfx lenf reff sfx) 42)
+                              (lambda (sh? widf wrtf) 42)))])))))
       ; rebuild x with sharing marks as needed in O(N)
       (if marks?
           (let ([ids (make-eq-table)] [next-id 0])
             (define (rebuild x v)
               (if (not-shareable? x) x
                   (let ([c (table-ref counts x 0)])
-                    (if (> c 1)
+                    (if (if cycles-only? (eq? c 'cycle) (> c 1))
                         (cond [(table-ref ids x #f) => 
                                (lambda (id) (shared-mark #f id x))]
                               [else
@@ -734,10 +776,12 @@
                   (fitsi? e c v) ; need to bump c!
                   (ploop lst e v ind (ind+ ind roff) ind c fmt*))]))
 
-  (let ([x (if *graph* (mark-shared sexp env) sexp)])
+  (let* ([pg (if *graph* 2 (if *circle* 1 0))] 
+         [x (if (> pg 0) (mark-shared sexp env (= pg 1)) sexp)])
     (cond [*code* (print-exp x *indent* env)]
           [else   (print-datum x *indent* env)])
-    (newline *port*)))
+    ; do not add newline if we are printing inline
+    (when *indent* (newline *port*))))
 
 ; accepts a keyword-value list as last argument
 (define (pp* obj arg . args)
@@ -753,7 +797,7 @@
     (if (and (pair? rest) (output-port? (car rest))) 
         (values (car rest) (cdr rest))
         (values (current-output-port) rest)))
-  (pp* obj port print-graph #t print-indent 0 print-brackets #t kv*))
+  (pp* obj port (append kv* (list print-indent 0 print-code #t print-brackets #t))))
 
 ; prints like write by default; no preset parameters
 (define (print obj . rest)
@@ -805,22 +849,22 @@
 ; initialize pp hook registry
 
 (print-hooks 
-  (add-pp-hook (print-hooks)
+  (add-print-hook (print-hooks)
     box? ; boxes, printed as #&x
-    (glist-pp-hook 
+    (glist-print-hook 
       "#&" (lambda (x) (list (unbox x)))  
           (lambda (x) (box (car x))) "")))
 (print-hooks
-  (add-pp-hook (print-hooks)
+  (add-print-hook (print-hooks)
     (lambda (x) ; supported homogenous num vectors
       (case (numvector? x)
         [(#f 0) #f]
-        [(1) (bvec-pp-hook "#s8(" numvector-length numvector-ref ")")]
-        [(2) (bvec-pp-hook "#u16(" numvector-length numvector-ref ")")] 
-        [(3) (bvec-pp-hook "#s16(" numvector-length numvector-ref ")")]
-        [(10) (bvec-pp-hook "#f32(" numvector-length numvector-ref ")")]
-        [(11) (bvec-pp-hook "#f64(" numvector-length numvector-ref ")")]
+        [(1) (bvec-print-hook "#s8(" numvector-length numvector-ref ")")]
+        [(2) (bvec-print-hook "#u16(" numvector-length numvector-ref ")")] 
+        [(3) (bvec-print-hook "#s16(" numvector-length numvector-ref ")")]
+        [(10) (bvec-print-hook "#f32(" numvector-length numvector-ref ")")]
+        [(11) (bvec-print-hook "#f64(" numvector-length numvector-ref ")")]
         ; TODO: add 2 to numvector-length for #*0101... bitvec notation
-        [else (atom-pp-hook #t written-width write)]))))
+        [else (atom-print-hook #t written-width write)]))))
 
 ))
