@@ -94,8 +94,6 @@
 (test 1024.0 (flexpt 2.0 10.0))
 (test~= 1.4142135623730951 (flsqrt 2.0))
 (test 4.0 (flsqrt 16.0))
-(test "flsqrt of negative zero is negative zero" #t (flnegative? (flcopysign 1.0 (flsqrt negzero))))
-
 
 (display "\n--- rounding ---\n")
 
@@ -195,6 +193,8 @@
 (test 3.0 (flcopysign -3.0 1.0))
 (test "the sign of the second argument wins even for zero"
   #t (fl<? (flcopysign 1.0 negzero) 0.0))
+(test "flsqrt of negative zero is negative zero" 
+  #t (flnegative? (flcopysign 1.0 (flsqrt negzero))))
 
 (test 0 (flsign-bit 1.0))
 (test 1 (flsign-bit -1.0))
