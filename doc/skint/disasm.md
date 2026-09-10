@@ -27,20 +27,30 @@ variables a closure carries. Globals keep the names they had.
 ### What comes back, and how good it is
 
 A disassembly is not the source. Names are invented, macros are gone, and a
-derived form is recovered only if the shape it compiles to is unambiguous. What
-*is* guaranteed is stronger and more useful: with one documented exception, the
-form that comes back compiles to the same bytecode as the code it came from. It
-is a different program on the page and the same program underneath.
+derived form is recovered only if the shape it compiles to is unambiguous.
 
-The exception is `(void)`; see [The empty expression](#the-empty-expression).
+What is guaranteed is narrower than it first sounds, but it is the useful thing:
+*compiling the form again produces the same bytecode, provided it is read back
+in an environment that gives its names the same meanings they had.* It is a
+different program on the page and the same program underneath — as long as the
+page is read the same way. That proviso is not a formality; the conditions are
+listed under [Re-expanding what comes back](#re-expanding-what-comes-back), and
+some of them fail for perfectly ordinary procedures.
 
-Some code has no readable form at all — the built-in procedures that were written
-by hand or generated rather than compiled from Scheme. For those, `da` answers
-with the name the procedure is filed under instead of a form, which is why the
-result of `da` is worth testing with `pair?` or `symbol?`:
+Two things are outside the guarantee whatever the environment. `(void)` is
+written where the compiler had an empty `begin`, which is the same value and one
+extra instruction — see [The empty expression](#the-empty-expression). And a
+form that binds `?` for a display it does not have, or that rebuilds a
+`case-lambda` from a dispatcher, is a description rather than a program; both are
+noted where they come up.
+
+Some code has no readable form at all: the built-in procedures written by hand or
+generated in the runtime rather than compiled from Scheme. For those, `da`
+answers with the name the procedure is filed under instead of a form, which is
+why the result of `da` is worth testing with `pair?` or `symbol?`:
 
 ```scheme
-(da car)          ⇒ car          ; a generated wrapper: no Scheme behind it
+(da car)          ⇒ car          ; a wrapper generated around the instruction
 (da values)       ⇒ values       ; hand-written
 ```
 
@@ -54,6 +64,7 @@ The whole chain, from whatever there is. `x` may be:
 |---|---|
 | a procedure | its disassembly, with its closure's values bound around it |
 | a symbol | the same for whatever the global store holds under that name |
+| a fixnum | the same, for the global an integrable index leads to |
 | a code vector | its disassembly, with `?` where the closure's values would be |
 | a string | the same, decoded from bytecode |
 | a pair | the Scheme form for a Core expression |
@@ -66,6 +77,23 @@ A symbol is a *global name* — the name the store files a binding under, not
 necessarily the identifier you type. Built-ins are filed under their own names,
 so `'car` works; something defined at the REPL is filed under `repl://?name`.
 See [doc/internals/store.md](../internals/store.md) if that matters to you.
+
+An exact non-negative integer is taken as an *integrable index*, which is how
+Core shows a built-in operation, and is followed to the global that operation's
+wrapper procedure is filed under. It is there so that an index read off a
+disassembly can be handed straight back:
+
+```scheme
+(define (unwrap p) (car p))
+
+(da-bytecode 'repl://?unwrap)   ⇒ (lambda (.a) (integrable 181 (ref .a)))
+(da 181)                        ⇒ car
+```
+
+*This is a convenience for working at a REPL and nothing more.* An index says
+where an instruction happens to sit in a table that grows with the instruction
+set, so it means nothing outside the session that produced it. Do not write one
+down, and do not put one in a program.
 
 ### The stages
 
@@ -169,6 +197,43 @@ A display entry that the code assigns holds a box rather than the value. `da`
 binds the box's contents, so what you see is the variable's value and not its
 cell.
 
+### case-lambda
+
+A `case-lambda` does not compile to one procedure with several arities. It
+compiles to a *dispatcher* — a procedure whose whole body is "if the argument
+count is this, hand over to that clause" — over a display holding one ordinary
+closure per clause. `da` recognises that shape and puts the `case-lambda` back:
+
+```scheme
+(da (case-lambda [(x) x] [(x y) (cons x y)]))
+  ⇒ (case-lambda ((.a) .a) ((.a .b) (cons .a .b)))
+```
+
+The clauses each carry their own display, and where two of them close over the
+same variable they hold the same cell, so it is named once and bound outside the
+`case-lambda` rather than once per clause. For an assigned variable that is not
+a nicety but the only correct reading, since the clauses share one cell:
+
+```scheme
+(da (let ([n 0]) (case-lambda [() n] [(x) (set! n x) n])))
+  ⇒ (let ((:a 0)) (case-lambda (() :a) ((.a) (set! :a .a) :a)))
+```
+
+The procedures that take optional arguments have the same dispatcher shape, so
+they read back the same way — which is how a good part of the built-in library
+comes to have a readable form at all:
+
+```scheme
+(da 'string-copy)
+  ⇒ (case-lambda ((.a) (substring .a 0 (string-length .a)))
+                 ((.a .b) (substring .a .b (string-length .a)))
+                 ((.a .b .c) (substring .a .b .c)))
+```
+
+A dispatcher keeps its clauses in its display, so unlike an ordinary procedure it
+has nothing to say without one: `da` of such a code vector or bytecode string is
+`#f`, not a `case-lambda` with `?` for the clauses.
+
 ### Global names
 
 `(da-prune-globals)` → *boolean*
@@ -220,15 +285,37 @@ they are filled, and a cleared slot is an empty `begin`.
 
 ### Re-expanding what comes back
 
-A disassembly can be fed back to `eval`, but it names things the way the compiler
-does, and some of those names are not in scope everywhere. Integrable procedures
-come back under their canonical names, and a few of those — `%port?` and its
-kind — belong to `(skint hidden)` rather than to any standard library. Importing
-that library puts them in scope.
+A disassembly can be fed back to `eval`, and when it can be, it compiles to the
+bytecode it came from. What has to hold for that:
 
-For the same reason a form that mentions a library's private global cannot be
-re-expanded at the REPL at all: only an import reaches those names, and there is
-no import that reaches a name a library did not export.
+*The standard forms have to mean what they usually mean.* The output uses `let`,
+`let*`, `letrec`, `letrec*`, `let-values`, `let*-values`, `define`,
+`define-values`, `do`, `cond`, `case`, `and`, `or`, `when`, `unless`,
+`case-lambda`, `lambda`, `if`, `begin`, `set!` and `quote`, and it uses them for
+what they normally denote. A local binding or a redefinition that shadows one of
+them changes what the form means.
+
+*The globals it names have to be reachable under those names.* With
+`da-prune-globals` on, a global appears as its bare identifier, and re-expanding
+it binds whatever that identifier means where the form is read. For a built-in
+that is the same location; for something defined at the REPL it is the same
+location as long as it is the same REPL. For a library's own global it is *not*:
+only an import reaches those, and no import reaches a name a library did not
+export. Turning pruning off does not help — the full store name is just another
+identifier to the expander.
+
+*The integrables it names have to resolve to those integrables.* They come back
+under their canonical names, and a few of those — `%port?` and its kind — belong
+to `(skint hidden)` rather than to any standard library, so that library has to
+be imported.
+
+*The globals it assigns have to be assignable.* Built-in names are registered
+immutable, so the expander refuses `set!` to one — correctly, whatever the code
+it is refusing came from. A procedure that assigns a built-in global therefore
+cannot be re-expanded at all.
+
+None of that makes the form wrong. It makes the form a reading of the code rather
+than a substitute for it, which is what a disassembly is.
 
 ### What a disassembly is good for
 

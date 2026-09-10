@@ -2673,6 +2673,72 @@
   (when prompt (newline op) (or (set-port-prompt! ip prompt) (format op "~a~!" prompt)))
   (read-code-sexp ip))
 
+; shorthand library names for the ,im repl command: a nonnegative exact integer
+; is an srfi, a symbol is a (skint ...) library, and a list is a name already
+(define (repl-import-name x)
+  (cond [(and (exact-integer? x) (>= x 0)) (list 'srfi x)]
+        [(symbol? x) (list 'skint x)]
+        [(listname? x) x]
+        [else #f]))
+
+(define (repl-import args op)
+  (if (null? args)
+      (display "no libraries to import\n" op)
+      (let loop ([l args] [names '()])
+        (cond [(null? l)
+               (repl-evaluate-top-form (cons 'import (reverse! names)) repl-environment op)]
+              [(repl-import-name (car l)) 
+               => (lambda (n) (loop (cdr l) (cons n names)))]
+              [else (display "invalid ,im argument: " op) (write (car l) op) (newline op)]))))
+
+; commands that depend on a library fetch it on first use
+(define (repl-require-library name op)
+  (unless (find-library-in-env name root-environment)
+    (repl-evaluate-top-form (list 'import name) repl-environment op)))
+
+; ,tr and ,untr: trace and untrace by name, fetching (skint trace) on first use.
+; An empty name list is not passed on: (untrace) with no names untraces
+; everything, and (trace) with none reports what is traced, neither of which is
+; what an empty command line should do.
+(define (repl-trace op what cname args)
+  (repl-require-library '(skint trace) op)
+  (if (null? args)
+      (begin (display "no names to " op) (display what op) (newline op))
+      (let loop ([l args])
+        (cond [(null? l) (repl-evaluate-top-form (cons what args) repl-environment op)]
+              [(symbol? (car l)) (loop (cdr l))]
+              [else (display "invalid ," op) (display cname op)
+                    (display " argument: " op) (write (car l) op) (newline op)]))))
+
+; a symbol with a :// in it is a global store name such as repl://?f or
+; lib://skint/print?pp; ,da takes one unquoted, so quote it for the user
+(define (repl-global-name? x)
+  (and (symbol? x)
+       (let* ([s (symbol->string x)] [n (- (string-length s) 2)])
+         (let loop ([i 0])
+           (and (< i n)
+                (or (and (char=? (string-ref s i) #\:)
+                         (char=? (string-ref s (+ i 1)) #\/)
+                         (char=? (string-ref s (+ i 2)) #\/))
+                    (loop (+ i 1))))))))
+
+; ,pp and ,da: pretty-print an expression, or the decompilation of a procedure
+(define (repl-pretty-print op args)
+  (repl-require-library '(skint print) op)
+  (if (null? args)
+      (display "no argument to pretty-print\n" op)
+      (repl-evaluate-top-form (list 'pretty-print (car args)) repl-environment op)))
+
+(define (repl-disasm op args)
+  (repl-require-library '(skint print) op)
+  (repl-require-library '(skint disasm) op)
+  (if (null? args)
+      (display "no argument to disassemble\n" op)
+      (let ([x (car args)])
+        (repl-evaluate-top-form
+          (list 'pretty-print (list 'da (if (repl-global-name? x) (list 'quote x) x)))
+          repl-environment op))))
+
 (define (repl-exec-command cmd argstr op)
   (define args
     (if (memq cmd '(load cd sh)) ; do not expect s-exps!
@@ -2687,17 +2753,24 @@
       [(rref *) (write (name-lookup *root-name-registry* (car args) #f) op) (newline op)]
       [(rrem! *) (cond [(name-lookup *root-name-registry* (car args) #f)
                         (name-remove! *root-name-registry* (car args)) (display "done!\n" op)]
-                      [else (display "name not found: " op) (write name op) (newline op)])]
+                      [else (display "name not found: " op) (write (car args) op) (newline op)])]
       [(unr) (write *user-name-registry* op) (newline op)]
       [(uref *) (write (name-lookup *user-name-registry* (car args) #f) op) (newline op)]
       [(urem! *) (cond [(name-lookup *user-name-registry* (car args) #f)
                         (name-remove! *user-name-registry* (car args)) (display "done!\n" op)]
-                      [else (display "name not found: " op) (write name op) (newline op)])]
+                      [else (display "name not found: " op) (write (car args) op) (newline op)])]
       [(gs) (write (global-store) op) (newline op)]
       [(gs <symbol>) 
        (let* ([k (car args)] [v (global-store)] [i (immediate-hash k (vector-length v))]) 
          (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
       [(load <string>) (load (car args))]
+      [(im * ...) (repl-import args op)]
+      [(tr * ...) (repl-trace op (quote trace) "tr" args)]
+      [(untr * ...) (repl-trace op (quote untrace) "untr" args)]
+      [(pp) (repl-pretty-print op args)]
+      [(pp *) (repl-pretty-print op args)]
+      [(da) (repl-disasm op args)]
+      [(da *) (repl-disasm op args)]
       [(v)  (set! *verbose* #t) (format #t "verbosity is on~%")]
       [(v-) (set! *verbose* #f) (format #t "verbosity is off~%")]
       [(q)  (set! *quiet* #t) (format #t "quiet is on~%")]
@@ -2717,6 +2790,11 @@
       [(help)
        (display "\nREPL commands (,load ,cd ,sh arguments need no quotes):\n" op)
        (display " ,load <fname>       load <fname> into REPL\n" op)
+       (display " ,im <lib> ...       import libraries: 1 is (srfi 1), fx is (skint fx)\n" op)
+       (display " ,tr <name> ...      trace named procedures, fetching (skint trace)\n" op)
+       (display " ,untr <name> ...    stop tracing them\n" op)
+       (display " ,pp <expr>          pretty-print <expr>, fetching (skint print)\n" op)
+       (display " ,da <proc>          disassemble <proc>, fetching (skint disasm)\n" op)
        (display " ,q                  quiet: disable informational messages\n" op)
        (display " ,q-                 enable informational messages\n" op)
        (display " ,v                  turn verbosity on\n" op)

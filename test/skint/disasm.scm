@@ -1,5 +1,6 @@
 (import (scheme base) (scheme write) (scheme eval) (scheme repl))
 (import (skint disasm))
+(import (skint print))
 
 ;; The disassembler is checked against the compiler: what it produces is right
 ;; when compiling it again gives the same bytecode.  That needs the expander and
@@ -317,6 +318,109 @@
 ;; expression, decodes as one
 (test '(lambda (.a) .a) (da (compile-to-string (expand '(lambda (x) x)))))
 
+
+
+(display "\n--- case-lambda ---\n")
+
+;; A case-lambda does not compile to one procedure with several arities: it
+;; compiles to a dispatcher whose display holds one closure per clause.  So the
+;; clauses are read one at a time and put back together.
+(define cl-plain (case-lambda [(x) x] [(x y) (cons x y)]))
+
+(test '(case-lambda ((.a) .a) ((.a .b) (cons .a .b))) (da cl-plain))
+
+;; a clause with a rest argument, and one that takes anything
+(test '(case-lambda ((.a) .a) ((.b . .a) (cons .b .a)))
+      (da (case-lambda [(x) x] [(x . rest) (cons x rest)])))
+(test '(case-lambda (.a .a)) (da (case-lambda [args args])))
+
+;; The clauses each carry their own display, and where they close over the same
+;; variable they hold the same cell -- so it is named once and bound outside.
+(test '(let ((:a 5)) (case-lambda ((.a) (+ .a :a)) ((.a .b) (cons .a .b))))
+      (da (let ([k 5]) (case-lambda [(x) (+ x k)] [(x y) (cons x y)]))))
+
+;; and that is what makes an assigned free variable come back as one variable
+;; rather than as one per clause
+(test '(let ((:a 0)) (case-lambda (() :a) ((.a) (set! :a .a) :a)))
+      (da (let ([n 0]) (case-lambda [() n] [(x) (set! n x) n]))))
+
+;; The optional-argument procedures the implementation generates have the same
+;; dispatcher shape, so they read back the same way.
+(test-assert (eq? 'case-lambda (car (da 'string-copy))))
+(test-assert (eq? 'case-lambda (car (da 'vector-fill!))))
+
+;; A dispatcher's clauses live in its display, so a code vector on its own says
+;; nothing at all -- unlike an ordinary procedure, where the names survive.
+(test #f (da (procedure-code cl-plain)))
+(test #f (da-bytecode cl-plain))
+
+
+(display "\n--- an integrable index stands for a global name ---\n")
+
+;; Core shows an integrable as its index, so being able to hand that index
+;; straight back is a convenience when reading a disassembly at a REPL.  The
+;; index is looked up in the integrable table and followed to the global its
+;; generated wrapper is filed under, so everything that takes a name takes one.
+;;
+;; Indices are not stable: they say where an instruction sits in the table, and
+;; the table grows.  This is why the tests below find the index rather than
+;; writing one down.
+(define car-index
+  (cadr (caddr (da-bytecode (compile-to-string (expand '(lambda (x) (car x))))))))
+
+(test-assert (exact-integer? car-index))
+(test 'car (da car-index))
+(test 'car (da-procedure car-index))
+(test 'car (da-global car-index))
+(test (da-code 'car) (da-code car-index))
+(test (da-bytecode 'car) (da-bytecode car-index))
+(test (da-core 'car) (da-core car-index))
+
+;; one whose wrapper does have a readable form
+(define void-index (cadr (expand (quote (void)))))
+(test-assert (exact-integer? void-index))
+(test '(lambda () (void)) (da void-index))
+
+;; nothing that is not an index of an integrable
+(test #f (da 0))              ; in range, but machinery rather than an integrable
+(test #f (da -1))
+(test #f (da 999999))
+(test #f (da 1.5))
+(test #f (da-code 999999))
+(test #f (da-global 999999))
+(test #f (da-global 1.5))
+(test-assert (string? (da-code cl-plain)))
+
+
+(display "\n--- internal definitions of a large body ---\n")
+
+;; (quote #f) is both the letrec* placeholder and an ordinary value, so which of
+;; the two a store means depends on the group it is in.  Reading it as a
+;; placeholder in a body would turn every (define x #f) into a variable waiting
+;; for a call-with-values, and the whole body would fall back to a let of
+;; placeholders.
+(test-assert (eq? 'define (car (caddr (da-core (expand '(lambda (p) (define a #f) (define b 1) (cons a b))))))))
+(test '(lambda (.a) (define .b #f) (define .c 1) (cons .b .c))
+      (da-core (da-bytecode (compile-to-string
+                              (expand '(lambda (p) (define a #f) (define b 1) (cons a b)))))))
+
+;; the same with a define-values group before the #f definition, which is where
+;; the two readings collide
+(test-assert
+  (let ([form (da-core (da-bytecode
+                         (compile-to-string
+                           (expand '(lambda (p . r)
+                                      (define-values (a b) (values 1 2))
+                                      (define c #f)
+                                      (define d 3)
+                                      (list a b c d))))))])
+    (and (eq? 'lambda (car form))
+         (eq? 'define-values (car (caddr form)))
+         (eq? 'define (car (cadddr form))))))
+
+;; and a real library procedure with a body of this shape
+(test-assert (eq? 'lambda (car (da 'lib://skint/print?pp))))
+(test-assert (eq? 'define-values (car (caddr (da 'lib://skint/print?pp)))))
 
 (display "\n--- malformed input of the right type ---\n")
 

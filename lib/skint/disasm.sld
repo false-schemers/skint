@@ -176,13 +176,33 @@
 ;; needs and answer #f when it cannot be got there, so a wrong type is a #f and
 ;; only a malformed value of the right type is an error.
 
-;; a live procedure, or #f.  A symbol is a global name: the store is only read,
-;; so asking about a name it has never seen leaves it unseen.
+;; The index of an integrable, standing for the global name its generated
+;; wrapper procedure is filed under -- a convenience for typing at a REPL, where
+;; an index is what the Core of a disassembly shows.  integrable? is the only one
+;; of the three accessors that is total over indices, so it is asked first.
+(define (integrable-name x)
+  (and (exact-integer? x)
+       (>= x 0)
+       (integrable? x)
+       (let ([n (guard (e (#t #f)) (integrable-global x))])
+         (and (symbol? n) n))))
+
+;; the global name X stands for: itself if it is one, or the one an integrable
+;; index leads to
+(define (global-name-of x)
+  (cond [(symbol? x) x]
+        [(integrable-name x)]
+        [else #f]))
+
+;; a live procedure, or #f.  A symbol is a global name and an exact non-negative
+;; integer is an integrable index that leads to one: the store is only read, so
+;; asking about a name it has never seen leaves it unseen.
 (define (as-procedure x)
   (cond [(procedure? x) x]
-        [(symbol? x)
-         (let ([loc (lookup-global x)])
-           (and loc (let ([v (unbox loc)]) (and (procedure? v) v))))]
+        [(global-name-of x)
+         => (lambda (n)
+              (let ([loc (lookup-global n)])
+                (and loc (let ([v (unbox loc)]) (and (procedure? v) v)))))]
         [else #f]))
 
 ;; a code vector, or #f.  Only a closure has one; a continuation or a primitive
@@ -1263,21 +1283,26 @@
          (and (pair? ids)
               (= (length ids) (length inits))
               (sexp-match? '(begin * ...) body)
-              (let ([kind (cond [(every? empty-begin? inits) 'defines]
-                                [(every? false-quote? inits) 'letrec*]
-                                [else #f])])
-                (and kind
-                     (let loop ([vs ids] [forms (cdr body)] [ds '()])
-                       (cond
-                         [(null? vs)
-                          (and (pair? forms) (list kind (reverse ds) (splice-begin forms)))]
-                         ;; one statement, one group of definitions
-                         [(definition-group vs forms)
-                          => (lambda (r)
-                               (loop (car r) (cadr r) (append (caddr r) ds)))]
-                         [else #f]))))))))
-
-(define (placeholder? e) (or (empty-begin? e) (false-quote? e)))
+              ;; The two kinds of placeholder are told apart by the initializers,
+              ;; and which one it is has to be carried into the statements: a
+              ;; store of (quote #f) is a clear in a letrec* group and an
+              ;; ordinary definition in a body, since (define x #f) compiles to
+              ;; exactly that.  Testing for either would read half the
+              ;; definitions of a large body as clears.
+              (let ([clear? (cond [(every? empty-begin? inits) empty-begin?]
+                                  [(every? false-quote? inits) false-quote?]
+                                  [else #f])])
+                (and clear?
+                     (let ([kind (if (eq? clear? empty-begin?) 'defines 'letrec*)])
+                       (let loop ([vs ids] [forms (cdr body)] [ds '()])
+                         (cond
+                           [(null? vs)
+                            (and (pair? forms) (list kind (reverse ds) (splice-begin forms)))]
+                           ;; one statement, one group of definitions
+                           [(definition-group vs forms clear?)
+                            => (lambda (r)
+                                 (loop (car r) (cadr r) (append (caddr r) ds)))]
+                           [else #f])))))))))
 
 ;; --- one statement's worth of definitions -----------------------------------
 ;; Consecutive stores compile to consecutive sseti instructions, and sseti
@@ -1296,13 +1321,13 @@
 ;;
 ;; => (list remaining-vars remaining-forms defs-in-reverse) or #f
 
-(define (definition-group vs forms)
+(define (definition-group vs forms clear?)
   (and (pair? forms)
        (let ([nest (store-nest (car forms))])
          (and nest
               (let* ([nvars (car nest)] [val (cadr nest)])
                 (and (prefix-of? nvars vs)
-                     (let* ([lead? (not (placeholder? val))]
+                     (let* ([lead? (not (clear? val))]
                             [defs (if lead?
                                       (list (list 'one (varname (car nvars)) val))
                                       '())]
@@ -1311,19 +1336,25 @@
                                     [rest (cdr forms)]
                                     [used (length nvars)])
                          (cond
+                           ;; Nothing was cleared: a plain define on its own, and
+                           ;; nothing to absorb.  This has to be tested BEFORE
+                           ;; looking at the next statement: (quote #f) is both
+                           ;; the letrec* placeholder and an ordinary value, so a
+                           ;; following (set! x '#f) that is really a definition
+                           ;; would otherwise be taken for a clear and the whole
+                           ;; group would fail for want of a call-with-values.
+                           [(null? cleared)
+                            (list (list-tail vs used) rest defs)]
                            ;; the expander clears one variable per statement
                            [(and (pair? rest)
                                  (let ([n2 (store-nest (car rest))])
                                    (and n2
-                                        (placeholder? (cadr n2))
+                                        (clear? (cadr n2))
                                         (prefix-of? (car n2) (list-tail vs used))
                                         n2)))
                             => (lambda (n2)
                                  (absorb (append cleared (car n2)) (cdr rest)
                                          (+ used (length (car n2)))))]
-                           ;; nothing was cleared: a plain define on its own
-                           [(null? cleared)
-                            (list (list-tail vs used) rest defs)]
                            ;; what was cleared must be filled by call-with-values
                            [(and (pair? rest) (cwv-formals (car rest) cleared))
                             => (lambda (formals)
@@ -1689,6 +1720,124 @@
 (define (display-var i)
   (string->symbol (string-append ":" (letters i))))
 
+;; --- case-lambda ------------------------------------------------------------
+;; A case-lambda does not compile to one procedure with several arities.  It
+;; compiles to a dispatcher whose display holds one ordinary closure per clause,
+;; and whose code is a run of "if the argument count is this, tail call display
+;; slot n" -- jdceq for an exact count, jdcge for a clause with a rest argument,
+;; jdref for one that takes anything -- ending in aerr for a call that matches no
+;; clause at all.  The auto-generated optional-argument dispatchers have the same
+;; shape.
+;;
+;; So the clauses have to be read one at a time and put back together.  Each
+;; carries its own display, and where two of them close over the same variable
+;; they hold the same cell, so the cells are named once across all the clauses
+;; and bound in one let outside.  That is also the only way an assigned free
+;; variable comes back as one variable rather than as one per clause.
+
+;; the display slots the dispatcher hands control to, in order, or #f if CV is
+;; not a dispatcher
+(define (dispatcher-slots cv)
+  (let ([n (vector-length cv)])
+    (let loop ([i 0] [r (quote ())])
+      (and (< i n)
+           (lookup (vector-ref cv i))
+           (let* ([d (decode-at cv i)] [base (car d)] [ops (cadr d)] [next (caddr d)])
+             (cond
+               ;; the error at the end is what makes it a dispatcher and not
+               ;; some other run of jumps
+               [(string=? base "%%") (and (pair? r) (= next n) (reverse r))]
+               ;; jdceq and jdcge take (count slot); jdref normalizes to jdcge
+               ;; with the count baked in, so it arrives the same way
+               [(or (string=? base "|") (string=? base "|!"))
+                (and (= (length ops) 2) (loop next (cons (cadr ops) r)))]
+               [else #f]))))))
+
+;; the cells of a closure vector, in display order
+(define (closure-cells v)
+  (let loop ([i 1] [r (quote ())])
+    (if (>= i (vector-length v)) (reverse r) (loop (+ i 1) (cons (vector-ref v i) r)))))
+
+;; Position of CELL in CELLS, by identity.  Two clauses that close over the same
+;; variable hold the same cell, which is what makes one name serve both.  Two
+;; different variables holding one eq? value are merged as well; for an assigned
+;; variable that cannot happen, since the cell is then a box, and for an
+;; unassigned one the two bindings are indistinguishable anyway.
+(define (cell-index cell cells)
+  (let loop ([l cells] [i 0])
+    (cond [(null? l) #f] [(eq? (car l) cell) i] [else (loop (cdr l) (+ i 1))])))
+
+(define (add-cell cell cells)
+  (if (cell-index cell cells) cells (append cells (list cell))))
+
+(define (%da-case-lambda v slots)
+  (let ([clauses (let loop ([l slots] [r (quote ())])
+                   (cond [(null? l) (reverse r)]
+                         [(and (exact-integer? (car l)) (>= (car l) 0)
+                               (< (+ (car l) 1) (vector-length v)))
+                          (loop (cdr l) (cons (vector-ref v (+ (car l) 1)) r))]
+                         [else #f]))])
+    (and clauses
+         (let ([vecs (let loop ([l clauses] [r (quote ())])
+                       (cond [(null? l) (reverse r)]
+                             [else
+                              (let ([cv (guard (e (#t #f)) (closure->vector (car l)))])
+                                (and (vector? cv) (> (vector-length cv) 0)
+                                     (vector? (vector-ref cv 0))
+                                     (loop (cdr l) (cons cv r))))]))])
+           (and vecs (%assemble-case-lambda vecs))))))
+
+(define (%assemble-case-lambda vecs)
+  ;; one pass to collect the cells every clause between them closes over
+  (let ([cells (let loop ([l vecs] [cells (quote ())])
+                 (if (null? l)
+                     cells
+                     (loop (cdr l)
+                           (let g ([cs (closure-cells (car l))] [cells cells])
+                             (if (null? cs) cells (g (cdr cs) (add-cell (car cs) cells)))))))])
+    (let ([names (let loop ([i 0] [r (quote ())])
+                   (if (>= i (length cells)) (reverse r) (loop (+ i 1) (cons (display-var i) r))))])
+      ;; and one pass to read each clause with those names in place of its display
+      (let loop ([l vecs] [arms (quote ())] [boxed (quote ())])
+        (cond
+          [(null? l)
+           (let ([body (cons (quote case-lambda) (reverse arms))])
+             (if (null? cells)
+                 body
+                 (cons (quote let)
+                       (cons (let g ([cs cells] [ns names] [bs (quote ())])
+                               (if (null? cs)
+                                   (reverse bs)
+                                   (g (cdr cs) (cdr ns)
+                                      (cons (list (car ns)
+                                                  (quotation
+                                                    (if (and (memq (car cs) boxed) (box? (car cs)))
+                                                        (unbox (car cs))
+                                                        (car cs))))
+                                            bs))))
+                             (list body)))))]
+          [else
+           (let* ([cs (closure-cells (car l))]
+                  [ns (let g ([cs cs] [r (quote ())])
+                        (if (null? cs)
+                            (reverse r)
+                            (g (cdr cs) (cons (list-ref names (cell-index (car cs) cells)) r))))]
+                  [core (da-closure (vector-ref (car l) 0) ns)])
+             (and core
+                  (let ([form (sx core)]
+                        ;; which of this clause's own slots hold a box
+                        [mine (let g ([ix (dsp-boxed %top-dsp)] [r (quote ())])
+                                (if (null? ix)
+                                    r
+                                    (g (cdr ix)
+                                       (if (< (car ix) (length cs))
+                                           (cons (list-ref cs (car ix)) r)
+                                           r))))])
+                    (and (pair? form) (eq? (car form) (quote lambda))
+                         (loop (cdr l)
+                               (cons (cons (cadr form) (cddr form)) arms)
+                               (append mine boxed))))))])))))
+
 ;; Code with no Core preimage still has an answer: the name the store files the
 ;; procedure under.  A bare symbol cannot be confused with a disassembly, which
 ;; is always a lambda, let or case-lambda form.
@@ -1696,9 +1845,12 @@
   ;; Not every procedure is a closure -- a continuation is not -- and one that is
   ;; not has no code vector to read.  Its name is then all there is to say.
   (let ([v (guard (e (#t #f)) (closure->vector p))])
-    (if (not (and (vector? v) (> (vector-length v) 0) (vector? (vector-ref v 0))))
-        (da-name p)
-        (%da-closure-vector p v))))
+    (cond
+      [(not (and (vector? v) (> (vector-length v) 0) (vector? (vector-ref v 0))))
+       (da-name p)]
+      [(dispatcher-slots (vector-ref v 0))
+       => (lambda (slots) (or (%da-case-lambda v slots) (da-name p)))]
+      [else (%da-closure-vector p v)])))
 
 (define (%da-closure-vector p v)
   (let* ([cv (vector-ref v 0)]
@@ -1733,18 +1885,16 @@
   (let ([p (as-procedure x)])
     (and p (%da-procedure p))))
 
-;; The disassembly of whatever procedure the store holds under SYM, or #f if it
-;; holds nothing, holds something that is not a procedure, or has no location
-;; for that name at all.  SYM is a global name, so it is `car' for a built-in
-;; and `lib://skint/print?pp*' for a library's -- the same symbol that appears in
-;; a gref, not the bare identifier da-prune-globals shows.  Nothing is
-;; allocated: asking about a name the store has never seen leaves it unseen.
-(define (da-global sym)
-  (and (symbol? sym)
-       (let ([loc (lookup-global sym)])
-         (and loc
-              (let ([val (unbox loc)])
-                (and (procedure? val) (da-procedure val)))))))
+;; The disassembly of whatever procedure the store holds under a global name, or
+;; #f if it holds nothing, holds something that is not a procedure, or has no
+;; location for that name at all.  A global name is what appears in a gref, so
+;; it is `car' for a built-in and `lib://skint/print?pp*' for a library's, not
+;; the bare identifier da-prune-globals shows; an integrable index stands for one
+;; too.  Nothing is allocated: asking about a name the store has never seen
+;; leaves it unseen.
+(define (da-global x)
+  (let ([n (global-name-of x)])
+    (and n (da-procedure n))))
 
 
 ;; --- da: the whole chain, from whatever there is ----------------------------
