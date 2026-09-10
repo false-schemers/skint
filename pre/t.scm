@@ -2816,7 +2816,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.8.0")
+(define *skint-version* "0.8.1")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
