@@ -2183,7 +2183,7 @@
     (peek-u8 b) (port? b) (positive? v b) (procedure? v b) (quasiquote v u b) (quote v u b)
     (quotient v b) (raise b) (raise-continuable b) (rational? v b) (rationalize v b) (read-bytevector b)
     (read-bytevector! b) (read-char v b) (read-error? b) (read-line b) (read-string b) (read-u8 b)
-    (real? v b) (remainder v b) (reverse v b) (round v b) (set! v b) (set-car! v b) (set-cdr! v b)
+    (real? v b) (remainder v b) (reverse v b) (round v b) (set! v u b) (set-car! v b) (set-cdr! v b)
     (square b) (string v b) (string->list v b) (string->number v b) (string->symbol v b)
     (string->utf8 b) (string->vector b) (string-append v b) (string-copy v b) (string-copy! b)
     (string-fill! v b) (string-for-each b) (string-length v b) (string-map b) (string-ref v b)
@@ -2206,8 +2206,8 @@
     (cddaar v a) (cddadr v a) (cdddar v a) (cddddr v a) (environment e) (eval v e)
     (call-with-input-file v f) (call-with-output-file v f) (delete-file f) (file-exists? f)
     (open-binary-input-file f) (open-binary-output-file f) (open-input-file v f) (open-output-file v f)
-    (with-input-from-file v f) (with-output-to-file v f) (acos v z i) (asin v z i) (atan v z i)
-    (cos v z i) (exp v z i) (finite? z i) (infinite? i) (log v i) (nan? i) (sin v i) (sqrt v i)
+    (with-input-from-file v f) (with-output-to-file v f) (acos v i) (asin v i) (atan v i)
+    (cos v i) (exp v i) (finite? i) (infinite? i) (log v i) (nan? i) (sin v i) (sqrt v i)
     (tan v i) (delay v u z) (delay-force z) (force v z) (make-promise z) (promise? z) (load v d)
     (command-line s) (emergency-exit s) (exit s) (get-environment-variable s)
     (get-environment-variables s) (display w v) (exact->inexact v) (inexact->exact v)
@@ -2225,7 +2225,7 @@
     (record?) (make-record) (record-length) (record-ref) (record-set!) (record-type-descriptor) 
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg) (fxabs) 
-    (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) (fxexpt) 
+    (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxgcd) (fxexpt) 
     (%fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsra) (fxsrl) (fxeqv) (fxlength) (fxbit-count)
     (fxaddc) (fxsubc) (fxmulc) (fxfmar) (fixnum->flonum) (fixnum->string) (string->fixnum) 
     (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
@@ -2440,7 +2440,7 @@
 (define (make-historic-report-environment listname prefix)
   (let* ([loc (name-lookup *root-name-registry* listname #f)]
          [l (and loc (location-val loc))] [l (and (val-library? l) l)]
-         [ial (and l (library-exports l))] [global (lambda (n) (symbol-append prefix n))])
+         [ial (and l (library-exports l))] [global (lambda (n) (fully-qualified-library-prefixed-name prefix n))])
     (and (list? ial) (make-controlled-environment ial global empty-environment))))
 
 (define r5rs-environment 

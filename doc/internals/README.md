@@ -11,6 +11,8 @@ directory describes the machine underneath.
 | [vm.md](vm.md) | the threaded-code VM: registers, dispatch, the trampoline, and writing instructions |
 | [bytecode.md](bytecode.md) | the compiler's intermediate language and its conversion to threaded code |
 | [builtins.md](builtins.md) | how `i.h` becomes the instruction tables, and how those become Scheme bindings |
+| [store.md](store.md) | the global store: where non-local variables get their locations, and how names resolve to them |
+| [registries.md](registries.md) | expand-time name registries: denotations, environments, and how libraries are bound to their names |
 
 ### The layers
 

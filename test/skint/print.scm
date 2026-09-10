@@ -1,285 +1,481 @@
 (import (scheme base) (scheme read) (scheme write))
 (import (skint print))
 
-(define (print-test llen input expected)
-  (let ((p (open-output-string)))
-    (pretty-print (read (open-input-string input)) p
-        print-width llen)
-    (let ((actual (get-output-string p)))
-      (if (string=? actual expected)
-          (begin
-            (display "PASS: ") (display input) (newline))
-          (begin
-            (display "FAILED: ") (write input) (newline)
-            (display "EXPECTED:") (newline) (display expected) (newline)
-            (display "ACTUAL:") (newline) (display actual) (newline))))))
+(include "test.scm")
 
-(define (test-cut level length input expected)
-  (let*
-    ((obj (let ((p (open-input-string input))) (read p)))
-     (actual
-      (parameterize ((print-level level) (print-length length))
-        (let ((p (open-output-string))) (pretty-print obj p) (get-output-string p)))))
-    (if (string=? actual expected)
-        (begin (display "PASS: ") (display input) (display "\n"))
-        (begin
-          (display "FAIL: ")
-          (display input)
-          (display "\n")
-          (display "  Limits:   level=")
-          (display level)
-          (display ", length=")
-          (display length)
-          (display "\n")
-          (display "  Expected: ")
-          (write expected)
-          (display "\n")
-          (display "  Got:      ")
-          (write actual)
-          (display "\n")))))
+;; ---------------------------------------------------------------------------
+;; Helpers
+;; ---------------------------------------------------------------------------
+
+;; Inputs are read from strings so that datum labels (#0= ... #0#) can be
+;; written literally; each helper returns what the printer produced.
+
+(define (datum str) (read (open-input-string str)))
+
+;; multi-line, code-oriented printing
+(define (pp width str . kv)
+  (let ([p (open-output-string)])
+    (apply pretty-print (datum str) p print-width width kv)
+    (get-output-string p)))
+
+;; single-line printing
+(define (pr width str . kv)
+  (let ([p (open-output-string)])
+    (apply print (datum str) p print-width width kv)
+    (get-output-string p)))
+
+;; pretty-print under print-level / print-length
+(define (cut level length str)
+  (parameterize ([print-level level] [print-length length])
+    (pp 80 str)))
+
+;; the lines of a printed result, without the trailing newline
+(define (lines str)
+  (let loop ([i 0] [start 0] [acc '()])
+    (cond [(= i (string-length str))
+           (reverse (if (> i start) (cons (substring str start i) acc) acc))]
+          [(char=? (string-ref str i) #\newline)
+           (loop (+ i 1) (+ i 1) (cons (substring str start i) acc))]
+          [else (loop (+ i 1) start acc)])))
+
+;; does printing OBJ and reading it back give the same datum?
+(define (round-trips? obj . kv)
+  (let ([p (open-output-string)])
+    (apply pretty-print obj p kv)
+    (equal? obj (read (open-input-string (get-output-string p))))))
+
+;; print applied to an object rather than to a string to be read
+(define (printed obj . kv)
+  (let ([p (open-output-string)])
+    (apply print obj p kv)
+    (get-output-string p)))
+
+;; what one of the standard output procedures produces, for comparison
+(define (via proc obj)
+  (let ([p (open-output-string)])
+    (proc obj p)
+    (get-output-string p)))
+
+;; A spread of data with no cycle in it, so that every marking mode can be
+;; applied to all of it.  Quote forms are deliberately absent -- print
+;; abbreviates them and write does not, which is tested on its own below.
+(define acyclic-data
+  (list 1 -2 3.5 #\a #\newline "a string" 'sym (string->symbol "odd sym")
+        (string->symbol "") '() '(1 2 3) '(1 . 2) #(1 2 #(3)) #u8(1 2 3) #t #f
+        (list "" #\space 1.0 -0.0)
+        (datum "(#0=(1 2) #0#)")                    ; shared, not cyclic
+        (datum "#((#0=(a) #1=(b) #0#) #1#)")))
+
+(define cyclic-data
+  (list (datum "#0=(1 2 . #0#)")
+        (datum "#0=(a . #0#)")
+        (datum "#0=#(#0#)")
+        (datum "(#0=(a) #1=(b . #1#) #0#)")))
 
 
-(display "Running tests") (newline)
+(display "\n--- print follows write ---\n")
 
-(print-test 40 "1" "1\n")
-(print-test 40 "'(a b)" "'(a b)\n")
-(print-test 40 "'(a . b)" "'(a . b)\n")
-(print-test 40 "`(,a ,@b)" "`(,a ,@b)\n")
-(print-test 80
-  "(let ((x 1) (y 2) (zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz 3)) (display x) (display y))"
-  "(let\n  ((x 1)\n   (y 2)\n   (zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz 3))\n  (display x)\n  (display y))\n")
+;; One line, however long, and no newline of its own.
+(test "1" (pr 40 "1"))
+(test "(a b c)" (pr 40 "(a b c)"))
+(test "\"a string\"" (pr 40 "\"a string\""))
+(test "(aaaa bbbb cccc dddd eeee ffff)" (pr 20 "(aaaa bbbb cccc dddd eeee ffff)"))
+(test "(let ((x 1) (y 2)) (display x))" (pr 20 "(let ((x 1) (y 2)) (display x))"))
 
-; graph cycles tests (default mode)
-(print-test 40 "#0=(a . #0#)" "#0=(a . #0#)\n")
-(print-test 40 "(1 . #0=(2 . #0#))" "(1 . #0=(2 . #0#))\n")
-(print-test 40 "#0=(1 #0# 3)" "#0=(1 #0# 3)\n")
-(print-test 40 "(#0=(1 #0# 3) #0#)" "(#0=(1 #0# 3) #0#)\n")
-(print-test 40 "(#0=(1 . #0#) #1=(1 . #1#))" "(#0=(1 . #0#) #1=(1 . #1#))\n")
-(print-test 40 "(#0=(a b . #0#) '#1=(a b a b . #1#))" "(#0=(a b . #0#) '#1=(a b a b . #1#))\n")
-(print-test 40 "(#0=(1 . 2) #1=(1 . 2) #2=(3 . 4) #0# #1# #2#)"
-  "((1 . 2) (1 . 2) (3 . 4) (1 . 2) (1 . 2)\n  (3 . 4))\n")
-(print-test 40 "#0=((1 . 2) (1 . 2) (3 . 4) . #0#)" "#0=((1 . 2) (1 . 2) (3 . 4) . #0#)\n")
-(print-test 40 "#0=#(#0#)" "#0=#(#0#)\n")
-(print-test 40 "#0=#(1 #0#)" "#0=#(1 #0#)\n")
-(print-test 40 "#0=#(1 #0# 3)" "#0=#(1 #0# 3)\n")
-(print-test 40 "(#0=#(1 #0# 3))" "(#0=#(1 #0# 3))\n")
-(print-test 40 "#0=#(#0# 2 #0#)" "#0=#(#0# 2 #0#)\n")
-(print-test 100 "#0=(a . #0#)" "#0=(a . #0#)\n")
-(print-test 100 "(#0=(a . #0#) #0#)" "(#0=(a . #0#) #0#)\n")
-(print-test 100 "#0=#(#0#)" "#0=#(#0#)\n")
-(print-test 100 "(#0=(a b) #0#)" "((a b) (a b))\n")
-(print-test 100 "#0=(#1=(a) #1# . #0#)" "#0=((a) (a) . #0#)\n")
-(print-test 100 "(#0=(a . #0#) #1=(b c) #1#)" "(#0=(a . #0#) (b c) (b c))\n")
-(print-test 100 "#0=(a . (#1=(b) . #0#))" "#0=(a (b) . #0#)\n")
-(print-test 100 "#0=(#(#1=(a b) #1#) . #0#)" "#0=(#((a b) (a b)) . #0#)\n")
-(print-test 100 "(#0=(a . #0#) #1=#(#1#))" "(#0=(a . #0#) #1=#(#1#))\n")
-(print-test 100 "#0=(#1=(a . #0#) #1#)" "#0=((a . #0#) (a . #0#))\n")
-(print-test 100 "(1 2 3)" "(1 2 3)\n")
-(print-test 100 "(#0=(a) #0#)" "((a) (a))\n")
-(print-test 100 "#0=(a . #0#)" "#0=(a . #0#)\n")
-(print-test 100 "(#0=(a) #1=(b . #1#) #0#)" "((a) #0=(b . #0#) (a))\n")
-(print-test 100 "#(#0=#(1) #0#)" "#(#(1) #(1))\n")
-(print-test 100 "#0=#(#0#)" "#0=#(#0#)\n")
-(print-test 100 "(#0=(1 . #0#) #1=(2 . #1#))" "(#0=(1 . #0#) #1=(2 . #1#))\n")
-(print-test 100 "#0=(#1=(a . #0#) . #1#)" "#0=((a . #0#) a . #0#)\n")
-(print-test 100 "(#0=(a . #0#) #0#)" "(#0=(a . #0#) #0#)\n")
-(print-test 100 "#((#0=(a) #1=(b) #0#) #1#)" "#(((a) (b) (a)) (b))\n")
+;; and character for character what write produces, sharing and cycles included
+(for-each (lambda (obj) (test (via write obj) (printed obj)))
+          (append acyclic-data cyclic-data))
 
-; shared graph tests
-(parameterize ((print-graph #t))
-(print-test 40 "#0=(a . #0#)" "#0=(a . #0#)\n")
-(print-test 40 "(1 . #0=(2 . #0#))" "(1 . #0=(2 . #0#))\n")
-(print-test 40 "#0=(1 #0# 3)" "#0=(1 #0# 3)\n")
-(print-test 40 "(#0=(1 #0# 3) #0#)" "(#0=(1 #0# 3) #0#)\n")
-(print-test 40 "(#0=(1 . #0#) #1=(1 . #1#))" "(#0=(1 . #0#) #1=(1 . #1#))\n")
-(print-test 40 "(#0=(a b . #0#) '#1=(a b a b . #1#))" "(#0=(a b . #0#) '#1=(a b a b . #1#))\n")
-(print-test 40 "(#0=(1 . 2) #1=(1 . 2) #2=(3 . 4) #0# #1# #2#)" 
-  "(#0=(1 . 2) #1=(1 . 2) #2=(3 . 4) #0#\n  #1# #2#)\n")
-(print-test 40 "#0=((1 . 2) (1 . 2) (3 . 4) . #0#)" "#0=((1 . 2) (1 . 2) (3 . 4) . #0#)\n")
-(print-test 40 "#0=#(#0#)" "#0=#(#0#)\n")
-(print-test 40 "#0=#(1 #0#)" "#0=#(1 #0#)\n")
-(print-test 40 "#0=#(1 #0# 3)" "#0=#(1 #0# 3)\n")
-(print-test 40 "(#0=#(1 #0# 3))" "(#0=#(1 #0# 3))\n")
-(print-test 40 "#0=#(#0# 2 #0#)" "#0=#(#0# 2 #0#)\n")
-(print-test 100 "#0=(a . #0#)" "#0=(a . #0#)\n")
-(print-test 100 "(#0=(a . #0#) #0#)" "(#0=(a . #0#) #0#)\n")
-(print-test 100 "#0=#(#0#)" "#0=#(#0#)\n")
-(print-test 100 "(#0=(a b) #0#)" "(#0=(a b) #0#)\n")
-(print-test 100 "#0=(#1=(a) #1# . #0#)" "#0=(#1=(a) #1# . #0#)\n")
-(print-test 100 "(#0=(a . #0#) #1=(b c) #1#)" "(#0=(a . #0#) #1=(b c) #1#)\n")
-(print-test 100 "#0=(a . (#1=(b) . #0#))" "#0=(a (b) . #0#)\n")
-(print-test 100 "#0=(#(#1=(a b) #1#) . #0#)" "#0=(#(#1=(a b) #1#) . #0#)\n")
-(print-test 100 "(#0=(a . #0#) #1=#(#1#))" "(#0=(a . #0#) #1=#(#1#))\n")
-(print-test 100 "#0=(#1=(a . #0#) #1#)" "#0=(#1=(a . #0#) #1#)\n")
-(print-test 100 "(1 2 3)" "(1 2 3)\n")
-(print-test 100 "(#0=(a) #0#)" "(#0=(a) #0#)\n")
-(print-test 100 "#0=(a . #0#)" "#0=(a . #0#)\n")
-(print-test 100 "(#0=(a) #1=(b . #1#) #0#)" "(#0=(a) #1=(b . #1#) #0#)\n")
-(print-test 100 "#(#0=#(1) #0#)" "#(#0=#(1) #0#)\n")
-(print-test 100 "#0=#(#0#)" "#0=#(#0#)\n")
-(print-test 100 "(#0=(1 . #0#) #1=(2 . #1#))" "(#0=(1 . #0#) #1=(2 . #1#))\n")
-(print-test 100 "#0=(#1=(a . #0#) . #1#)" "#0=(#1=(a . #0#) . #1#)\n")
-(print-test 100 "(#0=(a . #0#) #0#)" "(#0=(a . #0#) #0#)\n")
-(print-test 100 "#((#0=(a) #1=(b) #0#) #1#)" "#((#0=(a) #1=(b) #0#) #1#)\n")
+;; The one difference: print abbreviates a quote form, write spells it out.
+(test "'x" (printed (list 'quote 'x)))
+(test "'(a b)" (printed (datum "'(a b)")))
+(test "`(,a ,@b)" (printed (datum "`(,a ,@b)")))
+(test "(quote x)" (via write (list 'quote 'x)))
+
+
+(display "\n--- print-graph and print-circle: the three marking modes ---\n")
+
+;; print-graph on marks every substructure that occurs more than once, which is
+;; what write-shared does
+(for-each (lambda (obj) (test (via write-shared obj) (printed obj print-graph #t)))
+          (append acyclic-data cyclic-data))
+
+;; both off marks nothing, which is what write-simple does.  It is an error to
+;; print a cyclic datum this way, so only the acyclic data is used here.
+(for-each (lambda (obj) (test (via write-simple obj) (printed obj print-circle #f)))
+          acyclic-data)
+
+;; print-circle alone, the default, is what makes a cycle terminate
+(test "#0=(1 2 . #0#)" (pr 100 "#0=(1 2 . #0#)"))
+(test "((a b) (a b))"  (pr 100 "(#0=(a b) #0#)"))
+
+;; print-graph wins over print-circle when both are given
+(test "#0=(1 2 . #0#)" (pr 100 "#0=(1 2 . #0#)" print-graph #t print-circle #f))
+(test "(#0=(a b) #0#)" (pr 100 "(#0=(a b) #0#)" print-graph #t print-circle #f))
+
+
+(display "\n--- print-indent: inline, or laid out over lines ---\n")
+
+;; The default is inline: one line, and no trailing newline.  An indent turns
+;; line breaking on, and the result then ends with a newline.
+(test "(a b c)"   (printed '(a b c)))
+(test "(a b c)\n" (printed '(a b c) print-indent 0))
+(test "(a b c)\n" (printed '(a b c) print-indent 4))
+
+;; print-width only has an effect once there is an indent
+(test "(aaaa bbbb cccc dddd)" (printed '(aaaa bbbb cccc dddd) print-width 12))
+(test "(aaaa\n bbbb\n cccc\n dddd)\n"
+      (printed '(aaaa bbbb cccc dddd) print-width 12 print-indent 0))
+
+;; the indent is the column the first line is assumed to start at, so it shifts
+;; every line after the first
+(test "(aaaa\n           bbbb\n           cccc\n           dddd)\n"
+      (printed '(aaaa bbbb cccc dddd) print-width 20 print-indent 10))
+
+;; An indent gets line breaking, but not code layout: print lays a form out as
+;; data, one element under the next, where pretty-print indents it as code.
+(test "(define\n (f x)\n (if\n  (> x 0)\n  (g x)\n  (h x)))\n"
+      (pr 24 "(define (f x) (if (> x 0) (g x) (h x)))" print-indent 0))
+(test "(define (f x)\n  (if (> x 0)\n      (g x)\n      (h x)))\n"
+      (pp 24 "(define (f x) (if (> x 0) (g x) (h x)))"))
+
+
+(display "\n--- pretty-print: breaking lines to the width ---\n")
+
+(test "1\n" (pp 40 "1"))
+(test "'(a b)\n" (pp 40 "'(a b)"))
+(test "'(a . b)\n" (pp 40 "'(a . b)"))
+(test "`(,a ,@b)\n" (pp 40 "`(,a ,@b)"))
+
+;; pretty-print always uses square brackets for binding lists; print follows
+;; print-brackets, which pretty-print overrides
+(test "(let\n  ([x 1]\n   [y 2]\n   [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz 3])\n  (display x)\n  (display y))\n"
+      (pp 80 "(let ((x 1) (y 2) (zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz 3)) (display x) (display y))"))
+(test "(aaaa bbbb cccc dddd
+      eeee ffff)
+" (pp 20 "(aaaa bbbb cccc dddd eeee ffff)"))
+(test "(let ([x 1] [y 2])\n  (display x))\n" (pp 20 "(let ((x 1) (y 2)) (display x))"))
+
+(display "\n--- datum labels: cycles are always marked ---\n")
+
+(test "#0=(a . #0#)\n" (pp 40 "#0=(a . #0#)"))
+(test "(1 . #0=(2 . #0#))\n" (pp 40 "(1 . #0=(2 . #0#))"))
+(test "#0=(1 #0# 3)\n" (pp 40 "#0=(1 #0# 3)"))
+(test "(#0=(1 #0# 3) #0#)\n" (pp 40 "(#0=(1 #0# 3) #0#)"))
+(test "(#0=(1 . #0#) #1=(1 . #1#))\n" (pp 40 "(#0=(1 . #0#) #1=(1 . #1#))"))
+(test "(#0=(a b . #0#) '#1=(a b a b . #1#))\n" (pp 40 "(#0=(a b . #0#) '#1=(a b a b . #1#))"))
+(test "#0=((1 . 2) (1 . 2) (3 . 4) . #0#)\n" (pp 40 "#0=((1 . 2) (1 . 2) (3 . 4) . #0#)"))
+(test "#0=#(#0#)\n" (pp 40 "#0=#(#0#)"))
+(test "#0=#(1 #0#)\n" (pp 40 "#0=#(1 #0#)"))
+(test "#0=#(1 #0# 3)\n" (pp 40 "#0=#(1 #0# 3)"))
+(test "(#0=#(1 #0# 3))\n" (pp 40 "(#0=#(1 #0# 3))"))
+(test "#0=#(#0# 2 #0#)\n" (pp 40 "#0=#(#0# 2 #0#)"))
+(test "#0=(a . #0#)\n" (pp 100 "#0=(a . #0#)"))
+(test "(#0=(a . #0#) #0#)\n" (pp 100 "(#0=(a . #0#) #0#)"))
+(test "#0=#(#0#)\n" (pp 100 "#0=#(#0#)"))
+(test "#0=(a (b) . #0#)\n" (pp 100 "#0=(a . (#1=(b) . #0#))"))
+(test "(#0=(a . #0#) #1=#(#1#))\n" (pp 100 "(#0=(a . #0#) #1=#(#1#))"))
+(test "(1 2 3)\n" (pp 100 "(1 2 3)"))
+(test "#0=(a . #0#)\n" (pp 100 "#0=(a . #0#)"))
+(test "#0=#(#0#)\n" (pp 100 "#0=#(#0#)"))
+(test "(#0=(1 . #0#) #1=(2 . #1#))\n" (pp 100 "(#0=(1 . #0#) #1=(2 . #1#))"))
+(test "(#0=(a . #0#) #0#)\n" (pp 100 "(#0=(a . #0#) #0#)"))
+
+(display "\n--- shared structure is expanded by default ---\n")
+
+;; With graph marking off, which is the default, a datum that is merely shared
+;; prints as a tree.  A CYCLIC datum still gets a label, so printing terminates.
+
+(test "((1 . 2) (1 . 2) (3 . 4) (1 . 2) (1 . 2) (3 . 4))"
+      (pr 100 "(#0=(1 . 2) #1=(1 . 2) #2=(3 . 4) #0# #1# #2#)"))
+(test "((a b) (a b))"        (pr 100 "(#0=(a b) #0#)"))
+(test "((a) (a))"            (pr 100 "(#0=(a) #0#)"))
+(test "#(#(1) #(1))"         (pr 100 "#(#0=#(1) #0#)"))
+(test "#(((a) (b) (a)) (b))" (pr 100 "#((#0=(a) #1=(b) #0#) #1#)"))
+
+;; the same inputs with graph marking on
+(test "(#0=(a b) #0#)"       (pr 100 "(#0=(a b) #0#)" print-graph #t))
+(test "(#0=(a) #0#)"         (pr 100 "(#0=(a) #0#)" print-graph #t))
+(test "#(#0=#(1) #0#)"       (pr 100 "#(#0=#(1) #0#)" print-graph #t))
+
+(display "\n--- print-graph #t on shared and cyclic structure ---\n")
+
+;; --- with ((print-graph #t))
+(parameterize ([print-graph #t])
+(test "#0=(a . #0#)\n" (pp 40 "#0=(a . #0#)"))
+(test "(1 . #0=(2 . #0#))\n" (pp 40 "(1 . #0=(2 . #0#))"))
+(test "#0=(1 #0# 3)\n" (pp 40 "#0=(1 #0# 3)"))
+(test "(#0=(1 #0# 3) #0#)\n" (pp 40 "(#0=(1 #0# 3) #0#)"))
+(test "(#0=(1 . #0#) #1=(1 . #1#))\n" (pp 40 "(#0=(1 . #0#) #1=(1 . #1#))"))
+(test "(#0=(a b . #0#) '#1=(a b a b . #1#))\n" (pp 40 "(#0=(a b . #0#) '#1=(a b a b . #1#))"))
+(test "(#0=(1 . 2) #1=(1 . 2) #2=(3 . 4) #0#\n  #1# #2#)\n" (pp 40 "(#0=(1 . 2) #1=(1 . 2) #2=(3 . 4) #0# #1# #2#)"))
+(test "#0=((1 . 2) (1 . 2) (3 . 4) . #0#)\n" (pp 40 "#0=((1 . 2) (1 . 2) (3 . 4) . #0#)"))
+(test "#0=#(#0#)\n" (pp 40 "#0=#(#0#)"))
+(test "#0=#(1 #0#)\n" (pp 40 "#0=#(1 #0#)"))
+(test "#0=#(1 #0# 3)\n" (pp 40 "#0=#(1 #0# 3)"))
+(test "(#0=#(1 #0# 3))\n" (pp 40 "(#0=#(1 #0# 3))"))
+(test "#0=#(#0# 2 #0#)\n" (pp 40 "#0=#(#0# 2 #0#)"))
+(test "#0=(a . #0#)\n" (pp 100 "#0=(a . #0#)"))
+(test "(#0=(a . #0#) #0#)\n" (pp 100 "(#0=(a . #0#) #0#)"))
+(test "#0=#(#0#)\n" (pp 100 "#0=#(#0#)"))
+(test "(#0=(a b) #0#)\n" (pp 100 "(#0=(a b) #0#)"))
+(test "#0=(#1=(a) #1# . #0#)\n" (pp 100 "#0=(#1=(a) #1# . #0#)"))
+(test "(#0=(a . #0#) #1=(b c) #1#)\n" (pp 100 "(#0=(a . #0#) #1=(b c) #1#)"))
+(test "#0=(a (b) . #0#)\n" (pp 100 "#0=(a . (#1=(b) . #0#))"))
+(test "#0=(#(#1=(a b) #1#) . #0#)\n" (pp 100 "#0=(#(#1=(a b) #1#) . #0#)"))
+(test "(#0=(a . #0#) #1=#(#1#))\n" (pp 100 "(#0=(a . #0#) #1=#(#1#))"))
+(test "#0=(#1=(a . #0#) #1#)\n" (pp 100 "#0=(#1=(a . #0#) #1#)"))
+(test "(1 2 3)\n" (pp 100 "(1 2 3)"))
+(test "(#0=(a) #0#)\n" (pp 100 "(#0=(a) #0#)"))
+(test "#0=(a . #0#)\n" (pp 100 "#0=(a . #0#)"))
+(test "(#0=(a) #1=(b . #1#) #0#)\n" (pp 100 "(#0=(a) #1=(b . #1#) #0#)"))
+(test "#(#0=#(1) #0#)\n" (pp 100 "#(#0=#(1) #0#)"))
+(test "#0=#(#0#)\n" (pp 100 "#0=#(#0#)"))
+(test "(#0=(1 . #0#) #1=(2 . #1#))\n" (pp 100 "(#0=(1 . #0#) #1=(2 . #1#))"))
+(test "#0=(#1=(a . #0#) . #1#)\n" (pp 100 "#0=(#1=(a . #0#) . #1#)"))
+(test "(#0=(a . #0#) #0#)\n" (pp 100 "(#0=(a . #0#) #0#)"))
+(test "#((#0=(a) #1=(b) #0#) #1#)\n" (pp 100 "#((#0=(a) #1=(b) #0#) #1#)"))
 )
 
-; limits tests
+(display "\n--- print-level and print-length ---\n")
 
-(test-cut 0 10 "a" "a\n")
-(test-cut 0 10 "(a b c)" "(...)\n")
-(test-cut 0 10 "#(a b c)" "#(...)\n")
-(test-cut 1 10 "(a b c)" "(a b c)\n")
-(test-cut 1 10 "((a b) c)" "((...) c)\n")
-(test-cut 1 10 "#((a b) c)" "#((...) c)\n")
-(test-cut 1 2 "(a b c d)" "(a b ...)\n")
-(test-cut 1 2 "#(a b c d)" "#(a b ...)\n")
-(test-cut 1 2 "(a b . c)" "(a b . c)\n")
-(test-cut 2 10 "((a b) (c d))" "((a b) (c d))\n")
-(test-cut 2 10 "(((a)) b)" "(((...)) b)\n")
-(test-cut 2 10 "#(#(a b) #(c #(d)))" "#(#(a b) #(c #(...)))\n")
-(test-cut 2 2 "((a b c) (d e f) (g h i))" "((a b ...) (d e ...) ...)\n")
-(test-cut 2 2 "#((a b c) (d e f) (g h i))" "#((a b ...) (d e ...) ...)\n")
-(test-cut 2 3 "(a (b c d e) f g)" "(a (b c d ...) f ...)\n")
-(test-cut 3 10 "(a b c d . e)" "(a b c d . e)\n")
-(test-cut 3 10 "#(a (b . c) #(d e (f g)))" "#(a (b . c) #(d e (f g)))\n")
-(test-cut 2 10 "#(a (b . c) #(d e (f g)))" "#(a (b . c) #(d e (...)))\n")
-(test-cut 1 10 "(a . b)" "(a . b)\n")
-(test-cut 1 1 "(a . b)" "(a . b)\n")
-(test-cut 2 10 "((a . b) . c)" "((a . b) . c)\n")
-(test-cut 2 1 "((a . b) . c)" "((a . b) . c)\n")
-(test-cut 3 2 "(a b c . d)" "(a b ...)\n")
-(test-cut 0 #f "(a b c)" "(...)\n")
-
-(test-cut 1 #f "(a (b c) d)" "(a (...) d)\n")
-(test-cut 2 #f "(a (b (c)) d)" "(a (b (...)) d)\n")
-(test-cut 0 #f "#(1 2 3)" "#(...)\n")
-(test-cut 1 #f "#(1 #(2) 3)" "#(1 #(...) 3)\n")
-(test-cut 1 #f "(a b . #(c))" "(a b . #(...))\n")
-
-(test-cut #f 0 "(a b c)" "(...)\n")
-(test-cut #f 1 "(a b c)" "(a ...)\n")
-(test-cut #f 3 "(a b c)" "(a b c)\n")
-(test-cut #f 0 "#(1 2 3)" "#(...)\n")
-(test-cut #f 2 "#(1 2 3 4)" "#(1 2 ...)\n")
-(test-cut #f 1 "(a b . c)" "(a ...)\n")
-(test-cut #f 2 "(a b . c)" "(a b . c)\n")
-(test-cut #f 2 "(a b c . d)" "(a b ...)\n")
-(test-cut #f 1 "((a b) (c d))" "((a ...) ...)\n")
-
-(test-cut 1 1 "((a b) (c d))" "((...) ...)\n")
-(test-cut 2 1 "(((a) b) c)" "(((...) ...) ...)\n")
-(test-cut 0 0 "(a b c)" "(...)\n")
-(test-cut 1 2 "((a b c) (d e f) (g h i))" "((...) (...) ...)\n")
-(test-cut 1 2 "#(#(a b c) #(d e f) #(g h i))" "#(#(...) #(...) ...)\n")
-(test-cut 1 #f "(a b . #(c d))" "(a b . #(...))\n")
-(test-cut 1 #f "((a . b) . c)" "((...) . c)\n")
-
-
-(parameterize ((print-graph #t))
-(test-cut 0 #f "#0=(a . #0#)" "(...)\n")
-(test-cut 1 #f "#0=(a . #0#)" "#0=(a . #0#)\n")
-(test-cut 1 1 "#0=(a b c . #0#)" "(a ...)\n")
-(test-cut 2 2 "(#0=(a b) #0# #0#)" "(#0=(a b) #0# ...)\n")
-(test-cut 1 2 "(#0=(a b) #0# #0#)" "((...) (...) ...)\n")
-(test-cut 2 #f "#0=(#(a #0#) b)" "(#(a (...)) b)\n")
-(test-cut 1 #f "#0=(#(a #0#) b)" "(#(...) b)\n")
-(test-cut 2 1 "#0=(#(a #0#) b)" "(#(a ...) ...)\n")
-(test-cut 2 #f "(#0=(a . b) #0# . #0#)" "(#0=(a . b) #0# . #0#)\n")
-(test-cut 1 #f "(#0=(a . b) #0# . #0#)" "((...) (...) a . b)\n")
-(test-cut 3 2 "#0=((a . b) (#0# . c) d)" "#0=((a . b) (#0# . c) ...)\n")
-(test-cut 1 1 "#0=((a . b) (#0# . c) d)" "((...) ...)\n")
-(test-cut 2 #f "#0=(#(#0#) . #0#)" "#0=(#(#0#) . #0#)\n")
-(test-cut 1 #f "#0=(#(#0#) . #0#)" "#0=(#(...) . #0#)\n")
-; this is what Chez does:
-;(test-cut 2 2 "#0=(#1=(a b) #1# . #0#)" "#0=(#1=(a b) #1# . #0#)\n") 
-; I believe we're entitled to this:
-(test-cut 2 2 "#0=(#1=(a b) #1# . #0#)" "(#0=(a b) #0# ...)\n")
-; this is what Chez does:
-;(test-cut 1 2 "#0=(#1=(a b) #1# . #0#)" "#0=((...) (...) . #0#)\n")
-; I believe we're entitled to this:
-(test-cut 1 2 "#0=(#1=(a b) #1# . #0#)" "((...) (...) ...)\n")
-(test-cut 2 #f "#0=(a . (#1=#(b #0#) . #1#))" "(a #0=#(b (...)) . #0#)\n")
-(test-cut 1 #f "#0=(a . (#1=#(b #0#) . #1#))" "(a #(...) . #(...))\n")
-(test-cut 2 1 "#0=(a . (#1=#(b #0#) . #1#))" "(a ...)\n")
-(test-cut 3 3 "(#0=(a . #0#) #1=#(#1#) #2=(b c) #2#)" "(#0=(a . #0#) #1=#(#1#) (b c) ...)\n")
-(test-cut 0 #f "#0=(a . #0#)" "(...)\n")
-(test-cut 1 #f "#0=(a . #0#)" "#0=(a . #0#)\n")
-(test-cut 1 #f "(#0=(a b) #0#)" "((...) (...))\n")
-(test-cut #f 1 "(#0=(a b c) #0#)" "((a ...) ...)\n")
-(test-cut 0 #f "#0=#(#0#)" "#(...)\n")
-(test-cut 1 #f "#0=#(#0#)" "#(#(...))\n")
-(test-cut 1 #f "(#0=(a) #1=(#0#) #1#)" "((...) (...) (...))\n")
-(test-cut #f 1 "(a #0=(b) #0#)" "(a ...)\n")
-(test-cut #f 2 "(a #0=(b) c #0#)" "(a (b) ...)\n")
-(test-cut 2 #f "#0=(a #1=(b . #0#) . #1#)" "#0=(a #1=(b . #0#) . #1#)\n")
-(test-cut 1 #f "(#0=(a . b) #0#)" "((...) (...))\n")
-(test-cut #f 1 "#0=(a b . #0#)" "(a ...)\n")
-; this is what Chez does:
-;(test-cut #f 2 "#0=(a b . #0#)" "#0=(a b . #0#)\n")
-; I believe we're entitled to this:
-(test-cut #f 2 "#0=(a b . #0#)" "(a b ...)\n") 
-(test-cut 0 #f "(#0=() #0#)" "(...)\n")
-(test-cut 1 #f "(#0=() #0#)" "(() ())\n")
-(test-cut 1 1 "#(#0=#(a b c) #0#)" "#(#(...) ...)\n")
-(test-cut #f 1 "#(#0=#(a b c) #0#)" "#(#(a ...) ...)\n")
-(test-cut 1 2 "(#0=(a) b c . #0#)" "((...) b ...)\n")
-(test-cut 1 1 "((#0=(a) #0#) (#1=(b) #1#))" "((...) ...)\n")
-(test-cut 1 #f "#0=#(#1=(a . #0#) #1#)" "#((...) (...))\n")
-(test-cut 0 0 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(...)\n")
-(test-cut 0 1 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(...)\n")
-(test-cut 0 2 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(...)\n")
-(test-cut 0 3 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(...)\n")
-(test-cut 1 0 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(...)\n")
-(test-cut 1 1 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(a ...)\n")
-(test-cut 1 2 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(a (...) ...)\n")
-(test-cut 1 3 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(a (...) (...) ...)\n")
-(test-cut 2 0 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(...)\n")
-(test-cut 2 1 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(a ...)\n")
-(test-cut 2 2 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(a (b . #(...)) ...)\n")
-(test-cut 2 3 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(a (b . #(...)) (#(...) . d) ...)\n")
-(test-cut 3 0 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(...)\n")
-(test-cut 3 1 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(a ...)\n")
-(test-cut 3 2 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(a #0=(b . #(#0# c)) ...)\n")
-(test-cut 3 3 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))" "(a #0=(b . #1=#(#0# c)) (#1# . d) ...)\n")
-(test-cut 0 0 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "(...)\n")
-(test-cut 0 1 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "(...)\n")
-(test-cut 0 2 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "(...)\n")
-(test-cut 0 3 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "(...)\n")
-(test-cut 1 0 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "(...)\n")
-(test-cut 1 1 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "((...) ...)\n")
-(test-cut 1 2 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "((...) #(...) ...)\n")
-(test-cut 1 3 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "((...) #(...) (...) ...)\n")
-(test-cut 2 0 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "(...)\n")
-(test-cut 2 1 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "((a ...) ...)\n")
-(test-cut 2 2 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "((a (...)) #(c d ...) ...)\n")
-(test-cut 2 3 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "#0=((a (...)) #(c d (...)) (e . #0#) ...)\n")
-(test-cut 3 0 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "(...)\n")
-(test-cut 3 1 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "((a ...) ...)\n")
-(test-cut 3 2 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "((a (b)) #(c d ...) ...)\n")
-(test-cut 3 3 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)" "#0=(#1=(a (b)) #(c d #1#) (e . #0#) ...)\n")
-)
-
-; for histerical reasons, read macros don't increment level
-(test-cut 3 4 "'`,,@(3 . #(a b c d e f g))))" "'`,,@(3 . #(a b c d ...))\n")
-; NB: Chez 9.5.4 hangs on all four tests below!
-(test-cut 0 0 "#0='#0#" "'...\n") 
-(test-cut 0 1 "#0='#0#" "'...\n")
-(test-cut 1 0 "#0='#0#" "#0='#0#\n")
-(test-cut 1 1 "#0='#0#" "#0='#0#\n")
-
-; skint boxes increment level
+(test "a\n" (cut 0 10 "a"))
+(test "(...)\n" (cut 0 10 "(a b c)"))
+(test "#(...)\n" (cut 0 10 "#(a b c)"))
+(test "(a b c)\n" (cut 1 10 "(a b c)"))
+(test "((...) c)\n" (cut 1 10 "((a b) c)"))
+(test "#((...) c)\n" (cut 1 10 "#((a b) c)"))
+(test "(a b ...)\n" (cut 1 2 "(a b c d)"))
+(test "#(a b ...)\n" (cut 1 2 "#(a b c d)"))
+(test "(a b . c)\n" (cut 1 2 "(a b . c)"))
+(test "((a b) (c d))\n" (cut 2 10 "((a b) (c d))"))
+(test "(((...)) b)\n" (cut 2 10 "(((a)) b)"))
+(test "#(#(a b) #(c #(...)))\n" (cut 2 10 "#(#(a b) #(c #(d)))"))
+(test "((a b ...) (d e ...) ...)\n" (cut 2 2 "((a b c) (d e f) (g h i))"))
+(test "#((a b ...) (d e ...) ...)\n" (cut 2 2 "#((a b c) (d e f) (g h i))"))
+(test "(a (b c d ...) f ...)\n" (cut 2 3 "(a (b c d e) f g)"))
+(test "(a b c d . e)\n" (cut 3 10 "(a b c d . e)"))
+(test "#(a (b . c) #(d e (f g)))\n" (cut 3 10 "#(a (b . c) #(d e (f g)))"))
+(test "#(a (b . c) #(d e (...)))\n" (cut 2 10 "#(a (b . c) #(d e (f g)))"))
+(test "(a . b)\n" (cut 1 10 "(a . b)"))
+(test "(a . b)\n" (cut 1 1 "(a . b)"))
+(test "((a . b) . c)\n" (cut 2 10 "((a . b) . c)"))
+(test "((a . b) . c)\n" (cut 2 1 "((a . b) . c)"))
+(test "(a b ...)\n" (cut 3 2 "(a b c . d)"))
+(test "(...)\n" (cut 0 #f "(a b c)"))
+(test "(a (...) d)\n" (cut 1 #f "(a (b c) d)"))
+(test "(a (b (...)) d)\n" (cut 2 #f "(a (b (c)) d)"))
+(test "#(...)\n" (cut 0 #f "#(1 2 3)"))
+(test "#(1 #(...) 3)\n" (cut 1 #f "#(1 #(2) 3)"))
+(test "(a b . #(...))\n" (cut 1 #f "(a b . #(c))"))
+(test "(...)\n" (cut #f 0 "(a b c)"))
+(test "(a ...)\n" (cut #f 1 "(a b c)"))
+(test "(a b c)\n" (cut #f 3 "(a b c)"))
+(test "#(...)\n" (cut #f 0 "#(1 2 3)"))
+(test "#(1 2 ...)\n" (cut #f 2 "#(1 2 3 4)"))
+(test "(a ...)\n" (cut #f 1 "(a b . c)"))
+(test "(a b . c)\n" (cut #f 2 "(a b . c)"))
+(test "(a b ...)\n" (cut #f 2 "(a b c . d)"))
+(test "((a ...) ...)\n" (cut #f 1 "((a b) (c d))"))
+(test "((...) ...)\n" (cut 1 1 "((a b) (c d))"))
+(test "(((...) ...) ...)\n" (cut 2 1 "(((a) b) c)"))
+(test "(...)\n" (cut 0 0 "(a b c)"))
+(test "((...) (...) ...)\n" (cut 1 2 "((a b c) (d e f) (g h i))"))
+(test "#(#(...) #(...) ...)\n" (cut 1 2 "#(#(a b c) #(d e f) #(g h i))"))
+(test "(a b . #(...))\n" (cut 1 #f "(a b . #(c d))"))
+(test "((...) . c)\n" (cut 1 #f "((a . b) . c)"))
+;; --- with ((print-graph #t))
+(parameterize ([print-graph #t])
+(test "(...)\n" (cut 0 #f "#0=(a . #0#)"))
+(test "#0=(a . #0#)\n" (cut 1 #f "#0=(a . #0#)"))
+(test "(a ...)\n" (cut 1 1 "#0=(a b c . #0#)"))
+(test "(#0=(a b) #0# ...)\n" (cut 2 2 "(#0=(a b) #0# #0#)"))
+(test "((...) (...) ...)\n" (cut 1 2 "(#0=(a b) #0# #0#)"))
+(test "(#(a (...)) b)\n" (cut 2 #f "#0=(#(a #0#) b)"))
+(test "(#(...) b)\n" (cut 1 #f "#0=(#(a #0#) b)"))
+(test "(#(a ...) ...)\n" (cut 2 1 "#0=(#(a #0#) b)"))
+(test "(#0=(a . b) #0# . #0#)\n" (cut 2 #f "(#0=(a . b) #0# . #0#)"))
+(test "((...) (...) a . b)\n" (cut 1 #f "(#0=(a . b) #0# . #0#)"))
+(test "#0=((a . b) (#0# . c) ...)\n" (cut 3 2 "#0=((a . b) (#0# . c) d)"))
+(test "((...) ...)\n" (cut 1 1 "#0=((a . b) (#0# . c) d)"))
+(test "#0=(#(#0#) . #0#)\n" (cut 2 #f "#0=(#(#0#) . #0#)"))
+(test "#0=(#(...) . #0#)\n" (cut 1 #f "#0=(#(#0#) . #0#)"))
+(test "(#0=(a b) #0# ...)\n" (cut 2 2 "#0=(#1=(a b) #1# . #0#)"))
+(test "((...) (...) ...)\n" (cut 1 2 "#0=(#1=(a b) #1# . #0#)"))
+(test "(a #0=#(b (...)) . #0#)\n" (cut 2 #f "#0=(a . (#1=#(b #0#) . #1#))"))
+(test "(a #(...) . #(...))\n" (cut 1 #f "#0=(a . (#1=#(b #0#) . #1#))"))
+(test "(a ...)\n" (cut 2 1 "#0=(a . (#1=#(b #0#) . #1#))"))
+(test "(#0=(a . #0#) #1=#(#1#) (b c) ...)\n" (cut 3 3 "(#0=(a . #0#) #1=#(#1#) #2=(b c) #2#)"))
+(test "(...)\n" (cut 0 #f "#0=(a . #0#)"))
+(test "#0=(a . #0#)\n" (cut 1 #f "#0=(a . #0#)"))
+(test "((...) (...))\n" (cut 1 #f "(#0=(a b) #0#)"))
+(test "((a ...) ...)\n" (cut #f 1 "(#0=(a b c) #0#)"))
+(test "#(...)\n" (cut 0 #f "#0=#(#0#)"))
+(test "#(#(...))\n" (cut 1 #f "#0=#(#0#)"))
+(test "((...) (...) (...))\n" (cut 1 #f "(#0=(a) #1=(#0#) #1#)"))
+(test "(a ...)\n" (cut #f 1 "(a #0=(b) #0#)"))
+(test "(a (b) ...)\n" (cut #f 2 "(a #0=(b) c #0#)"))
+(test "#0=(a #1=(b . #0#) . #1#)\n" (cut 2 #f "#0=(a #1=(b . #0#) . #1#)"))
+(test "((...) (...))\n" (cut 1 #f "(#0=(a . b) #0#)"))
+(test "(a ...)\n" (cut #f 1 "#0=(a b . #0#)"))
+(test "(a b ...)\n" (cut #f 2 "#0=(a b . #0#)"))
+(test "(...)\n" (cut 0 #f "(#0=() #0#)"))
+(test "(() ())\n" (cut 1 #f "(#0=() #0#)"))
+(test "#(#(...) ...)\n" (cut 1 1 "#(#0=#(a b c) #0#)"))
+(test "#(#(a ...) ...)\n" (cut #f 1 "#(#0=#(a b c) #0#)"))
+(test "((...) b ...)\n" (cut 1 2 "(#0=(a) b c . #0#)"))
+(test "((...) ...)\n" (cut 1 1 "((#0=(a) #0#) (#1=(b) #1#))"))
+(test "#((...) (...))\n" (cut 1 #f "#0=#(#1=(a . #0#) #1#)"))
+(test "(...)\n" (cut 0 0 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(...)\n" (cut 0 1 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(...)\n" (cut 0 2 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(...)\n" (cut 0 3 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(...)\n" (cut 1 0 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(a ...)\n" (cut 1 1 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(a (...) ...)\n" (cut 1 2 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(a (...) (...) ...)\n" (cut 1 3 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(...)\n" (cut 2 0 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(a ...)\n" (cut 2 1 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(a (b . #(...)) ...)\n" (cut 2 2 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(a (b . #(...)) (#(...) . d) ...)\n" (cut 2 3 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(...)\n" (cut 3 0 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(a ...)\n" (cut 3 1 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(a #0=(b . #(#0# c)) ...)\n" (cut 3 2 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(a #0=(b . #1=#(#0# c)) (#1# . d) ...)\n" (cut 3 3 "#0=(a #1=(b . #2=#(#1# c)) (#2# . d) #0# . #3=(e . #3#))"))
+(test "(...)\n" (cut 0 0 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "(...)\n" (cut 0 1 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "(...)\n" (cut 0 2 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "(...)\n" (cut 0 3 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "(...)\n" (cut 1 0 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "((...) ...)\n" (cut 1 1 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "((...) #(...) ...)\n" (cut 1 2 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "((...) #(...) (...) ...)\n" (cut 1 3 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "(...)\n" (cut 2 0 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "((a ...) ...)\n" (cut 2 1 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "((a (...)) #(c d ...) ...)\n" (cut 2 2 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "#0=((a (...)) #(c d (...)) (e . #0#) ...)\n" (cut 2 3 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "(...)\n" (cut 3 0 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "((a ...) ...)\n" (cut 3 1 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "((a (b)) #(c d ...) ...)\n" (cut 3 2 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "#0=(#1=(a (b)) #(c d #1#) (e . #0#) ...)\n" (cut 3 3 "#0=(#1=(a (b)) #2=#(c d #1#) (e . #0#) f)"))
+(test "'`,,@(3 . #(a b c d ...))\n" (cut 3 4 "'`,,@(3 . #(a b c d e f g))))"))
+(test "'...\n" (cut 0 0 "#0='#0#"))
+(test "'...\n" (cut 0 1 "#0='#0#"))
+(test "#0='#0#\n" (cut 1 0 "#0='#0#"))
+(test "#0='#0#\n" (cut 1 1 "#0='#0#"))
 (cond-expand (skint
-(test-cut 3 4 "#&#&#&#&(3 . #(a b c d e f g))))" "#&#&#&#&...\n")
-(test-cut 0 0 "#0=#&#0#" "#&...\n")
-(test-cut 0 1 "#0=#&#0#" "#&...\n")
-(test-cut 1 0 "#0=#&#0#" "#&...\n") ; Chez gives "#&#&...\n" !
-(test-cut 1 1 "#0=#&#0#" "#&#&...\n")
+  (test "#&#&#&#&...\n" (cut 3 4 "#&#&#&#&(3 . #(a b c d e f g))))"))
+  (test "#&...\n" (cut 0 0 "#0=#&#0#"))
+  (test "#&...\n" (cut 0 1 "#0=#&#0#"))
+  (test "#&...\n" (cut 1 0 "#0=#&#0#"))
+  (test "#&#&...\n" (cut 1 1 "#0=#&#0#"))
 ) (else))
+)
 
-(display "Done.") (newline)
+(display "\n--- print-level and print-length together ---\n")
 
+;; one form seen through every combination that changes the result
+(define cut-form "(if (member x y) (+ (car x) 3) '(foo . #(a b c d \"Baz\")))")
 
-; example
+(test "(...)\n"                       (cut 0 1 cut-form))
+(test "(if ...)\n"                    (cut 1 1 cut-form))
+(test "(if (...) ...)\n"              (cut 1 2 cut-form))
+(test "(if (...) (...) ...)\n"        (cut 1 3 cut-form))
+(test "(if (...) (...) '...)\n"       (cut 1 4 cut-form))
+(test "(if ...)\n"                    (cut 2 1 cut-form))
+(test "(if (member x ...) ...)\n"     (cut 2 2 cut-form))
+(test "(if (member x y) (+ (...) 3) ...)\n" (cut 2 3 cut-form))
+(test "(if (member x ...) ...)\n"     (cut 3 2 cut-form))
+(test "(if (member x y) (+ (car x) 3) ...)\n" (cut 3 3 cut-form))
+(test "(if (member x y) (+ (car x) 3) '(foo . #(a b c d ...)))\n" (cut 3 4 cut-form))
+(test "(if (member x y) (+ (car x) 3) '(foo . #(a b c d \"Baz\")))\n" (cut 3 5 cut-form))
+
+(display "\n--- print-radix ---\n")
+
+;; a prefix is printed whenever the radix is not 10
+(define bv "#u8(0 10 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30)")
+
+(test "#u8(0 10 2 3 4 5 6 7\n    8 9 10 11 12 13\n    14 15 16 17 18\n    19 20 21 22 23\n    24 25 26 27 28\n    29 30)\n"
+      (pp 20 bv))
+(test "#u8(0 10 2 3 4 5 6 7\n    8 9 10 11 12 13\n    14 15 16 17 18\n    19 20 21 22 23\n    24 25 26 27 28\n    29 30)\n"
+      (pp 20 bv print-radix 10))
+(test "#u8(#o0 #o12 #o2 #o3\n    #o4 #o5 #o6 #o7\n    #o10 #o11 #o12\n    #o13 #o14 #o15\n    #o16 #o17 #o20\n    #o21 #o22 #o23\n    #o24 #o25 #o26\n    #o27 #o30 #o31\n    #o32 #o33 #o34\n    #o35 #o36)\n"
+      (pp 20 bv print-radix 8))
+(test "#u8(#x0 #xa #x2 #x3\n    #x4 #x5 #x6 #x7\n    #x8 #x9 #xa #xb\n    #xc #xd #xe #xf\n    #x10 #x11 #x12\n    #x13 #x14 #x15\n    #x16 #x17 #x18\n    #x19 #x1a #x1b\n    #x1c #x1d #x1e)\n"
+      (pp 20 bv print-radix 16))
+(test "#b1010" (pr 40 "10" print-radix 2))
+(test "#o12"   (pr 40 "10" print-radix 8))
+(test "10"     (pr 40 "10" print-radix 10))
+(test "#xa"    (pr 40 "10" print-radix 16))
+
+(display "\n--- print-brackets ---\n")
+
+;; Brackets are a code convention, and print prints data, so it takes no notice
+;; of the parameter.
+(test "(let ((x 1) (y 2)) (display x))" (pr 40 "(let ((x 1) (y 2)) (display x))" print-brackets #t))
+(test "(let ((x 1) (y 2)) (display x))" (pr 40 "(let ((x 1) (y 2)) (display x))" print-brackets #f))
+;; pretty-print prints code, and brackets binding lists unless told not to
+(test "(let ([x 1] [y 2])\n  (display x))\n" (pp 20 "(let ((x 1) (y 2)) (display x))"))
+(test "(let ((x 1) (y 2))\n  (display x))\n" (pp 20 "(let ((x 1) (y 2)) (display x))" print-brackets #f))
+
+(display "\n--- pretty-style ---\n")
+
+(test '(_ d . body) (pretty-style 'lambda))
+(test '(_ dc* . body) (pretty-style 'let*))
+(test #f (pretty-style 'no-such-form-at-all))
+;; setting takes effect; its return value is not specified
+(pretty-style (quote my-binding-form) (quote (_ dc* . body)))
+(test '(_ dc* . body) (pretty-style 'my-binding-form))
+(test "(my-binding-form\n  ([x 1] [y 2])\n  (display x))\n"
+      (pp 20 "(my-binding-form ((x 1) (y 2)) (display x))"))
+
+(display "\n--- pretty-print's own settings are defaults ---\n")
+
+;; pretty-print prints code: laid out over lines, binding lists in brackets.
+(test "(let ([x 1] [y 2])\n  (display x))\n" (pp 20 "(let ((x 1) (y 2)) (display x))"))
+
+;; Each of the settings it supplies can be overridden by the caller, because it
+;; appends them to the caller's arguments and the first occurrence wins.
+(test "(let ((x 1) (y 2))\n  (display x))\n"
+      (pp 20 "(let ((x 1) (y 2)) (display x))" print-brackets #f))
+(test "(let ([x 1] [y 2]) (display x))"
+      (pp 20 "(let ((x 1) (y 2)) (display x))" print-indent #f))
+
+;; It supplies nothing for the marking mode, so it follows write as print does.
+(test "((a b) (a b))
+" (pp 100 "(#0=(a b) #0#)"))
+(test "(#0=(a b) #0#)\n" (pp 100 "(#0=(a b) #0#)" print-graph #t))
+
+(display "\n--- parameter validation ---\n")
+
+(test-error (parameterize ([print-width 0]) 'unreachable))
+(test-error (parameterize ([print-width -1]) 'unreachable))
+(test-error (parameterize ([print-width 1.5]) 'unreachable))
+(test-error (parameterize ([print-radix 3]) 'unreachable))
+(test-error (parameterize ([print-level -1]) 'unreachable))
+(test-error (parameterize ([print-length -1]) 'unreachable))
+(test-error (parameterize ([print-indent -1]) 'unreachable))
+(test-error (parameterize ([print-indent 1.5]) 'unreachable))
+;; an invalid value is rejected wherever it is given
+(test-error (print 1 (open-output-string) print-width 0))
+;; a keyword with no value, or an unknown one, is rejected
+(test-error (print 1 (open-output-string) print-width))
+;; the first occurrence of a keyword wins
+(test "1" (pr 40 "1" print-width 0))
+
+(test 80 (print-width))
+(test #t (print-circle))
+(test #f (print-graph))
+(test 10 (print-radix))
+(test #f (print-length))
+(test #f (print-level))
+(test #f (print-indent))
+(test #f (print-brackets))
+
+(display "\n--- printing to the current output port ---\n")
+
+(test-output "(a b)"   (print '(a b)))
+(test-output "(a b)\n" (pretty-print '(a b)))
 
 (define sexp1
 '(define (ast-pretty a . opt-port)
@@ -709,31 +905,35 @@
         (if (null? shared) form (patch-shared form))
         (r-error port "unexpected token:" (cdr form))))))
 
-(newline)
-(pretty-print sexp1)
+(display "\n--- larger inputs: the printed form reads back unchanged ---\n")
 
-(newline)
-(pretty-print sexp2 print-width 90)
+(test #t (round-trips? sexp1))
+(test #t (round-trips? sexp1 print-width 40))
+(test #t (round-trips? sexp1 print-width 200))
+(test #t (round-trips? sexp2))
+(test #t (round-trips? sexp2 print-width 90))
+(test #t (round-trips? sexp2 print-width 40))
 
-(do ((l '((0 1) (1 1) (1 2) (1 3) (1 4) (2 1) (2 2) (2 3) (3 2) (3 3) (3 4) (3 5)) (cdr l)))
-  ((null? l))
-  (let ((level (car (car l))) (length (cadr (car l))))
-    (display level) (display " ") (display length) (display " -- ")
-    (pretty-print '(if (member x y) (+ (car x) 3) '(foo . #(a b c d "Baz")))
-      print-level level print-length length)))
+;; and it really is broken across lines
+(define (line-count obj . kv)
+  (length (lines (let ([p (open-output-string)])
+                   (apply pretty-print obj p kv)
+                   (get-output-string p)))))
 
-(pretty-print '#u8(0 10 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30)
-  print-width 20)
+(test #t (> (line-count sexp1) 50))
+(test #t (> (line-count sexp2 print-width 90) 50))
 
-(pretty-print '#u8(0 10 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30)
-  print-width 20 print-radix 2)
+;; a narrower width produces more lines than a wider one
+(test #t (> (line-count sexp1 print-width 40) (line-count sexp1 print-width 200)))
+(test #t (> (line-count sexp2 print-width 40) (line-count sexp2 print-width 200)))
 
-(pretty-print '#u8(0 10 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30)
-  print-width 20 print-radix 8)
+;; print with an indent breaks lines too, laying the same input out as data
+(test #t (> (line-count sexp1) 1))
+(test #t (> (length (lines (printed sexp1 print-indent 0))) 1))
+;; and without one it is a single line
+(test 1 (length (lines (printed sexp1))))
 
-(pretty-print '#u8(0 10 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30)
-  print-width 20 print-radix 10)
 
-(pretty-print '#u8(0 10 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30)
-  print-width 20 print-radix 16)
+(display "\n--- All tests complete. ---\n")
 
+(test-end)
