@@ -18,8 +18,8 @@
 
 (define (procedure-code p) (vector-ref (closure->vector p) 0))
 
-;; every procedure the global store holds, as (name . procedure)
-(define (global-procedures)
+;; every value the global store holds that satisfies KEEP?, as (name . value)
+(define (global-values keep?)
   (let* ([gs (global-store)] [n (vector-length gs)])
     (let loop ([i 0] [r '()])
       (if (>= i n)
@@ -28,9 +28,18 @@
             (if (null? l)
                 (loop (+ i 1) r)
                 (let ([v (unbox (cdar l))])
-                  (scan (cdr l) (if (procedure? v) (cons (cons (caar l) v) r) r)))))))))
+                  (scan (cdr l) (if (keep? v) (cons (cons (caar l) v) r) r)))))))))
 
-(define *procedures* (global-procedures))
+;; Every closure the store holds.  Not every procedure: procedure? may also
+;; answer #t for any pointer outside the heap, depending on the build, and the
+;; store holds two instruction words -- (skint disasm)'s own halt-word and br-word.
+(define *procedures* (global-values closure?))
+
+;; the instruction words, as instruction-table lists them
+(define *instruction-words*
+  (let ([t (instruction-table)])
+    (let loop ([i 0] [r '()])
+      (if (>= i (vector-length t)) r (loop (+ i 3) (cons (vector-ref t i) r))))))
 
 ;; A code vector is framed one of two ways: one decoded from a whole instruction
 ;; stream ends with halt, one decoded from a {...} block does not.  da-code emits
@@ -85,7 +94,28 @@
     (and s (not (memv #\: (string->list s))))))
 
 
-(display "\n--- da-code: every procedure in the store re-encodes ---\n")
+(display "\n--- closure? ---\n")
+
+(test #t (closure? (lambda (x) x)))
+(test #t (closure? car))
+(test #f (closure? (vector-ref (deserialize-code "") 0)))
+(test #f (closure? (vector 1 2)))
+(test #f (closure? 'car))
+(test #f (closure? (cons 1 2)))
+(test #f (closure? 42))
+
+;; A procedure in the store that is not a closure can only be an instruction
+;; word; this lists the names of any that are not.  In a build where procedure?
+;; is #f for instruction words there are none to check.
+(test '()
+      (map car (filter-if (lambda (n+p) (not (memq (cdr n+p) *instruction-words*)))
+                          (global-values (lambda (v) (and (procedure? v) (not (closure? v))))))))
+
+;; and the disassembler declines them without an error
+(test #f (da-code (vector-ref (deserialize-code "") 0)))
+
+
+(display "\n--- da-code: every closure in the store re-encodes ---\n")
 
 (test-assert (> (length *procedures*) 500))
 (test (length *procedures*) (count-if (lambda (n+p) (code-round-trips? (cdr n+p))) *procedures*))

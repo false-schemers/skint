@@ -2077,7 +2077,7 @@
 (define *root-name-registry* (make-name-registry 300))
 
 ; nonpublic registry for all hidden skint names (used by built-in macros)
-(define *hidden-name-registry* (make-name-registry 1)) ; 1 to share bindings w/(skint hidden)
+(define *hidden-name-registry* (make-name-registry 211)) ; searched first by every builtin-sr lookup
 
 (define (builtin-sr-environment id at)
   (cond [(new-id? id) (new-id-lookup id at)]
@@ -2283,7 +2283,10 @@
 ; has to add them explicitly via (foo . hidden) mechanism above
 (let* ([mklib (lambda (ln) (make-library '(begin) '()))]
        [loc (name-lookup *root-name-registry* '(skint hidden) mklib)]
-       [lib (location-val loc)] [eal (vector-ref *hidden-name-registry* 0)]
+       [lib (location-val loc)]
+       [eal (let loop ([i (- (vector-length *hidden-name-registry*) 2)] [eal '()])
+              (if (< i 0) eal ; all buckets but the last one, which is for list names
+                  (loop (- i 1) (append (vector-ref *hidden-name-registry* i) eal))))]
        [combeal (adjoin-eals eal (library-exports lib))]
        [skintloc (name-lookup *root-name-registry* '(skint) #f)]
        [skintlib (and (location? skintloc) (location-val skintloc))]

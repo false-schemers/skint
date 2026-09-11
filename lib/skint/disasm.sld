@@ -10,6 +10,7 @@
       deserialize-code
       write-serialized-arg
       closure->vector
+      closure?
       global-store
       lookup-global
       lookup-integrable
@@ -169,6 +170,13 @@
 ;; the code vector of a live procedure
 (define (procedure-code p) (vector-ref (closure->vector p) 0))
 
+;; A closure's cells -- its code vector, then its display -- or #f for anything
+;; that is not a closure.  procedure? is no guide here: a build may count any
+;; pointer outside the heap as a procedure, an instruction word among them, and
+;; closure->vector would then read one as if it were a closure.  closure? answers
+;; the same in every build.
+(define (closure-contents p) (and (closure? p) (closure->vector p)))
+
 ;; --- what an entry point will take -----------------------------------------
 ;; Every stage of the disassembler can start from further up: a procedure, or the
 ;; global name of one, stands for its code vector, which stands for its bytecode,
@@ -206,14 +214,13 @@
                 (and loc (let ([v (unbox loc)]) (and (procedure? v) v)))))]
         [else #f]))
 
-;; a code vector, or #f.  Only a closure has one; a continuation or a primitive
-;; entered from C does not, and closure->vector says so by failing, which is a
-;; #f here rather than an error.
+;; a code vector, or #f.  Only a closure has one; a procedure that is not a
+;; closure, such as an instruction word, gives #f here rather than an error.
 (define (as-code-vector x)
   (cond [(vector? x) x]
         [(as-procedure x)
          => (lambda (p)
-              (let ([v (guard (e (#t #f)) (closure->vector p))])
+              (let ([v (closure-contents p)])
                 (and (vector? v) (> (vector-length v) 0)
                      (let ([cv (vector-ref v 0)]) (and (vector? cv) cv)))))]
         [else #f]))
@@ -1788,7 +1795,7 @@
          (let ([vecs (let loop ([l clauses] [r (quote ())])
                        (cond [(null? l) (reverse r)]
                              [else
-                              (let ([cv (guard (e (#t #f)) (closure->vector (car l)))])
+                              (let ([cv (closure-contents (car l))])
                                 (and (vector? cv) (> (vector-length cv) 0)
                                      (vector? (vector-ref cv 0))
                                      (loop (cdr l) (cons cv r))))]))])
@@ -1849,9 +1856,9 @@
 ;; procedure under.  A bare symbol cannot be confused with a disassembly, which
 ;; is always a lambda, let or case-lambda form.
 (define (%da-procedure p)
-  ;; Not every procedure is a closure -- a continuation is not -- and one that is
-  ;; not has no code vector to read.  Its name is then all there is to say.
-  (let ([v (guard (e (#t #f)) (closure->vector p))])
+  ;; Not every procedure is a closure, and one that is not has no code vector to
+  ;; read.  Its name is then all there is to say.
+  (let ([v (closure-contents p)])
     (cond
       [(not (and (vector? v) (> (vector-length v) 0) (vector? (vector-ref v 0))))
        (da-name p)]

@@ -137,6 +137,14 @@ written in Scheme rather than in C:
 | `(integrable-code ig n)` | encoding field `n`, or `#f` |
 | `(instruction-table)` | a flat vector, three elements per `enctab` entry: the instruction word, its encoding or `#f`, and its `etyp` |
 | `(closure->vector p)` | a closure's cells: the code vector first, then its display |
+| `(closure? x)` | whether `x` is a VM closure: a heap block whose cell 0 is a code vector |
+
+`closure?` is the test to use before `closure->vector`, not `procedure?`. The
+procedure test comes from the `sfc`-generated runtime, where a procedure without a
+display is a foreign pointer, so in some builds `procedure?` answers `#t` for any
+aligned pointer outside the heap — an instruction word included. R7RS allows that,
+since the only thing a program can do with a procedure is call it. `closure?`
+answers the same in every build.
 
 Only `integrable?` and the index form of `lookup-integrable` are total. The three
 accessors begin with `ckg`, so they signal on anything that is not an integrable,

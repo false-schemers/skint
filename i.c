@@ -39,7 +39,15 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define outofline   __attribute__((noinline))
 #define VM_MUSTTAIL_GUARANTEE
 #define musttail    __attribute__((musttail))
-#define regcall     __regcall        
+#if defined(_MSC_VER) && defined(_WIN64) && defined(__x86_64__) && \
+    __clang_major__ >= 19 && __has_attribute(preserve_none)
+/* clang-cl on x64: preserve_none passes all 5 arguments in registers and
+ * leaves no registers callee-saved, so ac can stay in a register (see below) */
+#define VM_PRESERVE_NONE
+#define regcall     __attribute__((preserve_none))
+#else
+#define regcall     __regcall
+#endif
 #define noalias     restrict
 #else
 #define outofline
@@ -49,10 +57,18 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #endif
 #define nochecks    __attribute__((no_stack_protector, aligned(8)))
 #define VM_INS_CODE_ALIGNED
-#ifdef _WIN64 /* clang-cl under Windows? */
+#if defined(_WIN64) && !defined(VM_PRESERVE_NONE) /* clang-cl under Windows? */
 /* not possible under Win64 calling conventions */
 #undef VM_AC_IN_REG
 #endif
+#elif defined(__GNUC__) && __GNUC__ >= 4
+#define unlikely(x) __builtin_expect(x, 0)
+#define likely(x)   __builtin_expect(x, 1)
+#define outofline   __attribute__((noinline))
+#define musttail
+#define regcall
+#define noalias
+#define nochecks
 #else
 #define unlikely(x) (x)
 #define likely(x)   (x)
@@ -336,7 +352,7 @@ typedef obj* regcall (*ins_t)(IPARAMS);
 
 /* defining instruction helpers */
 #define define_instrhelper(name) \
-  static obj* regcall outofline nochecks name(IPARAMS)
+  static outofline obj* regcall nochecks name(IPARAMS)
 
 /* defining and binding instructions */
 #define define_instruction(name) \
@@ -4333,6 +4349,15 @@ define_instruction(ctov) {
   hp_reserve(vecbsz(n));
   for (i = n; i > 0; --i) *--hp = proc_ref(ac, i-1);
   ac = hend_vec(n);
+  gonexti();
+}
+
+/* closure? => whether x is a heap-allocated vm closure, i.e. a block whose cell 0
+ * is a code vector. procedure? cannot tell: in some builds it also answers #t for
+ * any pointer outside the heap, instruction words included. */
+define_instruction(vmclop) {
+  obj x = ac;
+  ac = bool_obj(isobjptr(x) && isvector(hblkref(x, 0)));
   gonexti();
 }
 

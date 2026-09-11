@@ -10,6 +10,10 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-value"
 #pragma GCC diagnostic ignored "-Woverlength-strings"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#if __has_warning("-Wunused-but-set-variable")
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#endif
 #endif
 /* this is for MS headers; shouldn't affect others */
 #define _CRT_SECURE_NO_WARNINGS 1

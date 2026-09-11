@@ -71,7 +71,9 @@ The whole chain, from whatever there is. `x` may be:
 
 `#f` when `x` is none of those, or is one of them but yields nothing: a name the
 store does not hold, a name holding something that is not a procedure, or code
-with no readable form and no name.
+with no readable form and no name. A procedure that is not a closure has no code
+to read, so for one of those `da` gives the name the store files it under, or
+`#f`.
 
 A symbol is a *global name* — the name the store files a binding under, not
 necessarily the identifier you type. Built-ins are filed under their own names,

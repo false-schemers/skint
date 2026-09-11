@@ -1185,7 +1185,7 @@ char *t_code[] = {
   "${'(i300),@(y18:make-name-registry)[01}@!(y20:*root-name-registry*)",
 
   "C", 0,
-  "${'1,@(y18:make-name-registry)[01}@!(y22:*hidden-name-registry*)",
+  "${'(i211),@(y18:make-name-registry)[01}@!(y22:*hidden-name-registry*)",
 
   "P", "builtin-sr-environment",
   "%2.0K0?{.1,.1,@(y13:new-id-lookup)[22}'(y4:peek),.2q?{${f,.3,@(y22:*hi"
@@ -1459,13 +1459,14 @@ char *t_code[] = {
 
   "C", 0,
   "&0{%1n,'(l1:y5:begin;),V12]1},${.2,'(l2:y5:skint;y6:hidden;),@(y20:*ro"
-  "ot-name-registry*),@(y11:name-lookup)[03},.0z,'0,@(y22:*hidden-name-re"
-  "gistry*)V4,${'1,.4V4,.3,@(y11:adjoin-eals)[02},#0${f,'(l1:y5:skint;),@"
-  "(y20:*root-name-registry*),@(y11:name-lookup)[03},.0Y2?{.0z}{f},.0V0?{"
-  "'1,.1V4}{f},,#0.4,.2,&2{%1.0a,:0?{:0,.1A3}{f},.0,.0?{.0}{:1^,.3A3}_1~?"
-  "{:1^,.2,'(y5:const),l2b,.3cc:!1]3}]3}.!0U2,.0V3,${'0,,#0.0,.7,.7,.7,&4"
-  "{%1:0,.1<!?{]1}${.2,:1V4,:2^,@(y10:%25for-each1)[02}'1,.1+,:3^[11}.!0."
-  "0^_1[01}_1_1.4^,'1,.8V5_1_1_1_1_1_1_1_1_1",
+  "ot-name-registry*),@(y11:name-lookup)[03},.0z,${n,'2,@(y22:*hidden-nam"
+  "e-registry*)V3-,,#0.0,&1{%2'0,.1<?{.1]2}.1,.1,@(y22:*hidden-name-regis"
+  "try*)V4L6,'1,.2-,:0^[22}.!0.0^_1[02},${'1,.4V4,.3,@(y11:adjoin-eals)[0"
+  "2},#0${f,'(l1:y5:skint;),@(y20:*root-name-registry*),@(y11:name-lookup"
+  ")[03},.0Y2?{.0z}{f},.0V0?{'1,.1V4}{f},,#0.4,.2,&2{%1.0a,:0?{:0,.1A3}{f"
+  "},.0,.0?{.0}{:1^,.3A3}_1~?{:1^,.2,'(y5:const),l2b,.3cc:!1]3}]3}.!0U2,."
+  "0V3,${'0,,#0.0,.7,.7,.7,&4{%1:0,.1<!?{]1}${.2,:1V4,:2^,@(y10:%25for-ea"
+  "ch1)[02}'1,.1+,:3^[11}.!0.0^_1[01}_1_1.4^,'1,.8V5_1_1_1_1_1_1_1_1_1",
 
   "C", 0,
   "${'(i200),@(y18:make-name-registry)[01}@!(y20:*user-name-registry*)",
