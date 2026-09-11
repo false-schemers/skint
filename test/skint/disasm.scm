@@ -139,6 +139,10 @@
     (lambda (x) (define-values (a b) (values 1 2)) (define c 3) (list a b c))
     (lambda (x) (define c 3) (define-values (a b) (values 1 2)) (list a b c))
     (lambda (x) (define (f a b) (+ a b)) (define (g a . r) r) (define (h . all) all) (list (f x x) (g x) (h)))
+    ;; the four- and five-argument integrables
+    (lambda (a b c d) (fxfmar a b c (+ d 1)))
+    (lambda (x) (inexact->string x 10 #f 3))
+    (lambda (p) (%port-location p (box #f) (box #f) #f #f))
     (lambda (x y) (let-values ([(a b) (floor/ x y)]) (cons a b)))
     (lambda (x y) (let*-values ([(a b) (floor/ x y)]) (cons a b)))
     (lambda (x y) (let-values ([(a b) (floor/ x y)] [(c d) (floor/ y x)]) (list a b c d)))
@@ -152,6 +156,21 @@
     (lambda (p) (call-with-values p (lambda (a b) (cons a b))))))
 
 (test (length derived-forms) (count-if source-round-trips? derived-forms))
+
+;; those three are compiled inline, not as calls of their globals
+(test 'integrable (car (expand '(fxfmar a b c d))))
+(test 'integrable (car (expand '(inexact->string x 10 #f 3))))
+(test 'integrable (car (expand '(%port-location p a b c d))))
+
+;; and taking them back apart from bytecode needs their operand counts: read as
+;; two operands, the rest of the stack turns into a let that was never there
+(define (bytecode-round-trips? src)
+  (let* ([want (compile-to-string (expand src))]
+         [form (parameterize ([da-void-for-empty-begin #f]) (da-core (da-bytecode want)))])
+    (equal? want (compile-to-string (expand form)))))
+(test-assert (bytecode-round-trips? '(lambda (a b c d) (fxfmar a b c (+ d 1)))))
+(test-assert (bytecode-round-trips? '(lambda (x) (inexact->string x 10 #f 3))))
+(test-assert (bytecode-round-trips? '(lambda (p) (%port-location p (box #f) (box #f) #f #f))))
 
 ;; and what a few of them look like, since the point is that they read as source
 (define (form-of src) (parameterize ([da-prune-globals #t]) (da-core (expand src))))

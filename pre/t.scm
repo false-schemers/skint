@@ -503,6 +503,7 @@
 (define (integrable-argc-match? igt n)
   (case igt
     [(#\0) (=  n 0)]   [(#\1) (=  n 1)]   [(#\2) (=  n 2)]   [(#\3) (=  n 3)] 
+    [(#\4) (=  n 4)]   [(#\5) (=  n 5)]
     [(#\p) (>= n 0)]   [(#\m) (>= n 1)]   [(#\c) (>= n 2)]   [(#\x) (>= n 1)]
     [(#\u) (<= 0 n 1)] [(#\b) (<= 1 n 2)] [(#\t) (<= 2 n 3)]
     [(#\#) (>= n 0)]   [(#\@) #f]
@@ -1650,7 +1651,7 @@
       [integrable (ig . args)
        (let ([igty (integrable-type ig)] [igc0 (integrable-code ig 0)])
          (case igty
-            [(#\0 #\1 #\2 #\3) ; 1st arg in a, others on stack
+            [(#\0 #\1 #\2 #\3 #\4 #\5) ; 1st arg in a, others on stack
              (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
                [(null? args)]
                (codegen (car args) l f s g #f port)

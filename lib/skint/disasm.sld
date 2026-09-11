@@ -857,6 +857,7 @@
                              ;; extra argument, so each occurrence is binary.
                              (let* ([nargs (case ty2
                                              [(#\0) 0] [(#\1) 1] [(#\2) 2] [(#\3) 3]
+                                             [(#\4) 4] [(#\5) 5]
                                              [(#\u) 1] [(#\b) 2] [(#\t) 3]
                                              [else 2])]
                                     [args (if (= nargs 0)

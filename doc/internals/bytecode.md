@@ -328,7 +328,7 @@ Scheme-level equivalent. `arity` is the argument-count class, checked by
 
 | Class | Arguments | Class | Arguments |
 |---|---|---|---|
-| `0` `1` `2` `3` | exactly that many | `p` | zero or more, folded |
+| `0` `1` `2` `3` `4` `5` | exactly that many | `p` | zero or more, folded |
 | `u` | zero or one | `m` | one or more, folded |
 | `b` | one or two | `c` | two or more, chained comparison |
 | `t` | two or three | `x` | one or more, folded (min/max shape) |
@@ -337,11 +337,12 @@ Scheme-level equivalent. `arity` is the argument-count class, checked by
 If the argument count does not match, the application falls back to an ordinary call
 of the global procedure — nothing is rejected, it is only compiled differently.
 
-Classes `4` and `5` also appear, on `fxfmar`, `inexact->string` and
-`%port-location`, and `rds_intgtab` has templates for them. But
-`integrable-argc-match?` does not list them, so its `else` clause answers `#f` and
-applications of those three always compile to an ordinary call of the synthesized
-global rather than to the instruction.
+An arity class is known in four places, and a new one needs all four: the global
+procedure templates in `rds_intgtab`, `integrable-argc-match?` in the expander,
+the `integrable` case of `codegen` in the compiler, and the operand count in
+`lib/skint/disasm.sld`. Each has an `else` that fails quietly: the expander's
+falls back to a call, the compiler's is an error, and the disassembler's reads two
+operands and gets the rest of the stack wrong.
 
 #### Alternate encodings
 

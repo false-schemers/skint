@@ -369,8 +369,7 @@ instruction. For one that is also a Scheme procedure, the extra work is:
 5. If the name is meant for users rather than for the implementation, document it
    in `doc/skint/`.
 
-Two arity classes are declared in the table and handled by `rds_intgtab` but not by
-the expander: `integrable-argc-match?` in `pre/t.scm` has no case for `4` or `5`, so
-its `else` answers `#f` and applications of `fxfmar`, `inexact->string` and
-`%port-location` always compile to a call of the synthesized global rather than to
-the instruction. The procedures work; they are simply never inlined.
+A new arity class, as opposed to a new builtin in an existing class, is more
+work: the class has to be known in all four places listed in
+[bytecode.md](bytecode.md#integrables) — the templates, the expander, the
+compiler and the disassembler.
