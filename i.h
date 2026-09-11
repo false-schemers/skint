@@ -666,7 +666,7 @@ declare_instruction(igty,       "U6",           0,  "integrable-type",          
 declare_instruction(iggl,       "U7",           0,  "integrable-global",        '1', AUTOGL)
 declare_instruction(igco,       "U8",           0,  "integrable-code",          '2', AUTOGL)
 declare_instruction(vmclo,      "U9",           1,  "closure",                  '#', INLINED)
-declare_instruction(vmcloco,    "Ug",           0,  "closure-code",             '2', AUTOGL)
+declare_instruction(vmcloco,    "Ug",           0,  "%closure-code-ref",        '2', AUTOGL)
 declare_instruction(cloinm,     "Ui",           0,  "%procedure->inst-name",    '1', INLINED)
 
 /* inlined integrables (no custom instructions) */               
