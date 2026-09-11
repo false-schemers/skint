@@ -4323,6 +4323,17 @@ define_instruction(vmclo) {
   gonexti();
 }
 
+define_instruction(vmcloco) {
+  int n; obj cs; ckx(ac); ckk(sref(0));
+  n = get_fixnum(spop());
+  if (n > vmclolen(ac))
+    cs = 0;
+  else
+    cs = vmcloref(ac, n);
+  ac = cs ? cs : bool_obj(0);
+  gonexti();
+}
+
 define_instruction(hshim) {
   uint64_t v = (uint64_t)ac, base = 0; obj b = spop(); 
   if (b) { ckk(b); base = get_fixnum(b); } 
