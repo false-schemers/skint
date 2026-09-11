@@ -66,7 +66,7 @@
       (and (eq? pat '<vector>) (vector? x))
       (and (eq? pat '<bytevector>) (bytevector? x))
       (and (eq? pat '<char>) (char? x))
-      (and (eq? pat '<byte>) (and (exact-integer? x) (<= 0 x 255)))
+      (and (eq? pat '<byte>) (and (integer? x) (exact? x) (<= 0 x 255)))
       (eqv? x pat)
       (and (pair? pat)
            (cond [(and (eq? (car pat) '...)
@@ -736,7 +736,7 @@
     [(id-escape=? x 'number?)        
      number?]
     [(id-escape=? x 'exact-integer?) 
-     exact-integer?]
+     (lambda (obj) (and (integer? obj) (exact? obj)))]
     [(id-escape=? x 'boolean?)       
      boolean?]
     [(id-escape=? x 'char?)          
@@ -1060,7 +1060,7 @@
 
 (define (preprocess-import-sets sexp env) ;=> (init-core . exports-eal)
   (define (twoids? x) (and (list2? x) (id? (car x)) (id? (cadr x)))) 
-  (define (libpart? x) (or (id? x) (exact-integer? x)))
+  (define (libpart? x) (or (id? x) (and (integer? x) (exact? x))))
   (check-syntax sexp '(<id> * ...) "invalid import syntax")
   (let* ([sid (car sexp)] ; reference id to capture names entered by user
          [is-only-id (id-rename-as sid 'only)] [is-except-id (id-rename-as sid 'except)]
@@ -1877,7 +1877,7 @@
 ; Library names and library file lookup
 ;--------------------------------------------------------------------------------------------------
 
-(define (lnpart? x) (or (id? x) (exact-integer? x)))
+(define (lnpart? x) (or (id? x) (and (integer? x) (exact? x))))
 (define (listname? x) (and (list1+? x) (andmap lnpart? x))) 
 
 (define (mangle-symbol->string sym)
@@ -1906,13 +1906,13 @@
         (string->symbol (apply string-append (reverse (cons postfix parts))))
         (cond [(symbol? (car lst))
                (loop (cdr lst) (cons (mangle-symbol->string (car lst)) (cons symbol-prefix parts)))]
-              [(exact-integer? (car lst))
+              [(and (integer? (car lst)) (exact? (car lst)))
                (loop (cdr lst) (cons (number->string (car lst)) (cons number-prefix parts)))]
               [else (x-error "invalid library name" lib)]))))
 
 (define (listname-segment->string s)
   (cond [(symbol? s) (mangle-symbol->string s)]
-        [(exact-integer? s) (number->string s)]
+        [(and (integer? s) (exact? s)) (number->string s)]
         [else (c-error "invalid library name name element" s)]))
 
 (define (listname->path listname basepath ext)
@@ -2137,7 +2137,7 @@
         [(i) '(scheme inexact)] [(f) '(scheme file)]  [(e) '(scheme eval)]
         [(o) '(scheme complex)] [(h) '(scheme char)]  [(l) '(scheme case-lambda)]
         [(a) '(scheme cxr)]     [(b) '(scheme base)]  [(x) '(scheme box)]
-        [else (if (exact-integer? k) (list 'srfi k) (list k))]))
+        [else (if (and (integer? k) (exact? k)) (list 'srfi k) (list k))]))
     (define (get-library! listname) ;=> <library> 
       (location-val 
         (name-lookup *root-name-registry* listname 
@@ -2676,7 +2676,7 @@
 ; shorthand library names for the ,im repl command: a nonnegative exact integer
 ; is an srfi, a symbol is a (skint ...) library, and a list is a name already
 (define (repl-import-name x)
-  (cond [(and (exact-integer? x) (>= x 0)) (list 'srfi x)]
+  (cond [(and (integer? x) (exact? x) (>= x 0)) (list 'srfi x)]
         [(symbol? x) (list 'skint x)]
         [(listname? x) x]
         [else #f]))

@@ -151,9 +151,7 @@
 ;; print-brackets, which pretty-print overrides
 (test "(let\n  ([x 1]\n   [y 2]\n   [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz 3])\n  (display x)\n  (display y))\n"
       (pp 80 "(let ((x 1) (y 2) (zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz 3)) (display x) (display y))"))
-(test "(aaaa bbbb cccc dddd
-      eeee ffff)
-" (pp 20 "(aaaa bbbb cccc dddd eeee ffff)"))
+(test "(aaaa bbbb cccc dddd\n      eeee ffff)\n" (pp 20 "(aaaa bbbb cccc dddd eeee ffff)"))
 (test "(let ([x 1] [y 2])\n  (display x))\n" (pp 20 "(let ((x 1) (y 2)) (display x))"))
 
 (display "\n--- datum labels: cycles are always marked ---\n")
@@ -442,8 +440,7 @@
       (pp 20 "(let ((x 1) (y 2)) (display x))" print-indent #f))
 
 ;; It supplies nothing for the marking mode, so it follows write as print does.
-(test "((a b) (a b))
-" (pp 100 "(#0=(a b) #0#)"))
+(test "((a b) (a b))\n" (pp 100 "(#0=(a b) #0#)"))
 (test "(#0=(a b) #0#)\n" (pp 100 "(#0=(a b) #0#)" print-graph #t))
 
 (display "\n--- parameter validation ---\n")

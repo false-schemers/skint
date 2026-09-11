@@ -25,6 +25,8 @@
 (want #t (ascii-codepoint? 0))
 (want #t (ascii-codepoint? #x7f))
 (want #f (ascii-codepoint? #x80))
+(want #f (ascii-codepoint? #\a))
+(want #f (ascii-codepoint? 'a))
 
 (want #t (ascii-char? (integer->char 0)))
 (want #t (ascii-char? (integer->char #x7f)))

@@ -181,7 +181,8 @@
 ;; an index is what the Core of a disassembly shows.  integrable? is the only one
 ;; of the three accessors that is total over indices, so it is asked first.
 (define (integrable-name x)
-  (and (exact-integer? x)
+  (and (integer? x)
+       (exact? x)
        (>= x 0)
        (integrable? x)
        (let ([n (guard (e (#t #f)) (integrable-global x))])
@@ -840,7 +841,7 @@
                              ;; can carry something else there -- vector's own
                              ;; body carries a list -- so this is checked and not
                              ;; assumed, or the count would be used as a number.
-                             (let* ([cnt (if (and (pair? ops) (exact-integer? (car ops))
+                             (let* ([cnt (if (and (pair? ops) (integer? (car ops)) (exact? (car ops))
                                                   (>= (car ops) 0))
                                              (car ops)
                                              (give-up-on (quote constructor-count)))]
@@ -1773,7 +1774,7 @@
 (define (%da-case-lambda v slots)
   (let ([clauses (let loop ([l slots] [r (quote ())])
                    (cond [(null? l) (reverse r)]
-                         [(and (exact-integer? (car l)) (>= (car l) 0)
+                         [(and (integer? (car l)) (exact? (car l)) (>= (car l) 0)
                                (< (+ (car l) 1) (vector-length v)))
                           (loop (cdr l) (cons (vector-ref v (+ (car l) 1)) r))]
                          [else #f]))])

@@ -69,7 +69,8 @@
 (define (definite-integral lower upper f . rest)
   (let* ((range (fl- upper lower))
          (kmax (if (or (null? rest)
-                       (not (and (exact-integer? (car rest))
+                       (not (and (integer? (car rest))
+                                 (exact? (car rest))
                                  (even? (car rest))
                                  (positive? (car rest)))))
                    1024 ; FIXME: must be even, should be power of 2

@@ -11,6 +11,34 @@
 (define nan (fl- posinf posinf))
 (define negzero (fl* -1.0 0.0))
 
+;; Inexact results are compared approximately, as in test/opt/test-tower.scm:
+;; the last digit of a libm function differs between C libraries, so an exact
+;; comparison -- or one of printed forms -- fails on some platforms and not on
+;; others.  Anything that is not a pair of inexact numbers is still compared
+;; with equal?, and signed zeros are checked by predicate, not by value.
+
+;; variant of good-enough by willc
+(define (approx=? x y)
+  ;; relative error should be with a certain percent, but greater
+  ;; relative error is allowed when the expected value
+  ;; is near zero.
+  (cond ((infinite? x) (= x (* 2.0 y)))
+        ((infinite? y) (= (* 2.0 x) y))
+        ((nan? x)      (nan? y))
+        ((nan? y)      (nan? x))
+        ((> (abs y) 1e-7)
+         (< (/ (abs (- x y)) (abs y)) 1e-10))
+        (else
+         (< (abs (- x y)) 1e-13))))
+
+(define (same? x y)
+  (cond ((and (number? x) (inexact? x) (number? y) (inexact? y))
+         (and (approx=? (real-part x) (real-part y)) 
+              (approx=? (imag-part x) (imag-part y))))
+        (else (equal? x y))))
+
+(current-test-comparator same?)
+
 
 (display "\n--- predicates ---\n")
 
@@ -92,7 +120,7 @@
 (test 2.0 (flgcd 12.0 18.0 8.0))
 
 (test 1024.0 (flexpt 2.0 10.0))
-(test~= 1.4142135623730951 (flsqrt 2.0))
+(test 1.4142135623730951 (flsqrt 2.0))
 (test 4.0 (flsqrt 16.0))
 
 (display "\n--- rounding ---\n")
@@ -125,8 +153,8 @@
 (display "\n--- exponents, logarithms and trigonometry ---\n")
 
 (test 1.0 (flexp 0.0))
-(test~= 2.718281828459045 (flexp 1.0))
-(test~= 4.605170185988092 (fllog 100.0))
+(test 2.718281828459045 (flexp 1.0))
+(test 4.605170185988092 (fllog 100.0))
 (test 0.0 (fllog 1.0))
 (test "a second argument to fllog is the base" 2.0 (fllog 100.0 10.0))
 (test 3.0 (fllog 8.0 2.0))
@@ -136,11 +164,11 @@
 (test 1.0 (flcos 0.0))
 (test 0.0 (fltan 0.0))
 (test 0.0 (flasin 0.0))
-(test~= 1.5707963267948966 (flacos 0.0))
-(test~= 0.7853981633974483 (flatan 1.0))
+(test 1.5707963267948966 (flacos 0.0))
+(test 0.7853981633974483 (flatan 1.0))
 (test "a second argument to flatan selects the quadrant"
   #t (fl=? (flatan 1.0 1.0) (flatan 1.0)))
-(test~= 2.356194490192345 (flatan 1.0 -1.0))
+(test 2.356194490192345 (flatan 1.0 -1.0))
 
 (test 0.0 (flsinh 0.0))
 (test 1.0 (flcosh 0.0))
@@ -234,19 +262,19 @@
 (test 1024.0 (flexp2 10.0))
 (test 1.0 (flexp2 0.0))
 (test "flexp-1 is accurate near zero" 0.0 (flexp-1 0.0))
-(test~= 1.718281828459045 (flexp-1 1.0))
+(test 1.718281828459045 (flexp-1 1.0))
 (test 3.0 (flcbrt 27.0))
 (test -3.0 (flcbrt -27.0))
 (test 5.0 (flhypot 3.0 4.0))
 (test 0.0 (fllog1+ 0.0))
-(test~= 0.6931471805599453 (fllog1+ 1.0))
+(test 0.6931471805599453 (fllog1+ 1.0))
 (test 3.0 (fllog2 8.0))
 (test 0.0 (fllog2 1.0))
 
 (test 0.0 (flasinh 0.0))
 (test 0.0 (flacosh 1.0))
 (test 0.0 (flatanh 0.0))
-(test~= 0.881373587019543 (flasinh 1.0))
+(test 0.881373587019543 (flasinh 1.0))
 
 (display "\n--- c99-math: special functions ---\n")
 
@@ -254,7 +282,7 @@
 (test 1.0 (flgamma 1.0))
 (test 6.0 (flgamma 4.0))
 (test "fllgamma is the log of the absolute value" 0.0 (fllgamma 1.0))
-(test~= 3.1780538303479458 (fllgamma 5.0))
+(test 3.1780538303479458 (fllgamma 5.0))
 (test "fllgamma is defined where flgamma is negative"
   #t (flpositive? (fllgamma -0.5)))
 
@@ -286,9 +314,9 @@
 
 (display "\n--- xsi-math: Bessel functions ---\n")
 
-(test~= 0.7651976865579665 (flfirst-bessel 0 1.0))
-(test~= 0.44005058574493355 (flfirst-bessel 1 1.0))
-(test~= 0.08825696421567694 (flsecond-bessel 0 1.0))
+(test 0.7651976865579665 (flfirst-bessel 0 1.0))
+(test 0.44005058574493355 (flfirst-bessel 1 1.0))
+(test 0.08825696421567694 (flsecond-bessel 0 1.0))
 (test "the order is an exact integer" #t (flonum? (flfirst-bessel 2 1.0)))
 
   )

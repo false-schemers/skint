@@ -2813,9 +2813,9 @@ define_instruction(intp) {
 define_instruction(exip) {
   if (likely(is_fixnum(ac))) {
     ac = bool_obj(1);
-  } else { 
+  } else if (likely(is_flonum(ac))) {
     ac = bool_obj(0);
-  }
+  } else failactype("number");
   gonexti(); 
 }
 
@@ -3131,7 +3131,7 @@ define_instruction(eq) {
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx == dy);
-  } else ac = bool_obj(0);
+  } else failtype(is_fixnum(x) ? y : x, "number");
   gonexti(); 
 }
 
@@ -3148,7 +3148,7 @@ define_instruction(ne) {
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx != dy);
-  } else ac = bool_obj(1);
+  } else failtype(is_fixnum(x) ? y : x, "number");
   gonexti(); 
 }
 
