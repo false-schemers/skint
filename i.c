@@ -55,7 +55,13 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define regcall
 #define noalias
 #endif
+#if defined(_MSC_VER)
+/* clang-cl: a named section keeps the linker's identical code folding (/OPT:ICF)
+ * away from the instruction functions; folded, two instructions share one word */
+#define nochecks    __attribute__((no_stack_protector, aligned(8), section(".text$vm")))
+#else
 #define nochecks    __attribute__((no_stack_protector, aligned(8)))
+#endif
 #define VM_INS_CODE_ALIGNED
 #if defined(_WIN64) && !defined(VM_PRESERVE_NONE) /* clang-cl under Windows? */
 /* not possible under Win64 calling conventions */
