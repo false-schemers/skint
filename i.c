@@ -4334,6 +4334,14 @@ define_instruction(vmcloco) {
   gonexti();
 }
 
+const char *find_instruction_name(long obj);
+
+define_instruction(cloinm) {
+  const char *name = find_instruction_name(ac);
+  ac = name ? string_obj(newsdata((char*)name)) : bool_obj(0);
+  gonexti();
+}
+
 define_instruction(hshim) {
   uint64_t v = (uint64_t)ac, base = 0; obj b = spop(); 
   if (b) { ckk(b); base = get_fixnum(b); } 
@@ -5232,15 +5240,24 @@ static obj *rds_stox(obj *r, obj *sp, obj *hp)
   return hp;
 }
 
-static struct { obj *pg; const char *enc; int etyp; } enctab[] = {
+static struct { obj *pg; const char *name; const char *enc; int etyp; } enctab[] = {
 #define declare_instruction(name, enc, etyp, igname, arity, lcode) \
-	{ &glue(cx_ins_2D, name), enc, etyp },
+	{ &glue(cx_ins_2D, name), #name, enc, etyp },
 #define declare_integrable(name, enc, etyp, igname, arity, lcode)
 #include "i.h"
 #undef declare_instruction
 #undef declare_integrable
- { NULL, NULL, 0 }
+ { NULL, NULL, NULL, 0 }
 };
+
+const char *find_instruction_name(long inst) {
+  int i;
+  for (i = 0; enctab[i].pg != NULL; ++i)
+    if (enctab[i].enc != NULL)
+      if (*enctab[i].pg == inst)
+        return enctab[i].name;
+  return NULL;
+}
 
 struct emtrans { int c; struct embranch *pbr; struct emtrans *ptr; };
 struct embranch { obj g; int etyp; struct emtrans *ptr; };
