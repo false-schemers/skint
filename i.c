@@ -4359,6 +4359,11 @@ define_instruction(hshim) {
   gonexti();
 }
 
+define_instruction(addr) {
+  uint64_t v = (uint64_t)ac;
+  ac = fixnum_obj(v);
+  gonexti();
+}
 
 define_instruction(rdsx) {
   cks(ac); 
