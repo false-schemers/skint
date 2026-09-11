@@ -128,6 +128,9 @@ has no Core expression behind it.
 
 `da-core` turns a Core expression into Scheme, putting back the derived forms the
 expander erased. It takes any of the above, or a Core expression directly.
+Internal definitions come back as `define`s, and one whose value is a procedure
+comes back the short way, `(define (f a . rest) ...)` rather than
+`(define f (lambda (a . rest) ...))`.
 
 `da-procedure` is `da` restricted to a procedure or the global name of one; it is
 what `da` calls for those. `(da-global sym)` is the same thing for a name only,

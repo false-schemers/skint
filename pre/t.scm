@@ -2697,18 +2697,22 @@
     (repl-evaluate-top-form (list 'import name) repl-environment op)))
 
 ; ,tr and ,untr: trace and untrace by name, fetching (skint trace) on first use.
-; An empty name list is not passed on: (untrace) with no names untraces
-; everything, and (trace) with none reports what is traced, neither of which is
-; what an empty command line should do.
+; With no names they are (trace), which answers what is traced, and (untrace),
+; which untraces everything.
 (define (repl-trace op what cname args)
   (repl-require-library '(skint trace) op)
+  (let loop ([l args])
+    (cond [(null? l) (repl-evaluate-top-form (cons what args) repl-environment op)]
+          [(symbol? (car l)) (loop (cdr l))]
+          [else (display "invalid ," op) (display cname op)
+                (display " argument: " op) (write (car l) op) (newline op)])))
+
+; ,ap: apropos on the name given, fetching (skint apropos) on first use
+(define (repl-apropos op args)
+  (repl-require-library '(skint apropos) op)
   (if (null? args)
-      (begin (display "no names to " op) (display what op) (newline op))
-      (let loop ([l args])
-        (cond [(null? l) (repl-evaluate-top-form (cons what args) repl-environment op)]
-              [(symbol? (car l)) (loop (cdr l))]
-              [else (display "invalid ," op) (display cname op)
-                    (display " argument: " op) (write (car l) op) (newline op)]))))
+      (display "no argument to apropos\n" op)
+      (repl-evaluate-top-form (list 'apropos (list 'quote (car args))) repl-environment op)))
 
 ; a symbol with a :// in it is a global store name such as repl://?f or
 ; lib://skint/print?pp; ,da takes one unquoted, so quote it for the user
@@ -2767,6 +2771,8 @@
       [(im * ...) (repl-import args op)]
       [(tr * ...) (repl-trace op (quote trace) "tr" args)]
       [(untr * ...) (repl-trace op (quote untrace) "untr" args)]
+      [(ap) (repl-apropos op args)]
+      [(ap *) (repl-apropos op args)]
       [(pp) (repl-pretty-print op args)]
       [(pp *) (repl-pretty-print op args)]
       [(da) (repl-disasm op args)]
@@ -2792,7 +2798,10 @@
        (display " ,load <fname>       load <fname> into REPL\n" op)
        (display " ,im <lib> ...       import libraries: 1 is (srfi 1), fx is (skint fx)\n" op)
        (display " ,tr <name> ...      trace named procedures, fetching (skint trace)\n" op)
+       (display " ,tr                 show what is traced\n" op)
        (display " ,untr <name> ...    stop tracing them\n" op)
+       (display " ,untr               stop tracing everything\n" op)
+       (display " ,ap <name>          list names containing <name>, fetching (skint apropos)\n" op)
        (display " ,pp <expr>          pretty-print <expr>, fetching (skint print)\n" op)
        (display " ,da <proc>          disassemble <proc>, fetching (skint disasm)\n" op)
        (display " ,q                  quiet: disable informational messages\n" op)

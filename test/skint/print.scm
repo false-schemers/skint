@@ -57,12 +57,13 @@
     (get-output-string p)))
 
 ;; A spread of data with no cycle in it, so that every marking mode can be
-;; applied to all of it.  Quote forms are deliberately absent -- print
-;; abbreviates them and write does not, which is tested on its own below.
+;; applied to all of it.  Quote forms are included: as data they are lists,
+;; and print writes them as lists, the way write does.
 (define acyclic-data
   (list 1 -2 3.5 #\a #\newline "a string" 'sym (string->symbol "odd sym")
         (string->symbol "") '() '(1 2 3) '(1 . 2) #(1 2 #(3)) #u8(1 2 3) #t #f
         (list "" #\space 1.0 -0.0)
+        (list 'quote 'x) (datum "`(,a ,@b)") (datum "(f '(a b) `c)")
         (datum "(#0=(1 2) #0#)")                    ; shared, not cyclic
         (datum "#((#0=(a) #1=(b) #0#) #1#)")))
 
@@ -70,7 +71,8 @@
   (list (datum "#0=(1 2 . #0#)")
         (datum "#0=(a . #0#)")
         (datum "#0=#(#0#)")
-        (datum "(#0=(a) #1=(b . #1#) #0#)")))
+        (datum "(#0=(a) #1=(b . #1#) #0#)")
+        (datum "#0='#0#")))
 
 
 (display "\n--- print follows write ---\n")
@@ -86,11 +88,14 @@
 (for-each (lambda (obj) (test (via write obj) (printed obj)))
           (append acyclic-data cyclic-data))
 
-;; The one difference: print abbreviates a quote form, write spells it out.
-(test "'x" (printed (list 'quote 'x)))
-(test "'(a b)" (printed (datum "'(a b)")))
-(test "`(,a ,@b)" (printed (datum "`(,a ,@b)")))
-(test "(quote x)" (via write (list 'quote 'x)))
+;; The reader's abbreviations belong to code: print spells a quote form out, as
+;; write does, laid out over lines or not; only pretty-print abbreviates.
+(test "(quote x)" (printed (list 'quote 'x)))
+(test "(quote (a b))" (printed (datum "'(a b)")))
+(test "(quasiquote ((unquote a) (unquote-splicing b)))" (printed (datum "`(,a ,@b)")))
+(test "#0=(quote #0#)" (printed (datum "#0='#0#")))
+(test "(quote\n x)\n" (printed (list 'quote 'x) print-indent 0 print-width 5))
+(test "'x\n" (pp 40 "'x"))
 
 
 (display "\n--- print-graph and print-circle: the three marking modes ---\n")

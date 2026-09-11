@@ -295,7 +295,9 @@
   (define (dispatch-on-type x retm retl retv reta)
     (let loop ([al (print-hooks)])
       (cond [(null? al) ; dispatch on builtins
-             (cond [(and (pair? x) (symbol? (car x)) (pair? (cdr x)) (null? (cddr x))
+             ; the reader's abbreviations are for code: as data, (quote x) is
+             ; printed as the list it is, which is what write does too
+             (cond [(and *code* (pair? x) (symbol? (car x)) (pair? (cdr x)) (null? (cddr x))
                          (assq (car x) builtin-read-macros)) =>
                     (lambda (l) (retm (cadr l) cadr (lambda (x) (list (car l) x))))]
                    [(pair? x) 

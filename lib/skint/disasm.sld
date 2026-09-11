@@ -1266,9 +1266,14 @@
                 (map sx (body-forms (caddr d))))
         (map sx (body-forms x)))))
 
+;; A procedure is defined the short way, (define (f . formals) body ...), which
+;; the expander turns back into exactly (define f (lambda formals body ...)).
 (define (sx-definition d)
   (if (eq? (car d) 'one)
-      (list 'define (cadr d) (sx (caddr d)))
+      (let ([e (sx (caddr d))])
+        (if (and (pair? e) (eq? (car e) 'lambda) (pair? (cdr e)) (pair? (cddr e)))
+            (cons 'define (cons (cons (cadr d) (cadr e)) (cddr e)))
+            (list 'define (cadr d) e)))
       (list 'define-values (cadr d) (sx (caddr d)))))
 
 ;; --- recognizing the letrec / letrec* shape ---------------------------------

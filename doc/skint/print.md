@@ -30,9 +30,10 @@ datum.
 
 With no parameters set, `print` produces exactly what `write` from
 `(scheme write)` produces: one line, no newline of its own, and datum labels
-only where they are needed to keep a circular datum finite. The only difference
-is that `print` abbreviates a quote form — `'x` where `write` writes
-`(quote x)`.
+only where they are needed to keep a circular datum finite. That includes quote
+forms, which `print` spells out as the lists they are — `(quote x)`, never `'x`.
+The reader's abbreviations are a way of writing code, so only `pretty-print`
+uses them.
 
 Every parameter below changes some part of that. `print-indent` is the one that
 changes the most: with it set, output is broken across lines and ends with a
@@ -65,9 +66,12 @@ See [pretty-style](#pretty-style) for the registry that decides this, and for ho
 to add an entry for a macro of your own.
 
 `pretty-print` is `print` with three settings supplied: indentation on, code
-layout rather than data layout, and square brackets on binding lists. They are
-supplied as *defaults*, so an argument of your own overrides any of them — see
-[Passing parameters](#passing-parameters).
+layout rather than data layout, and square brackets on binding lists. Code
+layout also brings the reader's abbreviations with it: `(quote x)` is printed as
+`'x`, and likewise `` ` ``, `,` and `,@`.
+
+The three settings are supplied as *defaults*, so an argument of your own
+overrides any of them — see [Passing parameters](#passing-parameters).
 
 ### Passing parameters
 

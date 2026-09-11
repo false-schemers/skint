@@ -138,6 +138,7 @@
     (lambda (x) (define-values (a . rest) (values x x)) (cons a rest))
     (lambda (x) (define-values (a b) (values 1 2)) (define c 3) (list a b c))
     (lambda (x) (define c 3) (define-values (a b) (values 1 2)) (list a b c))
+    (lambda (x) (define (f a b) (+ a b)) (define (g a . r) r) (define (h . all) all) (list (f x x) (g x) (h)))
     (lambda (x y) (let-values ([(a b) (floor/ x y)]) (cons a b)))
     (lambda (x y) (let*-values ([(a b) (floor/ x y)]) (cons a b)))
     (lambda (x y) (let-values ([(a b) (floor/ x y)] [(c d) (floor/ y x)]) (list a b c d)))
@@ -417,6 +418,23 @@
     (and (eq? 'lambda (car form))
          (eq? 'define-values (car (caddr form)))
          (eq? 'define (car (cadddr form))))))
+
+;; A local procedure is defined the short way, whatever its formals look like,
+;; and anything else keeps the long one.
+(test '(lambda (.a)
+         (define (.b .f .g) (+ .f .g))
+         (define (.c .i . .h) .h)
+         (define (.d . .j) .j)
+         (define .e 3)
+         (list (.b .a .e) (.c .a) (.d)))
+      (da-core (da-bytecode
+                 (compile-to-string
+                   (expand '(lambda (p)
+                              (define (f a b) (+ a b))
+                              (define (g a . r) r)
+                              (define (h . all) all)
+                              (define k 3)
+                              (list (f p k) (g p) (h))))))))
 
 ;; and a real library procedure with a body of this shape
 (test-assert (eq? 'lambda (car (da 'lib://skint/print?pp))))

@@ -94,11 +94,22 @@ skint] (g 5)
 Each answers with the names it acted on. A trace shows the call, then the calls
 made inside it one level further in, then each result against its call.
 
-With no names at all, either command fetches the library and does nothing else,
-saying so. That is deliberate: `(untrace)` written as an expression untraces
-everything and `(trace)` reports what is traced, and neither is a good reading of
-an empty command line. Both of those are still available as expressions, along
-with the rest of what the library offers — see
+`,tr`
+<br>`,untr`
+
+With no names, `,tr` answers the names being traced, and `,untr` stops tracing
+all of them, answering with the names it untraced. Continuing from above:
+
+```
+skint] ,tr
+(g)
+skint] ,untr
+(g)
+skint] ,tr
+()
+```
+
+These are `(trace)` and `(untrace)`. The rest of what the library offers is in
 [doc/skint/trace.md](skint/trace.md).
 
 An argument that is not a name is reported and nothing is traced.
@@ -160,9 +171,28 @@ That is a short way to bring the libraries in when what you want next is
 
 ### Looking things up
 
-These are for finding out what the interpreter currently thinks a name means.
-What they print is an internal object written out, so treat the shape of it as
-something to read rather than something to depend on.
+`,ap <name>`
+
+List the names that contain `<name>`, grouped by where they come from. This is
+`apropos` from `(skint apropos)`, which is fetched the first time. The name may
+be given as a symbol or as a string:
+
+```
+skint] ,ap string-for
+interaction environment:
+  string-for-each
+(scheme base):
+  string-for-each
+(skint):
+  string-for-each
+```
+
+[doc/skint/apropos.md](skint/apropos.md) describes what is listed and what is
+left out. With nothing after it, `,ap` fetches the library, says so, and stops.
+
+The commands below are for finding out what the interpreter currently thinks a
+name means. What they print is an internal object written out, so treat the
+shape of it as something to read rather than something to depend on.
 
 `,ref <name>`
 
