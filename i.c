@@ -71,7 +71,15 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define unlikely(x) __builtin_expect(x, 0)
 #define likely(x)   __builtin_expect(x, 1)
 #define outofline   __attribute__((noinline))
+#if __GNUC__ >= 15 && (defined(__x86_64__) || defined(__aarch64__)) && !defined(_WIN32)
+/* gcc 15 has musttail; the SysV and AArch64 conventions pass all five
+ * instruction arguments in registers, so ac can live in one too */
+#define VM_AC_IN_REG
+#define VM_MUSTTAIL_GUARANTEE
+#define musttail    __attribute__((musttail))
+#else
 #define musttail
+#endif
 #define regcall
 #define noalias
 #define nochecks
