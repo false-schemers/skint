@@ -10,25 +10,25 @@
 #include "k.h"
 
 /* kernel globals (imported by i.c) */
-obj cx__2Acurrent_2Derror_2A; /* *current-error* */
-obj cx__2Acurrent_2Dinput_2A; /* *current-input* */
-obj cx__2Acurrent_2Doutput_2A; /* *current-output* */
-obj cx__2Adynamic_2Dstate_2A; /* *dynamic-state* */
-obj cx__2Aglobals_2A; /* *globals* */
-obj cx__2Atransformers_2A; /* *transformers* */
-obj cx_callmv_2Dadapter_2Dclosure; /* callmv-adapter-closure */
-obj cx_continuation_2Dadapter_2Dcode; /* continuation-adapter-code */
+obj cx_current_error;
+obj cx_current_input;
+obj cx_current_output;
+obj cx_dynamic_state;
+obj cx_global_store;
+obj cx_tansformers;
+obj cx_callmv_adapter_closure;
+obj cx_continuation_adapter_code;
 
 /* gc roots */
 static obj *globv[] = {
-  &cx__2Acurrent_2Derror_2A,
-  &cx__2Acurrent_2Dinput_2A,
-  &cx__2Acurrent_2Doutput_2A,
-  &cx__2Adynamic_2Dstate_2A,
-  &cx__2Aglobals_2A,
-  &cx__2Atransformers_2A,
-  &cx_callmv_2Dadapter_2Dclosure,
-  &cx_continuation_2Dadapter_2Dcode,
+  &cx_current_error,
+  &cx_current_input,
+  &cx_current_output,
+  &cx_dynamic_state,
+  &cx_global_store,
+  &cx_tansformers,
+  &cx_callmv_adapter_closure,
+  &cx_continuation_adapter_code,
 };
 
 static cxroot_t root = {
@@ -50,18 +50,18 @@ static obj *init_kernel_globals(obj *r, obj *sp, obj *hp)
   o = mknull(); /* gc-safe */
   while (i++ < c) *--hp = o;
   *--hp = obj_from_size(VECTOR_BTAG);
-  cx__2Aglobals_2A = hendblk(c+1); }
+  cx_global_store = hendblk(c+1); }
   { /* (define *dynamic-state* (cons #f '())) */
   hreserve(hbsz(3), sp-r);
   *--hp = mknull();
   *--hp = obj_from_bool(0);
   *--hp = obj_from_size(PAIR_BTAG);
-  cx__2Adynamic_2Dstate_2A = hendblk(3); }
-  cx__2Acurrent_2Dinput_2A = obj_from_bool(0);
-  cx__2Acurrent_2Doutput_2A = obj_from_bool(0);
-  cx__2Acurrent_2Derror_2A = obj_from_bool(0);
-  cx__2Atransformers_2A = mknull();
-  cx_continuation_2Dadapter_2Dcode = obj_from_bool(0);
+  cx_dynamic_state = hendblk(3); }
+  cx_current_input = obj_from_bool(0);
+  cx_current_output = obj_from_bool(0);
+  cx_current_error = obj_from_bool(0);
+  cx_tansformers = mknull();
+  cx_continuation_adapter_code = obj_from_bool(0);
   return hp;
 }
 
@@ -81,7 +81,7 @@ static obj *run_kernel(obj *r, obj *sp, obj *hp)
   /* (define callmv-adapter-closure (make-closure (decode "K5"))) */
   ra = hpushstr(sp-r, newsdata(callmv_adapter_code));
   hp = decode_closure(r, sp, hp);
-  cx_callmv_2Dadapter_2Dclosure = ra;
+  cx_callmv_adapter_closure = ra;
   /* (install-global-lambdas) */
   hp = vm_install_global_lambdas(r, sp, hp);
   /* (initialize-modules) */

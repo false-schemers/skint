@@ -6,14 +6,14 @@
 #include "k.h"
 
 /* imports */
-extern obj cx__2Aglobals_2A;
-extern obj cx__2Atransformers_2A;
-extern obj cx__2Adynamic_2Dstate_2A;
-extern obj cx_continuation_2Dadapter_2Dcode;
-extern obj cx_callmv_2Dadapter_2Dclosure;
-extern obj cx__2Acurrent_2Dinput_2A;
-extern obj cx__2Acurrent_2Doutput_2A;
-extern obj cx__2Acurrent_2Derror_2A;
+extern obj cx_global_store;
+extern obj cx_tansformers;
+extern obj cx_dynamic_state;
+extern obj cx_continuation_adapter_code;
+extern obj cx_callmv_adapter_closure;
+extern obj cx_current_input;
+extern obj cx_current_output;
+extern obj cx_current_error;
 
 /* forwards */
 static struct intgtab_entry *lookup_integrable(int sym);
@@ -657,8 +657,8 @@ define_instruction(cwmv) {
   obj t = ac, x = spop();
   ckx(t); ckx(x);
   /* we can run in constant space in some situations */
-  if (vmcloref(x, 0) == cx_continuation_2Dadapter_2Dcode 
-   && vmcloref(x, 1) ==  cx__2Adynamic_2Dstate_2A) {
+  if (vmcloref(x, 0) == cx_continuation_adapter_code 
+   && vmcloref(x, 1) ==  cx_dynamic_state) {
     /* arrange call of t with x as continuation */
     /* [0] adapter_code, [1] dynamic_state */
     int n = vmclolen(x) - 2; 
@@ -672,7 +672,7 @@ define_instruction(cwmv) {
   } else { 
     /* arrange return to cwmv code w/x */
     spush(x);
-    spush(cx_callmv_2Dadapter_2Dclosure); 
+    spush(cx_callmv_adapter_closure); 
     spush(fixnum_obj(0));
     /* call the producer */
     rd = t; rx = fixnum_obj(0); ac = fixnum_obj(0); 
@@ -708,7 +708,7 @@ define_instruction(sdmv) {
   } else {
     /* can only pseudo-return to rcmv */
     int n = get_fixnum(ac), m = 3, i;
-    if (sref(n) == fixnum_obj(0) && sref(n+1) == cx_callmv_2Dadapter_2Dclosure) {
+    if (sref(n) == fixnum_obj(0) && sref(n+1) == cx_callmv_adapter_closure) {
       /* tail-call the consumer with the produced values */
       rd = sref(n+2); rx = fixnum_obj(0); /* cns */
       /* NB: can be sped up for popular cases: n == 0, n == 2 */
@@ -738,8 +738,8 @@ define_instruction(lck) {
   hp_reserve(vmclobsz(n+2));
   hp -= n; objcpy(hp, sp-n-m, n);
   /* [0] adapter_code, [1] dynamic_state */
-  *--hp = cx__2Adynamic_2Dstate_2A;
-  *--hp = cx_continuation_2Dadapter_2Dcode;
+  *--hp = cx_dynamic_state;
+  *--hp = cx_continuation_adapter_code;
   ac = hend_vmclo(n+2);
   gonexti();
 }
@@ -750,18 +750,18 @@ define_instruction(lck0) {
   hp_reserve(vmclobsz(n+2));
   hp -= n; objcpy(hp, sp-n, n);
   /* [0] adapter_code, [1] dynamic_state */
-  *--hp = cx__2Adynamic_2Dstate_2A;
-  *--hp = cx_continuation_2Dadapter_2Dcode;
+  *--hp = cx_dynamic_state;
+  *--hp = cx_continuation_adapter_code;
   ac = hend_vmclo(n+2);
   gonexti();
 }
 
 define_instruction(wck) {
   obj x = ac, t = spop(); ckx(t); ckx(x);
-  if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
+  if (vmcloref(x, 0) != cx_continuation_adapter_code) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  if (vmcloref(x, 1) == cx__2Adynamic_2Dstate_2A) {
+  if (vmcloref(x, 1) == cx_dynamic_state) {
     /* restore cont stack and invoke t there */
     int n = vmclolen(x) - 2; 
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
@@ -774,7 +774,7 @@ define_instruction(wck) {
   } else {
     /* have to arrange call of cont adapter */
     spush(x);
-    spush(cx_callmv_2Dadapter_2Dclosure); 
+    spush(cx_callmv_adapter_closure); 
     spush(fixnum_obj(0));
     /* call the thunk as producer */
     rd = t; rx = fixnum_obj(0); 
@@ -785,10 +785,10 @@ define_instruction(wck) {
 
 define_instruction(wckr) {
   obj x = ac, o = spop(); ckx(x);
-  if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
+  if (vmcloref(x, 0) != cx_continuation_adapter_code) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  if (vmcloref(x, 1) == cx__2Adynamic_2Dstate_2A) {
+  if (vmcloref(x, 1) == cx_dynamic_state) {
     /* restore cont stack and return o there */
     int n = vmclolen(x) - 2;
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
@@ -812,7 +812,7 @@ define_instruction(wckr) {
 define_instruction(rck) {
   /* called with continuation as rd: 
    * in: ac:argc, args on stack, rd display is dys, saved stack */
-  if (vmcloref(rd, 1) != cx__2Adynamic_2Dstate_2A) {
+  if (vmcloref(rd, 1) != cx_dynamic_state) {
     /* need to run the rest of the code to unwind/rewind on the
      * old stack; rck will be called again when done */
     gonexti(); 
@@ -823,7 +823,7 @@ define_instruction(rck) {
     /* rd[0] adapter_code, rd[1] dynamic_state */
     int c = get_fixnum(ac), n = vmclolen(rd) - 2, i;
     obj *ks = &vmcloref(rd, 2), *ke = ks + n;
-    if (ke-ks > 3 && *--ke == fixnum_obj(0) && *--ke == cx_callmv_2Dadapter_2Dclosure) {
+    if (ke-ks > 3 && *--ke == fixnum_obj(0) && *--ke == cx_callmv_adapter_closure) {
       obj *sb = r + VM_REGC;
       rd = *--ke; rx = fixnum_obj(0); n = (int)(ke - ks); /* cns */
       /* arrange stack as follows: [ks..ke] [arg ...] */
@@ -848,12 +848,12 @@ define_instruction(rck) {
 }
 
 define_instruction(dys) {
-  ac = cx__2Adynamic_2Dstate_2A;
+  ac = cx_dynamic_state;
   gonexti();
 }
 
 define_instruction(setdys) {
-  cx__2Adynamic_2Dstate_2A = ac;
+  cx_dynamic_state = ac;
   gonexti();
 }
 
@@ -3752,38 +3752,38 @@ define_instruction(ttyp) {
 }
 
 define_instruction(cin) {
-  ac = cx__2Acurrent_2Dinput_2A;
+  ac = cx_current_input;
   assert(is_iport(ac));
   gonexti();
 }
 
 define_instruction(cout) {
-  ac = cx__2Acurrent_2Doutput_2A;
+  ac = cx_current_output;
   assert(is_oport(ac));
   gonexti();
 }
 
 define_instruction(cerr) {
-  ac = cx__2Acurrent_2Derror_2A;
+  ac = cx_current_error;
   assert(is_oport(ac));
   gonexti();
 }
 
 define_instruction(setcin) {
   ckr(ac);
-  cx__2Acurrent_2Dinput_2A = ac;
+  cx_current_input = ac;
   gonexti();
 }
 
 define_instruction(setcout) {
   ckw(ac);
-  cx__2Acurrent_2Doutput_2A = ac;
+  cx_current_output = ac;
   gonexti();
 }
 
 define_instruction(setcerr) {
   ckw(ac);
-  cx__2Acurrent_2Derror_2A = ac;
+  cx_current_error = ac;
   gonexti();
   gonexti();
 }
@@ -4154,12 +4154,12 @@ define_instruction(wriw) {
 }
 
 define_instruction(itrs) {
-  ac = cx__2Atransformers_2A;
+  ac = cx_tansformers;
   gonexti(); 
 }
 
 define_instruction(glos){
-  ac = cx__2Aglobals_2A;
+  ac = cx_global_store;
   gonexti(); 
 }
 
@@ -5295,9 +5295,9 @@ static obj *rds_arg(obj *r, obj *sp, obj *hp)
 static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
 {
   uint64_t base;
-  if (issymbol(ra) && isvector(cx__2Aglobals_2A) && (base = vectorlen(cx__2Aglobals_2A)) > 0) {
+  if (issymbol(ra) && isvector(cx_global_store) && (base = vectorlen(cx_global_store)) > 0) {
     uint64_t v = (uint64_t)ra; int i = (int)(v % base);
-    obj p = isassv(ra, vectorref(cx__2Aglobals_2A, i));
+    obj p = isassv(ra, vectorref(cx_global_store, i));
     if (ispair(p)) ra = cdr(p);
     else { /* prepend (sym . #&sym) to *globals* */
       obj box, *pl;
@@ -5306,7 +5306,7 @@ static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
       box = hend_box();
       *--hp = box; *--hp = ra;
       ra = hend_pair();
-      pl = &vectorref(cx__2Aglobals_2A, i);
+      pl = &vectorref(cx_global_store, i);
       *--hp = *pl; *--hp = ra;
       *pl = hend_pair();
       ra = box;
@@ -5654,7 +5654,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       sym = mksymbol(internsym((char*)name));
       val = data ? mksymbol(internsym((char*)data)) : sym;
       /* look for dst binding (we allow redefinition) */
-      for (bnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+      for (bnd = 0, al = cx_tansformers; al != mknull(); al = cdr(al)) {
         obj ael = car(al);
         if (car(ael) != sym) continue;
         bnd = ael; break;
@@ -5664,8 +5664,8 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
         hreserve(pairbsz()*2, sp-r);
         *--hp = obj_from_bool(0); *--hp = sym;
         bnd = hend_pair();
-        *--hp = cx__2Atransformers_2A; *--hp = bnd;
-        cx__2Atransformers_2A = hend_pair();
+        *--hp = cx_tansformers; *--hp = bnd;
+        cx_tansformers = hend_pair();
       }
       cdr(bnd) = val;
       continue;    
@@ -5678,7 +5678,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       /* look for dst binding (we allow redefinition) */
       oldsym = mksymbol(internsym((char*)data));
       sym = mksymbol(internsym((char*)name));
-      for (oldbnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+      for (oldbnd = 0, al = cx_tansformers; al != mknull(); al = cdr(al)) {
         obj ael = car(al);
         if (car(ael) != oldsym) continue;
         oldbnd = ael; break;
@@ -5691,7 +5691,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       /* we should have it now */
       assert(oldden); if (!oldden) continue;
       /* look for existing binding (we allow redefinition) */
-      for (bnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+      for (bnd = 0, al = cx_tansformers; al != mknull(); al = cdr(al)) {
         obj ael = car(al);
         if (car(ael) != sym) continue; 
         bnd = ael; break;
@@ -5702,27 +5702,27 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
         hreserve(pairbsz()*2, sp-r);
         *--hp = obj_from_bool(0); *--hp = sym;
         bnd = hend_pair();
-        *--hp = cx__2Atransformers_2A; *--hp = bnd;
-        cx__2Atransformers_2A = hend_pair();
+        *--hp = cx_tansformers; *--hp = bnd;
+        cx_tansformers = hend_pair();
       }
       cdr(bnd) = spop(); /* oldden */
       continue;    
     } else if (name != 0 && name[0] == 'K' && name[1] == 0) {
-      /* special entry for cx_continuation_2Dadapter_2Dcode */
+      /* special entry for cx_continuation_adapter_code */
       ent += 1; name = ent[0], data = ent[1];
       assert(name == 0); assert(data != 0);
       ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       assert(!iseof(ra));
-      cx_continuation_2Dadapter_2Dcode = ra;
+      cx_continuation_adapter_code = ra;
       continue;
     }
     /* skipped prefix or no prefix */
     if (name != NULL) {
       /* install sexp-encoded syntax-rules as a transformer */
       obj sym = mksymbol(internsym((char*)name));
-      obj al = cx__2Atransformers_2A, bnd = mknull();
+      obj al = cx_tansformers, bnd = mknull();
       assert(ispair(al)); /* basic transformers already installed */
       /* look for existing binding (we allow redefinition) */
       while (al != mknull()) {
@@ -5735,8 +5735,8 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
         hreserve(pairbsz()*2, sp-r);
         *--hp = obj_from_bool(0); *--hp = sym;
         bnd = hend_pair();
-        *--hp = cx__2Atransformers_2A; *--hp = bnd;
-        cx__2Atransformers_2A = hend_pair();
+        *--hp = cx_tansformers; *--hp = bnd;
+        cx_tansformers = hend_pair();
       }
       /* sexp-decode data into the cdr of the binding */
       spush(bnd); /* protect from gc */
