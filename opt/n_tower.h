@@ -65,9 +65,8 @@ extern int wrbn(const bignum_t *n, int radix, int (*pf)(int, void*), void *pd);
 extern bignum_t *strtobn(const char *str, char **endptr, int radix);
 
 extern cxtype_t *BIGNUM_NTAG;
-#define is_bignum_obj(o) (isnative(o, BIGNUM_NTAG))
-#define bignum_from_obj(o) ((bignum_t*)getnative(o, BIGNUM_NTAG))
-#define obj_from_bignum(l, b) hpushptr(b, BIGNUM_NTAG, l)
+#define is_bignum(o) (is_native(o, BIGNUM_NTAG))
+#define get_bignum(o) ((bignum_t*)get_native(o, BIGNUM_NTAG))
 
 
 /* fatnums -- compound tower numbers (ratnums, compnums, rectnums) */
@@ -151,9 +150,10 @@ extern int fnbtc(fatnum4r_t *fz, const fatnum_t *fx);
 extern int wrfn(const fatnum_t *n, int radix, int mode, int prc, int (*pf)(int, void*), void *pd);
 
 extern cxtype_t *FATNUM_NTAG;
-#define is_fatnum_obj(o) (isnative(o, FATNUM_NTAG))
-#define fatnum_from_obj(o) ((fatnum_t*)getnative(o, FATNUM_NTAG))
-#define obj_from_fatnum(l, f) hpushptr(f, FATNUM_NTAG, l)
-#define fntype(o) (fatnum_from_obj(o)->type)
+#define hbignum_obj(l, b) hpushptr(b, BIGNUM_NTAG, l)
+#define hfatnum_obj(l, f) hpushptr(f, FATNUM_NTAG, l)
+#define is_fatnum(o) (is_native(o, FATNUM_NTAG))
+#define get_fatnum(o) ((fatnum_t*)get_native(o, FATNUM_NTAG))
+#define fntype(o) (get_fatnum(o)->type)
 extern fatnum_t *dupfatnum(fatnum_t *fn); /* shallow copy! */
 extern void fnfini(fatnum_t *fx);

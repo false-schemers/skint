@@ -144,54 +144,16 @@ obj *close0(obj *r, obj *sp, obj *hp);
 #define reload_ac()   (0)
 #endif
 
-/* faster non-debug type testing */
-#ifdef NDEBUG /* quick */
-static int istagged_inline(obj o, int t) { return isobjptr(o) && hblkref(o, 0) == obj_from_size(t); }
-#define istagged(o, t) istagged_inline(o, t)
-#endif
-
-/* box representation extras */
-#define boxbsz()      hbsz(1+1)
-#define hend_box()    (*--hp = obj_from_size(BOX_BTAG), hendblk(1+1))
-
-/* pair representation extras */
-#define pairbsz()     hbsz(2+1)
-#define hend_pair()   (*--hp = obj_from_size(PAIR_BTAG), hendblk(2+1))
-
-/* vector representation extras */
-#define vecbsz(n)     hbsz((n)+1)
-#define hend_vec(n)   (*--hp = obj_from_size(VECTOR_BTAG), hendblk((n)+1))
-
-/* record representation extras  */
-#define recbsz(c)     hbsz((c)+1)
-#define hend_rec(rtd, c) (*--hp = rtd, hendblk((c)+1))
-
-/* vm closure representation; isprocedure and friends are the quick tests in
- * a release build and the same tests plus assertions in a debug one, so the
- * answers no longer depend on NDEBUG -- see n.h */
-#define isvmclo(x)    isprocedure(x)
-#define vmcloref(x,i) (*procedureref(x, i))
-#define vmclolen(x)   procedurelen(x)
-#define vmclobsz(c)   hbsz(c)
-#define hend_vmclo(c) hendblk(c)
-
-/* vm tuple representation (c != 1) */
-#define istuple(x)    istagged(x, 0)
-#define tupleref(x,i) *taggedref(x, 0, i)
-#define tuplelen(x)   taggedlen(x, 0)
-#define tuplebsz(c)   hbsz((c)+1)
-#define hend_tuple(c) (*--hp = obj_from_size(0), hendblk((c)+1))
-
 /* in/re-loading gc-save shadow registers */
-#define unload_ip()   (rx = obj_from_fixnum(ip - &vectorref(vmcloref(rd, 0), 0)))
-#define reload_ip()   (ip = &vectorref(vmcloref(rd, 0), fixnum_from_obj(rx)))
-#define unload_sp()   (rs = obj_from_fixnum(sp - r))
-#define reload_sp()   (sp = r + fixnum_from_obj(rs))
+#define unload_ip()   (rx = fixnum_obj(ip - &vector_ref(procedure_ref(rd, 0), 0)))
+#define reload_ip()   (ip = &vector_ref(procedure_ref(rd, 0), get_fixnum(rx)))
+#define unload_sp()   (rs = fixnum_obj(sp - r))
+#define reload_sp()   (sp = r + get_fixnum(rs))
 
 /* access to stack, display, global cells */
 #define sref(i)       (sp[-(i)-1])
-#define dref(i)       (vmcloref(rd, (i)+1))
-#define gref(p)       (boxref(p))
+#define dref(i)       (procedure_ref(rd, (i)+1))
+#define gref(p)       (box_ref(p))
 #ifdef _DEBUG
 static void _sck(obj *s) { 
   assert(s != NULL);
@@ -229,101 +191,32 @@ static void _sck(obj *s) {
 #define hp_pushptr(p, pt) \
   (hp_reserve_inline(2), *--hp = (obj)(p), *--hp = (obj)(pt), (obj)(hp+1))   
 
-/* object representation extras */
-#define bool_obj(b) obj_from_bool(b)
-#define is_bool(o) is_bool_obj(o)
-#define get_bool(o) bool_from_obj(o)
-#define char_obj(b) obj_from_char(b)
-#define is_char(o) is_char_obj(o)
-#define get_char(o) char_from_obj(o)
-#define void_obj() obj_from_void(0)
-#define is_void(o) (o == obj_from_void(0))
-#define is_shebang(o) isshebang(o)
-#define get_shebang(o) getshebang(o)
-#define shebang_obj(i) mkshebang(i)
-#define unit_obj() obj_from_unit()
-#define is_unit(o) (o == obj_from_unit())
-#define null_obj() mknull()
-#define is_null(o) isnull(o)
-#define eof_obj() mkeof()
-#define is_eof(o) ((o) == mkeof())
-#define fixnum_obj(x) obj_from_fixnum(x)
-#define is_fixnum(o) is_fixnum_obj(o)
-#define are_fixnums(o1, o2) (is_fixnum(o1) && is_fixnum(o2))
-#define get_fixnum(o) fixnum_from_obj(o)
-#define is_byte(o) is_byte_obj(o)
-#define byte_obj(x) obj_from_fixnum((unsigned char)(x))
-#define get_byte(o) ((unsigned char)fixnum_from_obj(o))
 #ifdef FLONUMS_BOXED
 /* gc note: x should not refer to gc-unsafe objects! */
-#define flonum_obj(x) hp_pushptr(dupflonum(x), FLONUM_NTAG)
-#define is_flonum(o) is_flonum_obj(o)
-#define get_flonum(o) flonum_from_obj(o)
+#define hp_flonum_obj(x) hp_pushptr(dupflonum(x), FLONUM_NTAG)
 #else
-#define flonum_obj(x) obj_from_flonum(0, x)
-#define is_flonum(o) is_flonum_obj(o)
-#define get_flonum(o) flonum_from_obj(o)
+#define hp_flonum_obj(x) hflonum_obj(0, x)
 #endif
 /* NB: x referenced multiple times! */
 #ifdef OPT_TOWER
-#define bignum_obj(b) hp_pushptr(b, BIGNUM_NTAG)
-#define is_bignum(o) is_bignum_obj(o)
-#define get_bignum(o) bignum_from_obj(o)
-#define fatnum_obj(f) hp_pushptr(f, FATNUM_NTAG)
-#define is_fatnum(o) is_fatnum_obj(o)
-#define get_fatnum(o) fatnum_from_obj(o)
-#define is_number(o) (is_fixnum(o) || is_flonum(o) || is_bignum(o) || is_fatnum(o))
+#define hp_bignum_obj(b) hp_pushptr(b, BIGNUM_NTAG)
+#define hp_fatnum_obj(f) hp_pushptr(f, FATNUM_NTAG)
 #else
-#define is_number(o) (is_fixnum(o) || is_flonum(o)) 
 #endif
-#define is_symbol(o) issymbol(o)
-#define get_symbol(o) getsymbol(o)
-#define symbol_obj(i) mksymbol(i)
-#define is_pair(o) ispair(o)
-#define pair_car(o) car(o)
-#define pair_cdr(o) cdr(o)
-#define is_list(o) islist(o)
-#define is_circular(o) iscircular(o)
-#define is_noncircular(o) (!iscircular(o))
-#define is_vector(o) isvector(o)
-#define vector_len(o) vectorlen(o)
-#define vector_ref(o, i) vectorref(o, i)
-#define string_obj(s) hp_pushptr((s), STRING_NTAG)
-#define is_string(o) isstring(o)
-#define string_len(o) stringlen(o) 
-#define string_get(o, i) (stringget(o, i))
-#define string_put(o, i, v) (stringput(o, i, v))
-#define bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
-#define is_bytevector(o) isbytevector(o)
-#define bytevector_len(o) bytevectorlen(o)
-#define bytevector_type(o) bytevectortype(o)
-#define bytevector_ref(o, i) (*bytevectorref(o, i))
-#define iport_file_obj(fp, fns) hp_pushptr(tialloc(fp, fns), IPORT_FILE_NTAG)
-#define iport_bytefile_obj(fp) hp_pushptr((fp), IPORT_BYTEFILE_NTAG)
-#define oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
-#define oport_bytefile_obj(fp) hp_pushptr((fp), OPORT_BYTEFILE_NTAG)
-#define iport_string_obj(fp) hp_pushptr((fp), IPORT_STRING_NTAG)
-#define oport_string_obj(fp) hp_pushptr((fp), OPORT_STRING_NTAG)
-#define iport_bytevector_obj(fp) hp_pushptr((fp), IPORT_BYTEVECTOR_NTAG)
-#define oport_bytevector_obj(fp) hp_pushptr((fp), OPORT_BYTEVECTOR_NTAG)
+#define hp_string_obj(s) hp_pushptr((s), STRING_NTAG)
+#define hp_bytevector_obj(s) hp_pushptr((s), BYTEVECTOR_NTAG)
+#define hp_iport_file_obj(fp, fns) hp_pushptr(tialloc(fp, fns), IPORT_FILE_NTAG)
+#define hp_iport_bytefile_obj(fp) hp_pushptr((fp), IPORT_BYTEFILE_NTAG)
+#define hp_oport_file_obj(fp) hp_pushptr((fp), OPORT_FILE_NTAG)
+#define hp_oport_bytefile_obj(fp) hp_pushptr((fp), OPORT_BYTEFILE_NTAG)
+#define hp_iport_string_obj(fp) hp_pushptr((fp), IPORT_STRING_NTAG)
+#define hp_oport_string_obj(fp) hp_pushptr((fp), OPORT_STRING_NTAG)
+#define hp_iport_bytevector_obj(fp) hp_pushptr((fp), IPORT_BYTEVECTOR_NTAG)
+#define hp_oport_bytevector_obj(fp) hp_pushptr((fp), OPORT_BYTEVECTOR_NTAG)
 #ifdef OPT_ENHTTY
-#define iport_tty_obj() hp_pushptr(ttalloc(1), IPORT_TTY_NTAG)
-#define oport_tty_obj() hp_pushptr(ttalloc(0), OPORT_TTY_NTAG)
+#define hp_iport_tty_obj() hp_pushptr(ttalloc(1), IPORT_TTY_NTAG)
+#define hp_oport_tty_obj() hp_pushptr(ttalloc(0), OPORT_TTY_NTAG)
 #endif
-#define is_iport(o) isiport(o)
-#define is_oport(o) isoport(o)
-#define is_box(o) isbox(o)
-#define box_ref(o) boxref(o)
-#define is_proc(o) isvmclo(o)
-#define proc_len(o) vmclolen(o)
-#define proc_ref(o, i) vmcloref(o, i)
-#define is_tuple(o) (isrecord(o) && recordrtd(o) == 0)
-#define tuple_len(o) tuplelen(o)
-#define tuple_ref(o, i) tupleref(o, i)
-#define is_record(o) (isrecord(o) && recordrtd(o) != 0)
-#define record_rtd(o) recordrtd(o)
-#define record_len(o) recordlen(o)
-#define record_ref(o, i) recordref(o, i)
 
 
 /* cxi instructions protocol; retval is new hp: */
@@ -377,9 +270,9 @@ obj *vm_execute_thunk_closure(obj *r, obj *sp, obj *hp)
   assert(r == cxg_regs); /* the vm's stack is the register file's tail */
   assert(cxg_rend - cxg_regs >= VM_REGC + VM_STACK_LEN);
   rd = ra; /* thunk closure to execute */
-  ra = obj_from_fixnum(0); /* argc, shadow ac */
-  rx = obj_from_fixnum(0); /* shadow ip */
-  rs = obj_from_fixnum(VM_REGC); /* sp */
+  ra = fixnum_obj(0); /* argc, shadow ac */
+  rx = fixnum_obj(0); /* shadow ip */
+  rs = fixnum_obj(VM_REGC); /* sp */
   rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
   do { /* unwindi trampoline */
     reload_ac(); /* ra => ac */
@@ -401,7 +294,7 @@ obj *vm_make_closure(obj *r, obj *sp, obj *hp)
 obj *vm_decode(obj *r, obj *sp, obj *hp)
 {
   hp = rds_stoc(r, sp, hp);
-  assert(!iseof(ra));
+  assert(!is_eof(ra));
   return hp;
 }
 
@@ -409,7 +302,7 @@ obj *vm_decode(obj *r, obj *sp, obj *hp)
 obj *vm_decode_sexp(obj *r, obj *sp, obj *hp)
 {
   hp = rds_stox(r, sp, hp);
-  assert(!iseof(ra));
+  assert(!is_eof(ra));
   return hp;
 }
 
@@ -437,7 +330,7 @@ define_instrhelper(cxi_fail) {
 define_instrhelper(cxi_failactype) { 
   char *msg = (char*)spop(); obj p;
   fprintf(stderr, "run-time failure: argument is not a %s:\n", msg); 
-  p = oport_file_obj(stderr); spush(p);
+  p = hp_oport_file_obj(stderr); spush(p);
   oportputcircular(ac, p, 0);
   fputc('\n', stderr);
   spop();
@@ -482,7 +375,7 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"input port"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckw(x) do { obj _x = (x); if (unlikely(!is_oport(_x))) \
   { ac = _x; spush((obj)"output port"); musttail return cxi_failactype(IARGS); } } while (0)
-#define ckx(x) do { obj _x = (x); if (unlikely(!is_proc(_x))) \
+#define ckx(x) do { obj _x = (x); if (unlikely(!is_procedure(_x))) \
   { ac = _x; spush((obj)"procedure"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckz(x) do { obj _x = (x); if (unlikely(!is_box(_x))) \
   { ac = _x; spush((obj)"box, cell, or promise"); musttail return cxi_failactype(IARGS); } } while (0)
@@ -501,8 +394,8 @@ define_instruction(halt) {
 
 define_instruction(panic) {
   obj l, p; cks(ac); ckl(sref(0));
-  p = oport_file_obj(stderr);  
-  fprintf(stderr, "error: %s", stringchars(ac));
+  p = hp_oport_file_obj(stderr);  
+  fprintf(stderr, "error: %s", string_chars(ac));
   if (is_pair(sref(0))) fputs(":\n", stderr); 
   else fputs("\n", stderr);
   for (l = sref(0); is_pair(l); l = pair_cdr(l)) {
@@ -570,17 +463,17 @@ define_instruction(iset) {
 
 define_instruction(dclose) {
   int i, n = get_fixnum(*ip++), c = n+1; 
-  hp_reserve(vmclobsz(c));
+  hp_reserve(procedure_bsz(c));
   for (i = n-1; i >= 0; --i) *--hp = sref(i); /* display */
   *--hp = *ip++; /* code */
-  ac = hend_vmclo(c); /* closure */
+  ac = hend_procedure(c); /* closure */
   sdrop(n);   
   gonexti();
 }
 
 define_instruction(sbox) {
   int i = get_fixnum(*ip++); 
-  hp_reserve(boxbsz());
+  hp_reserve(box_bsz());
   *--hp = sref(i);  
   sref(i) = hend_box();
   gonexti();
@@ -650,14 +543,14 @@ define_instruction(cwmv) {
   obj t = ac, x = spop();
   ckx(t); ckx(x);
   /* we can run in constant space in some situations */
-  if (vmcloref(x, 0) == cx_continuation_adapter_code 
-   && vmcloref(x, 1) ==  cx_dynamic_state) {
+  if (procedure_ref(x, 0) == cx_continuation_adapter_code 
+   && procedure_ref(x, 1) ==  cx_dynamic_state) {
     /* arrange call of t with x as continuation */
     /* [0] adapter_code, [1] dynamic_state */
-    int n = vmclolen(x) - 2; 
+    int n = procedure_len(x) - 2; 
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
     sp = r + VM_REGC; /* stack is empty */
-    objcpy(sp, &vmcloref(x, 2), n);
+    objcpy(sp, &procedure_ref(x, 2), n);
     sp += n; /* contains n elements now */
     rd = t; rx = fixnum_obj(0); 
     ac = fixnum_obj(0);
@@ -679,7 +572,7 @@ define_instruction(rcmv) {
   /* tail-call the consumer with the returned value(s) */
   if (is_unit(val)) { /* (values) in improper context */
     ac = fixnum_obj(0);
-  } else if (is_tuple(val)) { /* (values a1 a2 a ...) in improper context */
+  } else if (is_tuple(val)) { /* (values a1 a2 ...) in improper context */
     int n = tuple_len(val), i;
     for (i = n-1; i >= 0; --i) spush(tuple_ref(val, i));
     ac = fixnum_obj(n);
@@ -713,7 +606,7 @@ define_instruction(sdmv) {
       rd = spop();
       retfromi();
     } else { /* return args as tuple (n > 1) */
-      hp_reserve(tuplebsz(n));
+      hp_reserve(tuple_bsz(n));
       for (i = n-1; i >= 0; --i) *--hp = sref(i);
       ac = hend_tuple(n);
       sdrop(n);
@@ -728,38 +621,38 @@ define_instruction(lck) {
   int m = get_fixnum(*ip++);
   int n; cki(sref(m)); ckx(sref(m+1));
   n = (int)(sp-m-(r+VM_REGC));
-  hp_reserve(vmclobsz(n+2));
+  hp_reserve(procedure_bsz(n+2));
   hp -= n; objcpy(hp, sp-n-m, n);
   /* [0] adapter_code, [1] dynamic_state */
   *--hp = cx_dynamic_state;
   *--hp = cx_continuation_adapter_code;
-  ac = hend_vmclo(n+2);
+  ac = hend_procedure(n+2);
   gonexti();
 }
 
 define_instruction(lck0) {
   int n; cki(sref(0)); ckx(sref(1));
   n = (int)(sp-(r+VM_REGC));
-  hp_reserve(vmclobsz(n+2));
+  hp_reserve(procedure_bsz(n+2));
   hp -= n; objcpy(hp, sp-n, n);
   /* [0] adapter_code, [1] dynamic_state */
   *--hp = cx_dynamic_state;
   *--hp = cx_continuation_adapter_code;
-  ac = hend_vmclo(n+2);
+  ac = hend_procedure(n+2);
   gonexti();
 }
 
 define_instruction(wck) {
   obj x = ac, t = spop(); ckx(t); ckx(x);
-  if (vmcloref(x, 0) != cx_continuation_adapter_code) 
+  if (procedure_ref(x, 0) != cx_continuation_adapter_code) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  if (vmcloref(x, 1) == cx_dynamic_state) {
+  if (procedure_ref(x, 1) == cx_dynamic_state) {
     /* restore cont stack and invoke t there */
-    int n = vmclolen(x) - 2; 
+    int n = procedure_len(x) - 2; 
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
     sp = r + VM_REGC; /* stack is empty */
-    objcpy(sp, &vmcloref(x, 2), n);
+    objcpy(sp, &procedure_ref(x, 2), n);
     sp += n; /* contains n elements now */
     rd = t; rx = fixnum_obj(0); 
     ac = fixnum_obj(0);
@@ -778,15 +671,15 @@ define_instruction(wck) {
 
 define_instruction(wckr) {
   obj x = ac, o = spop(); ckx(x);
-  if (vmcloref(x, 0) != cx_continuation_adapter_code) 
+  if (procedure_ref(x, 0) != cx_continuation_adapter_code) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  if (vmcloref(x, 1) == cx_dynamic_state) {
+  if (procedure_ref(x, 1) == cx_dynamic_state) {
     /* restore cont stack and return o there */
-    int n = vmclolen(x) - 2;
+    int n = procedure_len(x) - 2;
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
     sp = r + VM_REGC; /* stack is empty */
-    objcpy(sp, &vmcloref(x, 2), n);
+    objcpy(sp, &procedure_ref(x, 2), n);
     sp += n;
     ac = o;
     rx = spop();
@@ -805,7 +698,7 @@ define_instruction(wckr) {
 define_instruction(rck) {
   /* called with continuation as rd: 
    * in: ac:argc, args on stack, rd display is dys, saved stack */
-  if (vmcloref(rd, 1) != cx_dynamic_state) {
+  if (procedure_ref(rd, 1) != cx_dynamic_state) {
     /* need to run the rest of the code to unwind/rewind on the
      * old stack; rck will be called again when done */
     gonexti(); 
@@ -814,8 +707,8 @@ define_instruction(rck) {
     goi(wckr);
   } else { /* multiple results case */
     /* rd[0] adapter_code, rd[1] dynamic_state */
-    int c = get_fixnum(ac), n = vmclolen(rd) - 2, i;
-    obj *ks = &vmcloref(rd, 2), *ke = ks + n;
+    int c = get_fixnum(ac), n = procedure_len(rd) - 2, i;
+    obj *ks = &procedure_ref(rd, 2), *ke = ks + n;
     if (ke-ks > 3 && *--ke == fixnum_obj(0) && *--ke == cx_callmv_adapter_closure) {
       obj *sb = r + VM_REGC;
       rd = *--ke; rx = fixnum_obj(0); n = (int)(ke - ks); /* cns */
@@ -829,7 +722,7 @@ define_instruction(rck) {
       ac = rd;
       goi(wckr);
     } else { /* return args as tuple (n > 1) */
-      hp_reserve(tuplebsz(c));
+      hp_reserve(tuple_bsz(c));
       for (i = c-1; i >= 0; --i) *--hp = sref(i);
       ac = hend_tuple(c);
       sdrop(c);
@@ -853,7 +746,7 @@ define_instruction(setdys) {
 define_instruction(save) {
   int dx = get_fixnum(*ip++); 
   spush(rd);
-  spush(fixnum_obj(ip + dx - &vector_ref(vmcloref(rd, 0), 0)));  
+  spush(fixnum_obj(ip + dx - &vector_ref(procedure_ref(rd, 0), 0)));  
   gonexti();
 }
 
@@ -942,7 +835,7 @@ define_instruction(shrarg) {
     spush(null_obj());
   } else {
     obj l = null_obj();
-    hp_reserve(pairbsz()*m);
+    hp_reserve(pair_bsz()*m);
     while (m > 0) { 
       *--hp = l; *--hp = sref(n + m - 1);
       l = hend_pair(); 
@@ -1025,7 +918,7 @@ define_instruction(setbox) {
 }
 
 define_instruction(box) {
-  hp_reserve(boxbsz());
+  hp_reserve(box_bsz());
   *--hp = ac;
   ac = hend_box();
   gonexti();
@@ -1053,7 +946,7 @@ define_instruction(pairp) {
 }
 
 define_instruction(cons) {
-  hp_reserve(pairbsz());
+  hp_reserve(pair_bsz());
   *--hp = spop(); /* cdr */
   *--hp = ac;     /* car */
   ac = hend_pair();
@@ -1067,7 +960,7 @@ define_instruction(listp) {
 
 define_instruction(list) {
   int i, n = get_fixnum(*ip++);
-  hp_reserve(pairbsz()*n);
+  hp_reserve(pair_bsz()*n);
   for (ac = null_obj(), i = n-1; i >= 0; --i) {
     *--hp = ac;      /* cdr */
     *--hp = sref(i); /* car */
@@ -1080,7 +973,7 @@ define_instruction(list) {
 define_instruction(lmk) {
   int i, n; obj v; ckk(ac);
   n = get_fixnum(ac); 
-  hp_reserve(pairbsz()*n); v = sref(0);
+  hp_reserve(pair_bsz()*n); v = sref(0);
   ac = null_obj();
   for (i = 0; i < n; ++i) {
     *--hp = ac; /* cdr */
@@ -1145,14 +1038,14 @@ define_instruction(assq) {
     else { /* l is a heap object */
       obj* lh = objptr_from_obj(l), p;
       if (lh[-1] != obj_from_size(2+1) || lh[0] != obj_from_size(PAIR_BTAG)) break;
-      p = lh[1]; /* car(l) */
+      p = lh[1]; /* pair_car(l) */
       if (notobjptr(p)) goto next;
       else { /* p is a heap object */
         obj* ph = objptr_from_obj(p);
         if (ph[-1] != obj_from_size(2+1) || ph[0] != obj_from_size(PAIR_BTAG)) goto next;
         if (ph[1] == ac) { ac = p; gonexti(); }
       }
-      next: l = lh[2]; /* cdr(l) */
+      next: l = lh[2]; /* pair_cdr(l) */
     }
   }
 #else   
@@ -1194,7 +1087,7 @@ define_instruction(lrev) {
   obj l = ac, o = null_obj(); int n = 0;
   while (is_pair(ac)) { ac = pair_cdr(ac); ++n; }
   cku(ac); ac = l;
-  hp_reserve(pairbsz()*n);
+  hp_reserve(pair_bsz()*n);
   for (; ac != null_obj(); ac = pair_cdr(ac)) { 
     *--hp = o; *--hp = pair_car(ac);
     o = hend_pair(); 
@@ -1231,7 +1124,7 @@ define_instruction(str) {
   if (!o) o = ac; n = get_fixnum(o);
   d = stringr(n, sp-n);
   if (!d) { for (i = 0; i < n; ++i) ckc(sref(i)); fail("non-char argument"); }
-  sdrop(n); ac = string_obj(d);
+  sdrop(n); ac = hp_string_obj(d);
   gonexti();
 }
 
@@ -1239,7 +1132,7 @@ define_instruction(smk) {
   int n, c; obj x = spop(); 
   ckk(ac); ckc(x);
   n = get_fixnum(ac), c = get_char(x);
-  ac = string_obj(makesdata(n, c)); 
+  ac = hp_string_obj(makesdata(n, c)); 
   gonexti();
 }
 
@@ -1273,17 +1166,17 @@ define_instruction(ssub) {
   is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start string index");
   if (ie > string_len(ac)) failtype(y, "valid end string index");
-  d = subsdata(stringdata(ac), is, ie);
-  ac = string_obj(d);
+  d = subsdata(string_data(ac), is, ie);
+  ac = hp_string_obj(d);
   gonexti();
 }
 
 define_instruction(spos) {
   const int *d; const char *s, *p; int spn;
   obj x = ac, y = spop(); cks(y); 
-  d = stringdata(y); s = sdatachars(d); spn = sdatacspan(d); 
+  d = string_data(y); s = sdatachars(d); spn = sdatacspan(d); 
   if (is_string(x)) {
-    const int *xd = stringdata(x);
+    const int *xd = string_data(x);
     p = msearch(s, spn, sdatachars(xd), sdatacspan(xd));
   } else {
     int c; ckc(x); c = get_char(x);
@@ -1300,31 +1193,31 @@ define_instruction(ssto8) {
   is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start string index");
   if (ie > string_len(ac)) failtype(y, "valid end string index");
-  d = (int *)stringdata(ac); ss = uadvance(sdatachars(d), is), se = uadvance(ss, ie-is);
+  d = (int *)string_data(ac); ss = uadvance(sdatachars(d), is), se = uadvance(ss, ie-is);
   d1 = newbytevector((unsigned char *)ss, (int)(se-ss)); /* no validation needed */
-  ac = bytevector_obj(d1);
+  ac = hp_bytevector_obj(d1);
   gonexti();
 }
 
 
 define_instruction(supc) {
   int *d; cks(ac);
-  d = mapsdata(stringdata(ac), utoupper);
-  ac = string_obj(d);
+  d = mapsdata(string_data(ac), utoupper);
+  ac = hp_string_obj(d);
   gonexti();
 }
 
 define_instruction(sdnc) {
   int *d; cks(ac);
-  d = mapsdata(stringdata(ac), utolower);  
-  ac = string_obj(d);
+  d = mapsdata(string_data(ac), utolower);  
+  ac = hp_string_obj(d);
   gonexti();
 }
 
 define_instruction(sflc) {
   int *d; cks(ac);
-  d = mapsdata(stringdata(ac), utofold);  
-  ac = string_obj(d);
+  d = mapsdata(string_data(ac), utofold);  
+  ac = hp_string_obj(d);
   gonexti();
 }
 
@@ -1334,7 +1227,7 @@ define_instruction(sapp) {
   if (!o) o = ac; n = get_fixnum(o);
   d = stringrcat(n, sp-n);
   if (!d) { for (i = 0; i < n; ++i) cks(sref(i)); fail("non-string argument"); }
-  sdrop(n); ac = string_obj(d);
+  sdrop(n); ac = hp_string_obj(d);
   gonexti();
 }
 
@@ -1342,8 +1235,8 @@ define_instruction(sapp2) {
   /* specialized version of sapp; both args on stack */
   obj x = spop(), y = spop(); int *d; 
   cks(x); cks(y);
-  d = catsdata(stringdata(x), stringdata(y));
-  ac = string_obj(d);
+  d = catsdata(string_data(x), string_data(y));
+  ac = hp_string_obj(d);
   gonexti();
 }
 
@@ -1358,10 +1251,10 @@ define_instruction(bvec) {
   int i, n; obj o = *ip++; unsigned char *s;
   /* special arrangement for handcoded proc */
   if (!o) o = ac; n = get_fixnum(o);
-  o = bytevector_obj(allocbytevector(n));
-  s = (unsigned char *)bytevectorbytes(o);
+  o = hp_bytevector_obj(allocbytevector(n));
+  s = (unsigned char *)bytevector_bytes(o);
   for (i = 0; i < n; ++i) {
-    obj x = sref(i); ck8(x); s[i] = byte_from_obj(x);
+    obj x = sref(i); ck8(x); s[i] = get_byte(x);
   }
   sdrop(n); ac = o;
   gonexti();
@@ -1370,8 +1263,8 @@ define_instruction(bvec) {
 define_instruction(bmk) {
   int n, b; obj x = spop(); 
   ckk(ac); ck8(x);
-  n = get_fixnum(ac), b = byte_from_obj(x);
-  ac = bytevector_obj(makebytevector(n, b)); 
+  n = get_fixnum(ac), b = get_byte(x);
+  ac = hp_bytevector_obj(makebytevector(n, b)); 
   gonexti();
 }
 
@@ -1393,7 +1286,7 @@ define_instruction(bput) {
   obj x = spop(), y = spop(); int i; ckb(ac); /* any nv treated as bv */
   ckk(x); ck8(y); i = get_fixnum(x); 
   if (i >= bytevector_len(ac)) failtype(x, "valid bytevector index");
-  bytevector_ref(ac, i) = byte_from_obj(y);
+  bytevector_ref(ac, i) = get_byte(y);
   gonexti();
 }
 
@@ -1403,8 +1296,8 @@ define_instruction(bsub) {
   is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start bytevector index");
   if (ie > bytevector_len(ac)) failtype(y, "valid end bytevector index");
-  d = subbytevector(bytevectordata(ac), is, ie);
-  ac = bytevector_obj(d);
+  d = subbytevector(bytevector_data(ac), is, ie);
+  ac = hp_bytevector_obj(d);
   gonexti();
 }
 
@@ -1415,9 +1308,9 @@ define_instruction(s8tos) {
   is = get_fixnum(x), ie = get_fixnum(y);
   if (is > ie) failtype(x, "valid start bytevector index");
   if (ie > bytevector_len(ac)) failtype(y, "valid end bytevector index");
-  d = bytevectordata(ac); ss = bvdatabytes(d) + is, se = ss + (ie-is);
+  d = bytevector_data(ac); ss = bvdatabytes(d) + is, se = ss + (ie-is);
   d1 = newsdatan((char *)ss, (int)(se-ss)); /* internal validation */
-  ac = string_obj(d1);
+  ac = hp_string_obj(d1);
   gonexti();
 }
 
@@ -1432,16 +1325,16 @@ define_instruction(bapp) {
   d = allocbytevector(n);
   for (i = 0, a = 0; a < c; ++a) {
     obj b = sref(a); n = bytevector_len(b);
-    memcpy(bvdatabytes(d)+i, bytevectorbytes(b), n);
+    memcpy(bvdatabytes(d)+i, bytevector_bytes(b), n);
     i += n;
   }
-  sdrop(c); ac = bytevector_obj(d);
+  sdrop(c); ac = hp_bytevector_obj(d);
   gonexti();
 }
 
 define_instruction(beq) {
   obj x = ac, y = spop(); ckb(x); ckb(y);
-  ac = bool_obj(bytevectoreq(bytevectordata(x), bytevectordata(y)));
+  ac = bool_obj(bytevectoreq(bytevector_data(x), bytevector_data(y)));
   gonexti(); 
 }
 
@@ -1477,7 +1370,7 @@ define_instruction(nmk) {
     default: failtype(ac, "numerical vector type");
   }
   v = makebytevector(n, 0); bvdatatype(v) = t;
-  ac = bytevector_obj(v); 
+  ac = hp_bytevector_obj(v); 
   gonexti();
 }
 
@@ -1530,25 +1423,25 @@ define_instruction(nget) {
       if (i*4 >= l) failtype(x, "valid u32vector index");
       v = *(uint32_t*)&bytevector_ref(ac, i*4);
       if (v <= FIXNUM_MAX) ac = fixnum_obj((long)v);
-      else ac = bignum_obj(ulltobn(v));
+      else ac = hp_bignum_obj(ulltobn(v));
     } break;
     case 5: { int32_t v; /* s32 */
       if (i*4 >= l) failtype(x, "valid s32vector index");
       v = *(int32_t*)&bytevector_ref(ac, i*4);
       if (FIXNUM_MIN <= v && v <= FIXNUM_MAX) ac = fixnum_obj((long)v);
-      else ac = bignum_obj(lltobn(v));
+      else ac = hp_bignum_obj(lltobn(v));
     } break;
     case 6: { uint64_t v; /* u64 */
       if (i*8 >= l) failtype(x, "valid u64vector index");
       v = *(uint64_t*)&bytevector_ref(ac, i*8);
       if (v <= FIXNUM_MAX) ac = fixnum_obj((long)v);
-      else ac = bignum_obj(ulltobn(v));
+      else ac = hp_bignum_obj(ulltobn(v));
     } break;
     case 7: { int64_t v; /* s64 */
       if (i*8 >= l) failtype(x, "valid s64vector index");
       v = *(int64_t*)&bytevector_ref(ac, i*8);
       if (FIXNUM_MIN <= v && v <= FIXNUM_MAX) ac = fixnum_obj((long)v);
-      else ac = bignum_obj(lltobn(v));
+      else ac = hp_bignum_obj(lltobn(v));
     } break;
 #endif
     case 10: { /* f32 */
@@ -1556,14 +1449,14 @@ define_instruction(nget) {
       if (i*(int)sizeof(float) >= l) failtype(x, "valid f32vector index");
       f = *(float*)&bytevector_ref(ac, i*sizeof(float));
       if (f != f) f = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
-      ac = flonum_obj(f); /* may trigger gc */
+      ac = hp_flonum_obj(f); /* may trigger gc */
     } break;
     case 11: { /* f64 */
       double f;
       if (i*(int)sizeof(double) >= l) failtype(x, "valid f64vector index");
       f = *(double*)&bytevector_ref(ac, i*sizeof(double));
       if (f != f) f = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
-      ac = flonum_obj(f); /* may trigger gc */
+      ac = hp_flonum_obj(f); /* may trigger gc */
     } break;
 #ifdef OPT_TOWER
     case 14: { /* c64 */
@@ -1573,7 +1466,7 @@ define_instruction(nget) {
       if (re != re) re = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
       if (im != im) im = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
       f4.t = NUMT_MKCOM(NUMT_FLO, NUMT_FLO); f4.p[0].flo = re; f4.p[2].flo = im;
-      ac = fatnum_obj(dupfatnum((fatnum_t*)&f4)); /* may trigger gc */
+      ac = hp_fatnum_obj(dupfatnum((fatnum_t*)&f4)); /* may trigger gc */
     } break;
     case 15: { /* c128 */
       double *p, re, im; fatnum4_t f4;
@@ -1582,7 +1475,7 @@ define_instruction(nget) {
       if (re != re) re = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
       if (im != im) im = HUGE_VAL + -HUGE_VAL; /* canonical NaN */
       f4.t = NUMT_MKCOM(NUMT_FLO, NUMT_FLO); f4.p[0].flo = re; f4.p[2].flo = im;
-      ac = fatnum_obj(dupfatnum((fatnum_t*)&f4)); /* may trigger gc */
+      ac = hp_fatnum_obj(dupfatnum((fatnum_t*)&f4)); /* may trigger gc */
     } break;
 #endif
     case 32: case 33: case 34: case 35: case 36: case 37: case 38: 
@@ -1716,7 +1609,7 @@ define_instruction(lton) {
     case 32: sz = (n+7)/8; t += n%8; break; /* bit */
     default: failtype(x, "numerical vector type");
   }
-  l = ac; ac = bytevector_obj(allocbytevector(sz));
+  l = ac; ac = hp_bytevector_obj(allocbytevector(sz));
   bytevector_type(ac) = t;
   for (i = 0; i < n; ++i, l = pair_cdr(l)) {
     obj y = pair_car(l);
@@ -1818,9 +1711,9 @@ define_instruction(rmk) {
    * indistinguishable from a closure, so it has to be an immediate */
   cky(ac); ckk(sref(0));
   n = get_fixnum(sref(0)); 
-  hp_reserve(recbsz(n)); v = sref(1);
+  hp_reserve(record_bsz(n)); v = sref(1);
   for (i = 0; i < n; ++i) *--hp = v;
-  ac = hend_rec(ac, n);
+  ac = hend_record(ac, n);
   sdrop(2);
   gonexti();
 }
@@ -1865,9 +1758,9 @@ define_instruction(vec) {
   int i, n; obj o = *ip++;
   /* special arrangement for handcoded proc */
   if (!o) o = ac; n = get_fixnum(o);
-  hp_reserve(vecbsz(n));
+  hp_reserve(vector_bsz(n));
   for (i = n-1; i >= 0; --i) *--hp = sref(i);
-  ac = hend_vec(n);
+  ac = hend_vector(n);
   sdrop(n);
   gonexti();
 }
@@ -1875,9 +1768,9 @@ define_instruction(vec) {
 define_instruction(vmk) {
   int i, n; obj v; ckk(ac);
   n = get_fixnum(ac); 
-  hp_reserve(vecbsz(n)); v = sref(0);
+  hp_reserve(vector_bsz(n)); v = sref(0);
   for (i = 0; i < n; ++i) *--hp = v;
-  ac = hend_vec(n);
+  ac = hend_vector(n);
   sdrop(1);
   gonexti();
 }
@@ -1914,13 +1807,13 @@ define_instruction(vapp) {
     obj v = sref(a); ckv(v);
     n += vector_len(v);
   }
-  hp_reserve(vecbsz(n));
+  hp_reserve(vector_bsz(n));
   for (a = c; a > 0; --a) {
     obj v = sref(a-1); i = vector_len(v);
     /* NB: vector_ref fails to return pointer to empty vector's start */
     hp -= i; if (i) objcpy(hp, &vector_ref(v, 0), i);
   }
-  sdrop(c); ac = hend_vec(n);
+  sdrop(c); ac = hend_vector(n);
   gonexti();
 }
 
@@ -1929,11 +1822,11 @@ define_instruction(vapp2) {
   obj x = sref(0), y = sref(1); int n1, n2, n;
   ckv(x); ckv(y);
   n1 = vector_len(x), n2 = vector_len(y), n = n1 + n2;
-  hp_reserve(vecbsz(n));
+  hp_reserve(vector_bsz(n));
   /* NB: vector_ref fails to return pointer to empty vector's start */
   hp -= n2; if (n2) objcpy(hp, &vector_ref(y, 0), n2);
   hp -= n1; if (n1) objcpy(hp, &vector_ref(x, 0), n1);
-  ac = hend_vec(n);
+  ac = hend_vector(n);
   sdrop(2);
   gonexti();
 }
@@ -1942,7 +1835,7 @@ define_instruction(vapp2) {
 define_instruction(vtol) {
   obj l = null_obj(); int n;
   ckv(ac); n = vector_len(ac);
-  hp_reserve(pairbsz()*n);
+  hp_reserve(pair_bsz()*n);
   while (n > 0) {
     *--hp = l; *--hp = vector_ref(ac, n-1);
     l = hend_pair();
@@ -1955,17 +1848,17 @@ define_instruction(vtol) {
 define_instruction(ltov) {
   obj l = ac; int n = 0, i;
   while (is_pair(l)) { l = pair_cdr(l); ++n; } cku(l);
-  hp_reserve(vecbsz(n));
+  hp_reserve(vector_bsz(n));
   for (l = ac, i = 0, hp -= n; i < n; ++i, l = pair_cdr(l)) hp[i] = pair_car(l);
-  ac = hend_vec(n);
+  ac = hend_vector(n);
   gonexti();
 }
 
 define_instruction(ltob) {
   obj l = ac, o; int n = 0, i; unsigned char *s;
   while (is_pair(l)) { l = pair_cdr(l); ++n; } cku(l);
-  o = bytevector_obj(allocbytevector(n));
-  s = bytevectorbytes(o);
+  o = hp_bytevector_obj(allocbytevector(n));
+  s = bytevector_bytes(o);
   for (i = 0, l = ac; i < n; ++i, l = pair_cdr(l)) {
     obj x = pair_car(l); ck8(x);
     s[i] = get_byte(x);
@@ -1977,7 +1870,7 @@ define_instruction(ltob) {
 define_instruction(stol) {
   obj l = null_obj(); int n;
   cks(ac); n = string_len(ac);
-  hp_reserve(pairbsz()*n);
+  hp_reserve(pair_bsz()*n);
   while (n > 0) {
     *--hp = l; *--hp = char_obj(string_get(ac, n-1));
     l = hend_pair();
@@ -1998,20 +1891,20 @@ define_instruction(ltos) {
     obj x = pair_car(ac);
     d = sdataput(d, i, get_char(x));
   }
-  ac = string_obj(d);
+  ac = hp_string_obj(d);
   gonexti();
 }
 
 
 define_instruction(ytos) {
   cky(ac);
-  ac = string_obj(dupsdata(symsdata(get_symbol(ac))));
+  ac = hp_string_obj(dupsdata(symsdata(get_symbol(ac))));
   gonexti();
 }
 
 define_instruction(stoy) {
   cks(ac);
-  ac = mksymbol(internsdata((int *)stringdata(ac), 1/*dup*/));
+  ac = symbol_obj(internsdata((int *)string_data(ac), 1/*dup*/));
   gonexti();
 }
 
@@ -2026,14 +1919,14 @@ define_instruction(itos) {
   do { int d = num % radix; *--s = d < 10 ? d + '0' : d - 10 + 'a'; }
   while (num /= radix);
   if (neg) *--s = '-';
-  ac = string_obj(newsdata(s));  
+  ac = hp_string_obj(newsdata(s));  
   gonexti();
 }
 
 define_instruction(stoi) {
   char *e; const char *s; long l, radix;
   obj x = ac, y = spop(); cks(x); ckk(y);
-  s = stringchars(x); radix = get_fixnum(y);
+  s = string_chars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
   if (s[0] == '#' && (s[1] == 'b' || s[1] == 'B')) s += 2, radix = 2;
   else if (s[0] == '#' && (s[1] == 'o' || s[1] == 'O')) s += 2, radix = 8;
@@ -2066,19 +1959,19 @@ define_instruction(jtos) {
   else mode = 'g'; /* default: old %.16g loses bits */
   s = dntostr(buffer, DN_MAX_BUFSIZE, x, 10, mode, prc);
   assert(s == buffer); /* rx 10 is always supported */
-  ac = string_obj(newsdata(s));
+  ac = hp_string_obj(newsdata(s));
   gonexti();
 }
 
 define_instruction(stoj) {
   char *e = ""; const char *s; double d; cks(ac);
-  s = stringchars(ac); errno = 0;
+  s = string_chars(ac); errno = 0;
   if (*s != '+' && *s != '-') d = strtod(s, &e);
   else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
   else if (strcmp_ci(s+1, "nan.0") == 0) d = HUGE_VAL - HUGE_VAL; 
   else d = strtod(s, &e);
   if (errno || e == s || *e) ac = bool_obj(0);
-  else ac = flonum_obj(d);
+  else ac = hp_flonum_obj(d);
   gonexti();
 }
 
@@ -2275,7 +2168,7 @@ define_instruction(isqrt) {
 
 define_instruction(itoj) {
   cki(ac);
-  ac = flonum_obj((double)get_fixnum(ac));
+  ac = hp_flonum_obj((double)get_fixnum(ac));
   gonexti();
 }
 
@@ -2440,26 +2333,26 @@ define_instruction(joddp) {
   gonexti(); 
 }
 
-define_instruction(jadd) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) + get_flonum(spop())); gonexti(); }
+define_instruction(jadd) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(get_flonum(ac) + get_flonum(spop())); gonexti(); }
 
-define_instruction(jsub) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) - get_flonum(spop())); gonexti(); }
+define_instruction(jsub) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(get_flonum(ac) - get_flonum(spop())); gonexti(); }
 
-define_instruction(jmul) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) * get_flonum(spop())); gonexti(); }
+define_instruction(jmul) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(get_flonum(ac) * get_flonum(spop())); gonexti(); }
 
-define_instruction(jdiv) { ckj(ac); ckj(sref(0)); ac = flonum_obj(get_flonum(ac) / get_flonum(spop())); gonexti(); }
+define_instruction(jdiv) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(get_flonum(ac) / get_flonum(spop())); gonexti(); }
 
 define_instruction(jquo) {
   obj x = ac, y = spop(); double n, d, i; ckj(x); ckj(y);
   n = get_flonum(x), d = get_flonum(y); modf(n/d,  &i);
-  ac = flonum_obj(i);
+  ac = hp_flonum_obj(i);
   gonexti(); 
 }
 
-define_instruction(jrem) { ckj(ac); ckj(sref(0)); ac = flonum_obj(fmod(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jrem) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(fmod(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jmqu) { ckj(ac); ckj(sref(0)); ac = flonum_obj(flmqu(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jmqu) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(flmqu(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jmlo) { ckj(ac); ckj(sref(0)); ac = flonum_obj(flmlo(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jmlo) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(flmlo(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
 define_instruction(jlt) {
   obj x = ac, y = sref(0); ckj(x); ckj(y);
@@ -2501,7 +2394,7 @@ define_instruction(jmin) {
   double dx, dy;
   obj x = ac, y = spop(); ckj(x); ckj(y);
   dx = get_flonum(x), dy = get_flonum(y);
-  ac = flonum_obj(ieee_fminimum(dx, dy));
+  ac = hp_flonum_obj(ieee_fminimum(dx, dy));
   gonexti(); 
 }
 
@@ -2509,154 +2402,154 @@ define_instruction(jmax) {
   double dx, dy;
   obj x = ac, y = spop(); ckj(x); ckj(y);
   dx = get_flonum(x), dy = get_flonum(y);
-  ac = flonum_obj(ieee_fmaximum(dx, dy));
+  ac = hp_flonum_obj(ieee_fmaximum(dx, dy));
   gonexti(); 
 }
 
-define_instruction(jneg)  { ckj(ac); ac = flonum_obj(-get_flonum(ac)); gonexti(); }
+define_instruction(jneg)  { ckj(ac); ac = hp_flonum_obj(-get_flonum(ac)); gonexti(); }
                          
-define_instruction(jabs)  { ckj(ac); ac = flonum_obj(fabs(get_flonum(ac))); gonexti(); }
+define_instruction(jabs)  { ckj(ac); ac = hp_flonum_obj(fabs(get_flonum(ac))); gonexti(); }
 
-define_instruction(jgcd)  { ckj(ac); ckj(sref(0)); ac = flonum_obj(flgcd(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jgcd)  { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(flgcd(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jpow)  { ckj(ac); ckj(sref(0)); ac = flonum_obj(pow(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jpow)  { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(pow(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jsqrt) { ckj(ac); ac = flonum_obj(sqrt(get_flonum(ac))); gonexti(); }
+define_instruction(jsqrt) { ckj(ac); ac = hp_flonum_obj(sqrt(get_flonum(ac))); gonexti(); }
 
-define_instruction(jexp) { ckj(ac); ac = flonum_obj(exp(get_flonum(ac))); gonexti(); }
+define_instruction(jexp) { ckj(ac); ac = hp_flonum_obj(exp(get_flonum(ac))); gonexti(); }
 
 define_instruction(jlog) {
   obj y = spop(); ckj(ac);
   if (likely(!y)) {
-    ac = flonum_obj(log(get_flonum(ac)));
+    ac = hp_flonum_obj(log(get_flonum(ac)));
   } else {
     double b; ckj(y); b = get_flonum(y);
-    if (likely(b == 10.0)) ac = flonum_obj(log10(get_flonum(ac)));
-    else ac = flonum_obj(log(get_flonum(ac))/log(b));
+    if (likely(b == 10.0)) ac = hp_flonum_obj(log10(get_flonum(ac)));
+    else ac = hp_flonum_obj(log(get_flonum(ac))/log(b));
   }
   gonexti(); 
 }
 
-define_instruction(jsin) { ckj(ac); ac = flonum_obj(sin(get_flonum(ac))); gonexti(); }
+define_instruction(jsin) { ckj(ac); ac = hp_flonum_obj(sin(get_flonum(ac))); gonexti(); }
 
-define_instruction(jcos) { ckj(ac); ac = flonum_obj(cos(get_flonum(ac))); gonexti(); }
+define_instruction(jcos) { ckj(ac); ac = hp_flonum_obj(cos(get_flonum(ac))); gonexti(); }
 
-define_instruction(jtan) { ckj(ac); ac = flonum_obj(tan(get_flonum(ac))); gonexti(); }
+define_instruction(jtan) { ckj(ac); ac = hp_flonum_obj(tan(get_flonum(ac))); gonexti(); }
 
-define_instruction(jasin) { ckj(ac); ac = flonum_obj(asin(get_flonum(ac))); gonexti(); }
+define_instruction(jasin) { ckj(ac); ac = hp_flonum_obj(asin(get_flonum(ac))); gonexti(); }
 
-define_instruction(jacos) { ckj(ac); ac = flonum_obj(acos(get_flonum(ac))); gonexti(); }
+define_instruction(jacos) { ckj(ac); ac = hp_flonum_obj(acos(get_flonum(ac))); gonexti(); }
 
 define_instruction(jatan) {
   ckj(ac);
   if (likely(!sref(0))) {
-    ac = flonum_obj(atan(get_flonum(ac)));
+    ac = hp_flonum_obj(atan(get_flonum(ac)));
     spop();
   } else {
     ckj(sref(0)); 
-    ac = flonum_obj(atan2(get_flonum(ac), get_flonum(spop())));
+    ac = hp_flonum_obj(atan2(get_flonum(ac), get_flonum(spop())));
   }
   gonexti(); 
 }
 
-define_instruction(jfloor) { ckj(ac); ac = flonum_obj(floor(get_flonum(ac))); gonexti(); }
+define_instruction(jfloor) { ckj(ac); ac = hp_flonum_obj(floor(get_flonum(ac))); gonexti(); }
 
-define_instruction(jceil)  { ckj(ac); ac = flonum_obj(ceil(get_flonum(ac))); gonexti(); }
+define_instruction(jceil)  { ckj(ac); ac = hp_flonum_obj(ceil(get_flonum(ac))); gonexti(); }
 
-define_instruction(jtrunc) { double i; ckj(ac); modf(get_flonum(ac), &i); ac = flonum_obj(i); gonexti(); }
+define_instruction(jtrunc) { double i; ckj(ac); modf(get_flonum(ac), &i); ac = hp_flonum_obj(i); gonexti(); }
 
-define_instruction(jround) { ckj(ac); ac = flonum_obj(flround(get_flonum(ac))); gonexti(); }
+define_instruction(jround) { ckj(ac); ac = hp_flonum_obj(flround(get_flonum(ac))); gonexti(); }
 
 define_instruction(jtoi)  { ckj(ac); ac = fixnum_obj(fxflo(get_flonum(ac))); gonexti(); }
 
-define_instruction(jldexp)  { ckj(ac); cki(sref(0)); ac = flonum_obj(ldexp(get_flonum(ac), get_fixnum(spop()))); gonexti(); }
+define_instruction(jldexp)  { ckj(ac); cki(sref(0)); ac = hp_flonum_obj(ldexp(get_flonum(ac), get_fixnum(spop()))); gonexti(); }
 
 define_instruction(jmodf) {
   double di = 0.0; obj z; ckj(ac); ckz(sref(0));  
-  ac = flonum_obj(modf(get_flonum(ac), &di));
-  z = flonum_obj(di); box_ref(spop()) = z;
+  ac = hp_flonum_obj(modf(get_flonum(ac), &di));
+  z = hp_flonum_obj(di); box_ref(spop()) = z;
   gonexti(); 
 }
 
 define_instruction(jfrexp) {
   int fi = 0; ckj(ac); ckz(sref(0));
-  ac = flonum_obj(frexp(get_flonum(ac), &fi));
+  ac = hp_flonum_obj(frexp(get_flonum(ac), &fi));
   box_ref(spop()) = fixnum_obj(fi);
   gonexti(); 
 }
 
-define_instruction(jsinh) { ckj(ac); ac = flonum_obj(sinh(get_flonum(ac))); gonexti(); }
+define_instruction(jsinh) { ckj(ac); ac = hp_flonum_obj(sinh(get_flonum(ac))); gonexti(); }
 
-define_instruction(jcosh) { ckj(ac); ac = flonum_obj(cosh(get_flonum(ac))); gonexti(); }
+define_instruction(jcosh) { ckj(ac); ac = hp_flonum_obj(cosh(get_flonum(ac))); gonexti(); }
 
-define_instruction(jtanh) { ckj(ac); ac = flonum_obj(tanh(get_flonum(ac))); gonexti(); }
+define_instruction(jtanh) { ckj(ac); ac = hp_flonum_obj(tanh(get_flonum(ac))); gonexti(); }
 
-define_instruction(jlog10) { ckj(ac); ac = flonum_obj(log10(get_flonum(ac))); gonexti(); }
+define_instruction(jlog10) { ckj(ac); ac = hp_flonum_obj(log10(get_flonum(ac))); gonexti(); }
 
 #ifdef C99_MATH_LIB
 
-define_instruction(jcopysign) { ckj(ac); ckj(sref(0)); ac = flonum_obj(copysign(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jcopysign) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(copysign(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
 define_instruction(jsignbit) { ckj(ac); ac = fixnum_obj(!!signbit(get_flonum(ac))); gonexti(); }
 
-define_instruction(jnextafter) { ckj(ac); ckj(sref(0)); ac = flonum_obj(nextafter(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jnextafter) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(nextafter(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
 define_instruction(jnormalp) { ckj(ac); ac = bool_obj(fpclassify(get_flonum(ac)) == FP_NORMAL); gonexti(); }
 
 define_instruction(jsubnormp) { ckj(ac); ac = bool_obj(fpclassify(get_flonum(ac)) == FP_SUBNORMAL); gonexti(); }
 
-define_instruction(jlogb) { ckj(ac); ac = flonum_obj(logb(get_flonum(ac))); gonexti(); }
+define_instruction(jlogb) { ckj(ac); ac = hp_flonum_obj(logb(get_flonum(ac))); gonexti(); }
 
 define_instruction(jilogb) { ckj(ac); ac = fixnum_obj(ilogb(get_flonum(ac))); gonexti(); }
 
 define_instruction(jfma) { 
   ckj(ac); ckj(sref(0)); ckj(sref(1));  
-  ac = flonum_obj(fma(get_flonum(ac), get_flonum(sref(0)), get_flonum(sref(1)))); 
+  ac = hp_flonum_obj(fma(get_flonum(ac), get_flonum(sref(0)), get_flonum(sref(1)))); 
   sdrop(2); gonexti(); 
 }
 
-define_instruction(jfdim) { ckj(ac); ckj(sref(0)); ac = flonum_obj(fdim(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jfdim) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(fdim(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jexp2) { ckj(ac); ac = flonum_obj(exp2(get_flonum(ac))); gonexti(); }
+define_instruction(jexp2) { ckj(ac); ac = hp_flonum_obj(exp2(get_flonum(ac))); gonexti(); }
 
-define_instruction(jexpm1) { ckj(ac); ac = flonum_obj(expm1(get_flonum(ac))); gonexti(); }
+define_instruction(jexpm1) { ckj(ac); ac = hp_flonum_obj(expm1(get_flonum(ac))); gonexti(); }
 
-define_instruction(jcbrt) { ckj(ac); ac = flonum_obj(cbrt(get_flonum(ac))); gonexti(); }
+define_instruction(jcbrt) { ckj(ac); ac = hp_flonum_obj(cbrt(get_flonum(ac))); gonexti(); }
 
-define_instruction(jhypot) { ckj(ac); ckj(sref(0)); ac = flonum_obj(hypot(get_flonum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jhypot) { ckj(ac); ckj(sref(0)); ac = hp_flonum_obj(hypot(get_flonum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jlog1p) { ckj(ac); ac = flonum_obj(log1p(get_flonum(ac))); gonexti(); }
+define_instruction(jlog1p) { ckj(ac); ac = hp_flonum_obj(log1p(get_flonum(ac))); gonexti(); }
 
-define_instruction(jlog2) { ckj(ac); ac = flonum_obj(log2(get_flonum(ac))); gonexti(); }
+define_instruction(jlog2) { ckj(ac); ac = hp_flonum_obj(log2(get_flonum(ac))); gonexti(); }
 
-define_instruction(jasinh) { ckj(ac); ac = flonum_obj(asinh(get_flonum(ac))); gonexti(); }
+define_instruction(jasinh) { ckj(ac); ac = hp_flonum_obj(asinh(get_flonum(ac))); gonexti(); }
 
-define_instruction(jacosh) { ckj(ac); ac = flonum_obj(acosh(get_flonum(ac))); gonexti(); }
+define_instruction(jacosh) { ckj(ac); ac = hp_flonum_obj(acosh(get_flonum(ac))); gonexti(); }
 
-define_instruction(jatanh) { ckj(ac); ac = flonum_obj(atanh(get_flonum(ac))); gonexti(); }
+define_instruction(jatanh) { ckj(ac); ac = hp_flonum_obj(atanh(get_flonum(ac))); gonexti(); }
 
 define_instruction(jremquo) {
   int fi = 0; ckj(ac); ckj(sref(0)); ckz(sref(1));
-  ac = flonum_obj(remquo(get_flonum(ac), get_flonum(sref(0)), &fi));
+  ac = hp_flonum_obj(remquo(get_flonum(ac), get_flonum(sref(0)), &fi));
   box_ref(sref(1)) = fixnum_obj(fi);
   sdrop(2); gonexti(); 
 }
 
-define_instruction(jtgamma) { ckj(ac); ac = flonum_obj(tgamma(get_flonum(ac))); gonexti(); }
+define_instruction(jtgamma) { ckj(ac); ac = hp_flonum_obj(tgamma(get_flonum(ac))); gonexti(); }
 
-define_instruction(jlgamma) { ckj(ac); ac = flonum_obj(lgamma(get_flonum(ac))); gonexti(); }
+define_instruction(jlgamma) { ckj(ac); ac = hp_flonum_obj(lgamma(get_flonum(ac))); gonexti(); }
 
-define_instruction(jerf) { ckj(ac); ac = flonum_obj(erf(get_flonum(ac))); gonexti(); }
+define_instruction(jerf) { ckj(ac); ac = hp_flonum_obj(erf(get_flonum(ac))); gonexti(); }
 
-define_instruction(jerfc) { ckj(ac); ac = flonum_obj(erfc(get_flonum(ac))); gonexti(); }
+define_instruction(jerfc) { ckj(ac); ac = hp_flonum_obj(erfc(get_flonum(ac))); gonexti(); }
 
 #endif
 
 #ifdef XSI_MATH_LIB
 
-define_instruction(jjn) { cki(ac); ckj(sref(0)); ac = flonum_obj(jn(get_fixnum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jjn) { cki(ac); ckj(sref(0)); ac = hp_flonum_obj(jn(get_fixnum(ac), get_flonum(spop()))); gonexti(); }
 
-define_instruction(jyn) { cki(ac); ckj(sref(0)); ac = flonum_obj(yn(get_fixnum(ac), get_flonum(spop()))); gonexti(); }
+define_instruction(jyn) { cki(ac); ckj(sref(0)); ac = hp_flonum_obj(yn(get_fixnum(ac), get_flonum(spop()))); gonexti(); }
 
 #endif
 
@@ -2784,7 +2677,7 @@ define_instruction(add) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
     int64_t llz = (int64_t)lx + (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
-    else ac = flonum_obj((double)lx + (double)ly);
+    else ac = hp_flonum_obj((double)lx + (double)ly);
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -2793,7 +2686,7 @@ define_instruction(add) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(dx + dy);
+    ac = hp_flonum_obj(dx + dy);
   }
   gonexti(); 
 }
@@ -2804,7 +2697,7 @@ define_instruction(sub) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
     int64_t llz = (int64_t)lx - (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
-    else ac = flonum_obj((double)lx - (double)ly);
+    else ac = hp_flonum_obj((double)lx - (double)ly);
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -2813,7 +2706,7 @@ define_instruction(sub) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(dx - dy);
+    ac = hp_flonum_obj(dx - dy);
   }
   gonexti(); 
 }
@@ -2824,7 +2717,7 @@ define_instruction(mul) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
     int64_t llz = (int64_t)lx * (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
-    else ac = flonum_obj((double)lx * (double)ly);
+    else ac = hp_flonum_obj((double)lx * (double)ly);
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -2833,7 +2726,7 @@ define_instruction(mul) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(dx * dy);
+    ac = hp_flonum_obj(dx * dy);
   }
   gonexti(); 
 }
@@ -2846,7 +2739,7 @@ define_instruction(div) {
     lx = get_fixnum(x), ly = get_fixnum(y);   
     llz = (int64_t)lx / (int64_t)ly, llr = (int64_t)lx % (int64_t)ly;
     if (likely(!llr && llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
-    else ac = flonum_obj((double)lx / (double)ly);
+    else ac = hp_flonum_obj((double)lx / (double)ly);
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -2855,7 +2748,7 @@ define_instruction(div) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(dx / dy);
+    ac = hp_flonum_obj(dx / dy);
   }
   gonexti(); 
 }
@@ -2874,7 +2767,7 @@ define_instruction(quo) {
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "integer");
     modf(dx / dy,  &dz);
-    ac = flonum_obj(dz);
+    ac = hp_flonum_obj(dz);
   }
   gonexti(); 
 }
@@ -2894,7 +2787,7 @@ define_instruction(rem) {
     else failtype(y, "integer");
     dz = fmod(dx, dy);
     /* keep zero positive: (remainder -10.0 2.0) => 0.0, not -0.0 */
-    ac = flonum_obj((dz == 0.0) ? 0.0 : dz);
+    ac = hp_flonum_obj((dz == 0.0) ? 0.0 : dz);
   }
   gonexti(); 
 }
@@ -2912,7 +2805,7 @@ define_instruction(mqu) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(flmqu(dx, dy));
+    ac = hp_flonum_obj(flmqu(dx, dy));
   }
   gonexti(); 
 }
@@ -2930,7 +2823,7 @@ define_instruction(mlo) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(flmlo(dx, dy));
+    ac = hp_flonum_obj(flmlo(dx, dy));
   }
   gonexti(); 
 }
@@ -3049,7 +2942,7 @@ define_instruction(min) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(ieee_fminimum(dx, dy));
+    ac = hp_flonum_obj(ieee_fminimum(dx, dy));
   }
   gonexti(); 
 }
@@ -3066,7 +2959,7 @@ define_instruction(max) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(ieee_fmaximum(dx, dy));
+    ac = hp_flonum_obj(ieee_fmaximum(dx, dy));
   }
   gonexti(); 
 }
@@ -3075,7 +2968,7 @@ define_instruction(neg) {
   if (likely(is_fixnum(ac))) {
     ac = fixnum_obj(-get_fixnum(ac));
   } else if (likely(is_flonum(ac))) {
-    ac = flonum_obj(-get_flonum(ac));
+    ac = hp_flonum_obj(-get_flonum(ac));
   } else failactype("number");
   gonexti(); 
 }
@@ -3084,7 +2977,7 @@ define_instruction(abs) {
   if (likely(is_fixnum(ac))) {
     ac = fixnum_obj(fxabs(get_fixnum(ac)));
   } else if (likely(is_flonum(ac))) {
-    ac = flonum_obj(fabs(get_flonum(ac)));
+    ac = hp_flonum_obj(fabs(get_flonum(ac)));
   } else failactype("number");
   gonexti(); 
 }
@@ -3101,7 +2994,7 @@ define_instruction(gcd) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(flgcd(dx, dy));
+    ac = hp_flonum_obj(flgcd(dx, dy));
   }
   gonexti(); 
 }
@@ -3113,7 +3006,7 @@ define_instruction(pow) {
     long fx = get_fixnum(x), fy = get_fixnum(y), fz;
     if (unlikely(fx == 0 && fy < 0)) fail("division by zero");
     fz = ((fx | fy)) ? fxpow(fx, fy) : 1; /* 0^0 == 1! */
-    ac = (!fz && fx) ? flonum_obj(pow((double)fx, (double)fy)) : fixnum_obj(fz);
+    ac = (!fz && fx) ? hp_flonum_obj(pow((double)fx, (double)fy)) : fixnum_obj(fz);
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -3122,19 +3015,19 @@ define_instruction(pow) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(pow(dx, dy));
+    ac = hp_flonum_obj(pow(dx, dy));
   }
   gonexti(); 
 }
 
 define_instruction(sqrt) {
   if (likely(is_flonum(ac))) {
-    ac = flonum_obj(sqrt(get_flonum(ac)));
+    ac = hp_flonum_obj(sqrt(get_flonum(ac)));
   } else if (likely(is_fixnum(ac))) {
     long x = get_fixnum(ac), y;
-    if (x < 0) ac = flonum_obj((HUGE_VAL - HUGE_VAL));   
+    if (x < 0) ac = hp_flonum_obj((HUGE_VAL - HUGE_VAL));   
     else if (y = fxsqrt(x), y*y == x) ac = fixnum_obj(y);
-    else ac = flonum_obj(sqrt((double)x));
+    else ac = hp_flonum_obj(sqrt((double)x));
   } else failactype("number");
   gonexti(); 
 }
@@ -3144,7 +3037,7 @@ define_instruction(exp) {
   if (unlikely(is_fixnum(ac))) x = (double)get_fixnum(ac);
   else if (likely(is_flonum(ac))) x = get_flonum(ac);
   else failactype("number");
-  ac = flonum_obj(exp(x));
+  ac = hp_flonum_obj(exp(x));
   gonexti(); 
 }
 
@@ -3154,16 +3047,16 @@ define_instruction(log) {
   else if (likely(is_flonum(ac))) x = get_flonum(ac);
   else failactype("number");
   if (likely(!y)) {
-    ac = flonum_obj(log(x));
+    ac = hp_flonum_obj(log(x));
   } else if (likely(y == fixnum_obj(10))) {
-    ac = flonum_obj(log10(x));
+    ac = hp_flonum_obj(log10(x));
   } else {
     double b; 
     if (unlikely(is_fixnum(y))) b = (double)get_fixnum(y);
     else if (likely(is_flonum(y))) b = get_flonum(y);
     else failtype(y, "number");
-    if (likely(b == 10.0)) ac = flonum_obj(log10(x));
-    else ac = flonum_obj(log(x)/log(b));
+    if (likely(b == 10.0)) ac = hp_flonum_obj(log10(x));
+    else ac = hp_flonum_obj(log(x)/log(b));
   }
   gonexti(); 
 }
@@ -3175,7 +3068,7 @@ define_instruction(sin) {
   } else if (likely(is_flonum(ac))) {
     x = get_flonum(ac);
   } else failactype("number");
-  ac = flonum_obj(sin(x));
+  ac = hp_flonum_obj(sin(x));
   gonexti(); 
 }
 
@@ -3186,7 +3079,7 @@ define_instruction(cos) {
   } else if (likely(is_flonum(ac))) {
     x = get_flonum(ac);
   } else failactype("number");
-  ac = flonum_obj(cos(x));
+  ac = hp_flonum_obj(cos(x));
   gonexti(); 
 }
 
@@ -3197,7 +3090,7 @@ define_instruction(tan) {
   } else if (likely(is_flonum(ac))) {
     x = get_flonum(ac);
   } else failactype("number");
-  ac = flonum_obj(tan(x));
+  ac = hp_flonum_obj(tan(x));
   gonexti(); 
 }
 
@@ -3208,7 +3101,7 @@ define_instruction(asin) {
   } else if (likely(is_flonum(ac))) {
     x = get_flonum(ac);
   } else failactype("number");
-  ac = flonum_obj(asin(x));
+  ac = hp_flonum_obj(asin(x));
   gonexti(); 
 }
 
@@ -3219,7 +3112,7 @@ define_instruction(acos) {
   } else if (likely(is_flonum(ac))) {
     x = get_flonum(ac);
   } else failactype("number");
-  ac = flonum_obj(acos(x));
+  ac = hp_flonum_obj(acos(x));
   gonexti(); 
 }
 
@@ -3229,20 +3122,20 @@ define_instruction(atan) {
   else if (likely(is_flonum(ac))) x = get_flonum(ac);
   else failactype("number");
   if (likely(!y)) {
-    ac = flonum_obj(atan(x));
+    ac = hp_flonum_obj(atan(x));
   } else {
     double b; 
     if (unlikely(is_fixnum(y))) b = (double)get_fixnum(y);
     else if (likely(is_flonum(y))) b = get_flonum(y);
     else failtype(y, "number");
-    ac = flonum_obj(atan2(x, b));
+    ac = hp_flonum_obj(atan2(x, b));
   }
   gonexti(); 
 }
 
 define_instruction(floor) {
   if (likely(is_flonum(ac))) {
-    ac = flonum_obj(floor(get_flonum(ac)));
+    ac = hp_flonum_obj(floor(get_flonum(ac)));
   } else if (unlikely(!is_fixnum(ac))) {
     failactype("number");
   }
@@ -3251,7 +3144,7 @@ define_instruction(floor) {
 
 define_instruction(ceil) {
   if (likely(is_flonum(ac))) {
-    ac = flonum_obj(ceil(get_flonum(ac)));
+    ac = hp_flonum_obj(ceil(get_flonum(ac)));
   } else if (unlikely(!is_fixnum(ac))) {
     failactype("number");
   }
@@ -3262,7 +3155,7 @@ define_instruction(trunc) {
   if (likely(is_flonum(ac))) {
     double x = get_flonum(ac);
     double i; modf(x,  &i);
-    ac = flonum_obj(i);
+    ac = hp_flonum_obj(i);
   } else if (unlikely(!is_fixnum(ac))) {
     failactype("number");
   }
@@ -3271,7 +3164,7 @@ define_instruction(trunc) {
 
 define_instruction(round) {
   if (likely(is_flonum(ac))) {
-    ac = flonum_obj(flround(get_flonum(ac)));
+    ac = hp_flonum_obj(flround(get_flonum(ac)));
   } else if (unlikely(!is_fixnum(ac))) {
     failactype("number");
   }
@@ -3289,7 +3182,7 @@ define_instruction(ntoex) {
 }
 
 define_instruction(ntoin) {
-  if (likely(is_fixnum(ac))) ac = flonum_obj((flonum_t)get_fixnum(ac));
+  if (likely(is_fixnum(ac))) ac = hp_flonum_obj((flonum_t)get_fixnum(ac));
   else if (likely(is_flonum(ac))) /* keep ac as-is */ ;
   else failactype("number");
   gonexti(); 
@@ -3319,7 +3212,7 @@ define_instruction(angl) {
   if (likely(is_fixnum(ac))) isneg = (get_fixnum(ac) < 0);
   else if (likely(is_flonum(ac))) isneg = (get_flonum(ac) < 0.0);
   else failactype("number");
-  ac = isneg ? flonum_obj(M_PI) : fixnum_obj(0);
+  ac = isneg ? hp_flonum_obj(M_PI) : fixnum_obj(0);
   gonexti(); 
 }
 
@@ -3355,7 +3248,7 @@ define_instruction(gash) {
   } else {
     iz = (ix == 0 || iy < FIXNUM_WIDTH) ? fxasl(ix, iy) : FIXNUM_MAX+1;
     if (iz < FIXNUM_MIN || iz > FIXNUM_MAX || fxasr(iz, iy) != ix) {
-      ac = flonum_obj((double)ix * pow(2.0, (double)iy));
+      ac = hp_flonum_obj((double)ix * pow(2.0, (double)iy));
       gonexti();
     }
   }
@@ -3378,7 +3271,7 @@ define_instruction(intos) {
   if (p != bool_obj(0)) { ckk(p); prc = get_fixnum(p); }
   s = dntostr(buffer, DN_MAX_BUFSIZE, x, radix, mode, prc);
   if (s == NULL) failtype(y, "valid radix for inexact number");
-  ac = string_obj(newsdata(s));
+  ac = hp_string_obj(newsdata(s));
   gonexti();
 }
 
@@ -3399,11 +3292,11 @@ define_instruction(ntos) {
 define_instruction(ston) {
   const char *s; int radix; fatnum4_t f4;
   obj x = ac, y = spop(); cks(x); ckk(y);
-  s = stringchars(x); radix = get_fixnum(y);
+  s = string_chars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
   switch (strtonum4(&f4, s, NULL, radix)) {
     case NUMT_FIX: ac = fixnum_obj(f4.p[0].fix); break;
-    case NUMT_FLO: ac = flonum_obj(f4.p[0].flo); break;
+    case NUMT_FLO: ac = hp_flonum_obj(f4.p[0].flo); break;
     /* no big/fat numbers here */
     default : ac = bool_obj(0); break;
   }
@@ -3416,7 +3309,7 @@ define_instruction(pushsub) {
     long lx = get_fixnum(x), ly = get_fixnum(y);   
     int64_t llz = (int64_t)lx - (int64_t)ly;
     if (likely(llz >= FIXNUM_MIN && llz <= FIXNUM_MAX)) ac = fixnum_obj((long)llz);
-    else ac = flonum_obj((double)lx - (double)ly);
+    else ac = hp_flonum_obj((double)lx - (double)ly);
   } else {
     double dx, dy;
     if (likely(is_flonum(x))) dx = get_flonum(x);
@@ -3425,7 +3318,7 @@ define_instruction(pushsub) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
-    ac = flonum_obj(dx - dy);
+    ac = hp_flonum_obj(dx - dy);
   }
   spush(ac);
   gonexti(); 
@@ -3440,7 +3333,7 @@ define_instruction(pushsub) {
 define_instruction(lcat) {
   obj t, l, *p, *d; int c;
   for (l = ac, c = 0; is_pair(l); l = pair_cdr(l)) ++c;
-  hp_reserve(pairbsz()*c);
+  hp_reserve(pair_bsz()*c);
   p = --sp; t = *p; /* pop & take addr */
   for (l = ac; is_pair(l); l = pair_cdr(l)) {
     *--hp = t; d = hp; *--hp = pair_car(l);
@@ -3453,7 +3346,7 @@ define_instruction(lcat) {
 define_instruction(lcpy) {
   obj t, l, *p, *d; int c;
   for (l = ac, c = 0; is_pair(l); l = pair_cdr(l)) ++c;
-  hp_reserve(pairbsz()*c);
+  hp_reserve(pair_bsz()*c);
   p = sp; *p = t = l; /* tail of last pair */
   for (l = ac; is_pair(l); l = pair_cdr(l)) {
     *--hp = t; d = hp; *--hp = pair_car(l);
@@ -3596,75 +3489,75 @@ define_instruction(cdgv) {
 
 define_instruction(scmp) {
   obj x = ac, y = spop(); int cmp; cks(x); cks(y);
-  cmp = sdatacmp(stringdata(x), stringdata(y));
+  cmp = sdatacmp(string_data(x), string_data(y));
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(seq) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) == 0);
+  ac = bool_obj(sdatacmp(string_data(x), string_data(y)) == 0);
   gonexti(); 
 }
 
 define_instruction(slt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) < 0);
+  ac = bool_obj(sdatacmp(string_data(x), string_data(y)) < 0);
   gonexti(); 
 }
 
 define_instruction(sgt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) > 0);
+  ac = bool_obj(sdatacmp(string_data(x), string_data(y)) > 0);
   gonexti(); 
 }
 
 define_instruction(sle) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) <= 0);
+  ac = bool_obj(sdatacmp(string_data(x), string_data(y)) <= 0);
   gonexti(); 
 }
 
 define_instruction(sge) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp(stringdata(x), stringdata(y)) >= 0);
+  ac = bool_obj(sdatacmp(string_data(x), string_data(y)) >= 0);
   gonexti(); 
 }
 
 define_instruction(sicmp) {
   obj x = ac, y = spop(); int cmp; cks(x); cks(y);
-  cmp = sdatacmp_ci(stringdata(x), stringdata(y));
+  cmp = sdatacmp_ci(string_data(x), string_data(y));
   ac = fixnum_obj(cmp);
   gonexti(); 
 }
 
 define_instruction(sieq) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) == 0);
+  ac = bool_obj(sdatacmp_ci(string_data(x), string_data(y)) == 0);
   gonexti(); 
 }
 
 define_instruction(silt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) < 0);
+  ac = bool_obj(sdatacmp_ci(string_data(x), string_data(y)) < 0);
   gonexti(); 
 }
 
 define_instruction(sigt) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) > 0);
+  ac = bool_obj(sdatacmp_ci(string_data(x), string_data(y)) > 0);
   gonexti(); 
 }
 
 define_instruction(sile) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) <= 0);
+  ac = bool_obj(sdatacmp_ci(string_data(x), string_data(y)) <= 0);
   gonexti(); 
 }
 
 define_instruction(sige) {
   obj x = ac, y = spop(); cks(x); cks(y);
-  ac = bool_obj(sdatacmp_ci(stringdata(x), stringdata(y)) >= 0);
+  ac = bool_obj(sdatacmp_ci(string_data(x), string_data(y)) >= 0);
   gonexti(); 
 }
 
@@ -3703,7 +3596,7 @@ define_instruction(sbtoy) {
 
 
 define_instruction(funp) {
-  ac = bool_obj(is_proc(ac));
+  ac = bool_obj(is_procedure(ac));
   gonexti();
 }
 
@@ -3739,7 +3632,7 @@ define_instruction(ttyp) {
   extern int is_tty_port(obj o); /* n.c */
 #ifdef OPT_ENHTTY /* + tty */
   int res = is_tty_port(ac);
-  if (res == 'a') ac = mksymbol(internsym("ansi"));
+  if (res == 'a') ac = symbol_obj(internsym("ansi"));
   else ac = bool_obj(!!res);
 #else
   ac = bool_obj(is_tty_port(ac));
@@ -3787,27 +3680,27 @@ define_instruction(setcerr) {
 define_instruction(sip) {
 #ifdef OPT_ENHTTY /* + tty */
   extern int is_tty(FILE *fp); /* n.c */
-  if (is_tty(stdin) && is_tty(stdout)) ac = iport_tty_obj(); else
+  if (is_tty(stdin) && is_tty(stdout)) ac = hp_iport_tty_obj(); else
 #endif
-  ac = iport_file_obj(stdin, internsym("-"));
+  ac = hp_iport_file_obj(stdin, internsym("-"));
   gonexti();
 }
 
 define_instruction(sop) {
 #ifdef OPT_ENHTTY /* + tty */
   extern int is_tty(FILE *fp); /* n.c */
-  if (is_tty(stdout)) ac = oport_tty_obj(); else
+  if (is_tty(stdout)) ac = hp_oport_tty_obj(); else
 #endif
-  ac = oport_file_obj(stdout);
+  ac = hp_oport_file_obj(stdout);
   gonexti();
 }
 
 define_instruction(sep) {
 #ifdef OPT_ENHTTY /* + tty */
   extern int is_tty(FILE *fp); /* n.c */
-  if (is_tty(stderr)) ac = oport_tty_obj(); else
+  if (is_tty(stderr)) ac = hp_oport_tty_obj(); else
 #endif
-  ac = oport_file_obj(stderr);
+  ac = hp_oport_file_obj(stderr);
   gonexti();
 }
 
@@ -3827,54 +3720,54 @@ define_instruction(opop) {
 
 define_instruction(oif) {
   FILE *fp; const char *fn; cks(ac);
-  fn = stringchars(ac); fp = ufopen(fn, "r");
-  ac = (fp == NULL) ? bool_obj(0) : iport_file_obj(fp, internsym(fn));
+  fn = string_chars(ac); fp = ufopen(fn, "r");
+  ac = (fp == NULL) ? bool_obj(0) : hp_iport_file_obj(fp, internsym(fn));
   gonexti();
 }
 
 define_instruction(oof) {
   FILE *fp; cks(ac);
-  fp = ufopen(stringchars(ac), "w");
-  ac = (fp == NULL) ? bool_obj(0) : oport_file_obj(fp);
+  fp = ufopen(string_chars(ac), "w");
+  ac = (fp == NULL) ? bool_obj(0) : hp_oport_file_obj(fp);
   gonexti();
 }
 
 define_instruction(obif) {
   FILE *fp; cks(ac);
-  fp = ufopen(stringchars(ac), "rb");
-  ac = (fp == NULL) ? bool_obj(0) : iport_bytefile_obj(fp);
+  fp = ufopen(string_chars(ac), "rb");
+  ac = (fp == NULL) ? bool_obj(0) : hp_iport_bytefile_obj(fp);
   gonexti();
 }
 
 define_instruction(obof) {
   FILE *fp; cks(ac);
-  fp = ufopen(stringchars(ac), "wb");
-  ac = (fp == NULL) ? bool_obj(0) : oport_bytefile_obj(fp);
+  fp = ufopen(string_chars(ac), "wb");
+  ac = (fp == NULL) ? bool_obj(0) : hp_oport_bytefile_obj(fp);
   gonexti();
 }
 
 define_instruction(ois) {
   int *d; cks(ac);
-  d = dupsdata(stringdata(ac));
-  ac = iport_string_obj(sialloc(sdatachars(d), sdatacspan(d), d));
+  d = dupsdata(string_data(ac));
+  ac = hp_iport_string_obj(sialloc(sdatachars(d), sdatacspan(d), d));
   gonexti();
 }
 
 define_instruction(oos) {
-  ac = oport_string_obj(newcb());
+  ac = hp_oport_string_obj(newcb());
   gonexti();
 }
 
 define_instruction(oib) {
   int *d; unsigned char *p, *e; ckb(ac);
-  d = dupbytevector(bytevectordata(ac));
+  d = dupbytevector(bytevector_data(ac));
   p = bvdatabytes(d), e = p + *d;
-  ac = iport_bytevector_obj(bvialloc(p, e, d));
+  ac = hp_iport_bytevector_obj(bvialloc(p, e, d));
   gonexti();
 }
 
 define_instruction(oob) {
-  ac = oport_bytevector_obj(newcb());
+  ac = hp_oport_bytevector_obj(newcb());
   gonexti();
 }
 
@@ -3940,7 +3833,7 @@ define_instruction(ploc) {
       int *d, n = (int)(pf->cb.fill - pf->cb.buf); ckz(lb);
       if (n > 0 && pf->cb.buf[n-1] == '\n') --n;
       d = newsdatan(pf->cb.buf, n);
-      tmp = string_obj(d); /* possible gc */
+      tmp = hp_string_obj(d); /* possible gc */
       pf = iportdata(ac); lb = sref(2); pb = sref(3); /* reload after possible gc */
       box_ref(lb) = tmp;
     } 
@@ -3948,7 +3841,7 @@ define_instruction(ploc) {
       char *s; int *d, n = (int)(pf->next - pf->cb.buf); ckz(pb);
       d = newsdatan(pf->cb.buf, n);
       for (s = sdatachars(d); n > 0; --n, ++s) if (!isspace(*s)) *s = ' ';
-      tmp = string_obj(d); /* possible gc */
+      tmp = hp_string_obj(d); /* possible gc */
       pb = sref(3); /* reload after possible gc */
       box_ref(pb) = tmp;
     } 
@@ -3964,7 +3857,7 @@ define_instruction(sppr) {
 #ifdef OPT_ENHTTY /* + tty */
   cxtype_iport_t *vt; obj p = spop(); const int *d; int res; const char *s;
   ckr(ac); cks(p); vt = iportvt(ac); assert(vt);
-  d = stringdata(p); s = sdatacspan(d) ? sdatachars(d) : NULL;
+  d = string_data(p); s = sdatacspan(d) ? sdatachars(d) : NULL;
   res = vt->ctl(CTLOP_SETPROMPT, iportdata(ac), s);
   ac = bool_obj(res == 0);
 #else /* no prompt ports */
@@ -3982,7 +3875,7 @@ define_instruction(gos) {
     ac = eof_obj();
   } else {
     cbuf_t *pcb = oportdata(ac);
-    ac = string_obj(newsdatan(cbdata(pcb), (int)cblen(pcb)));
+    ac = hp_string_obj(newsdatan(cbdata(pcb), (int)cblen(pcb)));
   }
   gonexti();
 }
@@ -3996,7 +3889,7 @@ define_instruction(gob) {
   } else {
     cbuf_t *pcb = oportdata(ac);
     int len = (int)(pcb->fill - pcb->buf);
-    ac = bytevector_obj(newbytevector((unsigned char *)pcb->buf, len));
+    ac = hp_bytevector_obj(newbytevector((unsigned char *)pcb->buf, len));
   }
   gonexti();
 }
@@ -4049,7 +3942,7 @@ define_instruction(rdln) {
   int *d = NULL; cxtype_iport_t *vt = iportvt(ac); 
   if (!vt || vt->ctl(CTLOP_RDLN, iportdata(ac), &d) < 0) failactype("text input port");
   else if (d == NULL) ac = eof_obj();  
-  else ac = string_obj(d);
+  else ac = hp_string_obj(d);
   gonexti(); 
 }
 
@@ -4061,15 +3954,15 @@ define_instruction(rdah) {
   switch (rdah(fold, vt->getch, vt->ungetch, d, &o, &f4, &p)) {
     case 'o': ac = o; break;
     case 'e': ac = fixnum_obj(f4.p[0].fix); break;
-    case 'i': ac = flonum_obj(f4.p[0].flo); break;
+    case 'i': ac = hp_flonum_obj(f4.p[0].flo); break;
 #ifdef OPT_TOWER
-    case 'g': ac = bignum_obj(f4.p[0].big); break;
-    case 'f': ac = fatnum_obj(dupfatnum((fatnum_t*)&f4)); break;
+    case 'g': ac = hp_bignum_obj(f4.p[0].big); break;
+    case 'f': ac = hp_fatnum_obj(dupfatnum((fatnum_t*)&f4)); break;
 #endif
-    case 'b': ac = bytevector_obj(p); break;
-    case  0 : ac = obj_from_char('n'); break; /* unsupported number */
-    case  1 : ac = obj_from_char('d'); break; /* invalid delimiter */
-    default : ac = obj_from_char('z'); break; /* invalid token */
+    case 'b': ac = hp_bytevector_obj(p); break;
+    case  0 : ac = char_obj('n'); break; /* unsupported number */
+    case  1 : ac = char_obj('d'); break; /* invalid delimiter */
+    default : ac = char_obj('z'); break; /* invalid token */
   }
   gonexti(); 
 }
@@ -4094,7 +3987,7 @@ define_instruction(wrc) {
 
 define_instruction(wrs) {
   obj x = ac, y = spop(); cks(x); ckw(y);
-  oportputs(stringchars(x), y);
+  oportputs(string_chars(x), y);
   ac = void_obj();
   gonexti();
 }
@@ -4108,7 +4001,7 @@ define_instruction(wr8) {
 
 define_instruction(wrb) {
   obj x = ac, y = spop(); int *d; ckb(x); ckw(y);
-  d = bytevectordata(x);
+  d = bytevector_data(x);
   oportwrite((char *)bvdatabytes(d), *d, y);
   ac = void_obj();
   gonexti();
@@ -4190,7 +4083,7 @@ define_instruction(igty) {
 define_instruction(iggl) {
   const char *igs; ckg(ac);
   igs = integrable_global(integrabledata(ac));
-  ac = igs ? mksymbol(internsym((char*)igs)) : bool_obj(0);
+  ac = igs ? symbol_obj(internsym((char*)igs)) : bool_obj(0);
   gonexti(); 
 }
 
@@ -4198,26 +4091,26 @@ define_instruction(igco) {
   int n; const char *cs; ckg(ac); ckk(sref(0));
   n = get_fixnum(spop());
   cs = integrable_code(integrabledata(ac), n);
-  ac = cs ? string_obj(newsdata((char*)cs)) : bool_obj(0);
+  ac = cs ? hp_string_obj(newsdata((char*)cs)) : bool_obj(0);
   gonexti(); 
 }
 
 define_instruction(vmclo) {
   int i, n = get_fixnum(*ip++);
   if (n < 1) fail("invalid closure size");
-  hp_reserve(vmclobsz(n));
+  hp_reserve(procedure_bsz(n));
   for (i = n-1; i >= 0; --i) *--hp = sref(i);
-  ac = hend_vmclo(n);
+  ac = hend_procedure(n);
   sdrop(n);
   gonexti();
 }
 
 define_instruction(ctov) {
   int n, i; ckx(ac);
-  n = proc_len(ac);
-  hp_reserve(vecbsz(n));
-  for (i = n; i > 0; --i) *--hp = proc_ref(ac, i-1);
-  ac = hend_vec(n);
+  n = procedure_len(ac);
+  hp_reserve(vector_bsz(n));
+  for (i = n; i > 0; --i) *--hp = procedure_ref(ac, i-1);
+  ac = hend_vector(n);
   gonexti();
 }
 
@@ -4229,7 +4122,7 @@ define_instruction(ctov) {
  * because (skint disasm) reads closures and wants to be sure of one. */
 define_instruction(vmclop) {
   obj x = ac;
-  ac = bool_obj(isobjptr(x) && isvector(hblkref(x, 0)));
+  ac = bool_obj(isobjptr(x) && is_vector(block_ref(x, 0)));
   gonexti();
 }
 
@@ -4242,9 +4135,9 @@ define_instruction(inst) {
   int n = enctab_count(), i;
   /* build the spine first and fill it afterwards: the encodings allocate as we
    * go, and a vector parked in ac is traced and relocated across that */
-  hp_reserve(vecbsz(3*n));
+  hp_reserve(vector_bsz(3*n));
   for (i = 3*n; i > 0; --i) *--hp = bool_obj(0);
-  ac = hend_vec(3*n);
+  ac = hend_vector(3*n);
   for (i = 0; i < n; ++i) {
     obj word; const char *enc; int etyp;
     enctab_ref(i, &word, &enc, &etyp);
@@ -4253,7 +4146,7 @@ define_instruction(inst) {
     if (enc != NULL) {
       /* NB: into a local first -- the lvalue would otherwise be computed
        * before the allocation that may move ac */
-      obj s = string_obj(newsdata((char*)enc));
+      obj s = hp_string_obj(newsdata((char*)enc));
       vector_ref(ac, 3*i+1) = s;
     }
   }
@@ -4265,9 +4158,9 @@ define_instruction(hshim) {
   if (b) { ckk(b); base = get_fixnum(b); } 
   if (ac && isaptr(ac)) {
 #ifdef FLONUMS_BOXED
-    if (is_flonum_obj(ac)) {
+    if (is_flonum(ac)) {
       union { uint64_t ull; double d; } u;
-      u.d = flonum_from_obj(ac); v = u.ull;
+      u.d = get_flonum(ac); v = u.ull;
     } else
 #endif
     { ac = fixnum_obj(0); gonexti(); }
@@ -4599,7 +4492,7 @@ define_instruction(scall44) {
 
 define_instruction(fexis) {
   FILE *f; cks(ac);
-  f = ufopen(stringchars(ac), "r");
+  f = ufopen(string_chars(ac), "r");
   if (f != NULL) fclose(f);
   ac = bool_obj(f != NULL);
   gonexti(); 
@@ -4607,14 +4500,14 @@ define_instruction(fexis) {
 
 define_instruction(frem) {
   int res; cks(ac);
-  res = uremove(stringchars(ac));
+  res = uremove(string_chars(ac));
   ac = bool_obj(res == 0);
   gonexti(); 
 }
 
 define_instruction(fren) {
   int res; cks(ac); cks(sref(0));
-  res = urename(stringchars(ac), stringchars(sref(0)));
+  res = urename(string_chars(ac), string_chars(sref(0)));
   spop();
   ac = bool_obj(res == 0);
   gonexti(); 
@@ -4623,7 +4516,7 @@ define_instruction(fren) {
 define_instruction(getcwd) {
   extern const char *ugetcwd(void);
   const char *s = ugetcwd();
-  if (s) ac = string_obj(newsdata(s));
+  if (s) ac = hp_string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
@@ -4631,7 +4524,7 @@ define_instruction(getcwd) {
 define_instruction(setcwd) {
   extern int uchdir(const char *cwd);
   int res; cks(ac);
-  res = uchdir(stringchars(ac));
+  res = uchdir(string_chars(ac));
   ac = bool_obj(res == 0);
   gonexti(); 
 }
@@ -4641,15 +4534,15 @@ define_instruction(argvref) {
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); /* todo: range-check */
   s = argv_ref(i);
-  if (s) ac = string_obj(newsdata(s));
+  if (s) ac = hp_string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
 
 define_instruction(getenv) {
   char *v; cks(ac);
-  v = getenv(stringchars(ac));
-  if (v) ac = string_obj(newsdata(v));
+  v = getenv(string_chars(ac));
+  if (v) ac = hp_string_obj(newsdata(v));
   else ac = bool_obj(0);
   gonexti(); 
 }
@@ -4659,38 +4552,38 @@ define_instruction(envvref) {
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); /* todo: range-check */
   s = envv_ref(i);
-  if (s) ac = string_obj(newsdata(s));
+  if (s) ac = hp_string_obj(newsdata(s));
   else ac = bool_obj(0); 
   gonexti(); 
 }
 
 define_instruction(clock) {
   double d = (double)clock();
-  ac = flonum_obj(d);
+  ac = hp_flonum_obj(d);
   gonexti(); 
 }
 
 define_instruction(clops) {
   double d = (double)CLOCKS_PER_SEC;
-  ac = flonum_obj(d);
+  ac = hp_flonum_obj(d);
   gonexti(); 
 }
 
 define_instruction(cursec) {
   double d = difftime(time(NULL), 0) + 37.0;
-  ac = flonum_obj(d);
+  ac = hp_flonum_obj(d);
   gonexti(); 
 }
 
 define_instruction(utime) {
   double d = microtime();
-  ac = flonum_obj(d);
+  ac = hp_flonum_obj(d);
   gonexti(); 
 }
 
 define_instruction(uclock) {
   double d = microclock();
-  ac = flonum_obj(d);
+  ac = hp_flonum_obj(d);
   gonexti(); 
 }
 
@@ -4704,7 +4597,7 @@ define_instruction(tzoff) {
 
 define_instruction(system) {
   int res; cks(ac);
-  res = usystem(stringchars(ac));
+  res = usystem(string_chars(ac));
 #ifdef _WIN32 /* Windows system() returns exit code as-is */
   /* do not decode */
 #else /* POSIX (Linux, macOS, BSD): decode wexit status */
@@ -4742,7 +4635,7 @@ define_instruction(heapsz) {
 
 define_instruction(hostsig) {
   extern char* host_sig(void);
-  ac = string_obj(newsdata(host_sig())); 
+  ac = hp_string_obj(newsdata(host_sig())); 
   gonexti();
 }
 
@@ -4750,14 +4643,14 @@ define_instruction(hostfct) {
   extern char* host_facet(int fno);
   int i; char *s; ckk(ac);
   i = get_fixnum(ac); s = (char *)host_facet(i);
-  if (s) ac = string_obj(newsdata(s));
+  if (s) ac = hp_string_obj(newsdata(s));
   else ac = bool_obj(0);
   gonexti();
 }
 
 define_instruction(libdir) {
   extern char *lib_dir;
-  ac = string_obj(newsdata(lib_dir));
+  ac = hp_string_obj(newsdata(lib_dir));
   gonexti();
 }
 
@@ -4807,8 +4700,8 @@ static void sort_intgtab(int n)
 static int isintegrable(obj o)
 {
   int n = sizeof(intgtab)/sizeof(intgtab[0]);
-  if (is_fixnum_obj(o)) {
-    int i = fixnum_from_obj(o);
+  if (is_fixnum(o)) {
+    int i = get_fixnum(o);
     if (i >= 0 && i < n) {  
       struct intgtab_entry *pe = &intgtab[i];
       return (pe && pe->igtype >= ' ' && pe->igname && pe->enc);
@@ -4820,7 +4713,7 @@ static int isintegrable(obj o)
 static struct intgtab_entry *integrabledata(obj o)
 {
   int n = sizeof(intgtab)/sizeof(intgtab[0]);
-  int i = fixnum_from_obj(o);
+  int i = get_fixnum(o);
   struct intgtab_entry *pe = &intgtab[i];
   assert(i >= 0 && i < n);
   return pe;
@@ -4830,7 +4723,7 @@ static obj mkintegrable(struct intgtab_entry *pe)
 {
   int n = sizeof(intgtab)/sizeof(intgtab[0]);
   assert(pe >= &intgtab[0] && pe < &intgtab[n]); 
-  return obj_from_fixnum(pe-intgtab);
+  return fixnum_obj(pe-intgtab);
 }
 
 static int intgtab_count(void)
@@ -4963,7 +4856,11 @@ static double rds_real(obj port)
   else if (strcmp_ci(s+1, "inf.0") == 0) d = (*s == '-' ? -HUGE_VAL : HUGE_VAL); 
   else if (strcmp_ci(s+1, "nan.0") == 0) d = HUGE_VAL - HUGE_VAL; 
   else d = strtod(s, &e);
-  if (errno || e == s || *e) assert(0);
+  /* NB: strtod sets ERANGE whenever the result is subnormal, and returns the
+   * correct value anyway, so ERANGE alone is not an error -- every subnormal
+   * literal would trip it. Overflow sets it too, and that one IS corruption:
+   * an infinity is serialised as +inf.0/-inf.0 and never reaches strtod. */
+  if (e == s || *e || (errno == ERANGE && (d == HUGE_VAL || d == -HUGE_VAL))) assert(0);
   return d;
 }
 
@@ -4984,7 +4881,7 @@ static obj *rds_elt(obj *r, obj *sp, obj *hp)
   spush(port);
   hp = rds_sexp(r, sp, hp);
   port = spop();
-  if (!iseof(ra) && iportgetc(port) != ';') ra = mkeof();
+  if (!is_eof(ra) && iportgetc(port) != ';') ra = eof_obj();
   return hp;
 }
 
@@ -4994,25 +4891,25 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
   obj port = ra;
   int c = iportgetc(port);
   switch (c) {
-    default:  ra = mkeof(); break;
-    case 'f': ra = obj_from_bool(0); break;
-    case 't': ra = obj_from_bool(1); break;
-    case 'n': ra = mknull(); break;
-    case 'c': ra = obj_from_char(rds_char(port)); break;
-    case 'i': ra = obj_from_fixnum(rds_int(port)); break; 
-    case 'j': { double d = rds_real(port); ra = obj_from_flonum((int)(sp-r), d); break; }
+    default:  ra = eof_obj(); break;
+    case 'f': ra = bool_obj(0); break;
+    case 't': ra = bool_obj(1); break;
+    case 'n': ra = null_obj(); break;
+    case 'c': ra = char_obj(rds_char(port)); break;
+    case 'i': ra = fixnum_obj(rds_int(port)); break; 
+    case 'j': { double d = rds_real(port); ra = hflonum_obj((int)(sp-r), d); break; }
 #ifdef OPT_TOWER
     case 'x': {
       cbuf_t *pcb = newcb(); fatnum4_t f4; char *s;
       cxtype_iport_t *vt = iportvt(port); assert(vt);     
       s = rdns(vt->getch, vt->ungetch, iportdata(port), pcb);
       switch (strtonum4(&f4, s, NULL, 16)) {
-        case NUMT_FIX:  ra = obj_from_fixnum(f4.p[0].fix); break;
-        case NUMT_FLO:  ra = obj_from_flonum((int)(sp-r), f4.p[0].flo); break;
-        case NUMT_BIG:  ra = obj_from_bignum((int)(sp-r), f4.p[0].big); break;
-        case NUMT_NONE: ra = mkeof(); break;
+        case NUMT_FIX:  ra = fixnum_obj(f4.p[0].fix); break;
+        case NUMT_FLO:  ra = hflonum_obj((int)(sp-r), f4.p[0].flo); break;
+        case NUMT_BIG:  ra = hbignum_obj((int)(sp-r), f4.p[0].big); break;
+        case NUMT_NONE: ra = eof_obj(); break;
         /* fat numbers are the default */
-        default: ra = obj_from_fatnum((int)(sp-r), dupfatnum((fatnum_t*)&f4));
+        default: ra = hfatnum_obj((int)(sp-r), dupfatnum((fatnum_t*)&f4));
       }
       freecb(pcb);
     } break;
@@ -5020,10 +4917,10 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
     case 'p': {
       spush(port);
       ra = sref(0); hp = rds_elt(r, sp, hp); 
-      if (iseof(ra)) { sdrop(1); return hp; } else spush(ra);
+      if (is_eof(ra)) { sdrop(1); return hp; } else spush(ra);
       ra = sref(1); hp = rds_elt(r, sp, hp); 
-      if (iseof(ra)) { sdrop(2); return hp; } else spush(ra);
-      hreserve(pairbsz(), sp-r);
+      if (is_eof(ra)) { sdrop(2); return hp; } else spush(ra);
+      hreserve(pair_bsz(), sp-r);
       *--hp = sref(0);  
       *--hp = sref(1);  
       ra = hend_pair();
@@ -5034,10 +4931,10 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
       spush(port); /* sref(0)=port */
       for (i = 0; i < n; ++i) {
         ra = sref((int)i); hp = rds_elt(r, sp, hp); 
-        if (iseof(ra)) { sdrop(i+1); return hp; } else spush(ra);
+        if (is_eof(ra)) { sdrop(i+1); return hp; } else spush(ra);
       }
-      hreserve(pairbsz()*n, sp-r);
-      ra = mknull();
+      hreserve(pair_bsz()*n, sp-r);
+      ra = null_obj();
       for (i = 0; i < n; ++i) {
         *--hp = ra;  
         *--hp = sref((int)i);  
@@ -5050,11 +4947,11 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
       spush(port);
       for (i = 0; i < n; ++i) {
         ra = sref((int)i); hp = rds_elt(r, sp, hp); 
-        if (iseof(ra)) { sdrop(i+1); return hp; } else spush(ra);
+        if (is_eof(ra)) { sdrop(i+1); return hp; } else spush(ra);
       }
-      hreserve(vecbsz(n), sp-r);
+      hreserve(vector_bsz(n), sp-r);
       hp -= n; memcpy(hp, sp-n, n*sizeof(obj));      
-      ra = hend_vec(n);
+      ra = hend_vector(n);
       sdrop(n+1);
     } break;
     case 's': case 'y': {
@@ -5064,8 +4961,8 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
         int x = rds_char(port);
         ucbputc(x, pcb);
       }
-      if (c == 's') ra = hpushstr(sp-r, newsdatan(cbdata(pcb), (int)cblen(pcb)));
-      else ra = mksymbol(internsdata(newsdatan(cbdata(pcb), (int)cblen(pcb)), 0));
+      if (c == 's') ra = hstring_obj(sp-r, newsdatan(cbdata(pcb), (int)cblen(pcb)));
+      else ra = symbol_obj(internsdata(newsdatan(cbdata(pcb), (int)cblen(pcb)), 0));
       freecb(pcb);
     } break;
     case 'b': {
@@ -5075,7 +4972,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
         int x = rds_byte(port);
         cbputc(x, pcb);
       }
-      ra = hpushu8v(sp-r, newbytevector((unsigned char *)cbdata(pcb), (int)cblen(pcb)));
+      ra = hbytevector_obj(sp-r, newbytevector((unsigned char *)cbdata(pcb), (int)cblen(pcb)));
       freecb(pcb);
     } break;
     case 'h': {
@@ -5096,7 +4993,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
 #endif
         case 32: case 33: case 34: case 35: case 36: case 37: case 38:
         case 39: esz = 1; break; /* bit, read as bytes */
-        default: ra = mkeof(); return hp; 
+        default: ra = eof_obj(); return hp; 
       }
       d = allocbytevector((int)(n*esz)); bvdatatype(d) = (int)t;
       for (i = 0, p = bvdatabytes(d); i < n; i += 1, p += esz) {
@@ -5115,24 +5012,24 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
           case 11: *(double*)p   = (double)rds_real(port); break;
 #ifdef OPT_TOWER
           case 14: ((float*)p)[0] = (float)rds_real(port);
-                   if (iportgetc(port) != ',') { ra = mkeof(); return hp; }
+                   if (iportgetc(port) != ',') { ra = eof_obj(); return hp; }
                    ((float*)p)[1] = (float)rds_real(port); break;
           case 15: ((double*)p)[0] = (double)rds_real(port);
-                   if (iportgetc(port) != ',') { ra = mkeof(); return hp; }
+                   if (iportgetc(port) != ',') { ra = eof_obj(); return hp; }
                    ((double*)p)[1] = (double)rds_real(port); break;
 #endif
           case 32: case 33: case 34: case 35: case 36: case 37: case 38: 
           case 39: *(uint8_t*)p  = (uint8_t) rds_byte(port); break;
         }
-        if (t > 0 && t < 32 && iportgetc(port) != ';') { ra = mkeof(); return hp; }
+        if (t > 0 && t < 32 && iportgetc(port) != ';') { ra = eof_obj(); return hp; }
       }
-      ra = hpushu8v(sp-r, d);
+      ra = hbytevector_obj(sp-r, d);
     } break;
     case 'z': {
       spush(port);
       ra = sref(0); hp = rds_elt(r, sp, hp); 
-      if (iseof(ra)) { sdrop(1); return hp; } else spush(ra);
-      hreserve(boxbsz(), sp-r);
+      if (is_eof(ra)) { sdrop(1); return hp; } else spush(ra);
+      hreserve(box_bsz(), sp-r);
       *--hp = sref(0);  
       ra = hend_box();
       sdrop(2);      
@@ -5144,8 +5041,8 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
 /* protects registers from r to sp, in: ra=str, out: ra=sexp/eof */
 static obj *rds_stox(obj *r, obj *sp, obj *hp)
 {
-  int *d = dupsdata(stringdata(ra));
-  ra = mkiport_string(sp-r, sialloc(sdatachars(d), sdatacspan(d), d));
+  int *d = dupsdata(string_data(ra));
+  ra = hiport_string_obj(sp-r, sialloc(sdatachars(d), sdatacspan(d), d));
   hp = rds_sexp(r, sp, hp);  /* ra=port => ra=sexp/eof */
   return hp;
 }
@@ -5242,14 +5139,14 @@ static struct embranch *rds_prefix(obj port)
 static obj lastpair(obj l)
 {
   obj p = bool_obj(0);
-  while (ispair(l)) { p = l; l = cdr(l); }
+  while (is_pair(l)) { p = l; l = pair_cdr(l); }
   return p;
 }
 
 static fixnum_t length(obj l)
 {
   fixnum_t n = 0;
-  while (ispair(l)) { ++n; l = cdr(l); }
+  while (is_pair(l)) { ++n; l = pair_cdr(l); }
   return n;
 }
 
@@ -5257,18 +5154,18 @@ static fixnum_t length(obj l)
 obj *revlist2vec(obj *r, obj *sp, obj *hp)
 {
   obj l; fixnum_t n = length(ra), i;
-  hreserve(vecbsz(n), sp-r);
-  for (l = ra, i = 0; i < n; ++i, l = cdr(l)) *--hp = pair_car(l);
-  ra = hend_vec(n);
+  hreserve(vector_bsz(n), sp-r);
+  for (l = ra, i = 0; i < n; ++i, l = pair_cdr(l)) *--hp = pair_car(l);
+  ra = hend_vector(n);
   return hp;
 }
 
 /* protects registers from r to sp, in: ra=code, out: ra=closure */
 obj *close0(obj *r, obj *sp, obj *hp)
 {
-  hreserve(vmclobsz(1), sp-r);
+  hreserve(procedure_bsz(1), sp-r);
   *--hp = ra;
-  ra = hend_vmclo(1);
+  ra = hend_procedure(1);
   return hp;
 }
 
@@ -5277,13 +5174,13 @@ static obj *rds_arg(obj *r, obj *sp, obj *hp)
 {
   obj port = ra; int c = iportgetc(port);
   if ('0' <= c && c <= '9') {
-    ra = obj_from_fixnum(c-'0');
+    ra = fixnum_obj(c-'0');
   } else {
-    if (c != '(') ra = mkeof(); else {
+    if (c != '(') ra = eof_obj(); else {
       spush(port);
       ra = sref(0); hp = rds_sexp(r, sp, hp); 
       port = sref(0);
-      if (!iseof(ra) && iportgetc(port) != ')') ra = mkeof();
+      if (!is_eof(ra) && iportgetc(port) != ')') ra = eof_obj();
       sdrop(1); 
     }
   }
@@ -5294,24 +5191,24 @@ static obj *rds_arg(obj *r, obj *sp, obj *hp)
 static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
 {
   uint64_t base;
-  if (issymbol(ra) && isvector(cx_global_store) && (base = vectorlen(cx_global_store)) > 0) {
+  if (is_symbol(ra) && is_vector(cx_global_store) && (base = vector_len(cx_global_store)) > 0) {
     uint64_t v = (uint64_t)ra; int i = (int)(v % base);
-    obj p = isassv(ra, vectorref(cx_global_store, i));
-    if (ispair(p)) ra = cdr(p);
+    obj p = isassv(ra, vector_ref(cx_global_store, i));
+    if (is_pair(p)) ra = pair_cdr(p);
     else { /* prepend (sym . #&sym) to *globals* */
       obj box, *pl;
-      hreserve(boxbsz()*1+pairbsz()*2, sp-r);
+      hreserve(box_bsz()*1+pair_bsz()*2, sp-r);
       *--hp = ra;
       box = hend_box();
       *--hp = box; *--hp = ra;
       ra = hend_pair();
-      pl = &vectorref(cx_global_store, i);
+      pl = &vector_ref(cx_global_store, i);
       *--hp = *pl; *--hp = ra;
       *pl = hend_pair();
       ra = box;
     }
   } else {
-    ra = mkeof();
+    ra = eof_obj();
   }
   return hp;
 }
@@ -5323,11 +5220,11 @@ static obj *rds_seq(obj *r, obj *sp, obj *hp);
 static obj *rds_block(obj *r, obj *sp, obj *hp)
 {
   obj port = ra; int c = iportgetc(port);
-  if (c != '{') ra = mkeof(); else {
+  if (c != '{') ra = eof_obj(); else {
     spush(port);
     ra = sref(0); hp = rds_seq(r, sp, hp); 
     port = sref(0);
-    if (!iseof(ra) && iportgetc(port) != '}') ra = mkeof();
+    if (!is_eof(ra) && iportgetc(port) != '}') ra = eof_obj();
     sdrop(1); 
   }
   return hp; 
@@ -5338,11 +5235,11 @@ static obj *rds_seq(obj *r, obj *sp, obj *hp)
 {
   obj port = ra; int c;
   spush(port);      /* sref[1] = port */
-  spush(mknull());  /* sref[0] = l */
+  spush(null_obj());  /* sref[0] = l */
 more:  
   c = iportpeekc(sref(1));
   if (c == EOF) {
-    hreserve(pairbsz(), sp-r);
+    hreserve(pair_bsz(), sp-r);
     *--hp = sref(0); *--hp = glue(cx_ins_2D, halt);  
     ra = hend_pair();
   } else if (c == '}') { 
@@ -5353,18 +5250,18 @@ more:
       /* fprintf(stderr, "### rds_seq's remaining chars:\n");
       while (iportpeekc(sref(1)) != EOF) fputc(iportgetc(sref(1)), stderr);
       fputc('\n', stderr); */
-      ra = mkeof();
+      ra = eof_obj();
     } else switch (pbr->etyp) {
       case 0: {
-        hreserve(pairbsz(), sp-r);
+        hreserve(pair_bsz(), sp-r);
         *--hp = sref(0); *--hp = pbr->g;  
         sref(0) = hend_pair();
         goto more;
       } break;
       case 1: {
         ra = sref(1); hp = rds_arg(r, sp, hp);
-        if (iseof(ra)) goto out;
-        hreserve(pairbsz()*2, sp-r);
+        if (is_eof(ra)) goto out;
+        hreserve(pair_bsz()*2, sp-r);
         *--hp = sref(0); *--hp = pbr->g;  
         sref(0) = hend_pair();
         *--hp = sref(0); *--hp = ra;  
@@ -5373,33 +5270,33 @@ more:
       } break;
       case 2: {
         ra = sref(1); hp = rds_arg(r, sp, hp);
-        if (iseof(ra)) goto out;
-        hreserve(pairbsz()*2, sp-r);
+        if (is_eof(ra)) goto out;
+        hreserve(pair_bsz()*2, sp-r);
         *--hp = sref(0); *--hp = pbr->g;  
         sref(0) = hend_pair();
         *--hp = sref(0); *--hp = ra;  
         sref(0) = hend_pair();
         ra = sref(1); hp = rds_arg(r, sp, hp);
-        if (iseof(ra)) goto out;
-        hreserve(pairbsz(), sp-r);
+        if (is_eof(ra)) goto out;
+        hreserve(pair_bsz(), sp-r);
         *--hp = sref(0); *--hp = ra;  
         sref(0) = hend_pair();
         goto more;
       } break;
       case 'f': case 't': case 'n': {
-        hreserve(pairbsz()*2, sp-r);
+        hreserve(pair_bsz()*2, sp-r);
         *--hp = sref(0); *--hp = pbr->g;  
         sref(0) = hend_pair();
-        *--hp = sref(0); *--hp = (pbr->etyp == 'n' ? mknull() : obj_from_bool(pbr->etyp == 't'));
+        *--hp = sref(0); *--hp = (pbr->etyp == 'n' ? null_obj() : bool_obj(pbr->etyp == 't'));
         sref(0) = hend_pair();
         goto more;
       } break;
       case 'g': { /* gref/gset */
         ra = sref(1); hp = rds_arg(r, sp, hp);
-        if (iseof(ra)) goto out;
+        if (is_eof(ra)) goto out;
         hp = rds_global_loc(r, sp, hp); /* ra => ra */
-        if (iseof(ra)) goto out;
-        hreserve(pairbsz()*2, sp-r); 
+        if (is_eof(ra)) goto out;
+        hreserve(pair_bsz()*2, sp-r); 
         *--hp = sref(0); *--hp = pbr->g;  
         sref(0) = hend_pair();
         *--hp = sref(0); *--hp = ra;
@@ -5407,14 +5304,14 @@ more:
         goto more;
       } break;
       case 'a': { /* andbo */
-        hreserve(pairbsz(), sp-r);
+        hreserve(pair_bsz(), sp-r);
         *--hp = sref(0); *--hp = pbr->g;  
         sref(0) = hend_pair();
         c = iportpeekc(sref(1));
-        if (c == EOF || c == '}') { ra = mkeof(); goto out; }
+        if (c == EOF || c == '}') { ra = eof_obj(); goto out; }
         pbr = rds_prefix(sref(1));
-        if (pbr->g == 0 || pbr->etyp != 0) { ra = mkeof(); goto out; }
-        hreserve(pairbsz(), sp-r);
+        if (pbr->g == 0 || pbr->etyp != 0) { ra = eof_obj(); goto out; }
+        hreserve(pair_bsz(), sp-r);
         *--hp = sref(0); *--hp = pbr->g;  
         sref(0) = hend_pair();
         goto more;
@@ -5422,32 +5319,32 @@ more:
       case 's': { /* save */
         fixnum_t n;
         ra = sref(1); hp = rds_block(r, sp, hp);
-        if (iseof(ra)) goto out;
+        if (is_eof(ra)) goto out;
         n = length(ra);
-        hreserve(pairbsz()*2, sp-r); 
+        hreserve(pair_bsz()*2, sp-r); 
         *--hp = sref(0); *--hp = pbr->g;  
         sref(0) = hend_pair();
-        *--hp = sref(0); *--hp = obj_from_fixnum(n);
+        *--hp = sref(0); *--hp = fixnum_obj(n);
         sref(0) = hend_pair();
         if (n > 0) {
-          obj lp = lastpair(ra); assert(ispair(lp));
-          cdr(lp) = sref(0); sref(0) = ra;
+          obj lp = lastpair(ra); assert(is_pair(lp));
+          pair_cdr(lp) = sref(0); sref(0) = ra;
         }
         goto more;
       } break;
       case 'd': { /* dclose */
         fixnum_t n;
         ra = sref(1); hp = rds_arg(r, sp, hp);
-        if (!is_fixnum_obj(ra)) { ra = mkeof(); goto out; }
+        if (!is_fixnum(ra)) { ra = eof_obj(); goto out; }
         n = get_fixnum(ra);
         ra = sref(1); hp = rds_block(r, sp, hp);
-        if (iseof(ra)) goto out;
+        if (is_eof(ra)) goto out;
         hp = revlist2vec(r, sp, hp); /* ra => ra */
-        if (iseof(ra)) goto out;
-        hreserve(pairbsz()*3, sp-r); 
+        if (is_eof(ra)) goto out;
+        hreserve(pair_bsz()*3, sp-r); 
         *--hp = sref(0); *--hp = pbr->g;  
         sref(0) = hend_pair();
-        *--hp = sref(0); *--hp = obj_from_fixnum(n);
+        *--hp = sref(0); *--hp = fixnum_obj(n);
         sref(0) = hend_pair();
         *--hp = sref(0); *--hp = ra;  
         sref(0) = hend_pair();
@@ -5456,43 +5353,43 @@ more:
       case 'b': { /* branches */
         fixnum_t n; int c;
         ra = sref(1); hp = rds_block(r, sp, hp);
-        if (iseof(ra)) goto out;
+        if (is_eof(ra)) goto out;
         c = iportpeekc(sref(1));
         if (c == '{') { /* 2-arm branch combo */
           obj bseq1 = ra, bseq2;
           spush(bseq1); /* ... port, l, bseq1 <= sp */
           ra = sref(2); hp = rds_block(r, sp, hp);
-          if (iseof(ra)) { sdrop(1); goto out; }
-          hreserve(pairbsz()*4, sp-r); 
+          if (is_eof(ra)) { sdrop(1); goto out; }
+          hreserve(pair_bsz()*4, sp-r); 
           bseq1 = spop(); bseq2 = ra;
           n = length(bseq1);
           *--hp = sref(0); *--hp = pbr->g;  
           sref(0) = hend_pair();
-          *--hp = sref(0); *--hp = obj_from_fixnum(n+2);
+          *--hp = sref(0); *--hp = fixnum_obj(n+2);
           sref(0) = hend_pair();
           if (n > 0) {
-            obj lp = lastpair(bseq1); assert(ispair(lp));
-            cdr(lp) = sref(0); sref(0) = bseq1;
+            obj lp = lastpair(bseq1); assert(is_pair(lp));
+            pair_cdr(lp) = sref(0); sref(0) = bseq1;
           }
           *--hp = sref(0); *--hp = glue(cx_ins_2D, br);
           sref(0) = hend_pair();
           n = length(bseq2);
-          *--hp = sref(0); *--hp = obj_from_fixnum(n);
+          *--hp = sref(0); *--hp = fixnum_obj(n);
           sref(0) = hend_pair();
           if (n > 0) {
-            obj lp = lastpair(bseq2); assert(ispair(lp));
-            cdr(lp) = sref(0); sref(0) = bseq2;
+            obj lp = lastpair(bseq2); assert(is_pair(lp));
+            pair_cdr(lp) = sref(0); sref(0) = bseq2;
           }
         } else { /* regular 1-arm branch */
           n = length(ra);
-          hreserve(pairbsz()*2, sp-r); 
+          hreserve(pair_bsz()*2, sp-r); 
           *--hp = sref(0); *--hp = pbr->g;  
           sref(0) = hend_pair();
-          *--hp = sref(0); *--hp = obj_from_fixnum(n);
+          *--hp = sref(0); *--hp = fixnum_obj(n);
           sref(0) = hend_pair();
           if (n > 0) {
-            obj lp = lastpair(ra); assert(ispair(lp));
-            cdr(lp) = sref(0); sref(0) = ra;
+            obj lp = lastpair(ra); assert(is_pair(lp));
+            pair_cdr(lp) = sref(0); sref(0) = ra;
           }
         }
         goto more;
@@ -5508,11 +5405,11 @@ out:
 /* protects registers from r to sp, in: ra=str, out: ra=codevec/eof */
 static obj *rds_stoc(obj *r, obj *sp, obj *hp)
 {
-  int *d = dupsdata(stringdata(ra));
+  int *d = dupsdata(string_data(ra));
   /* fprintf(stderr, "** rds_stoc(%s)\n", sdatachars(d)); */
-  ra = mkiport_string(sp-r, sialloc(sdatachars(d), sdatacspan(d), d));
+  ra = hiport_string_obj(sp-r, sialloc(sdatachars(d), sdatacspan(d), d));
   hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
-  if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
+  if (!is_eof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
   return hp;
 }
 
@@ -5601,14 +5498,14 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp)
         assert(0);
     }
     if (!lcode || *lcode == 0) continue;
-    ra = mksymbol(internsym(pe->igname));
+    ra = symbol_obj(internsym(pe->igname));
     hp = rds_global_loc(r, sp, hp); /* ra->ra */
-    spush(ra); assert(isbox(ra));
-    ra = mkiport_string(sp-r, sialloc(lcode, (int)strlen(lcode), NULL));
+    spush(ra); assert(is_box(ra));
+    ra = hiport_string_obj(sp-r, sialloc(lcode, (int)strlen(lcode), NULL));
     hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
-    if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
-    if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
-    if (!iseof(ra)) boxref(spop()) = ra;
+    if (!is_eof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
+    if (!is_eof(ra)) hp = close0(r, sp, hp); /* ra => ra */
+    if (!is_eof(ra)) box_ref(spop()) = ra;
   }
   return hp;
 }
@@ -5636,37 +5533,37 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       ent += 1; name = ent[0], data = ent[1];
       assert(name != 0); assert(data != 0);
       /* install code */
-      ra = mksymbol(internsym((char*)name));
+      ra = symbol_obj(internsym((char*)name));
       hp = rds_global_loc(r, sp, hp); /* ra->ra */
-      spush(ra); assert(isbox(ra));
-      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
+      spush(ra); assert(is_box(ra));
+      ra = hiport_string_obj(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
-      if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
-      if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
-      if (!iseof(ra)) boxref(spop()) = ra;
+      if (!is_eof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
+      if (!is_eof(ra)) hp = close0(r, sp, hp); /* ra => ra */
+      if (!is_eof(ra)) box_ref(spop()) = ra;
       continue;
     } else if (name != 0 && name[0] == 'B' && name[1] == 0) {
       /* 'builtin' entry: install itself into location */
       obj sym, val, bnd, al;
       ent += 1; name = ent[0], data = ent[1];
       assert(name != 0);
-      sym = mksymbol(internsym((char*)name));
-      val = data ? mksymbol(internsym((char*)data)) : sym;
+      sym = symbol_obj(internsym((char*)name));
+      val = data ? symbol_obj(internsym((char*)data)) : sym;
       /* look for dst binding (we allow redefinition) */
-      for (bnd = 0, al = cx_tansformers; al != mknull(); al = cdr(al)) {
-        obj ael = car(al);
-        if (car(ael) != sym) continue;
+      for (bnd = 0, al = cx_tansformers; al != null_obj(); al = pair_cdr(al)) {
+        obj ael = pair_car(al);
+        if (pair_car(ael) != sym) continue;
         bnd = ael; break;
       }
       /* add new binding */
       if (!bnd) { /* acons (sym . #f) */
-        hreserve(pairbsz()*2, sp-r);
-        *--hp = obj_from_bool(0); *--hp = sym;
+        hreserve(pair_bsz()*2, sp-r);
+        *--hp = bool_obj(0); *--hp = sym;
         bnd = hend_pair();
         *--hp = cx_tansformers; *--hp = bnd;
         cx_tansformers = hend_pair();
       }
-      cdr(bnd) = val;
+      pair_cdr(bnd) = val;
       continue;    
     } else if (name != 0 && name[0] == 'A' && name[1] == 0) {
       /* 'alias' entry: copy transformer */
@@ -5675,82 +5572,82 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       ent += 1; name = ent[0], data = ent[1];
       assert(name != 0); assert(data != 0);
       /* look for dst binding (we allow redefinition) */
-      oldsym = mksymbol(internsym((char*)data));
-      sym = mksymbol(internsym((char*)name));
-      for (oldbnd = 0, al = cx_tansformers; al != mknull(); al = cdr(al)) {
-        obj ael = car(al);
-        if (car(ael) != oldsym) continue;
+      oldsym = symbol_obj(internsym((char*)data));
+      sym = symbol_obj(internsym((char*)name));
+      for (oldbnd = 0, al = cx_tansformers; al != null_obj(); al = pair_cdr(al)) {
+        obj ael = pair_car(al);
+        if (pair_car(ael) != oldsym) continue;
         oldbnd = ael; break;
       }
-      oldden = oldbnd ? cdr(oldbnd) : 0;
+      oldden = oldbnd ? pair_cdr(oldbnd) : 0;
       /* missing binding could be an auto-installed integrable */
-      if (!oldden && (pe = lookup_integrable(getsymbol(oldsym)))) {
+      if (!oldden && (pe = lookup_integrable(get_symbol(oldsym)))) {
         oldden = mkintegrable(pe);
       }
       /* we should have it now */
       assert(oldden); if (!oldden) continue;
       /* look for existing binding (we allow redefinition) */
-      for (bnd = 0, al = cx_tansformers; al != mknull(); al = cdr(al)) {
-        obj ael = car(al);
-        if (car(ael) != sym) continue; 
+      for (bnd = 0, al = cx_tansformers; al != null_obj(); al = pair_cdr(al)) {
+        obj ael = pair_car(al);
+        if (pair_car(ael) != sym) continue; 
         bnd = ael; break;
       }
       /* or add new binding */
       spush(oldden); /* protect from gc */
       if (!bnd) { /* acons (sym . #f) */
-        hreserve(pairbsz()*2, sp-r);
-        *--hp = obj_from_bool(0); *--hp = sym;
+        hreserve(pair_bsz()*2, sp-r);
+        *--hp = bool_obj(0); *--hp = sym;
         bnd = hend_pair();
         *--hp = cx_tansformers; *--hp = bnd;
         cx_tansformers = hend_pair();
       }
-      cdr(bnd) = spop(); /* oldden */
+      pair_cdr(bnd) = spop(); /* oldden */
       continue;    
     } else if (name != 0 && name[0] == 'K' && name[1] == 0) {
       /* special entry for cx_continuation_adapter_code */
       ent += 1; name = ent[0], data = ent[1];
       assert(name == 0); assert(data != 0);
-      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
+      ra = hiport_string_obj(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
-      if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
-      assert(!iseof(ra));
+      if (!is_eof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
+      assert(!is_eof(ra));
       cx_continuation_adapter_code = ra;
       continue;
     }
     /* skipped prefix or no prefix */
     if (name != NULL) {
       /* install sexp-encoded syntax-rules as a transformer */
-      obj sym = mksymbol(internsym((char*)name));
-      obj al = cx_tansformers, bnd = mknull();
-      assert(ispair(al)); /* basic transformers already installed */
+      obj sym = symbol_obj(internsym((char*)name));
+      obj al = cx_tansformers, bnd = null_obj();
+      assert(is_pair(al)); /* basic transformers already installed */
       /* look for existing binding (we allow redefinition) */
-      while (al != mknull()) {
-        obj ael = car(al);
-        if (car(ael) != sym) { al = cdr(al); continue; }
+      while (al != null_obj()) {
+        obj ael = pair_car(al);
+        if (pair_car(ael) != sym) { al = pair_cdr(al); continue; }
         bnd = ael; break;
       }
       /* or add new binding */
-      if (bnd == mknull()) { /* acons (sym . #f) */
-        hreserve(pairbsz()*2, sp-r);
-        *--hp = obj_from_bool(0); *--hp = sym;
+      if (bnd == null_obj()) { /* acons (sym . #f) */
+        hreserve(pair_bsz()*2, sp-r);
+        *--hp = bool_obj(0); *--hp = sym;
         bnd = hend_pair();
         *--hp = cx_tansformers; *--hp = bnd;
         cx_tansformers = hend_pair();
       }
       /* sexp-decode data into the cdr of the binding */
       spush(bnd); /* protect from gc */
-      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
+      ra = hiport_string_obj(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_sexp(r, sp, hp);  /* ra=port => ra=sexp/eof */      
       bnd = spop();
-      assert(ispair(bnd) && (ispair(ra) || issymbol(ra)));
-      cdr(bnd) = ra;
+      assert(is_pair(bnd) && (is_pair(ra) || is_symbol(ra)));
+      pair_cdr(bnd) = ra;
     } else {
       /* execute code-encoded thunk */
-      ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
+      ra = hiport_string_obj(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
-      if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
-      if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
-      assert(!iseof(ra));
+      if (!is_eof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
+      if (!is_eof(ra)) hp = close0(r, sp, hp); /* ra => ra */
+      assert(!is_eof(ra));
       /* ra is a thunk closure to execute */
       hp = vm_execute_thunk_closure(r, sp, hp); /* ra => ra (result) */
       sp = r + VM_REGC; /* the vm has emptied its stack */

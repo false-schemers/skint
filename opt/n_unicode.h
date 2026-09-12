@@ -42,11 +42,11 @@ extern int sdatacmp_ci(const int *d1, const int *d2);
 extern unsigned long sdatahash(const int *d);
 
 /* string procedures */
-#define stringget(o, i) sdataget(stringdata(o), i)
-static void stringput(obj o, int i, int c) {
-  const int *d = stringdata(o); assert(c >= 0 && i >= 0 && i < d[0]);
+#define string_get(o, i) sdataget(string_data(o), i)
+static void string_put(obj o, int i, int c) {
+  const int *d = string_data(o); assert(c >= 0 && i >= 0 && i < d[0]);
   if (d[0] == d[1] && c < 0x80) sdatachars(d)[i] = c;
-  else setnative(o, STRING_NTAG, sdataput((int *)d, i, c)); 
+  else set_native(o, STRING_NTAG, sdataput((int *)d, i, c)); 
 } 
 extern int *stringr(int sc, obj pso[]);
 extern int *stringrcat(int sc, obj pso[]);

@@ -166,9 +166,9 @@ define_instrhelper(tower_unary) {
     switch (z4.t) {
       case NUMT_NONE: assert(0); break; 
       case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-      case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-      case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
-      default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      case NUMT_FLO: ac = hp_flonum_obj(z4.u.p[0].flo); break;
+      case NUMT_BIG: ac = hp_bignum_obj(z4.u.p[0].big); break;
+      default: ac = hp_fatnum_obj(dupfatnum((fatnum_t*)&z4));
     }
     gonexti();
   } else {
@@ -195,9 +195,9 @@ define_instrhelper(tower_binary) {
     switch (z4.t) {
       case NUMT_NONE: assert(0); break; 
       case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-      case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-      case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
-      default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      case NUMT_FLO: ac = hp_flonum_obj(z4.u.p[0].flo); break;
+      case NUMT_BIG: ac = hp_bignum_obj(z4.u.p[0].big); break;
+      default: ac = hp_fatnum_obj(dupfatnum((fatnum_t*)&z4));
     }
     gonexti();
   } else {
@@ -224,9 +224,9 @@ define_instrhelper(tower_binary_push) {
     switch (z4.t) {
       case NUMT_NONE: assert(0); break; 
       case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-      case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-      case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
-      default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+      case NUMT_FLO: ac = hp_flonum_obj(z4.u.p[0].flo); break;
+      case NUMT_BIG: ac = hp_bignum_obj(z4.u.p[0].big); break;
+      default: ac = hp_fatnum_obj(dupfatnum((fatnum_t*)&z4));
     }
     spush(ac);
     gonexti();
@@ -250,7 +250,7 @@ define_instruction(add) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnadd; goih(tower_binary); }
-    ac = flonum_obj(dx + dy);
+    ac = hp_flonum_obj(dx + dy);
   }
   gonexti(); 
 }
@@ -270,7 +270,7 @@ define_instruction(sub) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnsub; goih(tower_binary); }
-    ac = flonum_obj(dx - dy);
+    ac = hp_flonum_obj(dx - dy);
   }
   gonexti(); 
 }
@@ -290,7 +290,7 @@ define_instruction(mul) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)(ly = get_fixnum(y));
     else { spush(x); spush(y); ac = (obj)&fnmul; goih(tower_binary); }
-    ac = (lx && ly) ? flonum_obj(dx * dy) : fixnum_obj(0);
+    ac = (lx && ly) ? hp_flonum_obj(dx * dy) : fixnum_obj(0);
   }
   gonexti(); 
 }
@@ -312,7 +312,7 @@ define_instruction(div) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fndiv; goih(tower_binary); }
-    ac = flonum_obj(dx / dy);
+    ac = hp_flonum_obj(dx / dy);
   }
   gonexti(); 
 }
@@ -333,7 +333,7 @@ define_instruction(quo) {
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnquo; goih(tower_binary); }
     modf(dx / dy,  &dz);
-    ac = flonum_obj(dz);
+    ac = hp_flonum_obj(dz);
   }
   gonexti(); 
 }
@@ -353,7 +353,7 @@ define_instruction(rem) {
     else { spush(x); spush(y); ac = (obj)&fnrem; goih(tower_binary); }
     dz = fmod(dx, dy);
     /* keep zero positive: (remainder -10.0 2.0) => 0.0, not -0.0 */
-    ac = flonum_obj((dz == 0.0) ? 0.0 : dz);
+    ac = hp_flonum_obj((dz == 0.0) ? 0.0 : dz);
   }
   gonexti(); 
 }
@@ -373,7 +373,7 @@ define_instruction(mqu) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnmqu; goih(tower_binary); }
-    ac = flonum_obj(flmqu(dx, dy));
+    ac = hp_flonum_obj(flmqu(dx, dy));
   }
   gonexti(); 
 }
@@ -391,7 +391,7 @@ define_instruction(mlo) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnmlo; goih(tower_binary); }
-    ac = flonum_obj(flmlo(dx, dy));
+    ac = hp_flonum_obj(flmlo(dx, dy));
   }
   gonexti(); 
 }
@@ -557,7 +557,7 @@ define_instruction(min) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnmin; goih(tower_binary); }
-    ac = flonum_obj(ieee_fminimum(dx, dy));
+    ac = hp_flonum_obj(ieee_fminimum(dx, dy));
   }
   gonexti(); 
 }
@@ -574,7 +574,7 @@ define_instruction(max) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnmax; goih(tower_binary); }
-    ac = flonum_obj(ieee_fmaximum(dx, dy));
+    ac = hp_flonum_obj(ieee_fmaximum(dx, dy));
   }
   gonexti(); 
 }
@@ -583,7 +583,7 @@ define_instruction(neg) {
   if (likely(is_fixnum(ac))) {
     ac = fixnum_obj(-get_fixnum(ac));
   } else if (likely(is_flonum(ac))) {
-    ac = flonum_obj(-get_flonum(ac));
+    ac = hp_flonum_obj(-get_flonum(ac));
   } else { spush(ac); ac = (obj)&fnneg; goih(tower_unary); }
   gonexti(); 
 }
@@ -592,7 +592,7 @@ define_instruction(abs) {
   if (likely(is_fixnum(ac))) {
     ac = fixnum_obj(fxabs(get_fixnum(ac)));
   } else if (likely(is_flonum(ac))) {
-    ac = flonum_obj(fabs(get_flonum(ac)));
+    ac = hp_flonum_obj(fabs(get_flonum(ac)));
   } else { spush(ac); ac = (obj)&fnabs; goih(tower_unary); }
   gonexti(); 
 }
@@ -609,7 +609,7 @@ define_instruction(gcd) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fngcd; goih(tower_binary); }
-    ac = flonum_obj(flgcd(dx, dy));
+    ac = hp_flonum_obj(flgcd(dx, dy));
   }
   gonexti(); 
 }
@@ -630,7 +630,7 @@ define_instruction(pow) {
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else goto tower;
     if (dx > 0 && dy > 0) { /* no foul play */
-      ac = flonum_obj(pow(dx, dy));
+      ac = hp_flonum_obj(pow(dx, dy));
       gonexti();
     }
   }
@@ -644,7 +644,7 @@ define_instruction(sqrt) {
   if (likely(is_flonum(ac))) {
     double d = get_flonum(ac);
     if (d > 0.0) {
-      ac = flonum_obj(sqrt(d));
+      ac = hp_flonum_obj(sqrt(d));
       gonexti();
     }
   }
@@ -654,9 +654,9 @@ define_instruction(sqrt) {
 }
 
 define_instruction(exp) {
-  if (likely(is_flonum(ac))) ac = flonum_obj(exp(get_flonum(ac)));
+  if (likely(is_flonum(ac))) ac = hp_flonum_obj(exp(get_flonum(ac)));
   else if (unlikely(ac == fixnum_obj(0))) ac = fixnum_obj(1);
-  else if (unlikely(is_fixnum(ac))) ac = flonum_obj(exp(get_fixnum(ac)));
+  else if (unlikely(is_fixnum(ac))) ac = hp_flonum_obj(exp(get_fixnum(ac)));
   else { spush(ac); ac = (obj)&fnexp; goih(tower_unary); }
   gonexti(); 
 }
@@ -669,25 +669,25 @@ define_instruction(log) {
 }
 
 define_instruction(sin) {
-  if (likely(is_flonum(ac))) ac = flonum_obj(sin(get_flonum(ac)));
+  if (likely(is_flonum(ac))) ac = hp_flonum_obj(sin(get_flonum(ac)));
   else if (unlikely(ac == fixnum_obj(0))) ac = fixnum_obj(0);
-  else if (unlikely(is_fixnum(ac))) ac = flonum_obj(sin(get_fixnum(ac)));
+  else if (unlikely(is_fixnum(ac))) ac = hp_flonum_obj(sin(get_fixnum(ac)));
   else { spush(ac); ac = (obj)&fnsin; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(cos) {
-  if (likely(is_flonum(ac))) ac = flonum_obj(cos(get_flonum(ac)));
+  if (likely(is_flonum(ac))) ac = hp_flonum_obj(cos(get_flonum(ac)));
   else if (unlikely(ac == fixnum_obj(0))) ac = fixnum_obj(1);
-  else if (unlikely(is_fixnum(ac))) ac = flonum_obj(cos(get_fixnum(ac)));
+  else if (unlikely(is_fixnum(ac))) ac = hp_flonum_obj(cos(get_fixnum(ac)));
   else { spush(ac); ac = (obj)&fncos; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(tan) {
-  if (likely(is_flonum(ac))) ac = flonum_obj(tan(get_flonum(ac)));
+  if (likely(is_flonum(ac))) ac = hp_flonum_obj(tan(get_flonum(ac)));
   else if (unlikely(ac == fixnum_obj(0))) ac = fixnum_obj(0);
-  else if (unlikely(is_fixnum(ac))) ac = flonum_obj(tan(get_fixnum(ac)));
+  else if (unlikely(is_fixnum(ac))) ac = hp_flonum_obj(tan(get_fixnum(ac)));
   else { spush(ac); ac = (obj)&fntan; goih(tower_unary); }
   gonexti(); 
 }
@@ -710,28 +710,28 @@ define_instruction(atan) {
 }
 
 define_instruction(floor) {
-  if (likely(is_flonum(ac))) { ac = flonum_obj(floor(get_flonum(ac))); } 
+  if (likely(is_flonum(ac))) { ac = hp_flonum_obj(floor(get_flonum(ac))); } 
   else if (likely(is_fixnum(ac))) { /* ac is integer */ } 
   else { spush(ac); ac = (obj)&fnfloor; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(ceil) {
-  if (likely(is_flonum(ac))) { ac = flonum_obj(ceil(get_flonum(ac))); } 
+  if (likely(is_flonum(ac))) { ac = hp_flonum_obj(ceil(get_flonum(ac))); } 
   else if (likely(is_fixnum(ac))) { /* ac is integer */ } 
   else { spush(ac); ac = (obj)&fnceil; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(trunc) {
-  if (likely(is_flonum(ac))) { double i; modf(get_flonum(ac), &i); ac = flonum_obj(i); } 
+  if (likely(is_flonum(ac))) { double i; modf(get_flonum(ac), &i); ac = hp_flonum_obj(i); } 
   else if (likely(is_fixnum(ac))) { /* ac is integer */ } 
   else { spush(ac); ac = (obj)&fntrunc; goih(tower_unary); }
   gonexti(); 
 }
 
 define_instruction(round) {
-  if (likely(is_flonum(ac))) { ac = flonum_obj(flround(get_flonum(ac))); } 
+  if (likely(is_flonum(ac))) { ac = hp_flonum_obj(flround(get_flonum(ac))); } 
   else if (likely(is_fixnum(ac))) { /* ac is integer */ } 
   else { spush(ac); ac = (obj)&fnround; goih(tower_unary); }
   gonexti(); 
@@ -743,7 +743,7 @@ define_instruction(ntoex) {
 }
 
 define_instruction(ntoin) {
-  if (likely(is_fixnum(ac))) ac = flonum_obj((flonum_t)get_fixnum(ac));
+  if (likely(is_fixnum(ac))) ac = hp_flonum_obj((flonum_t)get_fixnum(ac));
   else if (likely(is_flonum(ac))) /* keep ac as-is */ ;
   else { spush(ac); ac = (obj)&fntoin; goih(tower_unary); }
   gonexti(); 
@@ -799,9 +799,9 @@ define_instruction(numer) {
       switch (z4.t) {
         case NUMT_NONE: assert(0); break; 
         case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-        case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-        case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
-        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+        case NUMT_FLO: ac = hp_flonum_obj(z4.u.p[0].flo); break;
+        case NUMT_BIG: ac = hp_bignum_obj(z4.u.p[0].big); break;
+        default: ac = hp_fatnum_obj(dupfatnum((fatnum_t*)&z4));
       }
       gonexti();
     }
@@ -821,9 +821,9 @@ define_instruction(denom) {
       switch (z4.t) {
         case NUMT_NONE: assert(0); break; 
         case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-        case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-        case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
-        default: ac = fatnum_obj(dupfatnum((fatnum_t*)&z4));
+        case NUMT_FLO: ac = hp_flonum_obj(z4.u.p[0].flo); break;
+        case NUMT_BIG: ac = hp_bignum_obj(z4.u.p[0].big); break;
+        default: ac = hp_fatnum_obj(dupfatnum((fatnum_t*)&z4));
       }
       gonexti();
     }
@@ -848,22 +848,22 @@ define_instruction(ipart) {
 
 define_instruction(magn) { 
   if (likely(is_fixnum(ac))) { ac = fixnum_obj(fxabs(get_fixnum(ac))); gonexti(); } 
-  else if (likely(is_flonum(ac))) { ac = flonum_obj(fabs(get_flonum(ac))); gonexti(); } 
-  else if (likely(is_bignum(ac))) { ac = bignum_obj(bnabs(get_bignum(ac))); gonexti(); } 
+  else if (likely(is_flonum(ac))) { ac = hp_flonum_obj(fabs(get_flonum(ac))); gonexti(); } 
+  else if (likely(is_bignum(ac))) { ac = hp_bignum_obj(bnabs(get_bignum(ac))); gonexti(); } 
   else { spush(ac); ac = (obj)&fnmagn; goih(tower_unary); }
 }
 
 define_instruction(angl) {
   if (likely(is_fixnum(ac))) {
-    ac = (get_fixnum(ac) < 0) ? flonum_obj(M_PI) : fixnum_obj(0); 
+    ac = (get_fixnum(ac) < 0) ? hp_flonum_obj(M_PI) : fixnum_obj(0); 
     gonexti(); 
   } else if (likely(is_flonum(ac))) {
     double x = get_flonum(ac);
     int neg = (x == 0.0) ? zero_is_neg(x) : x < 0.0;
-    ac = flonum_obj(neg ? M_PI : 0.0);
+    ac = hp_flonum_obj(neg ? M_PI : 0.0);
     gonexti(); 
   } else if (likely(is_bignum(ac))) { 
-    ac = (bnsign(get_bignum(ac)) < 0) ? flonum_obj(M_PI) : fixnum_obj(0); 
+    ac = (bnsign(get_bignum(ac)) < 0) ? hp_flonum_obj(M_PI) : fixnum_obj(0); 
     gonexti(); 
   } else {
     spush(ac); ac = (obj)&fnangl; 
@@ -891,15 +891,15 @@ define_instrhelper(tower_isqrt) {
   if (!fx || !fnisqrt(&z4, &r4, fx)) failtype(x, "nonnegative integer");
   switch (z4.t) {
     case NUMT_FIX: ac = fixnum_obj(z4.u.p[0].fix); break;
-    case NUMT_FLO: ac = flonum_obj(z4.u.p[0].flo); break;
-    case NUMT_BIG: ac = bignum_obj(z4.u.p[0].big); break;
+    case NUMT_FLO: ac = hp_flonum_obj(z4.u.p[0].flo); break;
+    case NUMT_BIG: ac = hp_bignum_obj(z4.u.p[0].big); break;
     default: assert(0); break;
   }
   if (b && is_box(b)) {
     switch (r4.t) {
       case NUMT_FIX: box_ref(b) = fixnum_obj(r4.u.p[0].fix); break;
-      case NUMT_FLO: box_ref(b) = flonum_obj(r4.u.p[0].flo); break;
-      case NUMT_BIG: box_ref(b) = bignum_obj(r4.u.p[0].big); break;
+      case NUMT_FLO: box_ref(b) = hp_flonum_obj(r4.u.p[0].flo); break;
+      case NUMT_BIG: box_ref(b) = hp_bignum_obj(r4.u.p[0].big); break;
       default: assert(0); break; 
     }
   } else {
@@ -1015,7 +1015,7 @@ define_instruction(intos) {
     else failtype(x, "inexact number");
     if (err < 0) failtype(y, "valid radix for inexact number");
     s = cbdata(pcb);
-    ac = string_obj(newsdata(s));
+    ac = hp_string_obj(newsdata(s));
     gonexti();
   }
 }
@@ -1039,7 +1039,7 @@ define_instruction(ntos) {
     else { freecb(pcb); failtype(x, "number"); }
     if (err < 0) { freecb(pcb); failtype(y, "valid radix for inexact number"); }
     s = cbdata(pcb);
-    ac = string_obj(newsdata(s));
+    ac = hp_string_obj(newsdata(s));
     freecb(pcb);
     gonexti();
   }
@@ -1048,14 +1048,14 @@ define_instruction(ntos) {
 define_instruction(ston) {
   const char *s; int radix; fatnum4_t f4;
   obj x = ac, y = spop(); cks(x); ckk(y);
-  s = stringchars(x); radix = get_fixnum(y);
+  s = string_chars(x); radix = get_fixnum(y);
   if (radix < 2 || radix > 10 + 'z' - 'a') failtype(y, "valid radix");
   switch (strtonum4(&f4, s, NULL, radix)) {
     case NUMT_NONE: ac = bool_obj(0);  errno = 0; break;
     case NUMT_FIX:  ac = fixnum_obj(f4.p[0].fix); break;
-    case NUMT_FLO:  ac = flonum_obj(f4.p[0].flo); break;
-    case NUMT_BIG:  ac = bignum_obj(f4.p[0].big); break;
-    default: ac = fatnum_obj(dupfatnum((fatnum_t*)&f4)); break;
+    case NUMT_FLO:  ac = hp_flonum_obj(f4.p[0].flo); break;
+    case NUMT_BIG:  ac = hp_bignum_obj(f4.p[0].big); break;
+    default: ac = hp_fatnum_obj(dupfatnum((fatnum_t*)&f4)); break;
   }
   gonexti();
 }
@@ -1075,7 +1075,7 @@ define_instruction(pushsub) {
     if (likely(is_flonum(y))) dy = get_flonum(y);
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else { spush(x); spush(y); ac = (obj)&fnsub; goih(tower_binary_push); }
-    ac = flonum_obj(dx - dy);
+    ac = hp_flonum_obj(dx - dy);
   }
   spush(ac);
   gonexti(); 

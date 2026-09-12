@@ -46,22 +46,22 @@ static obj *init_kernel_globals(obj *r, obj *sp, obj *hp)
 {
   { /* (define *globals* (make-vector 991 '())) */
   obj o; int i = 0, c = 991;
-  hreserve(hbsz(c+1), sp-r);
-  o = mknull(); /* gc-safe */
+  hreserve(block_bsz(c+1), sp-r);
+  o = null_obj(); /* gc-safe */
   while (i++ < c) *--hp = o;
   *--hp = obj_from_size(VECTOR_BTAG);
-  cx_global_store = hendblk(c+1); }
+  cx_global_store = hend_block(c+1); }
   { /* (define *dynamic-state* (cons #f '())) */
-  hreserve(hbsz(3), sp-r);
-  *--hp = mknull();
-  *--hp = obj_from_bool(0);
+  hreserve(block_bsz(3), sp-r);
+  *--hp = null_obj();
+  *--hp = bool_obj(0);
   *--hp = obj_from_size(PAIR_BTAG);
-  cx_dynamic_state = hendblk(3); }
-  cx_current_input = obj_from_bool(0);
-  cx_current_output = obj_from_bool(0);
-  cx_current_error = obj_from_bool(0);
-  cx_tansformers = mknull();
-  cx_continuation_adapter_code = obj_from_bool(0);
+  cx_dynamic_state = hend_block(3); }
+  cx_current_input = bool_obj(0);
+  cx_current_output = bool_obj(0);
+  cx_current_error = bool_obj(0);
+  cx_tansformers = null_obj();
+  cx_continuation_adapter_code = bool_obj(0);
   return hp;
 }
 
@@ -79,7 +79,7 @@ static obj *run_kernel(obj *r, obj *sp, obj *hp)
 {
   hp = init_kernel_globals(r, sp, hp);
   /* (define callmv-adapter-closure (make-closure (decode "K5"))) */
-  ra = hpushstr(sp-r, newsdata(callmv_adapter_code));
+  ra = hstring_obj(sp-r, newsdata(callmv_adapter_code));
   hp = decode_closure(r, sp, hp);
   cx_callmv_adapter_closure = ra;
   /* (install-global-lambdas) */
@@ -89,10 +89,10 @@ static obj *run_kernel(obj *r, obj *sp, obj *hp)
   /* (define (main) (if (eq? (tcode-repl) #t) #f (main))) -- the repl
    * returns #t when it is done, anything else on an error exit */
   do { /* (define (tcode-repl) (execute-thunk-closure ...)) */
-    ra = hpushstr(sp-r, newsdata(repl_code));
+    ra = hstring_obj(sp-r, newsdata(repl_code));
     hp = decode_closure(r, sp, hp);
     hp = vm_execute_thunk_closure(r, sp, hp); /* ra=closure => ra=result */
-  } while (ra != obj_from_bool(1));
+  } while (ra != bool_obj(1));
   return hp;
 }
 

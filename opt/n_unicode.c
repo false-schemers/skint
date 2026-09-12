@@ -267,13 +267,13 @@ int *stringr(int sc, obj pso[])
   int i, bc = 0, *pb; char *s;
   assert(sc >= 0);
   for (i = 0; i < sc; ++i) { 
-    obj oi = pso[i]; if (!ischar(oi)) return NULL;
-    bc += charlen(char_from_obj(oi)); 
+    obj oi = pso[i]; if (!is_char(oi)) return NULL;
+    bc += charlen(get_char(oi)); 
   }
   pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
   pb[0] = sc; pb[1] = bc; s = sdatachars(pb);
   for (i = sc-1; i >= 0; --i) {
-    obj oi = pso[i]; s += uencode(s, char_from_obj(oi)); 
+    obj oi = pso[i]; s += uencode(s, get_char(oi)); 
   }
   *s = 0; assert(s-sdatachars(pb) == bc);
   return pb;
@@ -285,13 +285,13 @@ int *stringrcat(int sc, obj pso[])
   int i, n = 0, bc = 0, *pb; char *s;
   assert(sc >= 0);
   for (i = 0; i < sc; ++i) { 
-    const int *di; obj oi = pso[i]; if (!isstring(oi)) return NULL;
-    di = stringdata(oi); n += di[0]; bc += di[1]; 
+    const int *di; obj oi = pso[i]; if (!is_string(oi)) return NULL;
+    di = string_data(oi); n += di[0]; bc += di[1]; 
   }
   pb = cxm_cknull(malloc(sizeof(int)*2 + bc + 1), "malloc(string)");
   pb[0] = n; pb[1] = bc; s = sdatachars(pb);
   for (i = sc-1; i >= 0; --i) {
-    obj oi = pso[i]; const int *di = stringdata(oi), bci = di[1];
+    obj oi = pso[i]; const int *di = string_data(oi), bci = di[1];
     memcpy(s, sdatachars(di), bci); s += bci;
   }
   *s = 0;
