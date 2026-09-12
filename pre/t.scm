@@ -66,7 +66,7 @@
       (and (eq? pat '<vector>) (vector? x))
       (and (eq? pat '<bytevector>) (bytevector? x))
       (and (eq? pat '<char>) (char? x))
-      (and (eq? pat '<byte>) (and (exact-integer? x) (<= 0 x 255)))
+      (and (eq? pat '<byte>) (and (integer? x) (exact? x) (<= 0 x 255)))
       (eqv? x pat)
       (and (pair? pat)
            (cond [(and (eq? (car pat) '...)
@@ -503,6 +503,7 @@
 (define (integrable-argc-match? igt n)
   (case igt
     [(#\0) (=  n 0)]   [(#\1) (=  n 1)]   [(#\2) (=  n 2)]   [(#\3) (=  n 3)] 
+    [(#\4) (=  n 4)]   [(#\5) (=  n 5)]
     [(#\p) (>= n 0)]   [(#\m) (>= n 1)]   [(#\c) (>= n 2)]   [(#\x) (>= n 1)]
     [(#\u) (<= 0 n 1)] [(#\b) (<= 1 n 2)] [(#\t) (<= 2 n 3)]
     [(#\#) (>= n 0)]   [(#\@) #f]
@@ -736,7 +737,7 @@
     [(id-escape=? x 'number?)        
      number?]
     [(id-escape=? x 'exact-integer?) 
-     exact-integer?]
+     (lambda (obj) (and (integer? obj) (exact? obj)))]
     [(id-escape=? x 'boolean?)       
      boolean?]
     [(id-escape=? x 'char?)          
@@ -1060,7 +1061,7 @@
 
 (define (preprocess-import-sets sexp env) ;=> (init-core . exports-eal)
   (define (twoids? x) (and (list2? x) (id? (car x)) (id? (cadr x)))) 
-  (define (libpart? x) (or (id? x) (exact-integer? x)))
+  (define (libpart? x) (or (id? x) (and (integer? x) (exact? x))))
   (check-syntax sexp '(<id> * ...) "invalid import syntax")
   (let* ([sid (car sexp)] ; reference id to capture names entered by user
          [is-only-id (id-rename-as sid 'only)] [is-except-id (id-rename-as sid 'except)]
@@ -1650,7 +1651,7 @@
       [integrable (ig . args)
        (let ([igty (integrable-type ig)] [igc0 (integrable-code ig 0)])
          (case igty
-            [(#\0 #\1 #\2 #\3) ; 1st arg in a, others on stack
+            [(#\0 #\1 #\2 #\3 #\4 #\5) ; 1st arg in a, others on stack
              (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
                [(null? args)]
                (codegen (car args) l f s g #f port)
@@ -1877,7 +1878,7 @@
 ; Library names and library file lookup
 ;--------------------------------------------------------------------------------------------------
 
-(define (lnpart? x) (or (id? x) (exact-integer? x)))
+(define (lnpart? x) (or (id? x) (and (integer? x) (exact? x))))
 (define (listname? x) (and (list1+? x) (andmap lnpart? x))) 
 
 (define (mangle-symbol->string sym)
@@ -1906,13 +1907,13 @@
         (string->symbol (apply string-append (reverse (cons postfix parts))))
         (cond [(symbol? (car lst))
                (loop (cdr lst) (cons (mangle-symbol->string (car lst)) (cons symbol-prefix parts)))]
-              [(exact-integer? (car lst))
+              [(and (integer? (car lst)) (exact? (car lst)))
                (loop (cdr lst) (cons (number->string (car lst)) (cons number-prefix parts)))]
               [else (x-error "invalid library name" lib)]))))
 
 (define (listname-segment->string s)
   (cond [(symbol? s) (mangle-symbol->string s)]
-        [(exact-integer? s) (number->string s)]
+        [(and (integer? s) (exact? s)) (number->string s)]
         [else (c-error "invalid library name name element" s)]))
 
 (define (listname->path listname basepath ext)
@@ -2076,7 +2077,7 @@
 (define *root-name-registry* (make-name-registry 300))
 
 ; nonpublic registry for all hidden skint names (used by built-in macros)
-(define *hidden-name-registry* (make-name-registry 1)) ; 1 to share bindings w/(skint hidden)
+(define *hidden-name-registry* (make-name-registry 211)) ; searched first by every builtin-sr lookup
 
 (define (builtin-sr-environment id at)
   (cond [(new-id? id) (new-id-lookup id at)]
@@ -2137,7 +2138,7 @@
         [(i) '(scheme inexact)] [(f) '(scheme file)]  [(e) '(scheme eval)]
         [(o) '(scheme complex)] [(h) '(scheme char)]  [(l) '(scheme case-lambda)]
         [(a) '(scheme cxr)]     [(b) '(scheme base)]  [(x) '(scheme box)]
-        [else (if (exact-integer? k) (list 'srfi k) (list k))]))
+        [else (if (and (integer? k) (exact? k)) (list 'srfi k) (list k))]))
     (define (get-library! listname) ;=> <library> 
       (location-val 
         (name-lookup *root-name-registry* listname 
@@ -2183,7 +2184,7 @@
     (peek-u8 b) (port? b) (positive? v b) (procedure? v b) (quasiquote v u b) (quote v u b)
     (quotient v b) (raise b) (raise-continuable b) (rational? v b) (rationalize v b) (read-bytevector b)
     (read-bytevector! b) (read-char v b) (read-error? b) (read-line b) (read-string b) (read-u8 b)
-    (real? v b) (remainder v b) (reverse v b) (round v b) (set! v b) (set-car! v b) (set-cdr! v b)
+    (real? v b) (remainder v b) (reverse v b) (round v b) (set! v u b) (set-car! v b) (set-cdr! v b)
     (square b) (string v b) (string->list v b) (string->number v b) (string->symbol v b)
     (string->utf8 b) (string->vector b) (string-append v b) (string-copy v b) (string-copy! b)
     (string-fill! v b) (string-for-each b) (string-length v b) (string-map b) (string-ref v b)
@@ -2206,8 +2207,8 @@
     (cddaar v a) (cddadr v a) (cdddar v a) (cddddr v a) (environment e) (eval v e)
     (call-with-input-file v f) (call-with-output-file v f) (delete-file f) (file-exists? f)
     (open-binary-input-file f) (open-binary-output-file f) (open-input-file v f) (open-output-file v f)
-    (with-input-from-file v f) (with-output-to-file v f) (acos v z i) (asin v z i) (atan v z i)
-    (cos v z i) (exp v z i) (finite? z i) (infinite? i) (log v i) (nan? i) (sin v i) (sqrt v i)
+    (with-input-from-file v f) (with-output-to-file v f) (acos v i) (asin v i) (atan v i)
+    (cos v i) (exp v i) (finite? i) (infinite? i) (log v i) (nan? i) (sin v i) (sqrt v i)
     (tan v i) (delay v u z) (delay-force z) (force v z) (make-promise z) (promise? z) (load v d)
     (command-line s) (emergency-exit s) (exit s) (get-environment-variable s)
     (get-environment-variables s) (display w v) (exact->inexact v) (inexact->exact v)
@@ -2225,7 +2226,7 @@
     (record?) (make-record) (record-length) (record-ref) (record-set!) (record-type-descriptor) 
     (fixnum?) (fxpositive?) (fxnegative?) (fxeven?) (fxodd?) (fxzero?) (fx+) (fx*) (fx-) (fx/) 
     (fxquotient) (fxremainder) (fxmodquo) (fxmodulo) (fxeucquo) (fxeucrem) (fxneg) (fxabs) 
-    (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxneg) (fxabs) (fxgcd) (fxexpt) 
+    (fx<?) (fx<=?) (fx>?) (fx>=?) (fx=?) (fx!=?) (fxmin) (fxmax) (fxgcd) (fxexpt) 
     (%fxsqrt) (fxnot) (fxand) (fxior) (fxxor) (fxsll) (fxsra) (fxsrl) (fxeqv) (fxlength) (fxbit-count)
     (fxaddc) (fxsubc) (fxmulc) (fxfmar) (fixnum->flonum) (fixnum->string) (string->fixnum) 
     (flonum?) (flzero?) (flpositive?) (flnegative?) (flinteger?) (flnan?)
@@ -2282,7 +2283,10 @@
 ; has to add them explicitly via (foo . hidden) mechanism above
 (let* ([mklib (lambda (ln) (make-library '(begin) '()))]
        [loc (name-lookup *root-name-registry* '(skint hidden) mklib)]
-       [lib (location-val loc)] [eal (vector-ref *hidden-name-registry* 0)]
+       [lib (location-val loc)]
+       [eal (let loop ([i (- (vector-length *hidden-name-registry*) 2)] [eal '()])
+              (if (< i 0) eal ; all buckets but the last one, which is for list names
+                  (loop (- i 1) (append (vector-ref *hidden-name-registry* i) eal))))]
        [combeal (adjoin-eals eal (library-exports lib))]
        [skintloc (name-lookup *root-name-registry* '(skint) #f)]
        [skintlib (and (location? skintloc) (location-val skintloc))]
@@ -2440,7 +2444,7 @@
 (define (make-historic-report-environment listname prefix)
   (let* ([loc (name-lookup *root-name-registry* listname #f)]
          [l (and loc (location-val loc))] [l (and (val-library? l) l)]
-         [ial (and l (library-exports l))] [global (lambda (n) (symbol-append prefix n))])
+         [ial (and l (library-exports l))] [global (lambda (n) (fully-qualified-library-prefixed-name prefix n))])
     (and (list? ial) (make-controlled-environment ial global empty-environment))))
 
 (define r5rs-environment 
@@ -2673,6 +2677,76 @@
   (when prompt (newline op) (or (set-port-prompt! ip prompt) (format op "~a~!" prompt)))
   (read-code-sexp ip))
 
+; shorthand library names for the ,im repl command: a nonnegative exact integer
+; is an srfi, a symbol is a (skint ...) library, and a list is a name already
+(define (repl-import-name x)
+  (cond [(and (integer? x) (exact? x) (>= x 0)) (list 'srfi x)]
+        [(symbol? x) (list 'skint x)]
+        [(listname? x) x]
+        [else #f]))
+
+(define (repl-import args op)
+  (if (null? args)
+      (display "no libraries to import\n" op)
+      (let loop ([l args] [names '()])
+        (cond [(null? l)
+               (repl-evaluate-top-form (cons 'import (reverse! names)) repl-environment op)]
+              [(repl-import-name (car l)) 
+               => (lambda (n) (loop (cdr l) (cons n names)))]
+              [else (display "invalid ,im argument: " op) (write (car l) op) (newline op)]))))
+
+; commands that depend on a library fetch it on first use
+(define (repl-require-library name op)
+  (unless (find-library-in-env name root-environment)
+    (repl-evaluate-top-form (list 'import name) repl-environment op)))
+
+; ,tr and ,untr: trace and untrace by name, fetching (skint trace) on first use.
+; With no names they are (trace), which answers what is traced, and (untrace),
+; which untraces everything.
+(define (repl-trace op what cname args)
+  (repl-require-library '(skint trace) op)
+  (let loop ([l args])
+    (cond [(null? l) (repl-evaluate-top-form (cons what args) repl-environment op)]
+          [(symbol? (car l)) (loop (cdr l))]
+          [else (display "invalid ," op) (display cname op)
+                (display " argument: " op) (write (car l) op) (newline op)])))
+
+; ,ap: apropos on the name given, fetching (skint apropos) on first use
+(define (repl-apropos op args)
+  (repl-require-library '(skint apropos) op)
+  (if (null? args)
+      (display "no argument to apropos\n" op)
+      (repl-evaluate-top-form (list 'apropos (list 'quote (car args))) repl-environment op)))
+
+; a symbol with a :// in it is a global store name such as repl://?f or
+; lib://skint/print?pp; ,da takes one unquoted, so quote it for the user
+(define (repl-global-name? x)
+  (and (symbol? x)
+       (let* ([s (symbol->string x)] [n (- (string-length s) 2)])
+         (let loop ([i 0])
+           (and (< i n)
+                (or (and (char=? (string-ref s i) #\:)
+                         (char=? (string-ref s (+ i 1)) #\/)
+                         (char=? (string-ref s (+ i 2)) #\/))
+                    (loop (+ i 1))))))))
+
+; ,pp and ,da: pretty-print an expression, or the decompilation of a procedure
+(define (repl-pretty-print op args)
+  (repl-require-library '(skint print) op)
+  (if (null? args)
+      (display "no argument to pretty-print\n" op)
+      (repl-evaluate-top-form (list 'pretty-print (car args)) repl-environment op)))
+
+(define (repl-disasm op args)
+  (repl-require-library '(skint print) op)
+  (repl-require-library '(skint disasm) op)
+  (if (null? args)
+      (display "no argument to disassemble\n" op)
+      (let ([x (car args)])
+        (repl-evaluate-top-form
+          (list 'pretty-print (list 'da (if (repl-global-name? x) (list 'quote x) x)))
+          repl-environment op))))
+
 (define (repl-exec-command cmd argstr op)
   (define args
     (if (memq cmd '(load cd sh)) ; do not expect s-exps!
@@ -2687,17 +2761,26 @@
       [(rref *) (write (name-lookup *root-name-registry* (car args) #f) op) (newline op)]
       [(rrem! *) (cond [(name-lookup *root-name-registry* (car args) #f)
                         (name-remove! *root-name-registry* (car args)) (display "done!\n" op)]
-                      [else (display "name not found: " op) (write name op) (newline op)])]
+                      [else (display "name not found: " op) (write (car args) op) (newline op)])]
       [(unr) (write *user-name-registry* op) (newline op)]
       [(uref *) (write (name-lookup *user-name-registry* (car args) #f) op) (newline op)]
       [(urem! *) (cond [(name-lookup *user-name-registry* (car args) #f)
                         (name-remove! *user-name-registry* (car args)) (display "done!\n" op)]
-                      [else (display "name not found: " op) (write name op) (newline op)])]
+                      [else (display "name not found: " op) (write (car args) op) (newline op)])]
       [(gs) (write (global-store) op) (newline op)]
       [(gs <symbol>) 
        (let* ([k (car args)] [v (global-store)] [i (immediate-hash k (vector-length v))]) 
          (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
       [(load <string>) (load (car args))]
+      [(im * ...) (repl-import args op)]
+      [(tr * ...) (repl-trace op (quote trace) "tr" args)]
+      [(untr * ...) (repl-trace op (quote untrace) "untr" args)]
+      [(ap) (repl-apropos op args)]
+      [(ap *) (repl-apropos op args)]
+      [(pp) (repl-pretty-print op args)]
+      [(pp *) (repl-pretty-print op args)]
+      [(da) (repl-disasm op args)]
+      [(da *) (repl-disasm op args)]
       [(v)  (set! *verbose* #t) (format #t "verbosity is on~%")]
       [(v-) (set! *verbose* #f) (format #t "verbosity is off~%")]
       [(q)  (set! *quiet* #t) (format #t "quiet is on~%")]
@@ -2717,6 +2800,14 @@
       [(help)
        (display "\nREPL commands (,load ,cd ,sh arguments need no quotes):\n" op)
        (display " ,load <fname>       load <fname> into REPL\n" op)
+       (display " ,im <lib> ...       import libraries: 1 is (srfi 1), fx is (skint fx)\n" op)
+       (display " ,tr <name> ...      trace named procedures, fetching (skint trace)\n" op)
+       (display " ,tr                 show what is traced\n" op)
+       (display " ,untr <name> ...    stop tracing them\n" op)
+       (display " ,untr               stop tracing everything\n" op)
+       (display " ,ap <name>          list names containing <name>, fetching (skint apropos)\n" op)
+       (display " ,pp <expr>          pretty-print <expr>, fetching (skint print)\n" op)
+       (display " ,da <proc>          disassemble <proc>, fetching (skint disasm)\n" op)
        (display " ,q                  quiet: disable informational messages\n" op)
        (display " ,q-                 enable informational messages\n" op)
        (display " ,v                  turn verbosity on\n" op)
@@ -2816,7 +2907,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.8.0")
+(define *skint-version* "0.8.1")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

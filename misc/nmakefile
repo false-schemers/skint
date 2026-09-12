@@ -47,7 +47,7 @@ LDFLAGS = /nologo
 
 # Source lists
 SOURCES = s.c k.c i.c n.c t.c
-INCLUDES = i.h n.h s.h
+INCLUDES = i.h k.h n.h s.h
 OBJECTS = $(SOURCES:.c=.obj)
 EXE     = skint.exe
 

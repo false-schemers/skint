@@ -731,7 +731,8 @@
                             (or (null? (cdr separator))
                                 (and (list? separator)
                                      (null? (cddr separator))
-                                     (exact-integer? (cadr separator)))))))
+                                     (integer? (cadr separator))
+                                     (exact? (cadr separator)))))))
         (let ((str
                (if (number? object)
                    (if (or (eq? writer display)

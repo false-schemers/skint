@@ -782,7 +782,7 @@ static int sictl(ctlop_t op, sifile_t *sp, ...) {
       pd = va_arg(args, int **);
       if (*(sp->p) == 0) *pd = NULL;
       else {
-        char *s = strchr(sp->p, '\n');
+        const char *s = strchr(sp->p, '\n');
         if (s) { *pd = newsdatan(sp->p, (int)(s-sp->p)); sp->p = s+1; }
         else { *pd = newsdata(sp->p); sp->p += strlen(sp->p); }
       }  

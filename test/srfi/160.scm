@@ -672,6 +672,11 @@
 
 (test-assert (u32? max-u32))
 (test-assert (not (u32? -1)))
+;; the element predicates take any object
+(test-assert (not (u32? 'a)))
+(test-assert (not (s32? "1")))
+(test-assert (not (u64? 1.0)))
+(test-assert (not (s64? #f)))
 (test-assert (u32vector? u32-s5))
 (test-assert (u32vector-empty? (u32vector)))
 (test-assert (not (u32vector-empty? u32-s5)))

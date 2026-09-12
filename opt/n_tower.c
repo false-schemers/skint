@@ -1,5 +1,20 @@
 /* n_tower.c -- numerical tower */
 
+/* struct bignum_ll temporaries are handed around as bignum_t (bnx_makell and
+ * others), which breaks strict aliasing; gcc 16 miscompiles the fixnum/bignum
+ * paths otherwise (truncate-quotient of fx-least by 2^29) */
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC push_options
+#pragma GCC optimize ("no-strict-aliasing")
+#endif
+/* TODO: the proper fix, which would make the pragma unnecessary: give the stack
+ * temporaries their own union type, leaving bignum_t and heap allocations alone,
+ *   typedef union bignum_llu { bignum_t bn; struct bignum_ll ll; } bignum_llu_t;
+ * declare the temporaries as bignum_llu_t instead of struct bignum_ll/bignumll_t,
+ * have bnx_makell/bnx_makeull write and return &u->bn, and replace the other
+ * (bignum_t *)&<bignum_ll> casts (bntostr_small, bntostr_dc_rec, bnrdcmp,
+ * bnbitnot) with &x.bn, so the storage is only ever accessed as bignum_t */
+
 /* complex number arithmetic */
 #define CMATH_LOG_DBL_MAX 709.782712893384
 #define C90_BIG 1.0e154
@@ -10090,3 +10105,7 @@ numt_t strtonum4(fatnum4_t *f4, const char *s, char **endp, int radix)
   if (errno) { numfini(f4->t, &f4->p[0]); f4->t = NUMT_NONE; } else errno = eno;
   return f4->t;
 }
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC pop_options
+#endif

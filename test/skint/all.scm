@@ -7,6 +7,12 @@ getopt
 ivset
 time
 date
+fx
+fl
+trace
+print
+apropos
+disasm
 ))
 
 (define *results* '())

@@ -1,5 +1,10 @@
 /* s.h -- system-dependent stuff */
 
+/* Every translation unit must include this file before n.h and i.h: it selects
+ * the feature-test macros, and those are only honored before the C library
+ * headers are read.  n.h and i.h check for this. */
+#define SKINT_S_H_SEEN 1
+
 #if defined(__GNUC__) && defined(__linux)
   #ifdef _FEATURES_H
     #warning too late to select features
@@ -26,6 +31,7 @@
 #include <assert.h>
 #include <locale.h>
 #include <stdarg.h>
+#include <math.h> /* zero_is_neg below tests for signbit, which lives here */
 
 #if defined(_MSC_VER)
 #ifdef _POSIX_

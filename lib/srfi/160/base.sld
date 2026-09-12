@@ -53,12 +53,12 @@
 (define-syntax c64 14)
 (define-syntax c128 15)
 
-(define (u32? x) (and (exact-integer? x) (>= x 0) (fx<=? (integer-length x) 32)))
-(define (s32? x) (and (exact-integer? x) (fx<? (integer-length x) 32)))
-(define (u64? x) (and (exact-integer? x) (>= x 0) (fx<=? (integer-length x) 64)))
-(define (s64? x) (and (exact-integer? x) (fx<? (integer-length x) 64)))
-(define (c64? n) (inexact? n))
-(define (c128? n) (inexact? n))
+(define (u32? x) (and (integer? x) (exact? x) (>= x 0) (fx<=? (integer-length x) 32)))
+(define (s32? x) (and (integer? x) (exact? x) (fx<? (integer-length x) 32)))
+(define (u64? x) (and (integer? x) (exact? x) (>= x 0) (fx<=? (integer-length x) 64)))
+(define (s64? x) (and (integer? x) (exact? x) (fx<? (integer-length x) 64)))
+(define (c64? n) (and (number? n) (inexact? n)))
+(define (c128? n) (and (number? n) (inexact? n)))
 
 (define *type-names* #("c64" "c128"))
 

@@ -9,6 +9,7 @@
 (define (list4? x) (and (pair? x) (list3? (cdr x))))
 
 (define *prelude* "
+#include \"s.h\"
 #include \"n.h\"
 #include \"i.h\"
 

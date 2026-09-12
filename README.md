@@ -129,7 +129,8 @@ Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and eva
   *  both `eval` and `load` accept optional environment argument
   *  command-line options can be shown by running `skint --help` 
   *  both `import` and `define-library` forms can be entered interactively into REPL
-  *  REPL supports single-line “comma-commands” — type `,help` for a full list
+  *  REPL supports single-line “comma-commands” — type `,help` for a full list,
+     or see [doc/repl-commands.md](doc/repl-commands.md)
   *  on Un*x-like systems, interactive use of SKINT with line editing requires external readline wrapper
      such as [rlwrap](https://github.com/hanslub42/rlwrap) (unless compiled with the `OPT_ENHTTY` / `--use-enhanced-tty option`) 
   
@@ -148,8 +149,8 @@ the `lib/README.md` file for details.
 `s.c`: Bytecode definitions of many standard and internal procedures  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/s.scm`  
 
-`k.c`: Skint startup code  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/k.sf`
+`k.h`: VM registers and the VM entry points the kernel calls  
+`k.c`: Skint kernel globals, startup code, and the garbage collector
 
 `i.h`: A list of all VM instructions and their bytecode serialization  
 `i.c`: Definitions of all VM instructions  
@@ -163,7 +164,7 @@ the `lib/README.md` file for details.
 
 `pre`: Sources for generated files, with scripts to generate them
 
-`doc`: Documentation (Man file and Skint `syntax-rules` extensions)
+`doc`: Documentation (man page, REPL commands, `syntax-rules` extensions, library and internals notes)
 
 `lib`: Optional Scheme libraries installable with `make libinstall`  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`lib/srfi`: Implementations of supported SRFIs  

@@ -129,3 +129,9 @@ The `skint` subtree contains SKINT-specific libraries:
 | `(skint ivset)` | Sets of exact integers as sorted vectors of disjoint intervals | [doc/skint/ivset.md](../doc/skint/ivset.md) |
 | `(skint time)` | Points in time and durations in the style of SRFI 19 | [doc/skint/time.md](../doc/skint/time.md) |
 | `(skint date)` | Calendar dates in the style of SRFI 19, ISO 8601 timestamps | [doc/skint/date.md](../doc/skint/date.md) |
+| `(skint fx)` | Built-in fixnum operations: a subset of SRFI 143 plus a few extras | [doc/skint/fx.md](../doc/skint/fx.md) |
+| `(skint fl)` | Built-in flonum operations: a subset of SRFI 144 plus a few extras | [doc/skint/fl.md](../doc/skint/fl.md) |
+| `(skint trace)` | Tracing procedure calls, modelled on Chez Scheme's trace package | [doc/skint/trace.md](../doc/skint/trace.md) |
+| `(skint print)` | Configurable `write`, and a Chez-style pretty-printer for code and data | [doc/skint/print.md](../doc/skint/print.md) |
+| `(skint apropos)` | Finding bound identifiers and library exports by name, as in Chez Scheme | [doc/skint/apropos.md](../doc/skint/apropos.md) |
+| `(skint disasm)` | Disassembling compiled code back to Core Scheme and to readable Scheme | [doc/skint/disasm.md](../doc/skint/disasm.md) |

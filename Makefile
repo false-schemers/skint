@@ -116,6 +116,7 @@ sources  = s.c \
            t.c
 
 includes = i.h \
+           k.h \
            n.h \
            s.h
 

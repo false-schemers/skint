@@ -254,5 +254,15 @@
 (test '() (s64vector->list (list->s64vector '())))
 (test '(-9223372036854775808 9223372036854775807) (s64vector->list (list->s64vector '(-9223372036854775808 9223372036854775807))))
 
+;; an element of the wrong type is a read error, reported by the reader itself --
+;; not a failure inside the element test, which asks number questions of numbers
+(define (read-vector-literal s)
+  (guard (e ((read-error? e) 'read-error)) (read (open-input-string s))))
+(test 'read-error (read-vector-literal "#u32(a)"))
+(test 'read-error (read-vector-literal "#s64(\"1\")"))
+(test 'read-error (read-vector-literal "#c64(a)"))
+(test 'read-error (read-vector-literal "#c128(#t)"))
+(test #u32(1 2) (read-vector-literal "#u32(1 2)"))
+
 (test-end)
 

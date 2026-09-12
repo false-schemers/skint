@@ -50,7 +50,7 @@
                   (lp (+ i 1)))))))
 
 (define (exact-natural? x)
-  (and (exact-integer? x) (not (negative? x))))
+  (and (integer? x) (exact? x) (not (negative? x))))
 
 ;; Find the least element of a list non-empty of naturals. If an element
 ;; is zero, returns it immediately.

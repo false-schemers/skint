@@ -3,16 +3,17 @@
 #include "s.h"
 #include "n.h"
 #include "i.h"
+#include "k.h"
 
 /* imports */
-extern obj cx__2Aglobals_2A;
-extern obj cx__2Atransformers_2A;
-extern obj cx__2Adynamic_2Dstate_2A;
-extern obj cx_continuation_2Dadapter_2Dcode;
-extern obj cx_callmv_2Dadapter_2Dclosure;
-extern obj cx__2Acurrent_2Dinput_2A;
-extern obj cx__2Acurrent_2Doutput_2A;
-extern obj cx__2Acurrent_2Derror_2A;
+extern obj cx_global_store;
+extern obj cx_tansformers;
+extern obj cx_dynamic_state;
+extern obj cx_continuation_adapter_code;
+extern obj cx_callmv_adapter_closure;
+extern obj cx_current_input;
+extern obj cx_current_output;
+extern obj cx_current_error;
 
 /* forwards */
 static struct intgtab_entry *lookup_integrable(int sym);
@@ -23,10 +24,13 @@ static obj mkintegrable(struct intgtab_entry *);
 static int integrable_type(struct intgtab_entry *pi);
 static const char *integrable_global(struct intgtab_entry *pi);
 static const char *integrable_code(struct intgtab_entry *pi, int n);
+static int enctab_count(void);
+static void enctab_ref(int i, obj *pword, const char **penc, int *petyp);
 static obj *rds_intgtab(obj *r, obj *sp, obj *hp);
 static obj *rds_stox(obj *r, obj *sp, obj *hp);
 static obj *rds_stoc(obj *r, obj *sp, obj *hp);
 static obj *init_modules(obj *r, obj *sp, obj *hp);
+obj *close0(obj *r, obj *sp, obj *hp);
 
 /* platform-dependent optimizations */
 #if defined(__clang__)
@@ -37,7 +41,15 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define outofline   __attribute__((noinline))
 #define VM_MUSTTAIL_GUARANTEE
 #define musttail    __attribute__((musttail))
-#define regcall     __regcall        
+#if defined(_MSC_VER) && defined(_WIN64) && defined(__x86_64__) && \
+    __clang_major__ >= 19 && __has_attribute(preserve_none)
+/* clang-cl on x64: preserve_none passes all 5 arguments in registers and
+ * leaves no registers callee-saved, so ac can stay in a register (see below) */
+#define VM_PRESERVE_NONE
+#define regcall     __attribute__((preserve_none))
+#else
+#define regcall     __regcall
+#endif
 #define noalias     restrict
 #else
 #define outofline
@@ -45,12 +57,34 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define regcall
 #define noalias
 #endif
+#if defined(_MSC_VER)
+/* clang-cl: a named section keeps the linker's identical code folding (/OPT:ICF)
+ * away from the instruction functions; folded, two instructions share one word */
+#define nochecks    __attribute__((no_stack_protector, aligned(8), section(".text$vm")))
+#else
 #define nochecks    __attribute__((no_stack_protector, aligned(8)))
+#endif
 #define VM_INS_CODE_ALIGNED
-#ifdef _WIN64 /* clang-cl under Windows? */
+#if defined(_WIN64) && !defined(VM_PRESERVE_NONE) /* clang-cl under Windows? */
 /* not possible under Win64 calling conventions */
 #undef VM_AC_IN_REG
 #endif
+#elif defined(__GNUC__) && __GNUC__ >= 4
+#define unlikely(x) __builtin_expect(x, 0)
+#define likely(x)   __builtin_expect(x, 1)
+#define outofline   __attribute__((noinline))
+#if __GNUC__ >= 15 && (defined(__x86_64__) || defined(__aarch64__)) && !defined(_WIN32)
+/* gcc 15 has musttail; the SysV and AArch64 conventions pass all five
+ * instruction arguments in registers, so ac can live in one too */
+#define VM_AC_IN_REG
+#define VM_MUSTTAIL_GUARANTEE
+#define musttail    __attribute__((musttail))
+#else
+#define musttail
+#endif
+#define regcall
+#define noalias
+#define nochecks
 #else
 #define unlikely(x) (x)
 #define likely(x)   (x)
@@ -109,20 +143,6 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define unload_ac()   (0)
 #define reload_ac()   (0)
 #endif
-
-/* gc-safe obj registers; some of them used for saving/restoring during gc */
-#define rk   (r[0])   /* #f or any non-false value for unwindi; run result */
-#define ra   (r[1])   /* shadow reg for the accumulator (argc on call) */
-#define rx   (r[2])   /* next instruction (index in closure's code) */
-#define rd   (r[3])   /* current closure/display (vector of [0]=code, display) */
-#define rs   (r[4])   /* shadow reg for stack pointer */
-#define rz   (r[5])   /* red zone for stack pointer (r + len - rsz) */
-
-/* the rest of the register file is used as a stack */
-#define VM_REGC       6      /* r[0] ... r[5] */
-#define VM_STACK_LEN  256000 /* r[6] ... r[256005] */
-#define VM_STACK_RSZ  256    /* red zone for overflow checks */
-#define VM_STACK_GSZ  (VM_STACK_LEN-VM_STACK_RSZ)
 
 /* faster non-debug type testing */
 #ifdef NDEBUG /* quick */
@@ -301,6 +321,8 @@ static void _sck(obj *s) {
 #define is_box(o) isbox(o)
 #define box_ref(o) boxref(o)
 #define is_proc(o) isvmclo(o)
+#define proc_len(o) vmclolen(o)
+#define proc_ref(o, i) vmcloref(o, i)
 #define is_tuple(o) (isrecord(o) && recordrtd(o) == 0)
 #define tuple_len(o) tuplelen(o)
 #define tuple_ref(o, i) tupleref(o, i)
@@ -332,7 +354,7 @@ typedef obj* regcall (*ins_t)(IPARAMS);
 
 /* defining instruction helpers */
 #define define_instrhelper(name) \
-  static obj* regcall outofline nochecks name(IPARAMS)
+  static outofline obj* regcall nochecks name(IPARAMS)
 
 /* defining and binding instructions */
 #define define_instruction(name) \
@@ -346,199 +368,70 @@ typedef obj* regcall (*ins_t)(IPARAMS);
   obj glue(cx_ins_2D, name) = (obj)(&glue(cxib_, name)[0]);
 #endif
 
-static obj vmhost(obj);
-obj vmcases[13] = { 
-  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost, 
-  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost,
-  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost,
-  (obj)vmhost
-};
-/* vmhost procedure */
-static obj vmhost(obj pc)
+/* vm entry points for the hand-coded kernel in k.c; these used to be the
+ * cases of a host procedure reached through the vmcases[] table */
+
+/* protects registers from r to sp, in: ra=closure, out: ra=result;
+ * note: the vm runs on its own stack, so anything the caller has
+ * pushed above r + VM_REGC is lost here */
+obj *vm_execute_thunk_closure(obj *r, obj *sp, obj *hp)
 {
-  ILOCALS;
-  int rc = cxg_rc, i;
-  r = cxg_regs; hp = cxg_hp;
-jump: 
-  switch (objptr_from_obj(pc)-vmcases) {
-
-  case 0: /* execute-thunk-closure */    
-    /* r[0] = self, r[1] = k, r[2] = closure */
-    { obj k, arg; 
-    assert(rc == 3);
-    k = r[1]; arg = r[2];
-    r = cxm_rgc(NULL, VM_REGC + VM_STACK_LEN);
-    rk = k; /* continuation, kept there */
-    ra = obj_from_fixnum(0); /* argc, shadow ac */
-    rx = obj_from_fixnum(0); /* shadow ip */ 
-    rd = arg; /* thunk closure to execute */
-    rs = obj_from_fixnum(VM_REGC); /* sp */
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    do { /* unwindi trampoline */
-      reload_ac(); /* ra => ac */
-      reload_ip(); /* rd/rx => ip */
-      reload_sp(); /* rs => sp */
-      hp = (ins_from_obj(*ip))(IARGS1);
-    } while (likely(trampcnd()));
-    /* r[0] = k, r[1] = result */
-    r[2] = r[1];
-    r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 1: /* make-closure */    
-    /* r[0] = clo, r[1] = k, r[2] = code */
-    { assert(rc == 3);
-    r[0] = r[1]; r[1] = r[2]; 
-    /* r[0] = k; r[1] = code */
-    hreserve(vmclobsz(1), 2); /* 2 live regs */
-    *--hp = r[1];
-    r[2] = hend_vmclo(1);
-    r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 2: /* decode-sexp */    
-    /* r[0] = clo, r[1] = k, r[2] = xstr */
-    { assert(rc == 3);
-    r[0] = r[1]; r[1] = r[2]; 
-    /* r[0] = k; r[1] = xstr */
-    for (i = 3; i < VM_REGC; ++i) r[i] = 0; 
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    hp = rds_stox(r, r+VM_REGC, hp); /* r[1] -> r[1] */
-    r[2] = r[1]; r[1] = obj_from_ktrap();
-    /* r[0] = k; r[1] = ek; r[2] = code */
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 3: /* decode-code */    
-    /* r[0] = clo, r[1] = k, r[2] = cstr */
-    { assert(rc == 3);
-    r[0] = r[1]; r[1] = r[2]; 
-    /* r[0] = k; r[1] = cstr */
-    for (i = 3; i < VM_REGC; ++i) r[i] = 0;
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    hp = rds_stoc(r, r+VM_REGC, hp); /* r[1] -> r[1] */
-    r[2] = r[1]; r[1] = obj_from_ktrap();
-    /* r[0] = k; r[1] = ek; r[2] = code */
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 4: /* find-integrable-encoding */
-    /* r[0] = clo, r[1] = k, r[2] = id, r[3] = argc */
-    { assert(rc == 4);
-    r[2] = obj_from_bool(0);;
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-      
-  case 5: /* encode-integrable */
-    /* r[0] = clo, r[1] = k, r[2] = argc, r[3] = pe, r[4] = port */
-    { assert(rc == 5);
-    assert(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 6: /* install-global-lambdas */
-    /* r[0] = clo, r[1] = k */
-    { assert(rc == 2);
-    r[0] = r[1];
-    for (i = 2; i < VM_REGC; ++i) r[i] = 0;
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    hp = rds_intgtab(r, r+VM_REGC, hp);
-    r[1] = obj_from_ktrap();
-    r[2] = obj_from_void(0);
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 7: /* initialize-modules */
-    /* r[0] = clo, r[1] = k */
-    { assert(rc == 2);
-    r[0] = r[1];
-    r = cxm_rgc(NULL, VM_REGC + VM_STACK_LEN);
-    for (i = 2; i < VM_REGC; ++i) r[i] = 0;
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    hp = init_modules(r, r+VM_REGC, hp);
-    r[1] = obj_from_ktrap();
-    r[2] = obj_from_void(0);
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 8: /* integrable? */
-    /* r[0] = clo, r[1] = k, r[2] = obj */
-    { assert(rc == 3);
-    r[2] = obj_from_bool(isintegrable(r[2]));
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 9: /* lookup-integrable */
-    /* r[0] = clo, r[1] = k, r[2] = id */
-    { assert(rc == 3);
-    if (issymbol(r[2])) {
-      int sym = getsymbol(r[2]);
-      struct intgtab_entry *pe = lookup_integrable(sym);
-      r[2] = pe ? mkintegrable(pe) : obj_from_bool(0);
-    } else r[2] = obj_from_bool(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 10: /* integrable-type */
-    /* r[0] = clo, r[1] = k, r[2] = ig */
-    { assert(rc == 3);
-    if (isintegrable(r[2])) {
-      int it = integrable_type(integrabledata(r[2]));
-      r[2] = it ? obj_from_char(it) : obj_from_bool(0);
-    } else r[2] = obj_from_bool(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 11: /* integrable-global */
-    /* r[0] = clo, r[1] = k, r[2] = ig */
-    { assert(rc == 3);
-    if (isintegrable(r[2])) {
-      const char *igs = integrable_global(integrabledata(r[2]));
-      r[2] = igs ? mksymbol(internsym((char*)igs)) : obj_from_bool(0);
-    } else r[2] = obj_from_bool(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 12: /* integrable-code */
-    /* r[0] = clo, r[1] = k, r[2] = ig, r[3] = i */
-    { assert(rc == 4);
-    if (isintegrable(r[2]) && is_fixnum(r[3])) {
-      const char *cs = integrable_code(integrabledata(r[2]), get_fixnum(r[3]));
-      r[2] = cs ? hpushstr(3, newsdata((char*)cs)) : obj_from_bool(0);
-    } else r[2] = obj_from_bool(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-      
-  default: /* inter-host call */
-    cxg_hp = hp;
-    cxm_rgc(r, 1);
-    cxg_rc = rc;
-    return pc;
-  }
+  obj *ip;
+#ifdef VM_AC_IN_REG
+  obj ac;
+#endif
+  assert(r == cxg_regs); /* the vm's stack is the register file's tail */
+  assert(cxg_rend - cxg_regs >= VM_REGC + VM_STACK_LEN);
+  rd = ra; /* thunk closure to execute */
+  ra = obj_from_fixnum(0); /* argc, shadow ac */
+  rx = obj_from_fixnum(0); /* shadow ip */
+  rs = obj_from_fixnum(VM_REGC); /* sp */
+  rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
+  do { /* unwindi trampoline */
+    reload_ac(); /* ra => ac */
+    reload_ip(); /* rd/rx => ip */
+    reload_sp(); /* rs => sp */
+    hp = (ins_from_obj(*ip))(IARGS1);
+  } while (likely(trampcnd()));
+  /* ra = result */
+  return hp;
 }
 
+/* protects registers from r to sp, in: ra=code, out: ra=closure */
+obj *vm_make_closure(obj *r, obj *sp, obj *hp)
+{
+  return close0(r, sp, hp);
+}
+
+/* protects registers from r to sp, in: ra=string, out: ra=code */
+obj *vm_decode(obj *r, obj *sp, obj *hp)
+{
+  hp = rds_stoc(r, sp, hp);
+  assert(!iseof(ra));
+  return hp;
+}
+
+/* protects registers from r to sp, in: ra=string, out: ra=sexp */
+obj *vm_decode_sexp(obj *r, obj *sp, obj *hp)
+{
+  hp = rds_stox(r, sp, hp);
+  assert(!iseof(ra));
+  return hp;
+}
+
+/* protects registers from r to sp; no args/values; returns new hp */
+obj *vm_install_global_lambdas(obj *r, obj *sp, obj *hp)
+{
+  return rds_intgtab(r, sp, hp);
+}
+
+/* protects registers from r to sp; no args/values; returns new hp */
+obj *vm_initialize_modules(obj *r, obj *sp, obj *hp)
+{
+  return init_modules(r, sp, hp);
+}
+
+static obj vmhost(obj);
 /* instructions for basic vm machinery */
 
 define_instrhelper(cxi_fail) { 
@@ -764,8 +657,8 @@ define_instruction(cwmv) {
   obj t = ac, x = spop();
   ckx(t); ckx(x);
   /* we can run in constant space in some situations */
-  if (vmcloref(x, 0) == cx_continuation_2Dadapter_2Dcode 
-   && vmcloref(x, 1) ==  cx__2Adynamic_2Dstate_2A) {
+  if (vmcloref(x, 0) == cx_continuation_adapter_code 
+   && vmcloref(x, 1) ==  cx_dynamic_state) {
     /* arrange call of t with x as continuation */
     /* [0] adapter_code, [1] dynamic_state */
     int n = vmclolen(x) - 2; 
@@ -779,7 +672,7 @@ define_instruction(cwmv) {
   } else { 
     /* arrange return to cwmv code w/x */
     spush(x);
-    spush(cx_callmv_2Dadapter_2Dclosure); 
+    spush(cx_callmv_adapter_closure); 
     spush(fixnum_obj(0));
     /* call the producer */
     rd = t; rx = fixnum_obj(0); ac = fixnum_obj(0); 
@@ -815,7 +708,7 @@ define_instruction(sdmv) {
   } else {
     /* can only pseudo-return to rcmv */
     int n = get_fixnum(ac), m = 3, i;
-    if (sref(n) == fixnum_obj(0) && sref(n+1) == cx_callmv_2Dadapter_2Dclosure) {
+    if (sref(n) == fixnum_obj(0) && sref(n+1) == cx_callmv_adapter_closure) {
       /* tail-call the consumer with the produced values */
       rd = sref(n+2); rx = fixnum_obj(0); /* cns */
       /* NB: can be sped up for popular cases: n == 0, n == 2 */
@@ -845,8 +738,8 @@ define_instruction(lck) {
   hp_reserve(vmclobsz(n+2));
   hp -= n; objcpy(hp, sp-n-m, n);
   /* [0] adapter_code, [1] dynamic_state */
-  *--hp = cx__2Adynamic_2Dstate_2A;
-  *--hp = cx_continuation_2Dadapter_2Dcode;
+  *--hp = cx_dynamic_state;
+  *--hp = cx_continuation_adapter_code;
   ac = hend_vmclo(n+2);
   gonexti();
 }
@@ -857,18 +750,18 @@ define_instruction(lck0) {
   hp_reserve(vmclobsz(n+2));
   hp -= n; objcpy(hp, sp-n, n);
   /* [0] adapter_code, [1] dynamic_state */
-  *--hp = cx__2Adynamic_2Dstate_2A;
-  *--hp = cx_continuation_2Dadapter_2Dcode;
+  *--hp = cx_dynamic_state;
+  *--hp = cx_continuation_adapter_code;
   ac = hend_vmclo(n+2);
   gonexti();
 }
 
 define_instruction(wck) {
   obj x = ac, t = spop(); ckx(t); ckx(x);
-  if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
+  if (vmcloref(x, 0) != cx_continuation_adapter_code) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  if (vmcloref(x, 1) == cx__2Adynamic_2Dstate_2A) {
+  if (vmcloref(x, 1) == cx_dynamic_state) {
     /* restore cont stack and invoke t there */
     int n = vmclolen(x) - 2; 
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
@@ -881,7 +774,7 @@ define_instruction(wck) {
   } else {
     /* have to arrange call of cont adapter */
     spush(x);
-    spush(cx_callmv_2Dadapter_2Dclosure); 
+    spush(cx_callmv_adapter_closure); 
     spush(fixnum_obj(0));
     /* call the thunk as producer */
     rd = t; rx = fixnum_obj(0); 
@@ -892,10 +785,10 @@ define_instruction(wck) {
 
 define_instruction(wckr) {
   obj x = ac, o = spop(); ckx(x);
-  if (vmcloref(x, 0) != cx_continuation_2Dadapter_2Dcode) 
+  if (vmcloref(x, 0) != cx_continuation_adapter_code) 
     failactype("continuation");
   /* [0] adapter_code, [1] dynamic_state */
-  if (vmcloref(x, 1) == cx__2Adynamic_2Dstate_2A) {
+  if (vmcloref(x, 1) == cx_dynamic_state) {
     /* restore cont stack and return o there */
     int n = vmclolen(x) - 2;
     assert((cxg_rend - cxg_regs - VM_REGC) > n);
@@ -919,7 +812,7 @@ define_instruction(wckr) {
 define_instruction(rck) {
   /* called with continuation as rd: 
    * in: ac:argc, args on stack, rd display is dys, saved stack */
-  if (vmcloref(rd, 1) != cx__2Adynamic_2Dstate_2A) {
+  if (vmcloref(rd, 1) != cx_dynamic_state) {
     /* need to run the rest of the code to unwind/rewind on the
      * old stack; rck will be called again when done */
     gonexti(); 
@@ -930,7 +823,7 @@ define_instruction(rck) {
     /* rd[0] adapter_code, rd[1] dynamic_state */
     int c = get_fixnum(ac), n = vmclolen(rd) - 2, i;
     obj *ks = &vmcloref(rd, 2), *ke = ks + n;
-    if (ke-ks > 3 && *--ke == fixnum_obj(0) && *--ke == cx_callmv_2Dadapter_2Dclosure) {
+    if (ke-ks > 3 && *--ke == fixnum_obj(0) && *--ke == cx_callmv_adapter_closure) {
       obj *sb = r + VM_REGC;
       rd = *--ke; rx = fixnum_obj(0); n = (int)(ke - ks); /* cns */
       /* arrange stack as follows: [ks..ke] [arg ...] */
@@ -955,12 +848,12 @@ define_instruction(rck) {
 }
 
 define_instruction(dys) {
-  ac = cx__2Adynamic_2Dstate_2A;
+  ac = cx_dynamic_state;
   gonexti();
 }
 
 define_instruction(setdys) {
-  cx__2Adynamic_2Dstate_2A = ac;
+  cx_dynamic_state = ac;
   gonexti();
 }
 
@@ -2809,9 +2702,9 @@ define_instruction(intp) {
 define_instruction(exip) {
   if (likely(is_fixnum(ac))) {
     ac = bool_obj(1);
-  } else { 
+  } else if (likely(is_flonum(ac))) {
     ac = bool_obj(0);
-  }
+  } else failactype("number");
   gonexti(); 
 }
 
@@ -3127,7 +3020,7 @@ define_instruction(eq) {
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx == dy);
-  } else ac = bool_obj(0);
+  } else failtype(is_fixnum(x) ? y : x, "number");
   gonexti(); 
 }
 
@@ -3144,7 +3037,7 @@ define_instruction(ne) {
     else if (likely(is_fixnum(y))) dy = (double)get_fixnum(y);
     else failtype(y, "number");
     ac = bool_obj(dx != dy);
-  } else ac = bool_obj(1);
+  } else failtype(is_fixnum(x) ? y : x, "number");
   gonexti(); 
 }
 
@@ -3859,38 +3752,38 @@ define_instruction(ttyp) {
 }
 
 define_instruction(cin) {
-  ac = cx__2Acurrent_2Dinput_2A;
+  ac = cx_current_input;
   assert(is_iport(ac));
   gonexti();
 }
 
 define_instruction(cout) {
-  ac = cx__2Acurrent_2Doutput_2A;
+  ac = cx_current_output;
   assert(is_oport(ac));
   gonexti();
 }
 
 define_instruction(cerr) {
-  ac = cx__2Acurrent_2Derror_2A;
+  ac = cx_current_error;
   assert(is_oport(ac));
   gonexti();
 }
 
 define_instruction(setcin) {
   ckr(ac);
-  cx__2Acurrent_2Dinput_2A = ac;
+  cx_current_input = ac;
   gonexti();
 }
 
 define_instruction(setcout) {
   ckw(ac);
-  cx__2Acurrent_2Doutput_2A = ac;
+  cx_current_output = ac;
   gonexti();
 }
 
 define_instruction(setcerr) {
   ckw(ac);
-  cx__2Acurrent_2Derror_2A = ac;
+  cx_current_error = ac;
   gonexti();
   gonexti();
 }
@@ -4261,12 +4154,12 @@ define_instruction(wriw) {
 }
 
 define_instruction(itrs) {
-  ac = cx__2Atransformers_2A;
+  ac = cx_tansformers;
   gonexti(); 
 }
 
 define_instruction(glos){
-  ac = cx__2Aglobals_2A;
+  ac = cx_global_store;
   gonexti(); 
 }
 
@@ -4320,6 +4213,51 @@ define_instruction(vmclo) {
   for (i = n-1; i >= 0; --i) *--hp = sref(i);
   ac = hend_vmclo(n);
   sdrop(n);
+  gonexti();
+}
+
+define_instruction(ctov) {
+  int n, i; ckx(ac);
+  n = proc_len(ac);
+  hp_reserve(vecbsz(n));
+  for (i = n; i > 0; --i) *--hp = proc_ref(ac, i-1);
+  ac = hend_vec(n);
+  gonexti();
+}
+
+/* closure? => whether x is a heap-allocated vm closure, i.e. a block whose cell 0
+ * is a code vector. procedure? cannot tell: in some builds it also answers #t for
+ * any pointer outside the heap, instruction words included. */
+define_instruction(vmclop) {
+  obj x = ac;
+  ac = bool_obj(isobjptr(x) && isvector(hblkref(x, 0)));
+  gonexti();
+}
+
+/* instruction-table => #(word enc etyp  word enc etyp  ...), 3 slots per entry.
+ * word is the instruction as a foreign pointer, eq? to what deserialize-code
+ * puts in a code vector; enc is its encoding, or #f for the instructions the
+ * compiler never emits (halt, br); etyp is a fixnum 0/1/2 for that many
+ * operands, or a character for the structured forms. */
+define_instruction(inst) {
+  int n = enctab_count(), i;
+  /* build the spine first and fill it afterwards: the encodings allocate as we
+   * go, and a vector parked in ac is traced and relocated across that */
+  hp_reserve(vecbsz(3*n));
+  for (i = 3*n; i > 0; --i) *--hp = bool_obj(0);
+  ac = hend_vec(3*n);
+  for (i = 0; i < n; ++i) {
+    obj word; const char *enc; int etyp;
+    enctab_ref(i, &word, &enc, &etyp);
+    vector_ref(ac, 3*i) = word;
+    vector_ref(ac, 3*i+2) = (etyp >= ' ') ? char_obj(etyp) : fixnum_obj(etyp);
+    if (enc != NULL) {
+      /* NB: into a local first -- the lvalue would otherwise be computed
+       * before the allocation that may move ac */
+      obj s = string_obj(newsdata((char*)enc));
+      vector_ref(ac, 3*i+1) = s;
+    }
+  }
   gonexti();
 }
 
@@ -4925,12 +4863,11 @@ static const char *integrable_global(struct intgtab_entry *pi)
 static const char *integrable_code(struct intgtab_entry *pi, int n)
 {
   char *ps, *code = NULL; int it = pi->igtype;
-  if (it >= ' ') {
+  if (n == 0) code = pi->enc;
+  else if (n == 1 && it && strchr("pmbut", it) != NULL) {
     ps = pi->enc; assert(ps);
-    while (ps && n-- > 0) {
-      ps += strlen(ps) + 1; /* \0 terminates each field */
-      assert(*ps);
-    }
+    ps += strlen(ps) + 1; /* \0 terminates each field */
+    assert(*ps);
     code = ps;
   }
   return code;
@@ -5224,6 +5161,23 @@ static struct { obj *pg; const char *enc; int etyp; } enctab[] = {
  { NULL, NULL, 0 }
 };
 
+/* enctab is below the point where the instruction globals are defined, so the
+ * inst instruction reaches it through these instead of directly */
+static int enctab_count(void)
+{
+  int n = 0;
+  while (enctab[n].pg != NULL) ++n;
+  return n;
+}
+
+static void enctab_ref(int i, obj *pword, const char **penc, int *petyp)
+{
+  assert(i >= 0 && i < enctab_count());
+  *pword = *(enctab[i].pg);
+  *penc = enctab[i].enc;
+  *petyp = enctab[i].etyp;
+}
+
 struct emtrans { int c; struct embranch *pbr; struct emtrans *ptr; };
 struct embranch { obj g; int etyp; struct emtrans *ptr; };
 static struct embranch encmap = { 0, 0, NULL };
@@ -5341,9 +5295,9 @@ static obj *rds_arg(obj *r, obj *sp, obj *hp)
 static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
 {
   uint64_t base;
-  if (issymbol(ra) && isvector(cx__2Aglobals_2A) && (base = vectorlen(cx__2Aglobals_2A)) > 0) {
+  if (issymbol(ra) && isvector(cx_global_store) && (base = vectorlen(cx_global_store)) > 0) {
     uint64_t v = (uint64_t)ra; int i = (int)(v % base);
-    obj p = isassv(ra, vectorref(cx__2Aglobals_2A, i));
+    obj p = isassv(ra, vectorref(cx_global_store, i));
     if (ispair(p)) ra = cdr(p);
     else { /* prepend (sym . #&sym) to *globals* */
       obj box, *pl;
@@ -5352,7 +5306,7 @@ static obj *rds_global_loc(obj *r, obj *sp, obj *hp)
       box = hend_box();
       *--hp = box; *--hp = ra;
       ra = hend_pair();
-      pl = &vectorref(cx__2Aglobals_2A, i);
+      pl = &vectorref(cx_global_store, i);
       *--hp = *pl; *--hp = ra;
       *pl = hend_pair();
       ra = box;
@@ -5700,7 +5654,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       sym = mksymbol(internsym((char*)name));
       val = data ? mksymbol(internsym((char*)data)) : sym;
       /* look for dst binding (we allow redefinition) */
-      for (bnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+      for (bnd = 0, al = cx_tansformers; al != mknull(); al = cdr(al)) {
         obj ael = car(al);
         if (car(ael) != sym) continue;
         bnd = ael; break;
@@ -5710,8 +5664,8 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
         hreserve(pairbsz()*2, sp-r);
         *--hp = obj_from_bool(0); *--hp = sym;
         bnd = hend_pair();
-        *--hp = cx__2Atransformers_2A; *--hp = bnd;
-        cx__2Atransformers_2A = hend_pair();
+        *--hp = cx_tansformers; *--hp = bnd;
+        cx_tansformers = hend_pair();
       }
       cdr(bnd) = val;
       continue;    
@@ -5724,7 +5678,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       /* look for dst binding (we allow redefinition) */
       oldsym = mksymbol(internsym((char*)data));
       sym = mksymbol(internsym((char*)name));
-      for (oldbnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+      for (oldbnd = 0, al = cx_tansformers; al != mknull(); al = cdr(al)) {
         obj ael = car(al);
         if (car(ael) != oldsym) continue;
         oldbnd = ael; break;
@@ -5737,7 +5691,7 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       /* we should have it now */
       assert(oldden); if (!oldden) continue;
       /* look for existing binding (we allow redefinition) */
-      for (bnd = 0, al = cx__2Atransformers_2A; al != mknull(); al = cdr(al)) {
+      for (bnd = 0, al = cx_tansformers; al != mknull(); al = cdr(al)) {
         obj ael = car(al);
         if (car(ael) != sym) continue; 
         bnd = ael; break;
@@ -5748,27 +5702,27 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
         hreserve(pairbsz()*2, sp-r);
         *--hp = obj_from_bool(0); *--hp = sym;
         bnd = hend_pair();
-        *--hp = cx__2Atransformers_2A; *--hp = bnd;
-        cx__2Atransformers_2A = hend_pair();
+        *--hp = cx_tansformers; *--hp = bnd;
+        cx_tansformers = hend_pair();
       }
       cdr(bnd) = spop(); /* oldden */
       continue;    
     } else if (name != 0 && name[0] == 'K' && name[1] == 0) {
-      /* special entry for cx_continuation_2Dadapter_2Dcode */
+      /* special entry for cx_continuation_adapter_code */
       ent += 1; name = ent[0], data = ent[1];
       assert(name == 0); assert(data != 0);
       ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       assert(!iseof(ra));
-      cx_continuation_2Dadapter_2Dcode = ra;
+      cx_continuation_adapter_code = ra;
       continue;
     }
     /* skipped prefix or no prefix */
     if (name != NULL) {
       /* install sexp-encoded syntax-rules as a transformer */
       obj sym = mksymbol(internsym((char*)name));
-      obj al = cx__2Atransformers_2A, bnd = mknull();
+      obj al = cx_tansformers, bnd = mknull();
       assert(ispair(al)); /* basic transformers already installed */
       /* look for existing binding (we allow redefinition) */
       while (al != mknull()) {
@@ -5781,8 +5735,8 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
         hreserve(pairbsz()*2, sp-r);
         *--hp = obj_from_bool(0); *--hp = sym;
         bnd = hend_pair();
-        *--hp = cx__2Atransformers_2A; *--hp = bnd;
-        cx__2Atransformers_2A = hend_pair();
+        *--hp = cx_tansformers; *--hp = bnd;
+        cx_tansformers = hend_pair();
       }
       /* sexp-decode data into the cdr of the binding */
       spush(bnd); /* protect from gc */
@@ -5793,30 +5747,14 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       cdr(bnd) = ra;
     } else {
       /* execute code-encoded thunk */
-      obj *ip;
-#ifdef VM_AC_IN_REG
-      obj ac;
-#endif      
       ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
       assert(!iseof(ra));
       /* ra is a thunk closure to execute */
-      rd = ra;
-      ra = obj_from_fixnum(0); /* argc, shadow ac */
-      rx = obj_from_fixnum(0); /* shadow ip */ 
-      rs = obj_from_fixnum(VM_REGC); /* sp */
-      rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-      do { /* unwindi trampoline */
-        reload_ac(); /* ra => ac */
-        reload_ip(); /* rd/rx => ip */
-        reload_sp(); /* rs => sp */
-        hp = (ins_from_obj(*ip))(IARGS1);
-      } while (trampcnd());
-      /* r[0] = k, r[1] = random result */
-      assert(r == cxg_regs);
-      sp = r + VM_REGC;
+      hp = vm_execute_thunk_closure(r, sp, hp); /* ra => ra (result) */
+      sp = r + VM_REGC; /* the vm has emptied its stack */
     }
   }
   return hp;

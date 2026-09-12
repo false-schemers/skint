@@ -1,11 +1,19 @@
 /* n.h -- native/platform interfaces */
 
+#ifndef SKINT_S_H_SEEN
+#error "s.h must be included before n.h -- feature-test macros are selected there"
+#endif
+
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Wparentheses-equality"
 #pragma GCC diagnostic ignored "-Wignored-attributes"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-value"
 #pragma GCC diagnostic ignored "-Woverlength-strings"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#if __has_warning("-Wunused-but-set-variable")
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#endif
 #endif
 /* this is for MS headers; shouldn't affect others */
 #define _CRT_SECURE_NO_WARNINGS 1
@@ -108,9 +116,6 @@ typedef struct {              /* type descriptor */
 
 #define size_from_obj(o)      ((int)((o) >> 1))
 
-#define obj_from_case(n)      obj_from_objptr(cases+(n))
-#define case_from_obj(o)      (objptr_from_obj(o)-cases)
-#define obj_from_ktrap()      obj_from_size(0x5D56F806)
 #define obj_from_void(v)      ((void)(v), obj_from_size(0x6F56DF77))
 
 #define bool_from_obj(o)      (o)
@@ -120,7 +125,6 @@ typedef struct {              /* type descriptor */
 #define void_from_void(v)     (void)(v)
 #define void_from_obj(o)      (void)(o)
 
-#define rreserve(m)           if (r + (m) >= cxg_rend) r = cxm_rgc(r, m)
 #define hpushptr(p, pt, l)    (hreserve(2, l), *--hp = (obj)(p), *--hp = (obj)(pt), (obj)(hp+1))   
 #define hbsz(s)               ((s) + 1) /* 1 extra word to store block size */
 #define hreserve(n, l)        ((hp < cxg_heap + (n)) ? hp = cxm_hgc(r, r+(l), hp, n) : hp)
@@ -128,7 +132,6 @@ typedef struct {              /* type descriptor */
 #define hblklen(p)            size_from_obj(((obj*)(p))[-1])
 #define hblkref(p, i)         (((obj*)(p))[i])
 
-typedef obj (*cxhost_t)(obj);
 typedef struct cxroot_tag {
   int globc; obj **globv;
   struct cxroot_tag *next;
