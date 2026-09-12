@@ -116,15 +116,20 @@ because R7RS requires those records to be generative. Symbols satisfy both, so
 which is why a record prints as `#<record rtd://point:2 1 2>`.
 
 *Closures* put a pointer in cell 0 — the code — and the captured display from cell 1
-on. `isprocedure` is therefore the complement of the other two: a heap block whose
-cell 0 satisfies `isaptr`. It also accepts any non-null pointer that is not a heap
-address at all, which came from the `#F` compiler: it allocated environment-free
-global procedures in static C memory, as one-word blocks holding a code pointer.
-`k.c` no longer contains any, but instruction words are static C pointers of the
-same shape — so the allowance still has teeth, and `procedure?` can answer `#t` for
-one. Those are Foreign values to the collector, and `procedurelen` treats them as
-one-element closures. Use `closure?` when the answer has to mean a real closure;
-see [builtins.md](builtins.md).
+on. `isprocedure` is therefore the complement of the other two, and it is the whole
+test: a heap block whose cell 0 points into the heap. Nothing else can look like
+that, so no header or size check is needed, and that is what every call instruction
+compiles to. Assertions add the rest — that the object really is a block, that its
+cell 0 really is a code vector, and, when the answer is no, that no block was left
+holding a foreign pointer in cell 0.
+
+That last assertion guards a convention that used to be violated by design. The
+`#F` compiler allocated environment-free global procedures in static C memory, as
+one-word blocks holding a code pointer, so `isprocedure` accepted any aligned
+pointer outside the heap. `k.c` has contained none since it was hand-written, and
+the allowance is gone with them — an instruction word, which is a static C pointer
+of exactly that shape, now answers `#f`. The printer knows about them separately
+and shows one as `#<instruction @…>`.
 
 So the discrimination among block kinds is entirely a matter of cell 0 holding a
 small size immediate, a symbol immediate, or a pointer. The invariant that makes it

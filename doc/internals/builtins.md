@@ -139,12 +139,20 @@ written in Scheme rather than in C:
 | `(closure->vector p)` | a closure's cells: the code vector first, then its display |
 | `(closure? x)` | whether `x` is a VM closure: a heap block whose cell 0 is a code vector |
 
-`closure?` is the test to use before `closure->vector`, not `procedure?`. The
-procedure test comes from the runtime SKINT inherited, where a procedure without a
-display is a foreign pointer, so in some builds `procedure?` answers `#t` for any
-aligned pointer outside the heap — an instruction word included. R7RS allows that,
-since the only thing a program can do with a procedure is call it. `closure?`
-answers the same in every build.
+`closure?` and `procedure?` now agree on every object the VM builds. `procedure?`
+asks the cheaper question — cell 0 holds a pointer into the heap — and `closure?`
+the exact one — cell 0 holds a code vector. Since a closure is the only block kind
+with a pointer in cell 0 at all, the cheap question has only one right answer, and
+`procedure?` is the test every call instruction makes.
+
+They were not always the same. The procedure test came from the runtime SKINT
+inherited, where a procedure without a display was a foreign pointer, so it
+answered `#t` for any aligned pointer outside the heap — an instruction word
+included — in any build with assertions enabled. That is gone: there are no
+foreign procedures left to accommodate, one predicate serves both builds, and a
+build with assertions on now *asserts* the closure form rather than admitting more
+shapes. Prefer `closure?` before `closure->vector` anyway: it is the one that
+states what the code depends on.
 
 Only `integrable?` and the index form of `lookup-integrable` are total. The three
 accessors begin with `ckg`, so they signal on anything that is not an integrable,

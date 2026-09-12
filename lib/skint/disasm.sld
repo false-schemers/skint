@@ -171,10 +171,10 @@
 (define (procedure-code p) (vector-ref (closure->vector p) 0))
 
 ;; A closure's cells -- its code vector, then its display -- or #f for anything
-;; that is not a closure.  procedure? is no guide here: a build may count any
-;; pointer outside the heap as a procedure, an instruction word among them, and
-;; closure->vector would then read one as if it were a closure.  closure? answers
-;; the same in every build.
+;; that is not a closure.  closure? is the exact test: it looks for a code vector
+;; in cell 0, where procedure? settles for any heap pointer.  The two agree on
+;; every object the VM builds, so this is belt and braces -- but it is the test
+;; that says what closure->vector actually needs.
 (define (closure-contents p) (and (closure? p) (closure->vector p)))
 
 ;; --- what an entry point will take -----------------------------------------

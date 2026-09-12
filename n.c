@@ -578,26 +578,41 @@ const char *symbolname(int sym) {
 
 /* procedures/closures */
 
+#ifndef NDEBUG
+
+/* Same answers as the quick test in n.h, with the convention asserted in both
+ * directions: on a yes, that the object really is a well-formed closure; on a
+ * no, that nothing closure-shaped was passed over. The second assert is the
+ * one that catches a block carrying a foreign pointer in cell 0 -- the shape
+ * of the static procedures sfc used to emit, which nothing constructs now. */
 int isprocedure(obj o) {
-  if (!o) return 0;
-  else if (isaptr(o) && !isobjptr(o)) return 1;
-  else if (!isobjptr(o)) return 0;
-  else { obj h = objptr_from_obj(o)[-1];
-    return notaptr(h) && size_from_obj(h) >= 1 
-      && isaptr(hblkref(o, 0)); }
+  if (!isobjptr(o)) return 0;
+  else { obj h = objptr_from_obj(o)[-1], c = hblkref(o, 0);
+    if (isobjptr(c)) {
+      assert(notaptr(h));              /* a block, not a native */
+      assert(size_from_obj(h) >= 1);   /* with a cell 0 of its own */
+      assert(isvector(c));             /* holding a code vector */
+      assert(hblklen(c) >= 2);         /* of at least one instruction word */
+      return 1;
+    } else {
+      assert(!(notaptr(h) && size_from_obj(h) >= 1 && isaptr(c)));
+      return 0;
+    } }
 }
 
 int procedurelen(obj o) {
   assert(isprocedure(o));
-  return isobjptr(o) ? hblklen(o) : 1;
+  return hblklen(o);
 }
 
 obj* procedureref(obj o, int i) {
   int len; assert(isprocedure(o));
-  len = isobjptr(o) ? hblklen(o) : 1;
+  len = hblklen(o);
   assert(i >= 0 && i < len);
   return &hblkref(o, i);   
 }
+
+#endif
 
 /* common i/o utils */
 
@@ -1484,6 +1499,13 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (isprocedure(o)) {
     char buf[60];
     sprintf(buf, "#<procedure @%p>", (void*)objptr_from_obj(o));
+    wrs(buf, e);
+  } else if (isaptr(o) && !isobjptr(o)) {
+    /* an aligned pointer that is not in the heap: an instruction word, which
+     * instruction-table hands out on purpose. It used to print as a procedure,
+     * back when the procedure test counted anything outside the heap as one. */
+    char buf[60];
+    sprintf(buf, "#<instruction @%p>", (void*)objptr_from_obj(o));
     wrs(buf, e);
   } else if (isrecord(o)) {
     int i, n = recordlen(o);

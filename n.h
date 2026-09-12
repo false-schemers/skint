@@ -559,10 +559,26 @@ extern const int *symsdata(int sym);
 #define recordlen(r) typedlen(r)
 #define recordref(r, i) *typedref(r, i)
 
-/* procedures */
-extern int isprocedure(obj o);
-extern int procedurelen(obj o);
-extern obj* procedureref(obj o, int i);
+/* procedures (vm closures) -- a block with a pointer to its code vector in
+ * cell 0. No other block kind can look like that: tuples, vectors, boxes and
+ * pairs keep a size immediate in cell 0 and records a symbol immediate, while
+ * a native keeps a type pointer in its header word and its payload pointer,
+ * which lies outside the heap, in cell 0. So the quick test reads cell 0 and
+ * needs no header or size check of its own; the debug versions in n.c return
+ * the same answers and assert the whole convention on the way.
+ * NB: the quick isprocedure is a macro rather than a static function because
+ * it sits in every call instruction, where the extra inlining step costs the
+ * register allocator six instructions a call; it evaluates o twice, so pass
+ * it a variable, as every caller does. */
+#ifdef NDEBUG
+   #define isprocedure(o) (isobjptr(o) && isobjptr(hblkref(o, 0)))
+   #define procedurelen(o) hblklen(o)
+   #define procedureref(o, i) (&hblkref(o, i))
+#else
+  extern int isprocedure(obj o);
+  extern int procedurelen(obj o);
+  extern obj* procedureref(obj o, int i);
+#endif
 
 /* eof */
 #define EOF_ITAG 7

@@ -166,20 +166,14 @@ static int istagged_inline(obj o, int t) { return isobjptr(o) && hblkref(o, 0) =
 #define recbsz(c)     hbsz((c)+1)
 #define hend_rec(rtd, c) (*--hp = rtd, hendblk((c)+1))
 
-/* vm closure representation */
-#ifdef NDEBUG /* quick */
-#define isvmclo(x)    (isobjptr(x) && isobjptr(hblkref(x, 0)))
-#define vmcloref(x,i) hblkref(x, i)
-#define vmclolen(x)   hblklen(x)
+/* vm closure representation; isprocedure and friends are the quick tests in
+ * a release build and the same tests plus assertions in a debug one, so the
+ * answers no longer depend on NDEBUG -- see n.h */
+#define isvmclo(x)    isprocedure(x)
+#define vmcloref(x,i) (*procedureref(x, i))
+#define vmclolen(x)   procedurelen(x)
 #define vmclobsz(c)   hbsz(c)
 #define hend_vmclo(c) hendblk(c)
-#else /* slow but thorough */
-#define isvmclo       isprocedure
-#define vmcloref      *procedureref
-#define vmclolen      procedurelen
-#define vmclobsz(c)   hbsz(c)
-#define hend_vmclo(c) hendblk(c)
-#endif
 
 /* vm tuple representation (c != 1) */
 #define istuple(x)    istagged(x, 0)
@@ -431,7 +425,6 @@ obj *vm_initialize_modules(obj *r, obj *sp, obj *hp)
   return init_modules(r, sp, hp);
 }
 
-static obj vmhost(obj);
 /* instructions for basic vm machinery */
 
 define_instrhelper(cxi_fail) { 
@@ -1820,7 +1813,10 @@ define_instruction(recp) {
 }
 
 define_instruction(rmk) {
-  int i, n; obj v; ckk(sref(0));
+  int i, n; obj v;
+  /* the rtd goes into cell 0, where a pointer would make the record
+   * indistinguishable from a closure, so it has to be an immediate */
+  cky(ac); ckk(sref(0));
   n = get_fixnum(sref(0)); 
   hp_reserve(recbsz(n)); v = sref(1);
   for (i = 0; i < n; ++i) *--hp = v;
@@ -4225,9 +4221,12 @@ define_instruction(ctov) {
   gonexti();
 }
 
-/* closure? => whether x is a heap-allocated vm closure, i.e. a block whose cell 0
- * is a code vector. procedure? cannot tell: in some builds it also answers #t for
- * any pointer outside the heap, instruction words included. */
+/* closure? => whether x is a heap-allocated vm closure, i.e. a block whose
+ * cell 0 is a code vector. This is the thorough form of the test procedure?
+ * makes: procedure? settles for any heap pointer in cell 0, which nothing but
+ * a code vector can be, so the two agree on every object the vm builds. Kept
+ * apart because it is the one that cannot be fooled by a hand-made block, and
+ * because (skint disasm) reads closures and wants to be sure of one. */
 define_instruction(vmclop) {
   obj x = ac;
   ac = bool_obj(isobjptr(x) && isvector(hblkref(x, 0)));

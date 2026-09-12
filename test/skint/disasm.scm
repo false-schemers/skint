@@ -104,12 +104,19 @@
 (test #f (closure? (cons 1 2)))
 (test #f (closure? 42))
 
-;; A procedure in the store that is not a closure can only be an instruction
-;; word; this lists the names of any that are not.  In a build where procedure?
-;; is #f for instruction words there are none to check.
-(test '()
-      (map car (filter-if (lambda (n+p) (not (memq (cdr n+p) *instruction-words*)))
-                          (global-values (lambda (v) (and (procedure? v) (not (closure? v))))))))
+;; procedure? and closure? ask different questions -- any heap pointer in cell 0
+;; against a code vector there -- and agree on everything the VM builds, in every
+;; build.  So nothing in the store answers one and not the other.
+(test '() (map car (global-values (lambda (v) (if (procedure? v) (not (closure? v)) (closure? v))))))
+
+;; no instruction word is a procedure, in any build, and one does not print as one
+(test '() (filter-if procedure? *instruction-words*))
+(test '() (filter-if closure? *instruction-words*))
+(test #t (let ((p (open-output-string)))
+           (display (vector-ref (deserialize-code "") 0) p)
+           (let ((s (get-output-string p)))
+             (and (>= (string-length s) 14)
+                  (string=? (substring s 0 14) "#<instruction ")))))
 
 ;; and the disassembler declines them without an error
 (test #f (da-code (vector-ref (deserialize-code "") 0)))
