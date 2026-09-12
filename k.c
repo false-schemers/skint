@@ -1,13 +1,15 @@
-/* k.c -- generated via skint ksf2c.ssc k.sf */
+/* k.c -- kernel: gc runtime, kernel globals, startup */
+
+/* This file used to be generated from pre/k.sf by the sfc compiler and
+ * post-processed by pre/ksf2c.ssc; it is hand-coded now. The startup code
+ * below is a direct analog of what k.sf contained, and the basic runtime
+ * at the end of this file (the copying gc) is still sfc's, kept as-is. */
 
 #include "s.h"
 #include "n.h"
-#include "i.h"
+#include "k.h"
 
-#define MODULE module_k
-#define LOAD()
-
-/* cx globals */
+/* kernel globals (imported by i.c) */
 obj cx__2Acurrent_2Derror_2A; /* *current-error* */
 obj cx__2Acurrent_2Dinput_2A; /* *current-input* */
 obj cx__2Acurrent_2Doutput_2A; /* *current-output* */
@@ -16,16 +18,6 @@ obj cx__2Aglobals_2A; /* *globals* */
 obj cx__2Atransformers_2A; /* *transformers* */
 obj cx_callmv_2Dadapter_2Dclosure; /* callmv-adapter-closure */
 obj cx_continuation_2Dadapter_2Dcode; /* continuation-adapter-code */
-obj cx_decode; /* decode */
-obj cx_decode_2Dsexp; /* decode-sexp */
-obj cx_execute_2Dthunk_2Dclosure; /* execute-thunk-closure */
-obj cx_initialize_2Dmodules; /* initialize-modules */
-obj cx_install_2Dglobal_2Dlambdas; /* install-global-lambdas */
-obj cx_main; /* main */
-obj cx_make_2Dclosure; /* make-closure */
-obj cx_tcode_2Drepl; /* tcode-repl */
-static obj cx__2312; /* constant #12 */
-static obj cx__2316; /* constant #16 */
 
 /* gc roots */
 static obj *globv[] = {
@@ -37,275 +29,71 @@ static obj *globv[] = {
   &cx__2Atransformers_2A,
   &cx_callmv_2Dadapter_2Dclosure,
   &cx_continuation_2Dadapter_2Dcode,
-  &cx_decode,
-  &cx_decode_2Dsexp,
-  &cx_execute_2Dthunk_2Dclosure,
-  &cx_initialize_2Dmodules,
-  &cx_install_2Dglobal_2Dlambdas,
-  &cx_make_2Dclosure,
-  &cx__2312,
-  &cx__2316,
 };
 
 static cxroot_t root = {
   sizeof(globv)/sizeof(obj *), globv, NULL
 };
 
-/* entry points */
-static obj host(obj);
-static obj cases[10] = {
-  (obj)host,  (obj)host,  (obj)host,  (obj)host,  (obj)host,
-  (obj)host,  (obj)host,  (obj)host,  (obj)host,  (obj)host,
-};
+/* startup */
 
-/* host procedure */
-#define MAX_HOSTREGS 16
-static obj host(obj pc)
+/* serialized code decoded at startup (cf. k.sf) */
+static const char callmv_adapter_code[] = "K5";
+static const char repl_code[] = "${@(y4:repl)[00}";
+
+/* protects registers from r to sp; no args/values; returns new hp */
+static obj *init_kernel_globals(obj *r, obj *sp, obj *hp)
 {
-  register obj *r = cxg_regs;
-  register obj *hp = cxg_hp;
-  register int rc = cxg_rc;
-  rreserve(MAX_HOSTREGS); 
-jump: 
-  switch (case_from_obj(pc)) {
-
-case 0: /* load module */
-    cx__2312 = (hpushstr(0, newsdata("K5")));
-    { static char s[] = { 36, 123, 64, 40, 121, 52, 58, 114, 101, 112, 108, 41, 91, 48, 48, 125, 0 };
-    cx__2316 = (hpushstr(0, newsdata(s))); }
-    { /* make-vector */
-    obj o; int i = 0, c = (+991);
-    hreserve(hbsz(c+1), 0); /* 0 live regs */
-    o = (mknull()); /* gc-safe */
-    while (i++ < c) *--hp = o;
-    *--hp = obj_from_size(VECTOR_BTAG);
-    cx__2Aglobals_2A = (hendblk(c+1)); }
-    { /* cons */ 
-    hreserve(hbsz(3), 0); /* 0 live regs */
-    *--hp = (mknull());
-    *--hp = obj_from_bool(0);
-    *--hp = obj_from_size(PAIR_BTAG); 
-    cx__2Adynamic_2Dstate_2A = (hendblk(3)); }
-    cx__2Acurrent_2Dinput_2A = obj_from_bool(0);
-    cx__2Acurrent_2Doutput_2A = obj_from_bool(0);
-    cx__2Acurrent_2Derror_2A = obj_from_bool(0);
-    { /* define execute-thunk-closure */
-    static obj c[] = { obj_from_objptr(vmcases+0) }; 
-    cx_execute_2Dthunk_2Dclosure = obj_from_objptr(c); }
-    { /* define make-closure */
-    static obj c[] = { obj_from_objptr(vmcases+1) };
-    cx_make_2Dclosure = obj_from_objptr(c); }
-    { /* define decode-sexp */
-    static obj c[] = { obj_from_objptr(vmcases+2) };
-    cx_decode_2Dsexp = obj_from_objptr(c); }
-    { /* define decode */
-    static obj c[] = { obj_from_objptr(vmcases+3) };
-    cx_decode = obj_from_objptr(c); }
-    cx__2Atransformers_2A = (mknull());
-    cx_continuation_2Dadapter_2Dcode = obj_from_bool(0);
-    { /* define decode */
-    static obj c[] = { obj_from_objptr(vmcases+3) };
-    r[0] = obj_from_objptr(c); }
-    hreserve(hbsz(0+1), 1); /* 1 live regs */
-    *--hp = obj_from_case(1);
-    r[1] = (hendblk(0+1));
-    r[2+0] = r[0];  
-    pc = objptr_from_obj(r[2+0])[0];
-    r[2+1] = r[1];  
-    r[2+2] = (cx__2312);
-    r += 2; /* shift reg wnd */
-    rreserve(MAX_HOSTREGS);
-    rc = 3;
-    goto jump;
-
-case 1: /* clo ek r */
-    assert(rc == 3);
-    r += 1; /* shift reg. wnd */
-    /* ek r */
-    { /* define make-closure */
-    static obj c[] = { obj_from_objptr(vmcases+1) };
-    r[2] = obj_from_objptr(c); }
-    hreserve(hbsz(0+1), 3); /* 3 live regs */
-    *--hp = obj_from_case(2);
-    r[3] = (hendblk(0+1));
-    r[4+0] = r[2];  
-    pc = objptr_from_obj(r[4+0])[0];
-    r[4+1] = r[3];  
-    r[4+2] = r[1];  
-    r += 4; /* shift reg wnd */
-    rreserve(MAX_HOSTREGS);
-    rc = 3;
-    goto jump;
-
-case 2: /* clo ek r */
-    assert(rc == 3);
-    r += 1; /* shift reg. wnd */
-    /* ek r */
-    cx_callmv_2Dadapter_2Dclosure = r[1];  
-    { /* define install-global-lambdas */
-    static obj c[] = { obj_from_objptr(vmcases+6) };
-    cx_install_2Dglobal_2Dlambdas = obj_from_objptr(c); }
-    { /* define install-global-lambdas */
-    static obj c[] = { obj_from_objptr(vmcases+6) };
-    r[2] = obj_from_objptr(c); }
-    hreserve(hbsz(0+1), 3); /* 3 live regs */
-    *--hp = obj_from_case(3);
-    r[3] = (hendblk(0+1));
-    r[0] = r[2];  
-    pc = objptr_from_obj(r[0])[0];
-    r[1] = r[3];  
-    rreserve(MAX_HOSTREGS);
-    rc = 2;
-    goto jump;
-
-case 3: /* clo ek . */
-    assert(rc >= 2);
-    r[2] = obj_from_void(0); /* ignored */
-    r += 1; /* shift reg. wnd */
-    /* ek . */
-    { /* define initialize-modules */
-    static obj c[] = { obj_from_objptr(vmcases+7) };
-    cx_initialize_2Dmodules = obj_from_objptr(c); }
-    { /* define initialize-modules */
-    static obj c[] = { obj_from_objptr(vmcases+7) };
-    r[2] = obj_from_objptr(c); }
-    hreserve(hbsz(0+1), 3); /* 3 live regs */
-    *--hp = obj_from_case(4);
-    r[3] = (hendblk(0+1));
-    r[0] = r[2];  
-    pc = objptr_from_obj(r[0])[0];
-    r[1] = r[3];  
-    rreserve(MAX_HOSTREGS);
-    rc = 2;
-    goto jump;
-
-case 4: /* clo ek . */
-    assert(rc >= 2);
-    r[2] = obj_from_void(0); /* ignored */
-    r += 1; /* shift reg. wnd */
-    /* ek . */
-    { static obj c[] = { obj_from_case(5) }; cx_tcode_2Drepl = (obj)c; }
-    { static obj c[] = { obj_from_case(8) }; cx_main = (obj)c; }
-    r[2] = obj_from_void(0);
-    r[3+0] = r[0];
-    pc = 0; /* exit from module init */
-    r[3+1] = r[2];  
-    r += 3; /* shift reg wnd */
-    rc = 2;
-    goto jump;
-
-case 5: /* tcode-repl k */
-    assert(rc == 2);
-    r += 1; /* shift reg. wnd */
-gs_tcode_2Drepl: /* k */
-    { /* define decode */
-    static obj c[] = { obj_from_objptr(vmcases+3) };
-    r[1] = obj_from_objptr(c); }
-    hreserve(hbsz(1+1), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = obj_from_case(6);
-    r[2] = (hendblk(1+1));
-    r[3+0] = r[1];  
-    pc = objptr_from_obj(r[3+0])[0];
-    r[3+1] = r[2];  
-    r[3+2] = (cx__2316);
-    r += 3; /* shift reg wnd */
-    rreserve(MAX_HOSTREGS);
-    rc = 3;
-    goto jump;
-
-case 6: /* clo ek r */
-    assert(rc == 3);
-    { obj* p = objptr_from_obj(r[0]);
-    r[1+2] = p[1]; }
-    r += 1; /* shift reg. wnd */
-    /* ek r k */
-    { /* define make-closure */
-    static obj c[] = { obj_from_objptr(vmcases+1) };
-    r[3] = obj_from_objptr(c); }
-    hreserve(hbsz(1+1), 4); /* 4 live regs */
-    *--hp = r[2];  
-    *--hp = obj_from_case(7);
-    r[4] = (hendblk(1+1));
-    r[5+0] = r[3];  
-    pc = objptr_from_obj(r[5+0])[0];
-    r[5+1] = r[4];  
-    r[5+2] = r[1];  
-    r += 5; /* shift reg wnd */
-    rreserve(MAX_HOSTREGS);
-    rc = 3;
-    goto jump;
-
-case 7: /* clo ek r */
-    assert(rc == 3);
-    { obj* p = objptr_from_obj(r[0]);
-    r[1+2] = p[1]; }
-    r += 1; /* shift reg. wnd */
-    /* ek r k */
-    { /* define execute-thunk-closure */
-    static obj c[] = { obj_from_objptr(vmcases+0) }; 
-    r[3] = obj_from_objptr(c); }
-    r[4+0] = r[3];  
-    pc = objptr_from_obj(r[4+0])[0];
-    r[4+1] = r[2];  
-    r[4+2] = r[1];  
-    r += 4; /* shift reg wnd */
-    rreserve(MAX_HOSTREGS);
-    rc = 3;
-    goto jump;
-
-case 8: /* main k argv */
-    assert(rc == 3);
-    r += 1; /* shift reg. wnd */
-gs_main: /* k argv */
-    hreserve(hbsz(1+1), 2); /* 2 live regs */
-    *--hp = r[0];  
-    *--hp = obj_from_case(9);
-    r[2] = (hendblk(1+1));
-    r[0] = r[2];  
-    goto gs_tcode_2Drepl;
-
-case 9: /* clo ek r */
-    assert(rc == 3);
-    { obj* p = objptr_from_obj(r[0]);
-    r[1+2] = p[1]; }
-    r += 1; /* shift reg. wnd */
-    /* ek r k */
-  if (((r[1]) == obj_from_bool(1))) {
-    r[0] = r[2];  
-    pc = objptr_from_obj(r[0])[0];
-    r[1] = obj_from_ktrap();
-    r[2] = obj_from_bool(0);
-    rreserve(MAX_HOSTREGS);
-    rc = 3;
-    goto jump;
-  } else {
-    r[0] = r[2];  
-    r[1] = obj_from_bool(0);
-    goto gs_main;
-  }
-
-default: /* inter-host call */
-    cxg_hp = hp;
-    cxm_rgc(r, MAX_HOSTREGS);
-    cxg_rc = rc;
-    return pc;
-  }
+  { /* (define *globals* (make-vector 991 '())) */
+  obj o; int i = 0, c = 991;
+  hreserve(hbsz(c+1), sp-r);
+  o = mknull(); /* gc-safe */
+  while (i++ < c) *--hp = o;
+  *--hp = obj_from_size(VECTOR_BTAG);
+  cx__2Aglobals_2A = hendblk(c+1); }
+  { /* (define *dynamic-state* (cons #f '())) */
+  hreserve(hbsz(3), sp-r);
+  *--hp = mknull();
+  *--hp = obj_from_bool(0);
+  *--hp = obj_from_size(PAIR_BTAG);
+  cx__2Adynamic_2Dstate_2A = hendblk(3); }
+  cx__2Acurrent_2Dinput_2A = obj_from_bool(0);
+  cx__2Acurrent_2Doutput_2A = obj_from_bool(0);
+  cx__2Acurrent_2Derror_2A = obj_from_bool(0);
+  cx__2Atransformers_2A = mknull();
+  cx_continuation_2Dadapter_2Dcode = obj_from_bool(0);
+  return hp;
 }
 
-/* module load */
-void MODULE(void)
+/* protects registers from r to sp, in: ra=string, out: ra=closure;
+ * this is k.sf's (make-closure (decode str)) */
+static obj *decode_closure(obj *r, obj *sp, obj *hp)
 {
-  obj pc;
-  if (!root.next) {
-    root.next = cxg_rootp;
-    cxg_rootp = &root;
-    LOAD();
-    pc = obj_from_case(0);
-    cxg_rc = 0;
-    while (pc) pc = (*(cxhost_t*)pc)(pc); 
-    assert(cxg_rc == 2);
-  }
+  hp = vm_decode(r, sp, hp);       /* ra=string => ra=code */
+  hp = vm_make_closure(r, sp, hp); /* ra=code => ra=closure */
+  return hp;
+}
+
+/* protects registers from r to sp; no args/values; returns new hp */
+static obj *run_kernel(obj *r, obj *sp, obj *hp)
+{
+  hp = init_kernel_globals(r, sp, hp);
+  /* (define callmv-adapter-closure (make-closure (decode "K5"))) */
+  ra = hpushstr(sp-r, newsdata(callmv_adapter_code));
+  hp = decode_closure(r, sp, hp);
+  cx_callmv_2Dadapter_2Dclosure = ra;
+  /* (install-global-lambdas) */
+  hp = vm_install_global_lambdas(r, sp, hp);
+  /* (initialize-modules) */
+  hp = vm_initialize_modules(r, sp, hp);
+  /* (define (main) (if (eq? (tcode-repl) #t) #f (main))) -- the repl
+   * returns #t when it is done, anything else on an error exit */
+  do { /* (define (tcode-repl) (execute-thunk-closure ...)) */
+    ra = hpushstr(sp-r, newsdata(repl_code));
+    hp = decode_closure(r, sp, hp);
+    hp = vm_execute_thunk_closure(r, sp, hp); /* ra=closure => ra=result */
+  } while (ra != obj_from_bool(1));
+  return hp;
 }
 
 /* basic runtime */
@@ -419,19 +207,19 @@ void *cxm_cknull(void *p, char *msg)
 }
 
 /* os entry point */
-int main(int argc, char **argv) {
-  int res; obj pc;
-  obj retcl[1] = { 0 };
-  cxm_rgc(NULL, REGS_SIZE);
+int main(int argc, char **argv)
+{
+  obj *r, *sp, *hp; int i;
   cxg_argv = argv;
-  MODULE();
-  cxg_regs[0] = cx_main;
-  cxg_regs[1] = (obj)retcl;
-  cxg_regs[2] = (obj)argv;
-  cxg_rc = 3;
-  pc = objptr_from_obj(cx_main)[0];
-  while (pc) pc = (*(cxhost_t*)pc)(pc); 
-  assert(cxg_rc == 3);
-  res = (cxg_regs[2] != 0); 
-  return res; 
+  /* the register file is allocated at its final size once and never
+   * reallocated, so r stays valid: the vm uses its tail as a stack */
+  r = cxm_rgc(NULL, VM_REGC + VM_STACK_LEN);
+  for (i = 0; i < VM_REGC; ++i) r[i] = 0; /* all of them are gc-scanned */
+  rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
+  sp = r + VM_REGC;
+  root.next = cxg_rootp; cxg_rootp = &root;
+  hp = cxg_hp; /* NULL: the first hreserve() allocates the heap */
+  hp = run_kernel(r, sp, hp);
+  cxg_hp = hp;
+  return 0;
 }

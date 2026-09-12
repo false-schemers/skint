@@ -3,6 +3,7 @@
 #include "s.h"
 #include "n.h"
 #include "i.h"
+#include "k.h"
 
 /* imports */
 extern obj cx__2Aglobals_2A;
@@ -29,6 +30,7 @@ static obj *rds_intgtab(obj *r, obj *sp, obj *hp);
 static obj *rds_stox(obj *r, obj *sp, obj *hp);
 static obj *rds_stoc(obj *r, obj *sp, obj *hp);
 static obj *init_modules(obj *r, obj *sp, obj *hp);
+obj *close0(obj *r, obj *sp, obj *hp);
 
 /* platform-dependent optimizations */
 #if defined(__clang__)
@@ -141,20 +143,6 @@ static obj *init_modules(obj *r, obj *sp, obj *hp);
 #define unload_ac()   (0)
 #define reload_ac()   (0)
 #endif
-
-/* gc-safe obj registers; some of them used for saving/restoring during gc */
-#define rk   (r[0])   /* #f or any non-false value for unwindi; run result */
-#define ra   (r[1])   /* shadow reg for the accumulator (argc on call) */
-#define rx   (r[2])   /* next instruction (index in closure's code) */
-#define rd   (r[3])   /* current closure/display (vector of [0]=code, display) */
-#define rs   (r[4])   /* shadow reg for stack pointer */
-#define rz   (r[5])   /* red zone for stack pointer (r + len - rsz) */
-
-/* the rest of the register file is used as a stack */
-#define VM_REGC       6      /* r[0] ... r[5] */
-#define VM_STACK_LEN  256000 /* r[6] ... r[256005] */
-#define VM_STACK_RSZ  256    /* red zone for overflow checks */
-#define VM_STACK_GSZ  (VM_STACK_LEN-VM_STACK_RSZ)
 
 /* faster non-debug type testing */
 #ifdef NDEBUG /* quick */
@@ -380,199 +368,70 @@ typedef obj* regcall (*ins_t)(IPARAMS);
   obj glue(cx_ins_2D, name) = (obj)(&glue(cxib_, name)[0]);
 #endif
 
-static obj vmhost(obj);
-obj vmcases[13] = { 
-  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost, 
-  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost,
-  (obj)vmhost, (obj)vmhost, (obj)vmhost, (obj)vmhost,
-  (obj)vmhost
-};
-/* vmhost procedure */
-static obj vmhost(obj pc)
+/* vm entry points for the hand-coded kernel in k.c; these used to be the
+ * cases of a host procedure reached through the vmcases[] table */
+
+/* protects registers from r to sp, in: ra=closure, out: ra=result;
+ * note: the vm runs on its own stack, so anything the caller has
+ * pushed above r + VM_REGC is lost here */
+obj *vm_execute_thunk_closure(obj *r, obj *sp, obj *hp)
 {
-  ILOCALS;
-  int rc = cxg_rc, i;
-  r = cxg_regs; hp = cxg_hp;
-jump: 
-  switch (objptr_from_obj(pc)-vmcases) {
-
-  case 0: /* execute-thunk-closure */    
-    /* r[0] = self, r[1] = k, r[2] = closure */
-    { obj k, arg; 
-    assert(rc == 3);
-    k = r[1]; arg = r[2];
-    r = cxm_rgc(NULL, VM_REGC + VM_STACK_LEN);
-    rk = k; /* continuation, kept there */
-    ra = obj_from_fixnum(0); /* argc, shadow ac */
-    rx = obj_from_fixnum(0); /* shadow ip */ 
-    rd = arg; /* thunk closure to execute */
-    rs = obj_from_fixnum(VM_REGC); /* sp */
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    do { /* unwindi trampoline */
-      reload_ac(); /* ra => ac */
-      reload_ip(); /* rd/rx => ip */
-      reload_sp(); /* rs => sp */
-      hp = (ins_from_obj(*ip))(IARGS1);
-    } while (likely(trampcnd()));
-    /* r[0] = k, r[1] = result */
-    r[2] = r[1];
-    r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 1: /* make-closure */    
-    /* r[0] = clo, r[1] = k, r[2] = code */
-    { assert(rc == 3);
-    r[0] = r[1]; r[1] = r[2]; 
-    /* r[0] = k; r[1] = code */
-    hreserve(vmclobsz(1), 2); /* 2 live regs */
-    *--hp = r[1];
-    r[2] = hend_vmclo(1);
-    r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 2: /* decode-sexp */    
-    /* r[0] = clo, r[1] = k, r[2] = xstr */
-    { assert(rc == 3);
-    r[0] = r[1]; r[1] = r[2]; 
-    /* r[0] = k; r[1] = xstr */
-    for (i = 3; i < VM_REGC; ++i) r[i] = 0; 
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    hp = rds_stox(r, r+VM_REGC, hp); /* r[1] -> r[1] */
-    r[2] = r[1]; r[1] = obj_from_ktrap();
-    /* r[0] = k; r[1] = ek; r[2] = code */
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 3: /* decode-code */    
-    /* r[0] = clo, r[1] = k, r[2] = cstr */
-    { assert(rc == 3);
-    r[0] = r[1]; r[1] = r[2]; 
-    /* r[0] = k; r[1] = cstr */
-    for (i = 3; i < VM_REGC; ++i) r[i] = 0;
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    hp = rds_stoc(r, r+VM_REGC, hp); /* r[1] -> r[1] */
-    r[2] = r[1]; r[1] = obj_from_ktrap();
-    /* r[0] = k; r[1] = ek; r[2] = code */
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 4: /* find-integrable-encoding */
-    /* r[0] = clo, r[1] = k, r[2] = id, r[3] = argc */
-    { assert(rc == 4);
-    r[2] = obj_from_bool(0);;
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-      
-  case 5: /* encode-integrable */
-    /* r[0] = clo, r[1] = k, r[2] = argc, r[3] = pe, r[4] = port */
-    { assert(rc == 5);
-    assert(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 6: /* install-global-lambdas */
-    /* r[0] = clo, r[1] = k */
-    { assert(rc == 2);
-    r[0] = r[1];
-    for (i = 2; i < VM_REGC; ++i) r[i] = 0;
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    hp = rds_intgtab(r, r+VM_REGC, hp);
-    r[1] = obj_from_ktrap();
-    r[2] = obj_from_void(0);
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 7: /* initialize-modules */
-    /* r[0] = clo, r[1] = k */
-    { assert(rc == 2);
-    r[0] = r[1];
-    r = cxm_rgc(NULL, VM_REGC + VM_STACK_LEN);
-    for (i = 2; i < VM_REGC; ++i) r[i] = 0;
-    rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-    hp = init_modules(r, r+VM_REGC, hp);
-    r[1] = obj_from_ktrap();
-    r[2] = obj_from_void(0);
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 8: /* integrable? */
-    /* r[0] = clo, r[1] = k, r[2] = obj */
-    { assert(rc == 3);
-    r[2] = obj_from_bool(isintegrable(r[2]));
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 9: /* lookup-integrable */
-    /* r[0] = clo, r[1] = k, r[2] = id */
-    { assert(rc == 3);
-    if (issymbol(r[2])) {
-      int sym = getsymbol(r[2]);
-      struct intgtab_entry *pe = lookup_integrable(sym);
-      r[2] = pe ? mkintegrable(pe) : obj_from_bool(0);
-    } else r[2] = obj_from_bool(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 10: /* integrable-type */
-    /* r[0] = clo, r[1] = k, r[2] = ig */
-    { assert(rc == 3);
-    if (isintegrable(r[2])) {
-      int it = integrable_type(integrabledata(r[2]));
-      r[2] = it ? obj_from_char(it) : obj_from_bool(0);
-    } else r[2] = obj_from_bool(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 11: /* integrable-global */
-    /* r[0] = clo, r[1] = k, r[2] = ig */
-    { assert(rc == 3);
-    if (isintegrable(r[2])) {
-      const char *igs = integrable_global(integrabledata(r[2]));
-      r[2] = igs ? mksymbol(internsym((char*)igs)) : obj_from_bool(0);
-    } else r[2] = obj_from_bool(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-
-  case 12: /* integrable-code */
-    /* r[0] = clo, r[1] = k, r[2] = ig, r[3] = i */
-    { assert(rc == 4);
-    if (isintegrable(r[2]) && is_fixnum(r[3])) {
-      const char *cs = integrable_code(integrabledata(r[2]), get_fixnum(r[3]));
-      r[2] = cs ? hpushstr(3, newsdata((char*)cs)) : obj_from_bool(0);
-    } else r[2] = obj_from_bool(0);
-    r[0] = r[1]; r[1] = obj_from_ktrap();
-    pc = objptr_from_obj(r[0])[0];
-    rc = 3;
-    goto jump; }
-      
-  default: /* inter-host call */
-    cxg_hp = hp;
-    cxm_rgc(r, 1);
-    cxg_rc = rc;
-    return pc;
-  }
+  obj *ip;
+#ifdef VM_AC_IN_REG
+  obj ac;
+#endif
+  assert(r == cxg_regs); /* the vm's stack is the register file's tail */
+  assert(cxg_rend - cxg_regs >= VM_REGC + VM_STACK_LEN);
+  rd = ra; /* thunk closure to execute */
+  ra = obj_from_fixnum(0); /* argc, shadow ac */
+  rx = obj_from_fixnum(0); /* shadow ip */
+  rs = obj_from_fixnum(VM_REGC); /* sp */
+  rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
+  do { /* unwindi trampoline */
+    reload_ac(); /* ra => ac */
+    reload_ip(); /* rd/rx => ip */
+    reload_sp(); /* rs => sp */
+    hp = (ins_from_obj(*ip))(IARGS1);
+  } while (likely(trampcnd()));
+  /* ra = result */
+  return hp;
 }
 
+/* protects registers from r to sp, in: ra=code, out: ra=closure */
+obj *vm_make_closure(obj *r, obj *sp, obj *hp)
+{
+  return close0(r, sp, hp);
+}
+
+/* protects registers from r to sp, in: ra=string, out: ra=code */
+obj *vm_decode(obj *r, obj *sp, obj *hp)
+{
+  hp = rds_stoc(r, sp, hp);
+  assert(!iseof(ra));
+  return hp;
+}
+
+/* protects registers from r to sp, in: ra=string, out: ra=sexp */
+obj *vm_decode_sexp(obj *r, obj *sp, obj *hp)
+{
+  hp = rds_stox(r, sp, hp);
+  assert(!iseof(ra));
+  return hp;
+}
+
+/* protects registers from r to sp; no args/values; returns new hp */
+obj *vm_install_global_lambdas(obj *r, obj *sp, obj *hp)
+{
+  return rds_intgtab(r, sp, hp);
+}
+
+/* protects registers from r to sp; no args/values; returns new hp */
+obj *vm_initialize_modules(obj *r, obj *sp, obj *hp)
+{
+  return init_modules(r, sp, hp);
+}
+
+static obj vmhost(obj);
 /* instructions for basic vm machinery */
 
 define_instrhelper(cxi_fail) { 
@@ -5888,30 +5747,14 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       cdr(bnd) = ra;
     } else {
       /* execute code-encoded thunk */
-      obj *ip;
-#ifdef VM_AC_IN_REG
-      obj ac;
-#endif      
       ra = mkiport_string(sp-r, sialloc((char*)data, (int)strlen(data), NULL));
       hp = rds_seq(r, sp, hp);  /* ra=port => ra=revcodelist/eof */
       if (!iseof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       if (!iseof(ra)) hp = close0(r, sp, hp); /* ra => ra */
       assert(!iseof(ra));
       /* ra is a thunk closure to execute */
-      rd = ra;
-      ra = obj_from_fixnum(0); /* argc, shadow ac */
-      rx = obj_from_fixnum(0); /* shadow ip */ 
-      rs = obj_from_fixnum(VM_REGC); /* sp */
-      rz = (obj)(r + VM_STACK_GSZ); /* sp red zone */
-      do { /* unwindi trampoline */
-        reload_ac(); /* ra => ac */
-        reload_ip(); /* rd/rx => ip */
-        reload_sp(); /* rs => sp */
-        hp = (ins_from_obj(*ip))(IARGS1);
-      } while (trampcnd());
-      /* r[0] = k, r[1] = random result */
-      assert(r == cxg_regs);
-      sp = r + VM_REGC;
+      hp = vm_execute_thunk_closure(r, sp, hp); /* ra => ra (result) */
+      sp = r + VM_REGC; /* the vm has emptied its stack */
     }
   }
   return hp;

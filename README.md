@@ -149,8 +149,8 @@ the `lib/README.md` file for details.
 `s.c`: Bytecode definitions of many standard and internal procedures  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/s.scm`  
 
-`k.c`: Skint startup code  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Generated from `pre/k.sf`
+`k.h`: VM registers and the VM entry points the kernel calls  
+`k.c`: Skint kernel globals, startup code, and the garbage collector
 
 `i.h`: A list of all VM instructions and their bytecode serialization  
 `i.c`: Definitions of all VM instructions  

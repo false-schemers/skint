@@ -91,7 +91,7 @@ value, because the globals are initialised by the C startup code while the table
 a static initialiser.
 
 The trie the decoder actually consults, `encmap`, is built lazily from `enctab` on
-the first call to `rds_prefix`, which is the first `decode` in `pre/k.sf`. It is
+the first call to `rds_prefix`, which is the first `vm_decode` in `k.c`. It is
 `calloc`ed node by node and never freed; there is one of it per process.
 
 Two properties of `encmap_add` are worth knowing before editing the table:
@@ -140,7 +140,7 @@ written in Scheme rather than in C:
 | `(closure? x)` | whether `x` is a VM closure: a heap block whose cell 0 is a code vector |
 
 `closure?` is the test to use before `closure->vector`, not `procedure?`. The
-procedure test comes from the `sfc`-generated runtime, where a procedure without a
+procedure test comes from the runtime SKINT inherited, where a procedure without a
 display is a foreign pointer, so in some builds `procedure?` answers `#t` for any
 aligned pointer outside the heap — an instruction word included. R7RS allows that,
 since the only thing a program can do with a procedure is call it. `closure?`
@@ -156,7 +156,8 @@ is one of `p m b u t` — those are the only classes with an alternate encoding.
 Every integrable has to exist as a first-class procedure as well, because it can be
 passed to `map`. Rather than write those by hand, `rds_intgtab` synthesizes each one
 *as bytecode* from the instruction's own encoding, before any library code runs:
-`install-global-lambdas` in `pre/k.sf` is a direct call into it.
+`vm_install_global_lambdas`, which `k.c` calls at startup, is a direct call into
+it.
 
 The `lcode` column decides how:
 
@@ -221,23 +222,27 @@ buffer. A long encoding in a folding class is the only realistic way to overflow
 
 ### The startup sequence
 
-`pre/k.sf` is the whole of the bootstrap, and its top-to-bottom order is the order
-in which things become available:
+`run_kernel` in `k.c` is the whole of the bootstrap, and its top-to-bottom order is
+the order in which things become available:
 
 1. `*globals*` is created — a vector of buckets, each a list of `(sym . #&sym)`
    pairs. An unassigned global's box holds its own symbol, which is why referring to
    a name that was never defined yields the symbol rather than an error.
-2. The four VM entry points needed to run anything at all — `execute-thunk-closure`,
-   `make-closure`, `decode-sexp` and `decode` — are bound to slots in `vmcases`.
-3. `*transformers*` starts empty, and `callmv-adapter-closure` is built by decoding
+2. `*transformers*` starts empty, and `callmv-adapter-closure` is built by decoding
    the two-character string `K5`.
-4. `(install-global-lambdas)` runs `rds_intgtab`: every integrable's global
+3. `vm_install_global_lambdas` runs `rds_intgtab`: every integrable's global
    procedure now exists.
-5. `(initialize-modules)` runs `init_module` over `i_code`, then `s_code`, then
+4. `vm_initialize_modules` runs `init_module` over `i_code`, then `s_code`, then
    `t_code`.
-6. `main` calls `tcode-repl`, which decodes `${@(y4:repl)[00}` and executes it.
+5. The repl thunk is decoded from `${@(y4:repl)[00}` and executed, and re-executed
+   from scratch if it returns anything but `#t`, which is how an error exit lands
+   back at a fresh prompt.
 
-Step 4 has to precede step 5 because the library sources call the builtins.
+Step 3 has to precede step 4 because the library sources call the builtins.
+
+The `vm_*` functions are `i.c`'s entry points for exactly this code, and `k.c` is
+their only caller. They stand where `k.c` used to reach into a table of
+host-procedure cases, back when it was generated from `pre/k.sf`.
 
 #### Module tables
 
@@ -261,7 +266,7 @@ and the rest — sets the three current-port variables, and supplies the three
 hand-coded procedures whose bytecode no compiler could have produced:
 `%dynamic-state-reroot!`, `dynamic-wind`, and the continuation adapter. Each of
 those three carries a comment explaining its bytecode instruction by instruction.
-Together with a handful of one-liners in `pre/k.sf` and the port initialisation
+Together with a handful of one-liners in `k.c` and the port initialisation
 just above them, they are all the hand-written bytecode there is, so the comments
 are load-bearing.
 
@@ -332,8 +337,8 @@ declare_instruction(jyn,        "M51", 0, "flsecond-bessel", '2', AUTOGL)
 
 `C99_MATH_LIB` and `XSI_MATH_LIB` are decided in `n.h`, from feature-test macros
 that `s.h` selects — which is why `s.h` has to be included first by every
-translation unit, and why `n.h` and `i.h` refuse to compile without it. A module
-that got the configuration wrong would build its half of the tables against a
+translation unit, and why `n.h`, `i.h` and `k.h` refuse to compile without it. A
+module that got the configuration wrong would build its half of the tables against a
 different instruction set from everyone else's, and nothing at run time would say
 so.
 

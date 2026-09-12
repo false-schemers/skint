@@ -41,7 +41,8 @@ intermediate language, converted to threaded code once by a routine inside the V
 | File | Holds | Generated from |
 |---|---|---|
 | `n.h`, `n.c` | object representation, strings, ports, numeric helpers | hand-written |
-| `k.c` | bootstrap, `main`, and the garbage collector | `pre/k.sf`, patched by `pre/ksf2c.ssc` |
+| `k.h` | the VM register protocol and the VM entry points the kernel calls | hand-written |
+| `k.c` | kernel globals, startup, `main`, and the garbage collector | hand-written |
 | `i.h` | the instruction table — encodings, operand types, integrables | hand-written |
 | `i.c` | the VM: instruction implementations and the bytecode decoder | hand-written |
 | `s.h` | platform and toolchain conditionals | hand-written |
@@ -49,26 +50,34 @@ intermediate language, converted to threaded code once by a routine inside the V
 | `t.c` | expander, compiler, library system and REPL, as bytecode strings | `pre/t.scm` |
 | `opt/` | tower, Unicode and enhanced-tty subsystems | mixed |
 
-`s.c`, `t.c` and `k.c` are build artifacts and are committed only because
-regenerating them needs a working `skint` and a working `sfc`. Edit the `pre/`
-sources for those three.
+`s.c` and `t.c` are build artifacts and are committed only because regenerating
+them needs a working `skint`. Edit the `pre/` sources for those two.
 
 `n.h` and `n.c` are not in that category. They were generated from `pre/n.sf`
 originally, but have been maintained by hand for several releases and the script
-that generated them no longer exists; edit them directly. `pre/n.sf` remains only
-because `pre/k.sf` loads it for the runtime definitions it needs in order to
-compile, and it is on its way out — it does not describe `n.h` or `n.c`, and
-changing it will not change them.
+that generated them no longer exists; edit them directly. `pre/n.sf` is a leftover
+of that era and describes nothing that is still built — it does not describe `n.h` or
+`n.c`, and changing it will not change them.
 
 `s.h` is where the feature-test macros are selected, and those are only honored
 before the C library headers are read — so **every translation unit must include
-`s.h` before `n.h` and `i.h`**. Both of those check for it and stop the build with
-an `#error` rather than compiling against a different configuration from the rest
-of the program. `k.c`'s include preamble lives in `pre/ksf2c.ssc`.
+`s.h` before `n.h`, `i.h` and `k.h`**. All three check for it and stop the build
+with an `#error` rather than compiling against a different configuration from the
+rest of the program.
 
-The collector in `k.c` is a special case: it is `sfc`'s own runtime, not code
-written for SKINT, and `pre/ksf2c.ssc` carries the small list of patches applied to
-it on the way in. See [memory.md](memory.md).
+`i.h` has no include guard, on purpose: it is the instruction table, and each
+translation unit reads it several times with a different `VM_GEN_*` macro defined to
+turn the table into a different piece of code. So it must contain nothing but the
+table and the macros that expand it — which is why the VM register protocol and the
+`vm_*` declarations live in `k.h` instead. **Where both are included, `k.h` comes
+after `i.h`.** `k.c` needs only `k.h`: it no longer knows anything about
+instructions.
+
+`k.c` itself used to be generated, from `pre/k.sf` by an external compiler
+(`sfc`), and patched by `pre/ksf2c.ssc`; it is hand-written now, and neither of
+those `pre/` files describes anything that is still built. The collector at the end
+of `k.c` is a special case: it is `sfc`'s own runtime rather than code written for
+SKINT, and it is kept as it came, with those patches folded in. See [memory.md](memory.md).
 
 ### Build-time switches that change the internals
 
