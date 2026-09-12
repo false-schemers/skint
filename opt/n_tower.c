@@ -2796,14 +2796,14 @@ int wrbn(const bignum_t *n, int radix, int (*pf)(int, void*), void *pd)
   assert(n != NULL);
   CHECKSIGN(n);
   
-  if (radix < 2 || radix > 36) return -1;
+  if (radix < 2 || radix > 36) return (errno = 0), -1;
   len = bnfmtsize(n, radix);
-  if (len == 0) return 0; /* huh? */
+  if (len == 0) return (errno = 0), 0; /* huh? */
   buffer = bnrealloc(NULL, len); // use regular alloc???
   ptr = bntostr(buffer, len, n, radix);
   for (; *ptr; ++ptr) (*pf)(*ptr, pd); 
   bnrealloc(buffer, 0);
-  return 0;
+  return (errno = 0), 0;
 }
 
 /* [esl++] */
@@ -9825,251 +9825,260 @@ int fnisnan(const fatnum_t *fx)
   { int res = gnumnanp(fx->t, fx->p);
     return (errno = 0), res; }
 
-#define setmsg(fz, m) (errno = 0, strncpy(fz->u.msg, m, sizeof(fz->u.msg)))
+/* the messages are all string literals, so the result struct keeps the pointer,
+ * not a copy: it is read after fail() has musttailed into cxi_fail, by which
+ * time the frame holding the struct is gone */
+#define setmsg(fz, m) (errno = 0, fz->u.msg = (m))
+/* Every fn* entry below returns with errno clear. A failure is reported through
+ * the message setmsg() leaves in fz, so errno carries nothing the caller needs --
+ * and on success it must not leak the ERANGE that libm sets whenever a result is
+ * subnormal or infinite. Downstream code that tests errno without zeroing it
+ * first would otherwise read an unrelated arithmetic result as its own failure. */
+#define fndone(zt) (errno = 0, (zt) != NUMT_NONE)
 
 int fnabs(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumabs(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "abs: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnneg(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumneg(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "neg: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fntoex(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumtoex(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "exact: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fntoin(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumtoin(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "inexact: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnfloor(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumfloor(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "floor: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnceil(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumceil(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "ceiling: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fntrunc(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumtrunc(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "truncate: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnround(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumround(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "round: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnnumer(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumnumer(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "numerator: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fndenom(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumdenom(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "denominator: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnrpart(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumreal(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "real-part: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnipart(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumimag(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "imag-part: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnmagn(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnummagn(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "magnitude: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnangl(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumangl(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "angle: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnexp(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumexp(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "exp: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnlog(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumlog(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "log: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnsin(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumsin(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "sin: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fncos(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumcos(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "cos: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fntan(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumtan(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "tan: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnasin(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumasin(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "asin: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnacos(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumacos(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "acos: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnatan(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumatan(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "atan: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnsqrt(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = gnumsqrt(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "sqrt: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnisqrt(fatnum4r_t *fz, fatnum4r_t *fr, const fatnum_t *fx)
   { numt_t zt, rt;
     gnumisqrt(&zt, fz->u.p, &rt, fr->u.p, fx->t, fx->p);
     fz->t = zt; fr->t = rt;
     if (zt == NUMT_NONE) setmsg(fz, "exact-integer-sqrt: domain error");
-    return zt != NUMT_NONE; }
+    return fndone(zt); }
 
 int fnmax(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummax(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "max: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnmin(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummin(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "min: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnadd(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumadd(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "+: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnsub(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumsub(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "-: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnmul(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummul(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "*: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fndiv(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumdiv(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "/: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fngcd(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumgcd(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "gcd: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnquo(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumtquo(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "truncate-quotient: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnrem(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumtrem(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "truncate-remainder: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnmqu(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumfquo(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "floor-quotient: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnmlo(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumfrem(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "floor-remainder: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnlogn(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumlogn(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "log: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnpow(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnumexpt(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "expt: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnatan2(fatnum4r_t *fz, const fatnum_t *fy, const fatnum_t *fx)
   { numt_t zt = gnumatan2(fz->u.p, fy->t, fy->p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "atan: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnmkrec(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummkrec(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "make-rectangular: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnmkpol(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = gnummkpol(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "make-polar: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
     
 int fnnot(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = NUMT_NONE;
     if (isint(fx->t)) zt = intnot(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "bitwise-not: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnand(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = NUMT_NONE;
     if (isint(fx->t) && isint(fy->t)) zt = intand(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "bitwise-and: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnior(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = NUMT_NONE;
     if (isint(fx->t) && isint(fy->t)) zt = intior(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "bitwise-ior: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnxor(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = NUMT_NONE;
     if (isint(fx->t) && isint(fy->t)) zt = intxor(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "bitwise-xor: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnash(fatnum4r_t *fz, const fatnum_t *fx, const fatnum_t *fy)
   { numt_t zt = NUMT_NONE;
     if (isint(fx->t) && isint(fy->t)) zt = intash(fz->u.p, fx->t, fx->p, fy->t, fy->p);
     if (zt == NUMT_NONE) setmsg(fz, "arithmetic-shift: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 int fnlen(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = NUMT_NONE;
     if (isint(fx->t)) zt = intlen(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "integer-length: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
     
 int fnbtc(fatnum4r_t *fz, const fatnum_t *fx)
   { numt_t zt = NUMT_NONE;
     if (isint(fx->t)) zt = intbtc(fz->u.p, fx->t, fx->p);
     if (zt == NUMT_NONE) setmsg(fz, "bit-count: domain error");
-    fz->t = zt; return zt != NUMT_NONE; }
+    fz->t = zt; return fndone(zt); }
 
 
 static cxtype_t cxt_fatnum = { "fatnum", (void (*)(void *))fnfree };
@@ -10091,8 +10100,12 @@ fatnum_t *dupfatnum(fatnum_t *fn) /* shallow copy! */
 /* 'generic' writer for fatnums */
 int wrfn(const fatnum_t *n, int radix, int mode, int prc, int (*pf)(int, void*), void *pd)
 {
+  int res;
   assert(n); assert(n->t);
-  return gnumwrite(n->t, n->p, radix, mode, prc, pf, pd);
+  res = gnumwrite(n->t, n->p, radix, mode, prc, pf, pd);
+  /* formatting a subnormal or infinite component leaves ERANGE behind; like
+   * every other entry here, this one returns with errno clear */
+  return (errno = 0), res;
 }
 
 

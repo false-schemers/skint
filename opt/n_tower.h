@@ -73,7 +73,7 @@ extern cxtype_t *BIGNUM_NTAG;
 /* make sure fatnum_t is compatible with fatnum4_t! */
 typedef struct fatnum { numt_t t; nump_t p[1]; } fatnum_t; /* alloc 1..4 parts */
 /* result struct with space for error message, compatible with fatnum_t */
-typedef struct fatnum4r { numt_t t; union { nump_t p[4]; char msg[80]; } u; } fatnum4r_t; 
+typedef struct fatnum4r { numt_t t; union { nump_t p[4]; const char *msg; } u; } fatnum4r_t; 
 
 /* return values: 1 = true, 0 = false */
 extern int fneqn(const fatnum_t *fx, const fatnum_t *fy);

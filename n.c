@@ -2093,7 +2093,10 @@ int wrdn(double x, int radix, int mode, int prc, int (*pf)(int, void*), void *pd
 
 extern int is_tty(FILE *fp)
 {
-  return fp && isatty(fileno(fp));
+  /* isatty() reports "not a tty" by setting ENOTTY, which is an answer here
+   * and not a failure -- do not leave it for unrelated code to trip over */
+  int res = fp && isatty(fileno(fp));
+  return (errno = 0), res;
 }
 
 extern int is_tty_port(obj o)
@@ -2109,7 +2112,7 @@ extern int is_tty_port(obj o)
   else if (vt == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
   else if (vt == OPORT_BYTEFILE_NTAG) fp = (FILE*)oportdata(o); 
   if (!fp) return 0;
-  return isatty(fileno(fp));
+  { int res = isatty(fileno(fp)); return (errno = 0), res; }
 }
 
 extern char *argv_ref(int idx)

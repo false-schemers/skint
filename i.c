@@ -3298,7 +3298,9 @@ define_instruction(ston) {
     case NUMT_FIX: ac = fixnum_obj(f4.p[0].fix); break;
     case NUMT_FLO: ac = hp_flonum_obj(f4.p[0].flo); break;
     /* no big/fat numbers here */
-    default : ac = bool_obj(0); break;
+    /* a string that is not a number is a #f result, not an error: clear the
+     * EDOM the parser leaves behind, as the tower build does */
+    default : ac = bool_obj(0); errno = 0; break;
   }
   gonexti();
 }
@@ -4907,7 +4909,7 @@ static obj *rds_sexp(obj *r, obj *sp, obj *hp)
         case NUMT_FIX:  ra = fixnum_obj(f4.p[0].fix); break;
         case NUMT_FLO:  ra = hflonum_obj((int)(sp-r), f4.p[0].flo); break;
         case NUMT_BIG:  ra = hbignum_obj((int)(sp-r), f4.p[0].big); break;
-        case NUMT_NONE: ra = eof_obj(); break;
+        case NUMT_NONE: ra = eof_obj(); errno = 0; break;
         /* fat numbers are the default */
         default: ra = hfatnum_obj((int)(sp-r), dupfatnum((fatnum_t*)&f4));
       }
