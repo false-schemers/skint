@@ -2245,6 +2245,8 @@
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
     (path-separator) (void) (void?) (implementation-name) (implementation-version) (version-alist)
     (current-language) (current-country) (current-locale-details) (id?) (string->id) (id->string)
+    ; vm failures: what a guard clause needs to recognize and read one
+    (failure-object?) (failure-object-message) (failure-object-irritants)
     ; (skint c99-math) library is defined if host provides the corresponding functions
     (flcopysign . c99-math) (flsign-bit . c99-math) (fladjacent . c99-math) (flnormalized? . c99-math) 
     (fldenormalized? . c99-math) (flexponent . c99-math) (flilogb . c99-math) (fl+* . c99-math) 
@@ -2616,7 +2618,7 @@
   (define ci? #f) ; normal load-like behavior is the default
   (define callmain #f) ; got changed via first #! line
   (define main-args (cons filename args))
-  (set-repl-handler! reset) ; exit on hard errors too
+  (set-repl-handler! reset) ; exit on failures too
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (let ([x0 (read-code-sexp port)])
@@ -2651,7 +2653,7 @@
   (define env (make-controlled-environment ial global pre))
   (define ci? #f) ; normal load-like behavior is the default
   (define main-args (cons filename args))
-  (set-repl-handler! reset) ; exit on hard errors too
+  (set-repl-handler! reset) ; exit on failures too
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (command-line main-args)
@@ -2839,10 +2841,15 @@
           [(error-object? err)
            (let ([p (current-error-port)])
             (display (error-object-message err) p) (newline p)
-            (for-each (lambda (arg) (write arg p) (newline p)) 
+            (for-each (lambda (arg) (write-irritant arg p) (newline p)) 
               (error-object-irritants err)))
            (when (read-error? err) (clear-input-port ip)) ; don't get stuck!
            (set-current-file-stack! cfs) 
+           (%gc) ; to close lost ports
+           (when prompt (repl-from-port ip env prompt op))]
+          [(failure-object? err)
+           (print-failure err (current-error-port))
+           (set-current-file-stack! cfs)
            (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))]
           [else 

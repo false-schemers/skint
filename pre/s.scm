@@ -1198,6 +1198,43 @@
 
 (define (set-reset-handler! fn) (set! reset fn))
 
+; A failure is an error the vm itself detects -- not one signalled by calling
+; error, so it is deliberately not an error object. Its object is a vector: the
+; last element is the message, the one before it the irritant count, then that
+; many irritants, and everything below them is the stack of the failing
+; computation. A vector is the discriminator: error-object? stays #f for it.
+(define (failure-object? x)
+  (and (vector? x)
+       (let ([n (vector-length x)])
+         (and (>= n 2)
+              (string? (vector-ref x (- n 1)))
+              (let ([k (vector-ref x (- n 2))])
+                (and (integer? k) (exact? k) (>= k 0) (<= k (- n 2))))))))
+
+(define (failure-object-message x)
+  (vector-ref x (- (vector-length x) 1)))
+
+(define (failure-object-irritants x)
+  (let* ([n (vector-length x)] [k (vector-ref x (- n 2))])
+    (let loop ([i 0] [r '()])
+      (if (>= i k) r (loop (+ i 1) (cons (vector-ref x (- n 3 i)) r))))))
+
+; the message of a failure names the wanted type when there are irritants,
+; and is the whole message when there are none
+(define (failure-message-string msg args)
+  (if (null? args) msg (string-append "argument is not a " msg)))
+
+; irritants are written, except that writing a simple-failure object would dump the
+; whole captured stack, so it is abbreviated to its message and its irritants
+(define (write-irritant x p)
+  (cond [(failure-object? x)
+         (let ([args (failure-object-irritants x)])
+           (write-string "#<failure " p)
+           (write (failure-message-string (failure-object-message x) args) p)
+           (for-each (lambda (a) (write-char #\space p) (write a p)) args)
+           (write-char #\> p))]
+        [else (write x p)]))
+
 (define (print-error-message prefix args ep)
   (define (pr-where args ep)
     (when (pair? args) 
@@ -1218,7 +1255,7 @@
             [else (pr-rest args ep)])))
    (define (pr-rest args ep)
      (when (pair? args)
-       (write-char #\space ep) (write (car args) ep)
+       (write-char #\space ep) (write-irritant (car args) ep)
        (pr-rest (cdr args) ep)))
    (cond [(or (string? prefix) (symbol? prefix)) 
           (display prefix ep)]
@@ -1248,16 +1285,33 @@
 (define (error msg . args)
   (raise (error-object #f msg args)))
 
+(define (print-failure obj ep)
+  (let ([msg (failure-object-message obj)]
+        [args (failure-object-irritants obj)])
+    (print-error-message "Failure"
+      (cons 'vm (cons (failure-message-string msg args) args))
+      ep)))
+
+; the shortcut around the exception mechanism, straight to printing and reset;
+; internal, not exposed to the user -- the sibling of simple-error
+(define (simple-failure obj)
+  (let ([ep (%current-error-port)])
+    (newline ep)
+    (print-failure obj ep)
+    (reset)))
+
 (define current-exception-handler 
   (make-parameter
     (letrec 
       ([default-handler
         (case-lambda 
           [() default-handler] ; make this one its own parent 
-          [(obj) 
-           (if (error-object? obj)
-               (apply simple-error (error-object-kind obj) (error-object-message obj) (error-object-irritants obj)) 
-               (simple-error #f "unhandled exception" obj))])])
+          [(obj)
+           (cond 
+              [(error-object? obj)
+               (apply simple-error (error-object-kind obj) (error-object-message obj) (error-object-irritants obj))]
+              [(failure-object? obj) (simple-failure obj)]
+              [else (simple-error #f "unhandled exception" obj)])])])
       default-handler)))
 
 (define (with-exception-handler handler thunk)
@@ -1270,6 +1324,17 @@
     (parameterize ([current-exception-handler (eh)])
       (eh obj)
       (raise (error-object 'raise "exception handler returned" (list eh obj))))))
+
+; From here on a vm failure is an ordinary raise. The handler re-arms
+; itself first: the vm holds off calling it again between the failure and
+; this point, and installing a handler is what lifts that hold, so a second
+; failure -- in a guard body, or in the handler itself -- is reported the
+; same way as the first.
+(define (%default-failure-handler obj)
+  (%set-current-failure-handler! %default-failure-handler)
+  (raise obj))
+
+(%set-current-failure-handler! %default-failure-handler)
 
 (define (raise-continuable obj)
   (let ([eh (current-exception-handler)])
@@ -1391,6 +1456,19 @@
 (define (port? x) (fixnum? (%port? x)))
 (define (textual-port? x) (eqv? (%port? x 4) 0))
 (define (binary-port? x) (eqv? (%port? x 4) 4))
+
+(define %current-failure-handler-parameter
+  (case-lambda 
+    [() (%current-failure-handler)]
+    [(p) (%set-current-failure-handler! p)]
+    [(p s) (if s (%set-current-failure-handler! p) p)]))
+
+(define-syntax current-failure-handler
+  (syntax-rules ()
+    [(_) (%current-failure-handler)]
+    [(_ p) (%set-current-failure-handler! p)]
+    [(_ . r) (%current-failure-handler-parameter . r)]
+    [_ %current-failure-handler-parameter]))
 
 (define %current-input-port-parameter
   (case-lambda 

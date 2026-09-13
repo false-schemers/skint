@@ -604,14 +604,35 @@ char *s_code[] = {
   "P", "set-reset-handler!",
   "%1.0@!(y5:reset)]1",
 
+  "P", "failure-object?",
+  "%1.0V0?{.0V3,'2,.1<!?{'1,.1-,.2V4S0?{'2,.1-,.2V4,.0Nw?{.0Ti?{'0,.1<!?{"
+  "'2,.2-,.1>!]3}f]3}f]3}f]3}f]2}f]2}f]1",
+
+  "P", "failure-object-message",
+  "%1'1,.1V3-,.1V4]1",
+
+  "P", "failure-object-irritants",
+  "%1.0V3,'2,.1-,.2V4,n,'0,,#0.4,.6,.2,.6,&4{%2:0,.1<!?{.1]2}.1,.1,'3,:3-"
+  "-,:2V4c,'1,.2+,:1^[22}.!0.0^_1[32",
+
+  "P", "failure-message-string",
+  "%2.1u?{.0]2}.0,'(s18:argument is not a ),Sa2]2",
+
+  "P", "write-irritant",
+  "%2${.2,@(y15:failure-object?)[01}?{${.2,@(y24:failure-object-irritants"
+  ")[01},${.4,'(s10:#<failure ),@(y12:write-string)[02}.2,${.3,${.7,@(y22"
+  ":failure-object-message)[01},@(y22:failure-message-string)[02}W5${.2,."
+  "5,&1{%1:0,'(c )W0:0,.1W5]1},@(y10:%25for-each1)[02}.2,'(c>)W0]3}.1,.1W"
+  "5]2",
+
   "P", "print-error-message",
   "%3,,,#0#1#2.1,&1{%2.0p?{.0a~?{${.3,'(s2::%0a),@(y12:write-string)[02}."
   "1,.1d,:0^[22}.0aY0?{${.3,'(s4: in ),@(y12:write-string)[02}.1,.1aW5${."
   "3,'(s2::%0a),@(y12:write-string)[02}.1,.1d,:0^[22}${.3,'(s2::%0a),@(y1"
   "2:write-string)[02}.1,.1,:0^[22}]2}.!0.2,&1{%2.0p?{.0aS0?{.1,.1aW4.1,."
-  "1d,:0^[22}.1,.1,:0^[22}]2}.!1.2,&1{%2.0p?{.1,'(c )W0.1,.1aW5.1,.1d,:0^"
-  "[22}]2}.!2.3S0,.0?{.0}{.4Y0}_1?{.5,.4W4}{${.7,'(s5:Error),@(y12:write-"
-  "string)[02}}${.7,.7,.4^[02}.5W6]6",
+  "1d,:0^[22}.1,.1,:0^[22}]2}.!1.2,&1{%2.0p?{.1,'(c )W0${.3,.3a,@(y14:wri"
+  "te-irritant)[02}.1,.1d,:0^[22}]2}.!2.3S0,.0?{.0}{.4Y0}_1?{.5,.4W4}{${."
+  "7,'(s5:Error),@(y12:write-string)[02}}${.7,.7,.4^[02}.5W6]6",
 
   "P", "simple-error",
   "%!0Pe,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:reset"
@@ -643,13 +664,21 @@ char *s_code[] = {
   "P", "error",
   "%!1${.2,.4,f,@(y12:error-object)[03},@(y5:raise)[21",
 
+  "P", "print-failure",
+  "%2${.2,@(y24:failure-object-irritants)[01},${.3,@(y22:failure-object-m"
+  "essage)[01},.3,.2,${.5,.5,@(y22:failure-message-string)[02}c,'(y2:vm)c"
+  ",'(s7:Failure),@(y19:print-error-message)[43",
+
+  "P", "simple-failure",
+  "%1Pe,.0W6${.2,.4,@(y13:print-failure)[02}@(y5:reset)[20",
+
   "C", 0,
   "${,#0&0{%1${.2,@(y13:error-object?)[01}?{${.2,@(y22:error-object-irrit"
   "ants)[01},${.3,@(y20:error-object-message)[01}c,${.3,@(y17:error-objec"
-  "t-kind)[01}c,@(y12:simple-error),@(y13:apply-to-list)[12}.0,'(s19:unha"
-  "ndled exception),f,@(y12:simple-error)[13}%x,.1,&1{%0:0^]0}%x,&2{|00|1"
-  "1%%}.!0.0^_1,@(y14:make-parameter)[01}@!(y25:current-exception-handler"
-  ")",
+  "t-kind)[01}c,@(y12:simple-error),@(y13:apply-to-list)[12}${.2,@(y15:fa"
+  "ilure-object?)[01}?{.0,@(y14:simple-failure)[11}.0,'(s19:unhandled exc"
+  "eption),f,@(y12:simple-error)[13}%x,.1,&1{%0:0^]0}%x,&2{|00|11%%}.!0.0"
+  "^_1,@(y14:make-parameter)[01}@!(y25:current-exception-handler)",
 
   "P", "with-exception-handler",
   "%2${@(y25:current-exception-handler)[00},@(y25:current-exception-handl"
@@ -663,6 +692,14 @@ char *s_code[] = {
   "0,:1[01}${:0,:1,l2,'(s26:exception handler returned),'(y5:raise),@(y12"
   ":error-object)[03},@(y5:raise)[01},.3,.5,&2{%0t,:1,:0[02},@(y12:dynami"
   "c-wind)[53",
+
+  "P", "%default-failure-handler",
+  "%1${@(y24:%25default-failure-handler),@(y29:%25set-current-failure-han"
+  "dler!)[01}.0,@(y5:raise)[11",
+
+  "C", 0,
+  "${@(y24:%25default-failure-handler),@(y29:%25set-current-failure-handl"
+  "er!)[01}",
 
   "P", "raise-continuable",
   "%1${@(y25:current-exception-handler)[00},@(y25:current-exception-handl"
@@ -723,6 +760,18 @@ char *s_code[] = {
 
   "P", "binary-port?",
   "%1'4,'4,.2Ppv]1",
+
+  "C", 0,
+  "&0{%2.1?{.0,@(y29:%25set-current-failure-handler!)[21}.0]2}%x,&0{%1.0,"
+  "@(y29:%25set-current-failure-handler!)[11}%x,&0{%0@(y24:%25current-fai"
+  "lure-handler)[00}%x,&3{|00|11|22%%}@!(y34:%25current-failure-handler-p"
+  "arameter)",
+
+  "S", "current-failure-handler",
+  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y24:%25current-failure-handler;;;"
+  "l2:l2:y1:_;y1:p;;l2:y29:%25set-current-failure-handler!;y1:p;;;l2:py1:"
+  "_;y1:r;;py34:%25current-failure-handler-parameter;y1:r;;;l2:y1:_;y34:%"
+  "25current-failure-handler-parameter;;",
 
   "C", 0,
   "&0{%2.1?{.0Psi]2}.0]2}%x,&0{%1.0Psi]1}%x,&0{%0Pi]0}%x,&3{|00|11|22%%}@"
