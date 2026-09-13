@@ -1,8 +1,10 @@
 ## SKINT internals
 
 Notes on how the interpreter is built, for people working on it rather than with it.
-User-level documentation lives in `doc/skint/` and describes libraries; this
-directory describes the machine underneath.
+User-level documentation lives in [../skint/](../skint/README.md) and describes the
+libraries; this directory describes the machine underneath.
+
+Up: [documentation index](../README.md).
 
 | Document | Covers |
 |---|---|
@@ -13,6 +15,7 @@ directory describes the machine underneath.
 | [bytecode.md](bytecode.md) | the compiler's intermediate language and its conversion to threaded code |
 | [builtins.md](builtins.md) | how `i.h` becomes the instruction tables, and how those become Scheme bindings |
 | [store.md](store.md) | the global store: where non-local variables get their locations, and how names resolve to them |
+| [notes.md](notes.md) | numbered implementation notes, referenced from the sources in place of long comment blocks |
 | [registries.md](registries.md) | expand-time name registries: denotations, environments, and how libraries are bound to their names |
 
 ### The layers
@@ -61,8 +64,8 @@ of that era and describes nothing that is still built — it does not describe `
 `n.c`, and changing it will not change them.
 
 `s.h` is where the feature-test macros are selected, and those are only honored
-before the C library headers are read — so **every translation unit must include
-`s.h` before `n.h`, `i.h` and `k.h`**. All three check for it and stop the build
+before the C library headers are read — so *every translation unit must include
+`s.h` before `n.h`, `i.h` and `k.h`*. All three check for it and stop the build
 with an `#error` rather than compiling against a different configuration from the
 rest of the program.
 
@@ -70,8 +73,8 @@ rest of the program.
 translation unit reads it several times with a different `VM_GEN_*` macro defined to
 turn the table into a different piece of code. So it must contain nothing but the
 table and the macros that expand it — which is why the VM register protocol and the
-`vm_*` declarations live in `k.h` instead. **Where both are included, `k.h` comes
-after `i.h`.** `k.c` needs only `k.h`: it no longer knows anything about
+`vm_*` declarations live in `k.h` instead. *Where both are included, `k.h` comes
+after `i.h`.* `k.c` needs only `k.h`: it no longer knows anything about
 instructions.
 
 `k.c` itself used to be generated, from `pre/k.sf` by an external compiler

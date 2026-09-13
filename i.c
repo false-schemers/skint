@@ -336,22 +336,7 @@ obj *vm_initialize_modules(obj *r, obj *sp, obj *hp)
 #define failtype(x, msg) do { ac = (x); spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
 #define failactype(msg) do { spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
 
-/* The failing procedure is in rd and the point it failed at in ip -- registers,
- * not stack, so a plain snapshot of the stack misses the innermost frame: the
- * one that actually failed. Push it exactly the way `save` does, so a walk of
- * the captured stack starts at the failure point rather than at its caller.
- *
- * Guarded, because not every failure arrives here with rd and ip agreeing: the
- * stack overflow raised from callsubi() runs with rd already holding the CALLEE
- * while ip still addresses the caller's code, and there the offset would be
- * meaningless. Better no innermost frame than a false one. The red zone
- * (VM_STACK_RSZ) leaves room for these two words even when the failure is the
- * overflow itself.
- *
- * NB for anything that walks this: the values sitting above this frame are
- * whatever happened to be on the stack mid-instruction, so unlike a frame that
- * a completed `save` pushed, its extent is arbitrary. A walker must not assume
- * the innermost frame is shaped like the rest. */
+/* why this frame is pushed, and guarded: see doc/internals/notes.md [3] */
 #define push_failing_frame() do {\
     if (is_procedure(rd)) {\
       obj _cv = procedure_ref(rd, 0);\
@@ -363,30 +348,7 @@ obj *vm_initialize_modules(obj *r, obj *sp, obj *hp)
     }\
   } while (0)
 
-/* Build the object a failure is reported with. It is shaped as an ORDINARY
- * CONTINUATION -- same adapter code at [0], the dynamic state at [1], a stack
- * image from [2] -- so `closure->vector` and anything that walks a continuation
- * works on it unchanged, and wck/wckr/rck accept it as the real thing.
- *
- * What makes it safe is the top of its stack image: `wckr` restores the image
- * and pops the topmost two slots as the return frame, so we put
- * [cx_failure_halt_closure, 0] there. Invoking it therefore returns straight
- * into a bare `halt` and resets cleanly instead of resuming a computation whose
- * stack is meaningless. The failing stack is NOT re-enterable and this is how
- * that is enforced without a special case anywhere else.
- *
- * Layout of the finished block, len = n + 4 where n is the captured region:
- *   [0]      cx_continuation_adapter_code
- *   [1]      cx_dynamic_state
- *   [2..]    the vm stack as it stood, oldest first, ending with
- *            the irritants, their count, and the message
- *   [len-2]  cx_failure_halt_closure   ) the return frame that makes an
- *   [len-1]  0                         ) accidental call halt
- *
- * so from the end: message at len-3, count at len-4, irritants below that.
- * The caller has already pushed the irritants and their count; this pushes the
- * message, snapshots, and leaves a halt return frame on the now-empty stack for
- * the handler call that follows. */
+/* the failure object's shape and layout: see doc/internals/notes.md [2] */
 #define build_fail_object(msg) do {\
     int _n;\
     ac = hp_string_obj(newsdata(msg)); /* may collect */\
@@ -4234,12 +4196,7 @@ define_instruction(ctov) {
   gonexti();
 }
 
-/* closure? => whether x is a heap-allocated vm closure, i.e. a block whose
- * cell 0 is a code vector. This is the thorough form of the test procedure?
- * makes: procedure? settles for any heap pointer in cell 0, which nothing but
- * a code vector can be, so the two agree on every object the vm builds. Kept
- * apart because it is the one that cannot be fooled by a hand-made block, and
- * because (skint disasm) reads closures and wants to be sure of one. */
+/* the thorough form of procedure?: see doc/internals/notes.md [6] */
 define_instruction(vmclop) {
   obj x = ac;
   ac = bool_obj(isobjptr(x) && is_vector(block_ref(x, 0)));
@@ -5854,34 +5811,12 @@ char *i_code[] = {
   "%1.0,,#0.0,&1{%1.0,yq~?{${.2d,:0^[01}.0ad,.1aa,y,.1,.3c,.1sa.3,.1sdf,."
   "4san,.4sd.3sy_1.0[30}]1}.!0.0^_1[11",
 
-  /* code for dynamic-wind's internal lambda is modified as follows:
-   * ,    save argc by pushing it on top of args in stack
-   * ${   push new frame for return from %dynamic-state-reroot!
-   * :0   get 'here' dynamic state from internal lambda's display
-   * ,    put it on the stack for dynamic-state-reroot!
-   * @(y22:%25dynamic-state-reroot!) get the d-s-r! procedure
-   * [01  call it with 1 argument ('here' dynamic state)
-   * }    we will return here when d-s-r! is finished 
-   * _!   pop saved argc from stack into ac register
-   * K6   use sdmv opcode to return args from the lambda
-   * also, %x procedure checks inserted for early error detection
-  */
+  /* bytecode explained: see doc/internals/notes.md [4] */
   "P", "dynamic-wind",
   "%3y,${.2,.6%x,.5%xcc,@(y22:%25dynamic-state-reroot!)[01}.0,&1{,${:0,@("
   "y22:%25dynamic-state-reroot!)[01}_!K6},.3,@(y16:call-with-values)[42",
 
-  /* code for the continuation adapter:
-   * k!   first attempt; does not return if nothing to un/re-wind
-   * ,    save argc by pushing it on top of args in stack
-   * ${   push new frame for return from %dynamic-state-reroot!
-   * :0   get old dynamic state from continuation's display
-   * ,    put it on the stack for dynamic-state-reroot!
-   * @(y22:%25dynamic-state-reroot!) get the d-s-r! procedure
-   * [01  call it with 1 argument (old dynamic state)
-   * }    we will return here when d-s-r! is finished 
-   * _!   pop saved argc from stack; we are ready to retry
-   * k!   retry; should not return this time
-   * %%   signal an (argument?) error if we return ?? */
+  /* bytecode explained: see doc/internals/notes.md [5] */
   "K", 0, 
   "k!,${:0,@(y22:%25dynamic-state-reroot!)[01}_!k!%%",
 

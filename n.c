@@ -47,12 +47,7 @@ void set_native(obj o, cxtype_t *tp, void *v) {
 
 #ifndef NDEBUG
 
-/* Same answers as the quick tests in n.h, with the convention asserted: a
- * tagged or typed object is a block -- not a native -- and has a cell 0 of
- * its own. The quick versions never look at the header, which is sound only
- * because a native keeps its payload pointer in cell 0, and that can be
- * neither a small size immediate nor a symbol, and because no block is ever
- * built with a length of zero. */
+/* what these assert: see doc/internals/notes.md [7] */
 int is_tagged(obj o, int t) {
   if (!isobjptr(o) || block_ref(o, 0) != obj_from_size(t)) return 0;
   else { obj h = objptr_from_obj(o)[-1];
@@ -584,11 +579,7 @@ const char *symbolname(int sym) {
 
 #ifndef NDEBUG
 
-/* Same answers as the quick test in n.h, with the convention asserted in both
- * directions: on a yes, that the object really is a well-formed closure; on a
- * no, that nothing closure-shaped was passed over. The second assert is the
- * one that catches a block carrying a foreign pointer in cell 0 -- the shape
- * of the static procedures sfc used to emit, which nothing constructs now. */
+/* what these assert: see doc/internals/notes.md [7] */
 int is_procedure(obj o) {
   if (!isobjptr(o)) return 0;
   else { obj h = objptr_from_obj(o)[-1], c = block_ref(o, 0);

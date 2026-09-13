@@ -83,8 +83,8 @@ different kinds of Scheme object are blocks, and they are told apart by what sit
 *cell 0* — never by anything the collector can see.
 
 *Tagged blocks* put a small `obj_from_size(t)` in cell 0 and the payload from cell 1
-on. `istagged(o, t)` checks `hblkref(o, 0) == obj_from_size(t)`, `taggedlen` is the
-block length minus one, and `taggedref(o, t, i)` is `&hblkref(o, i+1)`. Three tags
+on. `is_tagged(o, t)` checks `block_ref(o, 0) == obj_from_size(t)`, `tagged_len` is the
+block length minus one, and `tagged_ref(o, t, i)` is `&block_ref(o, i+1)`. Three tags
 are assigned:
 
 | Tag | Type | Cells after the tag |
@@ -98,8 +98,8 @@ context that expects one. It is defined in `i.c` rather than `n.h`, since only t
 VM builds and consumes them.
 
 *Typed blocks* put a symbol in cell 0 and the fields from cell 1 on; these are
-records. `istyped` recognises them, `typedtype` reads cell 0 back and `typedlen` and
-`typedref` address the fields. The type descriptor being a symbol is not an
+records. `is_typed` recognises them, `typed_type` reads cell 0 back and `typed_len` and
+`typed_ref` address the fields. The type descriptor being a symbol is not an
 accident of convenience — the comment on `new-record-type` in `pre/s.scm` spells out
 the reason:
 
@@ -119,7 +119,7 @@ because R7RS requires those records to be generative. Symbols satisfy both, so
 which is why a record prints as `#<record rtd://point:2 1 2>`.
 
 *Closures* put a pointer in cell 0 — the code — and the captured display from cell 1
-on. `isprocedure` is therefore the complement of the other two, and it is the whole
+on. `is_procedure` is therefore the complement of the other two, and it is the whole
 test: a heap block whose cell 0 points into the heap. Nothing else can look like
 that, so no header or size check is needed, and that is what every call instruction
 compiles to. Assertions add the rest — that the object really is a block, that its
@@ -128,7 +128,7 @@ holding a foreign pointer in cell 0.
 
 That last assertion guards a convention that used to be violated by design. The
 `#F` compiler allocated environment-free global procedures in static C memory, as
-one-word blocks holding a code pointer, so `isprocedure` accepted any aligned
+one-word blocks holding a code pointer, so `is_procedure` accepted any aligned
 pointer outside the heap. `k.c` has contained none since it was hand-written, and
 the allowance is gone with them — an instruction word, which is a static C pointer
 of exactly that shape, now answers `#f`. The printer knows about them separately
@@ -143,7 +143,7 @@ so no Scheme value can ever be mistaken for a tag.
 
 A native wraps a pointer to something outside the Scheme heap, with a `cxtype_t*`
 in the header slot serving simultaneously as the type and as the deallocator the
-collector calls when the object dies. `isnative(o, tp)` is a pointer comparison
+collector calls when the object dies. `is_native(o, tp)` is a pointer comparison
 against the type's global, and `hpushptr(p, pt, l)` allocates one.
 
 | Type global | Wraps | Present when |
@@ -157,7 +157,7 @@ against the type's global, and `hpushptr(p, pt, l)` allocates one.
 Ports are the one place where the type descriptor carries more than a name and a
 deallocator. `cxtype_port_t` extends `cxtype_t` with a direction flag and a
 `getch`/`ungetch`/`putch`/`ctl` vtable, and all port types live in one contiguous
-array `cxt_port_types[PORTTYPES_MAX]`. That makes `isiport` and `isoport` a range
+array `cxt_port_types[PORTTYPES_MAX]`. That makes `is_iport` and `is_oport` a range
 check on the header pointer plus a direction bit, rather than a comparison against
 each port type in turn:
 
@@ -181,55 +181,67 @@ Without `NAN_BOXING`, `FLONUMS_BOXED` is defined and a flonum is a native holdin
 `malloc`ed `double`. Constructing one allocates:
 
 ```c
-#define obj_from_flonum(l, f) hpushptr(dupflonum(f), FLONUM_NTAG, l)
+#define hflonum_obj(l, f) hpushptr(dupflonum(f), FLONUM_NTAG, l)
 ```
 
 With `NAN_BOXING`, a flonum is the bitwise complement of its IEEE bit pattern,
 stored inline. Constructing one allocates nothing and the test is a mask:
 
 ```c
-#define is_flonum_obj(o) (((o) & 0xffff000000000000ULL) != 0ULL)
-static double flonum_from_obj(obj o) { union iod u; u.i = ~o; return u.d; }
+#define is_flonum(o) (((o) & 0xffff000000000000ULL) != 0ULL)
+static double get_flonum(obj o) { union iod u; u.i = ~o; return u.d; }
 ```
 
 Code that builds flonums must therefore reserve heap space in the boxed model and
-must not assume it in the other. The macros hide the difference — `flonum_obj(x)` in
-`i.c` expands to a reserving `hp_pushptr` or to a plain word construction — but the
+must not assume it in the other. The macros hide the difference — `hp_flonum_obj(x)`
+in `i.c` expands to a reserving `hp_pushptr` or to a plain word construction — but the
 *reservation* cannot be hidden, which is why arithmetic instructions reserve before
 they compute even though a NaN-boxed build needs nothing.
 
 ### The n.h interface
 
-Above the representation sits a naming discipline that the `#F` compiler's generated
-code relies on. For each Scheme type `X` with C representation `X_t`:
+The naming is regular, and the regularity is worth learning because it tells you what
+a name does before you look it up.
 
-`is_X_obj(o)` → does this `obj` hold an `X`
-<br>`X_from_obj(o)` → extract the C value
-<br>`obj_from_X(v)` → build the `obj` (heap-allocating types take a live-register
-count as the first argument)
-<br>`is_X_Y(v)` / `Y_from_X(v)` → the cross-type conversions and constant-folded
-predicates the compiler emits, most of them trivially `0`, `1`, or the identity
+`is_X(o)` → does this `obj` hold an `X`
+<br>`get_X(o)` → extract the C value
+<br>`X_obj(v)` → build the `obj`, for the kinds that need no allocation
+<br>`hX_obj(l, v)` / `hp_X_obj(v)` → build one that does allocate
 
-The trivial-looking ones exist so that generated code can name any conversion
-without the generator having to know which are possible: `is_bool_fixnum(i)` expands
-to `((void)(i), 0)` and disappears.
+The `h` and `hp_` prefixes are the allocation convention and they are not
+interchangeable. `h` is for hand-written C — `hflonum_obj(l, f)`, `hstring_obj(l, s)`
+— and takes the count of live registers as its first argument, because it may
+collect. `hp_` is for instruction bodies — `hp_string_obj(s)` — where the live set is
+implied by `sp` and the macro unloads and reloads the shadow registers around a
+collection. The two differ in arity, so reaching for the wrong one is a compile
+error rather than a silent bug. `hreserve(n, l)` and `hp_reserve(n)` are the same
+split one level down.
 
-Two further conventions run through the header.
+Three conventions run through the header.
 
 *Everything is a macro under `NDEBUG` and a function otherwise.* Accessors,
 predicates and the fixnum operations are all declared twice:
 
 ```c
 #ifdef NDEBUG
-  #define taggedref(o, t, i) (&hblkref(o, (i)+1))
+  static int is_tagged(obj o, int t) { return isobjptr(o) && block_ref(o, 0) == obj_from_size(t); }
 #else
-  extern obj* taggedref(obj o, int t, int i);
+  extern int is_tagged(obj o, int t);
 #endif
 ```
 
 The debug forms in `n.c` carry the assertions — type tags, index bounds, fixnum
 range — and the release forms carry none. A representation change must be made in
-both.
+both, and the two must agree on every answer: a predicate that is *broader* with
+assertions on than in release is a bug, not extra checking. See
+[notes.md](notes.md) [7] for what the debug predicates assert and why the quick ones
+are sound without it.
+
+*Release predicates are the minimum test that is correct given the conventions.*
+`is_procedure` is a heap block whose cell 0 points into the heap, and nothing more;
+everything that would make it thorough lives in the debug form. A few of these must
+stay macros rather than static functions because they sit in the call path, where the
+extra inlining step perturbs register allocation — [notes.md](notes.md) [1].
 
 *The fixnum operations are total.* `fxadd`, `fxmul`, `fxdiv` and the rest are
 allowed to return garbage on overflow but are not allowed to fail, except for
@@ -243,9 +255,11 @@ or check the range themselves as the tower instructions do.
 The shape of the work follows from which category the new type belongs to.
 
 *A new immediate* needs a free tag between 0 and 63, `is`/`mk`/`get` macros in the
-pattern of `CHAR_ITAG`, and nothing at all from the collector.
+pattern of `CHAR_ITAG`, and nothing at all from the collector. Build it with `mkimm`
+and nothing else — `obj_from_size` looks like it would do and does not, as the tag
+table above explains.
 
-*A new tagged block* needs a free small tag and the `istagged`/`taggedref` wrappers.
+*A new tagged block* needs a free small tag and the `is_tagged`/`tagged_ref` wrappers.
 Cell 0 must hold `obj_from_size(t)`, and every element from cell 1 on is traced
 automatically.
 

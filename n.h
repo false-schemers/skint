@@ -513,17 +513,8 @@ extern const int *symsdata(int sym);
 #define record_len(r) typed_len(r)
 #define record_ref(r, i) *typed_ref(r, i)
 
-/* procedures (vm closures) -- a block with a pointer to its code vector in
- * cell 0. No other block kind can look like that: tuples, vectors, boxes and
- * pairs keep a size immediate in cell 0 and records a symbol immediate, while
- * a native keeps a type pointer in its header word and its payload pointer,
- * which lies outside the heap, in cell 0. So the quick test reads cell 0 and
- * needs no header or size check of its own; the debug versions in n.c return
- * the same answers and assert the whole convention on the way.
- * NB: the quick isprocedure is a macro rather than a static function because
- * it sits in every call instruction, where the extra inlining step costs the
- * register allocator six instructions a call; it evaluates o twice, so pass
- * it a variable, as every caller does. */
+/* procedures (vm closures): recognised by cell 0 alone, and why is_procedure
+ * must stay a macro -- see doc/internals/notes.md [1] */
 #ifdef NDEBUG
    #define is_procedure(o) (isobjptr(o) && isobjptr(block_ref(o, 0)))
    #define procedure_len(o) block_len(o)
