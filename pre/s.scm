@@ -1194,9 +1194,16 @@
 
 (define (abort) (%abort))
 
-(define (reset) (%exit 1))
+; Recovering from an error: back to the top-level loop when there is one, out of
+; the interpreter with a failure code when there is not. The handler lives in a
+; parameter rather than in this variable, so that it obeys the usual dynamic
+; scoping -- a parameterize around some computation is undone when control leaves
+; it, by the same dynamic-wind machinery that unwinding to the top level runs.
+; Batch and program runs keep the default, which is why they exit rather than
+; dropping into a prompt.
+(define current-reset-handler (make-parameter (lambda () (%exit 1))))
 
-(define (set-reset-handler! fn) (set! reset fn))
+(define (reset) ((current-reset-handler)))
 
 ; A failure is an error the vm itself detects -- not one signalled by calling
 ; error, so it is deliberately not an error object and error-object? stays #f.

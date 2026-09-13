@@ -2619,7 +2619,7 @@
   (define ci? #f) ; normal load-like behavior is the default
   (define callmain #f) ; got changed via first #! line
   (define main-args (cons filename args))
-  (set-repl-handler! reset) ; exit on failures too
+  (set! *batch-mode?* #t) ; a failure must exit, not open a prompt
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (let ([x0 (read-code-sexp port)])
@@ -2654,7 +2654,7 @@
   (define env (make-controlled-environment ial global pre))
   (define ci? #f) ; normal load-like behavior is the default
   (define main-args (cons filename args))
-  (set-repl-handler! reset) ; exit on failures too
+  (set! *batch-mode?* #t) ; a failure must exit, not open a prompt
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (command-line main-args)
@@ -2889,6 +2889,10 @@
   (close-input-port ip))
 
 (define *repl-first-time* #t)
+; set by run-script and run-program. The kernel re-enters `repl` after a vm
+; failure that had to unwind; in a batch run that must exit instead of prompting,
+; and (reset) is what knows how.
+(define *batch-mode?* #f)
 
 ; The debugger is loaded on demand, the first time (debug) is called. The startup
 ; code below decides whether it is worth offering at all by looking for the library
@@ -2913,6 +2917,7 @@
   (define ip (current-input-port))
   (define op (current-output-port))
   (define prompt (and (tty-port? ip) "skint] ")) 
+  (when *batch-mode?* (reset)) ; re-entered after a failure in a batch run
   (set-current-file-stack! '())
   (when *repl-first-time*
     (set! *repl-first-time* #f)
@@ -2922,11 +2927,20 @@
   (set-debugger-available! (find-library-path '(skint debug)))
   (current-debugger autoload-debugger)
   ; capture cc to handle unhandled exceptions
-  (letcc k (set-reset-handler! k)
-    (repl-from-port ip repl-environment prompt op))
+  ; (reset) comes back HERE, not out of the interpreter: the continuation is
+  ; re-armed on each turn, so the loop survives any number of recoveries. Running
+  ; out of input leaves the letcc with #f and ends it.
+  (let loop ()
+    (when (letcc k
+            ; a thunk, not the bare continuation: (reset) passes no arguments, and
+            ; a continuation invoked with none yields zero values
+            (current-reset-handler (lambda () (k #t)))
+            (repl-from-port ip repl-environment prompt op)
+            #f)
+      (loop)))
   #t) ; exited normally via end-of-input
 
-(define (set-repl-handler! fn) (set! repl fn))
+; nothing replaces `repl` any more -- see *batch-mode?* above
 
 ;--------------------------------------------------------------------------------------------------
 ; Main

@@ -598,11 +598,11 @@ char *s_code[] = {
   "P", "abort",
   "%0tZ8]0",
 
-  "P", "reset",
-  "%0'1Z9]0",
+  "C", 0,
+  "${&0{%0'1Z9]0},@(y14:make-parameter)[01}@!(y21:current-reset-handler)",
 
-  "P", "set-reset-handler!",
-  "%1.0@!(y5:reset)]1",
+  "P", "reset",
+  "%0${@(y21:current-reset-handler)[00}[00",
 
   "P", "failure-object-message",
   "%1'3,.1Ul-,.1Ur]1",

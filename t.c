@@ -1642,27 +1642,27 @@ char *t_code[] = {
 
   "P", "run-script",
   "%2,,,,#0#1#2#3${@(y23:interaction-environment)[00}.!0f.!1f.!2.5,.5c.!3"
-  "${@(y5:reset),@(y17:set-repl-handler!)[01}.1,.4,.2,.5,&4{%1${.2,@(y14:"
-  "read-code-sexp)[01},#0.0^Y5?{.0^Y7X4,.0,'(s4:r7rs)S8,.0?{.0}{.1,'(s5:s"
-  "kint)S8,.0?{.0}{.2,'(s4:r5rs)S8?{${'5,@(y25:scheme-report-environment)"
-  "[01}:!1t:!3}{${.4,'(s41:only scheme-r[57]rs scripts are supported),@(y"
-  "5:error)[02}}}_1}_1:3^?{t,.3P79}t:!0${.4,@(y14:read-code-sexp)[01}.!1_"
-  "1}@(y12:command-line),${f,:2^,.4[02},${.3[00},${.2,.5,&2{%0t,:1,:0[02}"
-  ",.6,.8,:1,&3{%0:2^,,#0:0,:1,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1"
-  ",@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[01},.5,.7,&2{%0t,:1,:0[0"
-  "2},@(y12:dynamic-wind)[03}_2_1:0^?{:1^,n,n,:2^c,'(y5:quote)cc,'(y4:mai"
-  "n)c,@(y4:eval)[22}t]2},.5,@(y28:call-with-current-input-file)[62",
+  "t@!(y13:*batch-mode?*).1,.4,.2,.5,&4{%1${.2,@(y14:read-code-sexp)[01},"
+  "#0.0^Y5?{.0^Y7X4,.0,'(s4:r7rs)S8,.0?{.0}{.1,'(s5:skint)S8,.0?{.0}{.2,'"
+  "(s4:r5rs)S8?{${'5,@(y25:scheme-report-environment)[01}:!1t:!3}{${.4,'("
+  "s41:only scheme-r[57]rs scripts are supported),@(y5:error)[02}}}_1}_1:"
+  "3^?{t,.3P79}t:!0${.4,@(y14:read-code-sexp)[01}.!1_1}@(y12:command-line"
+  "),${f,:2^,.4[02},${.3[00},${.2,.5,&2{%0t,:1,:0[02},.6,.8,:1,&3{%0:2^,,"
+  "#0:0,:1,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-code-sex"
+  "p)[01},:0^[11}]1}.!0.0^_1[01},.5,.7,&2{%0t,:1,:0[02},@(y12:dynamic-win"
+  "d)[03}_2_1:0^?{:1^,n,n,:2^c,'(y5:quote)cc,'(y4:main)c,@(y4:eval)[22}t]"
+  "2},.5,@(y28:call-with-current-input-file)[62",
 
   "P", "run-program",
   "%2,,,,,,,#0#1#2#3#4#5#6${${.(i11),@(y20:path-strip-directory)[01},@(y2"
   "0:path-strip-extension)[01}X5.!0.0,&1{%1.0,'(y1:?),:0^,'(y7:prog://),@"
   "(y13:symbol-append)[14}.!1'(y6:import)b,'(y6:import)c,l1.!2${@(y20:*ro"
   "ot-name-registry*),@(y20:make-sld-environment)[01}.!3${.5^,.4^,.6^,@(y"
-  "27:make-controlled-environment)[03}.!4f.!5.8,.8c.!6${@(y5:reset),@(y17"
-  ":set-repl-handler!)[01}${.6,.9,&2{%1${:0^,@(y12:command-line)[01}${.2,"
-  "@(y14:read-code-sexp)[01},,#0:1,.3,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)["
-  "02}${:1,@(y14:read-code-sexp)[01},:0^[11}]1}.!0.0^_1[11},.(i10),@(y28:"
-  "call-with-current-input-file)[02}t]9",
+  "27:make-controlled-environment)[03}.!4f.!5.8,.8c.!6t@!(y13:*batch-mode"
+  "?*)${.6,.9,&2{%1${:0^,@(y12:command-line)[01}${.2,@(y14:read-code-sexp"
+  ")[01},,#0:1,.3,.2,&3{%1.0R8~?{${:2^,.3,@(y4:eval)[02}${:1,@(y14:read-c"
+  "ode-sexp)[01},:0^[11}]1}.!0.0^_1[11},.(i10),@(y28:call-with-current-in"
+  "put-file)[02}t]9",
 
   "P", "repl-evaluate-top-form",
   "%3,,#0#1.!0${.2,&1{%!0.0:!0]1},.6,.6,&2{%0:1,:0,@(y17:evaluate-top-for"
@@ -1836,6 +1836,9 @@ char *t_code[] = {
   "C", 0,
   "t@!(y17:*repl-first-time*)",
 
+  "C", 0,
+  "f@!(y13:*batch-mode?*)",
+
   "P", "autoload-debugger",
   "%!0${'(l2:y5:skint;y5:debug;),@(y17:find-library-path)[01}~?{${f,@(y23"
   ":set-debugger-available!)[01}.0,@(y12:%25no-debugger),@(y13:apply-to-l"
@@ -1845,15 +1848,14 @@ char *t_code[] = {
   "12}.0,${@(y16:current-debugger)[00},@(y13:apply-to-list)[12",
 
   "P", "repl",
-  "%0,,,#0#1#2Pi.!0Po.!1.0^P09?{'(s7:skint] )}{f}.!2${n,@(y23:set-current"
-  "-file-stack!)[01}@(y17:*repl-first-time*)?{f@!(y17:*repl-first-time*)$"
-  "{@(y10:skint-main)[00}}${${'(l2:y5:skint;y5:debug;),@(y17:find-library"
-  "-path)[01},@(y23:set-debugger-available!)[01}${@(y17:autoload-debugger"
-  "),@(y16:current-debugger)[01}${k0,${.2,@(y18:set-reset-handler!)[01}${"
-  ".6^,.8^,@(y16:repl-environment),.8^,@(y14:repl-from-port)[04}_3}t]3",
-
-  "P", "set-repl-handler!",
-  "%1.0@!(y4:repl)]1",
+  "%0,,,#0#1#2Pi.!0Po.!1.0^P09?{'(s7:skint] )}{f}.!2@(y13:*batch-mode?*)?"
+  "{${@(y5:reset)[00}}${n,@(y23:set-current-file-stack!)[01}@(y17:*repl-f"
+  "irst-time*)?{f@!(y17:*repl-first-time*)${@(y10:skint-main)[00}}${${'(l"
+  "2:y5:skint;y5:debug;),@(y17:find-library-path)[01},@(y23:set-debugger-"
+  "available!)[01}${@(y17:autoload-debugger),@(y16:current-debugger)[01}$"
+  "{,#0.0,.5,.7,.6,&4{%0${k0,${.2,&1{%0t,:0[01},@(y21:current-reset-handl"
+  "er)[01}${:2^,:1^,@(y16:repl-environment),:0^,@(y14:repl-from-port)[04}"
+  "f_3}?{:3^[00}]0}.!0.0^_1[00}t]3",
 
   "C", 0,
   "'(l12:l5:y7:verbose;s2:-v;s9:--verbose;f;s25:Increase output verbosity"
