@@ -2246,6 +2246,7 @@
     (path-separator) (void) (void?) (implementation-name) (implementation-version) (version-alist)
     (current-language) (current-country) (current-locale-details) (id?) (string->id) (id->string)
     ; vm failures: what a guard clause needs to recognize and read one
+    (debug) (current-debugger)
     (failure-object?) (failure-object-message) (failure-object-irritants)
     ; (skint c99-math) library is defined if host provides the corresponding functions
     (flcopysign . c99-math) (flsign-bit . c99-math) (fladjacent . c99-math) (flnormalized? . c99-math) 
@@ -2842,29 +2843,38 @@
            (let ([p (current-error-port)])
             (display (error-object-message err) p) (newline p)
             (for-each (lambda (arg) (write-irritant arg p) (newline p)) 
-              (error-object-irritants err)))
+              (error-object-irritants err))
+            (print-debugger-hint p))
            (when (read-error? err) (clear-input-port ip)) ; don't get stuck!
            (set-current-file-stack! cfs) 
            (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))]
           [(failure-object? err)
-           (print-failure err (current-error-port))
+           (let ([p (current-error-port)]) (print-failure err p) (print-debugger-hint p))
            (set-current-file-stack! cfs)
            (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))]
           [else 
            (let ([p (current-error-port)])
              (display "Unknown error:" p) (newline p)
-             (write err p) (newline p))
+             (write err p) (newline p)
+             (print-debugger-hint p))
            (set-current-file-stack! cfs)
            (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))])
-    (let loop ([x (repl-read ip prompt op)])
-      (unless (eof-object? x)
-        (if (and prompt (sexp-match? '(unquote *) x))
-            (repl-exec-command (cadr x) (read-line ip) op)
-            (repl-evaluate-top-form x env op))
-        (loop (repl-read ip prompt op))))))
+    ; note the error while the raising stack is still standing: by the time a guard
+    ; clause runs it has been abandoned, and the continuation with it. The handler
+    ; only records and declines, so the guard above still does the reporting.
+    (with-exception-handler
+      (lambda (e) (note-error! e) (raise e))
+      (lambda ()
+        (let loop ([x (repl-read ip prompt op)])
+          (unless (eof-object? x)
+            (if (and prompt (sexp-match? '(unquote *) x))
+                (repl-exec-command (cadr x) (read-line ip) op)
+                (repl-evaluate-top-form x env op))
+            (clear-last-error!) ; only on the way through, never from the guard
+            (loop (repl-read ip prompt op))))))))
 
 (define (run-benchmark fname args) ; for debug purposes only
   (define ip (open-input-file fname))
@@ -2880,6 +2890,25 @@
 
 (define *repl-first-time* #t)
 
+; The debugger is loaded on demand, the first time (debug) is called. The startup
+; code below decides whether it is worth offering at all by looking for the library
+; on the search path; this is the procedure that acts on that, and it replaces itself
+; with the real debugger by way of the library's own initialisation.
+(define (autoload-debugger . args)
+  (cond
+    [(not (find-library-path '(skint debug)))
+     ; the path search at startup said yes and now says no, or was never run
+     (set-debugger-available! #f)
+     (apply %no-debugger args)]
+    [else
+     (repl-require-library '(skint debug) (current-output-port))
+     (cond
+       [(eq? (current-debugger) autoload-debugger)
+        ; it loaded but installed nothing, so there is no debugger after all
+        (set-debugger-available! #f)
+        (apply %no-debugger args)]
+       [else (apply (current-debugger) args)])]))
+
 (define (repl)
   (define ip (current-input-port))
   (define op (current-output-port))
@@ -2888,6 +2917,10 @@
   (when *repl-first-time*
     (set! *repl-first-time* #f)
     (skint-main))
+  ; the search directories are settled now, so this is the moment to decide whether
+  ; a debugger can be offered; loading it later is what confirms the guess
+  (set-debugger-available! (find-library-path '(skint debug)))
+  (current-debugger autoload-debugger)
   ; capture cc to handle unhandled exceptions
   (letcc k (set-reset-handler! k)
     (repl-from-port ip repl-environment prompt op))

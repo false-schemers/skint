@@ -10,13 +10,13 @@
 
   (import (scheme base) (scheme write) (scheme case-lambda) (scheme cxr))
   (import (skint print))
-  (import (only (skint) failure-object? failure-object-message
+  (import (only (skint) failure-object? failure-object-message current-debugger
+                        void
                         failure-object-irritants))
-  (import (only (skint hidden) closure? closure->vector
-                               current-exception-handler))
+  (import (only (skint hidden) closure? closure->vector))
 
   (export failure-frames continuation-frames print-failure-frames
-          install-failure-debugger! uninstall-failure-debugger!)
+          print-frames debugger)
 
 (begin
 
@@ -116,26 +116,43 @@
          (loop (cdr fs) (+ n 1))))]))
 
 ;; ---------------------------------------------------------------------------
-;; The handler
+;; The debugger
 ;; ---------------------------------------------------------------------------
 ;;
-;; A handler must answer (h) with its PARENT -- that is how raise finds the
-;; next one up before calling this one -- so it is a case-lambda, like the
-;; default handler it replaces.
+;; Loading this library installs the procedure below as current-debugger, which
+;; is what (debug) invokes. It is handed whatever the last error left behind:
+;; a failure object, or (continuation . error-object) for an ordinary error,
+;; whose stack had to be captured because it was still live. Nothing here
+;; touches current-exception-handler; reporting stays where it was.
 
-(define previous-handler (current-exception-handler))
+(define (print-frames fs port)
+  (let loop ([fs fs] [n 0])
+    (unless (null? fs)
+      (let ([f (car fs)])
+        (display "  " port) (display n port) (display ": " port)
+        (put (car f) port)
+        (display " @" port) (display (cadr f) port)
+        (for-each (lambda (v) (display " " port) (put v port)) (caddr f))
+        (newline port))
+      (loop (cdr fs) (+ n 1)))))
 
-(define debug-handler
+(define debugger
   (case-lambda
-    [() previous-handler]
-    [(obj)
-     (when (failure-object? obj)
-       (print-failure-frames obj (current-error-port)))
-     (previous-handler obj)]))
+    [() (debugger #f)]
+    [(e)
+     (let ([p (current-error-port)])
+       (cond
+         [(not e)
+          (display "No error to debug." p) (newline p)]
+         [(failure-object? e)
+          (print-failure-frames e p)]
+         [(pair? e)
+          (display "Error: " p) (put (cdr e) p) (newline p)
+          (print-frames (continuation-frames (car e)) p)]
+         [else
+          (display "Unrecognized last error: " p) (put e p) (newline p)]))
+     (void)]))
 
-(define (install-failure-debugger!) (current-exception-handler debug-handler))
-(define (uninstall-failure-debugger!) (current-exception-handler previous-handler))
-
-(install-failure-debugger!)
+(current-debugger debugger)
 
 ))

@@ -629,9 +629,43 @@ char *s_code[] = {
   "te-irritant)[02}.1,.1d,:0^[22}]2}.!2.3S0,.0?{.0}{.4Y0}_1?{.5,.4W4}{${."
   "7,'(s5:Error),@(y12:write-string)[02}}${.7,.7,.4^[02}.5W6]6",
 
+  "C", 0,
+  "f@!(y20:*debugger-available*)",
+
+  "P", "set-debugger-available!",
+  "%1.0?{t}{f}@!(y20:*debugger-available*)]1",
+
+  "C", 0,
+  "f@!(y12:*last-error*)",
+
+  "P", "set-last-error!",
+  "%1.0@!(y12:*last-error*)]1",
+
+  "P", "clear-last-error!",
+  "%0f@!(y12:*last-error*)]0",
+
+  "P", "%no-debugger",
+  "%!0Pe,${.2,'(s45:Error: (skint debug) library is not available),@(y12:"
+  "write-string)[02}.0W6_1Y9]1",
+
+  "C", 0,
+  "${@(y12:%25no-debugger),@(y14:make-parameter)[01}@!(y16:current-debugg"
+  "er)",
+
+  "P", "debug",
+  "%0@(y12:*last-error*),${@(y16:current-debugger)[00}[01",
+
+  "P", "note-error!",
+  "%1@(y20:*debugger-available*)?{.0Uf?{.0}{.0,${k0,.0,.0_1_3}c},@(y15:se"
+  "t-last-error!)[11}]1",
+
+  "P", "print-debugger-hint",
+  "%1@(y20:*debugger-available*)?{${.2,'(s35:Type (debug) to enter the de"
+  "bugger.),@(y12:write-string)[02}.0W6]1}]1",
+
   "P", "simple-error",
-  "%!0Pe,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:reset"
-  ")[20",
+  "%!0Pe,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}${.2,@(y19"
+  ":print-debugger-hint)[01}@(y5:reset)[20",
 
   "P", "assertion-violation",
   "%!0Pe,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-message"
@@ -665,15 +699,16 @@ char *s_code[] = {
   ",'(s7:Failure),@(y19:print-error-message)[43",
 
   "P", "simple-failure",
-  "%1Pe,.0W6${.2,.4,@(y13:print-failure)[02}@(y5:reset)[20",
+  "%1Pe,.0W6${.2,.4,@(y13:print-failure)[02}${.2,@(y19:print-debugger-hin"
+  "t)[01}@(y5:reset)[20",
 
   "C", 0,
-  "${,#0&0{%1${.2,@(y13:error-object?)[01}?{${.2,@(y22:error-object-irrit"
-  "ants)[01},${.3,@(y20:error-object-message)[01}c,${.3,@(y17:error-objec"
-  "t-kind)[01}c,@(y12:simple-error),@(y13:apply-to-list)[12}.0Uf?{.0,@(y1"
-  "4:simple-failure)[11}.0,'(s19:unhandled exception),f,@(y12:simple-erro"
-  "r)[13}%x,.1,&1{%0:0^]0}%x,&2{|00|11%%}.!0.0^_1,@(y14:make-parameter)[0"
-  "1}@!(y25:current-exception-handler)",
+  "${,#0&0{%1${.2,@(y11:note-error!)[01}${.2,@(y13:error-object?)[01}?{${"
+  ".2,@(y22:error-object-irritants)[01},${.3,@(y20:error-object-message)["
+  "01}c,${.3,@(y17:error-object-kind)[01}c,@(y12:simple-error),@(y13:appl"
+  "y-to-list)[12}.0Uf?{.0,@(y14:simple-failure)[11}.0,'(s19:unhandled exc"
+  "eption),f,@(y12:simple-error)[13}%x,.1,&1{%0:0^]0}%x,&2{|00|11%%}.!0.0"
+  "^_1,@(y14:make-parameter)[01}@!(y25:current-exception-handler)",
 
   "P", "with-exception-handler",
   "%2${@(y25:current-exception-handler)[00},@(y25:current-exception-handl"

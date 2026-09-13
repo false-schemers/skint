@@ -1267,10 +1267,59 @@
    (pr-where args ep)
    (newline ep))
 
+
+;---------------------------------------------------------------------------------------------
+; Debugger hooks
+;---------------------------------------------------------------------------------------------
+
+; Nothing here changes behaviour until *debugger-available* is true, and only the
+; startup code in t.scm sets it -- once, after the library search directories are in
+; place and before the repl runs, by looking for (skint debug) on the path. The flag
+; is a prediction; loading the library confirms it by installing a real debugger.
+
+(define *debugger-available* #f)
+(define (set-debugger-available! x) (set! *debugger-available* (and x #t)))
+
+; What the last error left behind, for the debugger to work on: a failure object as
+; it stands, or (continuation . error-object) for an ordinary error, whose stack is
+; still live and has to be captured to be kept. Overwritten by each error, and
+; cleared after each successful top-level form.
+(define *last-error* #f)
+(define (set-last-error! x) (set! *last-error* x))
+(define (clear-last-error!) (set! *last-error* #f))
+
+; Replaced at startup by a version that can load the library, and by the library
+; itself once it is loaded.
+(define (%no-debugger . args)
+  (let ([ep (%current-error-port)])
+    (write-string "Error: (skint debug) library is not available" ep)
+    (newline ep))
+  (void))
+
+(define current-debugger (make-parameter %no-debugger))
+
+(define (debug) ((current-debugger) *last-error*))
+
+; Called by whatever is about to report an error, before it reports. Keeping the
+; continuation is the whole reason this runs at raise time rather than in the
+; reporter: by the time a guard clause runs, the erroring stack is gone.
+(define (note-error! obj)
+  (when *debugger-available*
+    (set-last-error!
+      (if (failure-object? obj)
+          obj
+          (cons (call-with-current-continuation (lambda (k) k)) obj)))))
+
+(define (print-debugger-hint ep)
+  (when *debugger-available*
+    (write-string "Type (debug) to enter the debugger." ep)
+    (newline ep)))
+
 (define (simple-error . args)
   (let ([ep (%current-error-port)])
     (newline ep)
     (print-error-message "Error" args ep)
+    (print-debugger-hint ep)
     (reset)))
 
 (define (assertion-violation . args)
@@ -1302,6 +1351,7 @@
   (let ([ep (%current-error-port)])
     (newline ep)
     (print-failure obj ep)
+    (print-debugger-hint ep)
     (reset)))
 
 (define current-exception-handler 
@@ -1311,6 +1361,7 @@
         (case-lambda 
           [() default-handler] ; make this one its own parent 
           [(obj)
+           (note-error! obj)
            (cond 
               [(error-object? obj)
                (apply simple-error (error-object-kind obj) (error-object-message obj) (error-object-irritants obj))]
