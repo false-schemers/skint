@@ -217,15 +217,6 @@ typedef int bool_t;
 #define is_bool(o) (!((o) & ~(obj)1))
 #define bool_obj(b) ((b) ? mkimm(0, TRUE_ITAG) : 0)
 
-/* void */
-#define VOID_ITAG 1
-#define void_obj() mkimm(0, VOID_ITAG)
-#define is_void(o) ((o) == mkimm(0, VOID_ITAG))
-
-/* unit */
-#define unit_obj() (obj_from_size(0x6DF6F577))
-#define is_unit(o) ((o) == unit_obj())
-
 /* numbers */
 #define FIXNUM_WIDTH 30
 #define FIXNUM_MASK 0x3FFFFFFF
@@ -583,6 +574,16 @@ extern const int *symsdata(int sym);
 #else
 #define is_number(o) (is_fixnum(o) || is_flonum(o))
 #endif
+
+/* void: the value of an expression that has nothing to return */
+#define VOID_ITAG 5
+#define void_obj() mkimm(0, VOID_ITAG)
+#define is_void(o) ((o) == mkimm(0, VOID_ITAG))
+
+/* unit: what (values) with no values becomes in a single-value context */
+#define UNIT_ITAG 6
+#define unit_obj() mkimm(0, UNIT_ITAG)
+#define is_unit(o) ((o) == mkimm(0, UNIT_ITAG))
 
 /* eof */
 #define EOF_ITAG 7

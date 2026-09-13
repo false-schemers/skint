@@ -62,6 +62,41 @@ The stack, then, is for what will not fit in one register: the second and later
 operands of an instruction, arguments to a real call, saved return frames, and
 anything a computation must keep alive across a call.
 
+#### Unspecified values, and why void exists
+
+Scheme specifies a great many expressions as returning an unspecified value, which
+means any value at all. On an accumulator machine that is free: there is always
+something in `ac`, so a form that need not return anything in particular can return
+by doing nothing whatsoever.
+
+The compiler takes that literally. An empty `begin` emits no code at all, and the
+missing alternative of a two-armed `if` is exactly an empty `begin`:
+
+    (lambda () (begin))          %0 ]0
+    (lambda (x) (if x 1))        %1 .0 ?{ '1 ]1 } ]1
+
+In the second, the then-arm returns `1`; the else path falls straight through to the
+return with `ac` untouched, still holding the value the test left there. That is why
+`(if #f #f)` answers `#f` — not because a missing arm means false, but because the
+test's own value is what happens to be in the accumulator. Writing the arm out as
+`(if x 1 (void))` costs one instruction, `Y9`.
+
+Free is not the same as useful, though, and the REPL is where it stops being useful.
+The REPL cannot know whether the form someone typed meant to return a value, so an
+arbitrary accumulator leftover echoed back at a prompt is not "unspecified", it is
+noise — and a wrong answer to the question the user asked.
+
+Hence `void`: a single deterministic object which is still unspecified as far as the
+user is concerned, and which the REPL declines to print.
+`repl-evaluate-top-form` in `pre/t.scm` suppresses its output for exactly one value
+that satisfies `void?`, and prints anything else.
+
+So the convention, which is a convenience for interactive work and not a contract, is
+to return `(void)` from an operation whose natural result would be large, ugly or
+surprising, and to leave the accumulator alone where the result does not matter and
+nobody will see it. `(if #f #f)` is the second kind; it could just as well have been
+the first.
+
 ### Where the stack lives
 
 There is no separate allocation. The register file is one `obj` array of
@@ -273,21 +308,28 @@ becomes the stack and the producer is called there directly.
 #### The two boxed forms, and what they look like from Scheme
 
 Neither boxed form is a degradation — both are unboxed again by the next consumer
-that asks for values:
+that asks for values. Bind one to a variable to see it, then hand it on:
 
-    (call-with-values (lambda () (let ([x (values 1 2)]) x)) (lambda a a))  =>  (1 2)
-    (call-with-values (lambda () (let ([x (values)])   x)) (lambda a a))  =>  ()
+    (define t (let ([x (values 1 2)]) x))       t  =>  #<values 1 2>
+    (define u (let ([x (values)])   x))         u  =>  #<values>
+
+    (call-with-values (lambda () t) (lambda a a))  =>  (1 2)
+    (call-with-values (lambda () u) (lambda a a))  =>  ()
 
 A tuple that escapes into ordinary code is a block whose cell 0 is `obj_from_size(0)`
 — the same discriminator the object layer uses for tuples — and it writes as
-`#<values 1 2>`. It is not a vector, a pair or a procedure, and the values protocol is the only
-thing that makes one.
+`#<values 1 2>`. It is not a vector, a pair or a procedure, and the values protocol
+is the only thing that makes one.
 
-The unit object is more of a trap. It is an immediate, `obj_from_size(0x6DF6F577)`,
-and it is not distinguishable from the fixnum with that bit pattern: if `(values)`
-reaches a single-value slot and is then printed, it prints as a large negative
-integer, and `eqv?` cannot tell the two apart. There is no unit predicate exposed to
-Scheme, only `is_unit` in C.
+Zero values become the unit object, a tagged immediate under `UNIT_ITAG` with no
+payload, which writes as `#<values>`. It is compared for identity, never decoded, and
+there is no unit predicate exposed to Scheme — only `is_unit` in C, so from Scheme
+it is recognisable by what it is not: it satisfies no type predicate at all.
+
+The REPL is one of those consumers, which is why a unit almost never reaches a
+prompt: a top-level form's value returns through `rcmv`, so a unit result is unboxed
+to zero values and there is nothing to echo. `repl-evaluate-top-form` prints each
+value it receives, so `(values 1 2)` typed at a prompt prints two lines.
 
 Both cases are outside what R7RS defines — returning zero or several values to a
 continuation that wants exactly one is an error — so this is latitude rather than

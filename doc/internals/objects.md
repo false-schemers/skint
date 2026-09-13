@@ -43,10 +43,11 @@ assigned so far:
 | Tag | Name | Payload |
 |---|---|---|
 | 0 | `TRUE_ITAG` | none — `#t` is the single word `1` |
-| 1 | `VOID_ITAG` | none — the unspecified value |
 | 2 | `CHAR_ITAG` | character code |
 | 3 | `NULL_ITAG` | none — the empty list |
 | 4 | `SYMBOL_ITAG` | index into the symbol table |
+| 5 | `VOID_ITAG` | none — a deterministic stand-in for an unspecified value |
+| 6 | `UNIT_ITAG` | none — zero results reaching a single-value context |
 | 7 | `EOF_ITAG` | none |
 | 8 | `SHEBANG_ITAG` | directive index |
 
@@ -57,20 +58,22 @@ interface. Because the payload is twenty-four bits, a symbol index is bounded we
 below the heap's capacity, and because the table is C-side, symbols cost the
 collector nothing.
 
-Three further immediates are built with `obj_from_size` rather than `mkimm`, and are
-compared for identity rather than decoded:
+Every immediate type goes through `mkimm` and takes a tag from that table.
+`obj_from_size` is not an immediate constructor, despite the name and despite
+producing odd words: it builds block headers and block tags, `(n << 1) | 1`, and what
+it yields depends on the parity of its argument — an odd one lands in the fixnum
+space, an even one in the tagged space under whatever tag the shifted bits happen to
+name. Neither is a safe way to mint a new singleton.
 
-```c
-#define obj_from_ktrap() (obj_from_size(0x5D56F806))
-#define obj_from_unit()  (obj_from_size(0x6DF6F577))
-```
-
-`unit` is the value delivered when zero results reach a context expecting one — a
-zero-element tuple. `ktrap` marks a continuation slot that must not be used.
+`void` deserves a word on why it exists as an object at all. Most of the expressions
+R7RS leaves unspecified need no value, and on an accumulator machine returning no
+particular value is free — the code simply returns with whatever is in `ac`. `void` is
+the deterministic alternative, for results a REPL should not echo and for operations
+whose natural result would be large or surprising. `stack.md` has the detail.
 
 Finally, `#f` is the word `0` and `#t` is the word `1`, chosen so that C's
-conventions carry through: `obj_from_bool(b)` is `b ? mkimm(0, TRUE_ITAG) : 0`, and
-`is_bool_obj(o)` is `!(o & ~(obj)1)`. Every object other than `#f` is true in a
+conventions carry through: `bool_obj(b)` is `b ? mkimm(0, TRUE_ITAG) : 0`, and
+`is_bool(o)` is `!(o & ~(obj)1)`. Every object other than `#f` is true in a
 conditional.
 
 ### Blocks

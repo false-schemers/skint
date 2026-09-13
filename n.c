@@ -1355,7 +1355,7 @@ static void wrdatum(obj o, wenv_t *e) {
   } else if (is_shebang(o)) {
     const char *s = symbolname(get_shebang(o));
     wrs("#<!", e); wrs(s, e); wrc('>', e);
-  } else if (o == unit_obj()) {
+  } else if (is_unit(o)) {
     wrs("#<values>", e);
   } else if (is_iport(o)) {
     char buf[60]; sprintf(buf, "#<%s>", ckiportvt(o)->tname); wrs(buf, e);
