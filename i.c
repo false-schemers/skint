@@ -15,6 +15,7 @@ extern obj cx_current_input;
 extern obj cx_current_output;
 extern obj cx_current_error;
 extern obj cx_failure_handler;
+extern obj cx_failure_halt_closure;
 
 /* forwards */
 static struct intgtab_entry *lookup_integrable(int sym);
@@ -362,34 +363,45 @@ obj *vm_initialize_modules(obj *r, obj *sp, obj *hp)
     }\
   } while (0)
 
-/* Build the object a failure is reported with: the whole vm stack turned
- * into a vector, with the irritants, their count as a fixnum, and the message
- * pushed on top first. Reading from the end, a handler finds the message, then
- * the irritant count, then that many irritants, and everything below them is
- * the frames that failed. A vector is the mark of a vm-raised error: no other
- * skint error object is one, so error-object? and friends stay #f for it.
- * The stack is then reset -- the frames live on inside the object -- and a
- * return frame is pushed whose code is a bare halt. A failure has no
- * continuation to resume: the computation that failed is gone. But the
- * handler must still HAVE a continuation, one that can be captured with
- * call/cc and returned to later, so returning from the handler ends the vm
- * run cleanly instead of popping a frame that was never pushed. */
+/* Build the object a failure is reported with. It is shaped as an ORDINARY
+ * CONTINUATION -- same adapter code at [0], the dynamic state at [1], a stack
+ * image from [2] -- so `closure->vector` and anything that walks a continuation
+ * works on it unchanged, and wck/wckr/rck accept it as the real thing.
+ *
+ * What makes it safe is the top of its stack image: `wckr` restores the image
+ * and pops the topmost two slots as the return frame, so we put
+ * [cx_failure_halt_closure, 0] there. Invoking it therefore returns straight
+ * into a bare `halt` and resets cleanly instead of resuming a computation whose
+ * stack is meaningless. The failing stack is NOT re-enterable and this is how
+ * that is enforced without a special case anywhere else.
+ *
+ * Layout of the finished block, len = n + 4 where n is the captured region:
+ *   [0]      cx_continuation_adapter_code
+ *   [1]      cx_dynamic_state
+ *   [2..]    the vm stack as it stood, oldest first, ending with
+ *            the irritants, their count, and the message
+ *   [len-2]  cx_failure_halt_closure   ) the return frame that makes an
+ *   [len-1]  0                         ) accidental call halt
+ *
+ * so from the end: message at len-3, count at len-4, irritants below that.
+ * The caller has already pushed the irritants and their count; this pushes the
+ * message, snapshots, and leaves a halt return frame on the now-empty stack for
+ * the handler call that follows. */
 #define build_fail_object(msg) do {\
-    int _i, _n;\
+    int _n;\
     ac = hp_string_obj(newsdata(msg)); /* may collect */\
     spush(ac);\
     _n = (int)(sp - (r + VM_REGC));\
-    hp_reserve(vector_bsz(_n));\
-    for (_i = _n; _i > 0; --_i) *--hp = (r + VM_REGC)[_i-1];\
-    ac = hend_vector(_n);\
+    hp_reserve(procedure_bsz(_n + 4));\
+    *--hp = fixnum_obj(0);\
+    *--hp = cx_failure_halt_closure;\
+    hp -= _n; objcpy(hp, r + VM_REGC, _n);\
+    *--hp = cx_dynamic_state;\
+    *--hp = cx_continuation_adapter_code;\
+    ac = hend_procedure(_n + 4);\
     sp = r + VM_REGC;\
-    spush(ac); /* park the object while the return frame is built */\
-    hp_reserve(vector_bsz(1) + procedure_bsz(1));\
-    *--hp = glue(cx_ins_2D, halt);\
-    ac = hend_vector(1);\
-    *--hp = ac;\
-    ac = hend_procedure(1);\
-    { obj _o = spop(); spush(ac); spush(fixnum_obj(0)); ac = _o; }\
+    spush(cx_failure_halt_closure);\
+    spush(fixnum_obj(0));\
   } while (0)
 
 define_instrhelper(cxi_fail) { 
@@ -4234,6 +4246,41 @@ define_instruction(vmclop) {
   gonexti();
 }
 
+/* A failure object is a continuation in every respect except one: the return
+ * frame at the top of its stack image is the distinguished halt closure. That
+ * is what identifies it, exactly and in constant time -- no scanning, and no
+ * heuristic that user data at the top of a real continuation could satisfy. */
+define_instruction(failp) {
+  obj x = ac; int ok = 0;
+  if (is_procedure(x)) {
+    int n = procedure_len(x);
+    /* smallest possible: adapter, dynstate, count, message, halt, offset */
+    ok = (n >= 6)
+      && (procedure_ref(x, 0) == cx_continuation_adapter_code)
+      && (procedure_ref(x, n-2) == cx_failure_halt_closure);
+  }
+  ac = bool_obj(ok);
+  gonexti();
+}
+
+/* closure-length / closure-ref: closure->vector without copying the block.
+ * A failure object's stack image can be the whole vm stack, so the accessors
+ * must not copy it just to read the message off the end. */
+define_instruction(clolen) {
+  ckx(ac);
+  ac = fixnum_obj(procedure_len(ac));
+  gonexti();
+}
+
+define_instruction(cloref) {
+  obj x = spop(); int i;
+  ckx(ac); ckk(x);
+  i = get_fixnum(x);
+  if (i >= procedure_len(ac)) failtype(x, "valid closure index");
+  ac = procedure_ref(ac, i);
+  gonexti();
+}
+
 /* instruction-table => #(word enc etyp  word enc etyp  ...), 3 slots per entry.
  * word is the instruction as a foreign pointer, eq? to what deserialize-code
  * puts in a code vector; enc is its encoding, or #f for the instructions the
@@ -5720,6 +5767,14 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       if (!is_eof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       assert(!is_eof(ra));
       cx_continuation_adapter_code = ra;
+      /* while we are here: the procedure a failure object carries as the return
+       * frame at the top of its stack image, so that invoking one halts cleanly
+       * instead of resuming a dead computation. Its code is a bare halt. */
+      hreserve(vector_bsz(1) + procedure_bsz(1), sp - r);
+      *--hp = glue(cx_ins_2D, halt);
+      ra = hend_vector(1);
+      *--hp = ra;
+      cx_failure_halt_closure = hend_procedure(1);
       continue;
     }
     /* skipped prefix or no prefix */

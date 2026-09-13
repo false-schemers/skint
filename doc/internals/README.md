@@ -9,6 +9,7 @@ directory describes the machine underneath.
 | [memory.md](memory.md) | what an `obj` is, the heap, and the garbage collector's five object categories |
 | [objects.md](objects.md) | how those five categories are subdivided into Scheme types, and the `n.h` interface |
 | [vm.md](vm.md) | the threaded-code VM: registers, dispatch, the trampoline, and writing instructions |
+| [stack.md](stack.md) | the accumulator convention, the VM stack and its frames, continuations as stack copies, and how several values are returned |
 | [bytecode.md](bytecode.md) | the compiler's intermediate language and its conversion to threaded code |
 | [builtins.md](builtins.md) | how `i.h` becomes the instruction tables, and how those become Scheme bindings |
 | [store.md](store.md) | the global store: where non-local variables get their locations, and how names resolve to them |

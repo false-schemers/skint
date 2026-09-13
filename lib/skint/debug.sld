@@ -15,7 +15,7 @@
   (import (only (skint hidden) closure? closure->vector
                                current-exception-handler))
 
-  (export failure-frames print-failure-frames
+  (export failure-frames continuation-frames print-failure-frames
           install-failure-debugger! uninstall-failure-debugger!)
 
 (begin
@@ -52,31 +52,40 @@
          (and (integer? n) (exact? n) (>= n 0)
               (<= n (vector-length (code-of (vector-ref v i))))))))
 
-;; first slot that is no longer part of the captured stack
-(define (frames-end obj)
-  (- (vector-length obj) 2 (length (failure-object-irritants obj))))
+;; A failure object is a continuation: [0] the adapter code, [1] the dynamic
+;; state, [2..] the stack image -- and above the image sit the irritants, their
+;; count, the message, and the halt return frame that makes an accidental call
+;; reset instead of resuming. So the stack runs from 2 up to
+;; (len - 4 - #irritants), and the SAME walk serves a real continuation with a
+;; hi of (len) instead.
 
-(define (frame-starts obj end)
-  (let loop ([i 0] [r '()])
-    (cond [(>= i end) (reverse r)]
-          [(frame-start? obj i) (loop (+ i 2) (cons i r))]
+(define (frame-starts v lo hi)
+  (let loop ([i lo] [r '()])
+    (cond [(>= i hi) (reverse r)]
+          [(frame-start? v i) (loop (+ i 2) (cons i r))]
           [else (loop (+ i 1) r)])))
 
 ;; => a list of (procedure return-offset (working-value ...)), INNERMOST FIRST
+(define (walk-frames v lo hi)
+  (let loop ([ss (frame-starts v lo hi)] [r '()])
+    (if (null? ss)
+        r                                    ; consed while ascending => reversed
+        (let* ([i (car ss)]
+               [next (if (null? (cdr ss)) hi (cadr ss))]
+               [vals (let g ([j (+ i 2)] [a '()])
+                       (if (>= j next) (reverse a)
+                           (g (+ j 1) (cons (vector-ref v j) a))))])
+          (loop (cdr ss)
+                (cons (list (vector-ref v i) (vector-ref v (+ i 1)) vals) r))))))
+
 (define (failure-frames obj)
-  (let* ([end (frames-end obj)]
-         [starts (frame-starts obj end)])
-    (let loop ([ss starts] [r '()])
-      (if (null? ss)
-          r                                  ; consed while ascending => reversed
-          (let* ([i (car ss)]
-                 [next (if (null? (cdr ss)) end (cadr ss))]
-                 [vals (let g ([j (+ i 2)] [a '()])
-                         (if (>= j next) (reverse a)
-                             (g (+ j 1) (cons (vector-ref obj j) a))))])
-            (loop (cdr ss)
-                  (cons (list (vector-ref obj i) (vector-ref obj (+ i 1)) vals)
-                        r)))))))
+  (let ([v (closure->vector obj)])
+    (walk-frames v 2 (- (vector-length v) 4 (length (failure-object-irritants obj))))))
+
+;; the same walk over a live continuation, for comparison in a debugger
+(define (continuation-frames k)
+  (let ([v (closure->vector k)])
+    (walk-frames v 2 (vector-length v))))
 
 ;; ---------------------------------------------------------------------------
 ;; Printing

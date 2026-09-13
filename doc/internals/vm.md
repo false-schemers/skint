@@ -109,8 +109,8 @@ and the register file can move: the code vector is a heap object that a collecti
 relocates, and the register file is `realloc`ed when it grows.
 
 ```c
-#define unload_ip() (rx = obj_from_fixnum(ip - &vectorref(vmcloref(rd, 0), 0)))
-#define reload_ip() (ip = &vectorref(vmcloref(rd, 0), fixnum_from_obj(rx)))
+#define unload_ip() (rx = fixnum_obj(ip - &vector_ref(procedure_ref(rd, 0), 0)))
+#define reload_ip() (ip = &vector_ref(procedure_ref(rd, 0), get_fixnum(rx)))
 ```
 
 `hp` needs no shadow — the collector is handed it directly and returns the new one.
@@ -182,7 +182,7 @@ current closure and the index to resume at:
 define_instruction(save) {
   int dx = get_fixnum(*ip++);
   spush(rd);
-  spush(fixnum_obj(ip + dx - &vector_ref(vmcloref(rd, 0), 0)));
+  spush(fixnum_obj(ip + dx - &vector_ref(procedure_ref(rd, 0), 0)));
   gonexti();
 }
 ```
@@ -192,6 +192,8 @@ instruction after it — the return point. `call` then installs the callee as `r
 sets `rx` to 0, puts the argument count in `ac`, and hands control over with
 `callsubi()`. `return` pops the two words back into `rx` and `rd` and uses
 `retfromi()`. Arguments travel with the first in `ac` and the rest on the stack.
+
+[stack.md](stack.md) covers all of this in detail.
 
 A continuation is a closure over the saved stack: `lck` copies the live stack into a
 fresh closure whose code is `continuation-adapter-code` and whose cell 1 records the
@@ -303,8 +305,10 @@ category covers exactly that — an out-of-heap pointer in a traced slot is left
 untouched. The same trick carries a C function pointer in `ac` into the tower
 helpers.
 
-These report and unwind; they do not raise a Scheme condition. That is why `guard`
-cannot catch a builtin's complaint.
+These do not raise a Scheme condition themselves. The VM hands the failure to the
+procedure in `cx_failure_handler`, and the prelude installs one that raises it as an
+ordinary exception, so `guard` does catch a builtin's complaint. See
+[stack.md](stack.md) for the shape of the object it is handed.
 
 ### The leaf and helper split
 

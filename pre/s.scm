@@ -1199,25 +1199,29 @@
 (define (set-reset-handler! fn) (set! reset fn))
 
 ; A failure is an error the vm itself detects -- not one signalled by calling
-; error, so it is deliberately not an error object. Its object is a vector: the
-; last element is the message, the one before it the irritant count, then that
-; many irritants, and everything below them is the stack of the failing
-; computation. A vector is the discriminator: error-object? stays #f for it.
-(define (failure-object? x)
-  (and (vector? x)
-       (let ([n (vector-length x)])
-         (and (>= n 2)
-              (string? (vector-ref x (- n 1)))
-              (let ([k (vector-ref x (- n 2))])
-                (and (integer? k) (exact? k) (>= k 0) (<= k (- n 2))))))))
+; error, so it is deliberately not an error object and error-object? stays #f.
+;
+; Its object is shaped as an ordinary CONTINUATION: the same adapter code at 0,
+; the dynamic state at 1, and a stack image from 2 on -- so closure->vector and
+; anything that walks a continuation works on it unchanged. What sets it apart,
+; and what failure-object? tests for in constant time, is the return frame at
+; the top of that image: the vm's distinguished halt closure, so that calling
+; one resets cleanly rather than resuming a computation whose stack is dead.
+;
+; Reading from the END of the closure: [n-1] the return offset, [n-2] the halt
+; closure, [n-3] the message, [n-4] the irritant count, then that many
+; irritants, and everything below them is the stack of the failing computation.
+;
+; failure-object? is an instruction (i.h); it cannot be written here because the
+; two objects it compares against are vm globals.
 
 (define (failure-object-message x)
-  (vector-ref x (- (vector-length x) 1)))
+  (closure-ref x (- (closure-length x) 3)))
 
 (define (failure-object-irritants x)
-  (let* ([n (vector-length x)] [k (vector-ref x (- n 2))])
+  (let* ([n (closure-length x)] [k (closure-ref x (- n 4))])
     (let loop ([i 0] [r '()])
-      (if (>= i k) r (loop (+ i 1) (cons (vector-ref x (- n 3 i)) r))))))
+      (if (>= i k) r (loop (+ i 1) (cons (closure-ref x (- n 5 i)) r))))))
 
 ; the message of a failure names the wanted type when there are irritants,
 ; and is the whole message when there are none
@@ -1325,14 +1329,25 @@
       (eh obj)
       (raise (error-object 'raise "exception handler returned" (list eh obj))))))
 
-; From here on a vm failure is an ordinary raise. The handler re-arms
-; itself first: the vm holds off calling it again between the failure and
-; this point, and installing a handler is what lifts that hold, so a second
-; failure -- in a guard body, or in the handler itself -- is reported the
-; same way as the first.
+; From here on a vm failure is an ordinary raise.
+;
+; Between detecting a failure and reaching here the vm holds off calling this
+; again -- its recursion guard -- and installing a handler is what lifts the
+; hold. We lift it only AFTER handling is over, on the way out, which is why
+; the raise sits inside a dynamic-wind: control leaves this handler either by a
+; guard escaping to its own continuation or by the reporting path reaching
+; reset, and the after thunk covers both.
+;
+; It used to re-arm BEFORE the raise, which left the reporting path itself
+; unprotected: a failure raised while reporting a failure re-entered here
+; forever, snapshotting the whole stack each time. Now a failure in the
+; reporting path finds the guard still up and takes the vm's own fallback --
+; a plain message and an unwind -- and the next top-level run re-arms.
 (define (%default-failure-handler obj)
-  (%set-current-failure-handler! %default-failure-handler)
-  (raise obj))
+  (dynamic-wind
+    (lambda () #f)
+    (lambda () (raise obj))
+    (lambda () (%set-current-failure-handler! %default-failure-handler))))
 
 (%set-current-failure-handler! %default-failure-handler)
 

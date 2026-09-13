@@ -683,6 +683,9 @@ declare_instruction(vmclo,      "U9",           1,  "closure",                  
 declare_instruction(ctov,       "Uv",           0,  "closure->vector",          '1', AUTOGL)
 declare_instruction(vmclop,     "Uc",           0,  "closure?",                 '1', AUTOGL)
 declare_instruction(inst,       "Ut",           0,  "instruction-table",        '0', AUTOGL)
+declare_instruction(failp,      "Uf",           0,  "failure-object?",          '1', AUTOGL)
+declare_instruction(clolen,     "Ul",           0,  "closure-length",           '1', AUTOGL)
+declare_instruction(cloref,     "Ur",           0,  "closure-ref",              '2', AUTOGL)
 
 /* inlined integrables (no custom instructions) */               
 declare_integrable(NULL,        "q",            0,  "boolean=?",                'c', AUTOGL)
