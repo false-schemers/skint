@@ -703,6 +703,7 @@
 (define (cur-f4 x) (list (x 1)))
 (define (cur-f5 x) (x 1))
 (define (cur-f6 x c) (list (if c (car x) (cdr x))))
+(define (cur-f7 x) (list (< 1 2 x 5)))
 
 (test "(lambda (.a) (list [car .a]))" (frame-view (failing-frame (lambda () (cur-f1 5)))))
 (test "(lambda (.a .b) (list [vector-ref .a .b] 2))"
@@ -714,6 +715,11 @@
 ;; an arm ends where its if does, and the arm is what failed
 (test "(lambda (.a .b) (list (if .b (car .a) [cdr .a])))"
       (frame-view (failing-frame (lambda () (cur-f6 5 #f)))))
+;; a comparison of several arguments is one expression, whichever step fails
+(test "(lambda (.a) (list [< 1 2 .a 5]))" (frame-view (failing-frame (lambda () (cur-f7 'a)))))
+(test "(lambda () [< 1 2 3 (quote a) 5 6])"
+      (frame-view (failing-frame
+                    (lambda () (eval '(< 1 2 3 'a 5 6) (scheme-report-environment 5))))))
 (test-assert
   (every? (lambda (thunk) (let ([fr (failing-frame thunk)]) (stages-agree? (car fr) (cdr fr))))
           (list (lambda () (cur-f1 5)) (lambda () (cur-f2 (vector 1) 3)) (lambda () (cur-f4 5)))))

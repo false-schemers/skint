@@ -425,9 +425,6 @@
 (define (slot-tmp e) (cons 't e))
 (define (slot-cc name) (cons 'c name))
 (define (slot-name s) (cdr s))
-;; (a b c) with x => (a b x)
-(define (repl-last l x)
-  (if (null? (cdr l)) (list x) (cons (car l) (repl-last (cdr l) x))))
 
 ;; Some instructions live only in hand-written procedures -- call/cc,
 ;; call-with-values, values and friends -- and are never emitted by codegen.
@@ -745,7 +742,9 @@
                  ;; and the last was pushed twice; the instruction before this
                  ;; one consumed the copy and this one pops the original, so the
                  ;; whole run is a single n-ary integrable.  The copy carried no
-                 ;; expression, so put the original in its place.
+                 ;; expression, so put the original in its place.  The node grows
+                 ;; in place: a step that fails is part of the whole comparison,
+                 ;; so a cursor noted at any step has to be the finished node.
                  [(string=? base ";")
                   (let* ([w2 (vector-ref cv next)]
                          [nm2 (and (lookup w2) (norm-of w2))]
@@ -758,7 +757,10 @@
                            [rest (cdr stk)]
                            [newarg (slot-expr (car rest))])
                       (set! stk (cdr rest))
-                      (finish (append (repl-last ac real) (list newarg)) (+ next 1))))]
+                      (let ([tail (let last ([l ac]) (if (pair? (cdr l)) (last (cdr l)) l))])
+                        (set-car! tail real)
+                        (set-cdr! tail (list newarg)))
+                      (finish ac (+ next 1))))]
                  ;; sbox marks a binding the body assigns: its slot holds a box
                  [(string=? base "#")
                   (let ([sl (nth (car ops))])
