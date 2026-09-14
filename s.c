@@ -660,8 +660,8 @@ char *s_code[] = {
   "t-last-error!)[11}]1",
 
   "P", "print-debugger-hint",
-  "%1@(y20:*debugger-available*)?{${.2,'(s35:Type (debug) to enter the de"
-  "bugger.),@(y12:write-string)[02}.0W6]1}]1",
+  "%1@(y20:*debugger-available*)?{${.2,'(s31:Type ,db to enter the debugg"
+  "er.),@(y12:write-string)[02}.0W6]1}]1",
 
   "P", "simple-error",
   "%!0Pe,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}${.2,@(y19"

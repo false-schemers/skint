@@ -1305,6 +1305,7 @@
 
 (define current-debugger (make-parameter %no-debugger))
 
+; what the ,db repl command runs; not a name at the prompt
 (define (debug) ((current-debugger) *last-error*))
 
 ; Called by whatever is about to report an error, before it reports. Keeping the
@@ -1319,7 +1320,7 @@
 
 (define (print-debugger-hint ep)
   (when *debugger-available*
-    (write-string "Type (debug) to enter the debugger." ep)
+    (write-string "Type ,db to enter the debugger." ep)
     (newline ep)))
 
 (define (simple-error . args)

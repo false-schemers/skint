@@ -173,6 +173,57 @@ there is an ordinary variable reference.
 
 With nothing after them, both commands say there is no argument and stop.
 
+### Debugging
+
+`,db`
+
+Look at the last error: the frames that were waiting when it happened, and the
+code each one is running. `(skint debug)` is fetched the first time. After an
+error the REPL mentions the command, when that library is on the search path:
+
+```
+skint] (define (f x) (+ 1 (g x)))
+skint] (define (g x) (* 2 (h x)))
+skint] (define (h x) (vector-ref x 10))
+skint] (f (vector 1 2))
+Failure in vm:
+argument is not a valid vector index 10
+Type ,db to enter the debugger.
+skint] ,db
+Failure: valid vector index 10
+  0: h @6
+     >(lambda (.a) [vector-ref .a 10])
+  1: g @7 #(1 2)
+  2: f @7 #(1 2)
+debug> d
+  1: g @7 #(1 2)
+     >(lambda (.a) (* 2 [h .a]))
+debug> e
+```
+
+Each frame is one line: the procedure, by name where it has one, the place in its
+code where it stopped, and the values it was working with. Frame 0 is where the
+error happened and the rest are its callers, outermost last; the REPL's own
+frames are left out. The code of frame 0 is shown straight away, as `,da` would
+show it, with the expression each frame is stopped at in brackets and marked `>`:
+the call a frame is waiting on, or the operation that failed. The other frames'
+code is shown on request, since a disassembly can be long:
+
+| at `debug>` | does |
+|---|---|
+| `<n>` | show frame n with its code |
+| `d` | show the next frame down, the caller of this one |
+| `u` | show the next frame up, the one this one called |
+| `s` | show this frame again |
+| `sf` | list the frames, with `*` on this one |
+| `g` | switch between pruned and full global names, for this debugger only |
+| `?` | list these commands |
+| `e` | leave the debugger; so does the end of input |
+
+The last error is forgotten as soon as a form completes without one, and `,db`
+then says there is no error to debug. There is no `debug` procedure to call; the
+debugger is reached through this command only.
+
 ### Looking things up
 
 `,ap <name>`

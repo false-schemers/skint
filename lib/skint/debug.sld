@@ -168,7 +168,7 @@
 ;; ---------------------------------------------------------------------------
 ;;
 ;; Loading this library installs the procedure below as current-debugger, which
-;; is what (debug) invokes. It is handed whatever the last error left behind:
+;; is what the ,db repl command invokes. It is handed whatever the last error left behind:
 ;; a failure object, or (continuation . error-object) for an ordinary error,
 ;; whose stack had to be captured because it was still live. Nothing here
 ;; touches current-exception-handler; reporting stays where it was.  Only the
@@ -264,8 +264,6 @@
       (unless (null? l)
         (print-frame-header (car l) n port (= n current))
         (loop (cdr l) (+ n 1)))))
-  ;; the REPL read (debug) as a datum, so the newline typed after it is waiting
-  (when (and (char-ready? ip) (eqv? (peek-char ip) #\newline)) (read-char ip))
   (let loop ()
     (or (set-port-prompt! ip "debug> ")
         (begin (display "debug> " port) (flush-output-port port)))

@@ -2246,7 +2246,7 @@
     (path-separator) (void) (void?) (implementation-name) (implementation-version) (version-alist)
     (current-language) (current-country) (current-locale-details) (id?) (string->id) (id->string)
     ; vm failures: what a guard clause needs to recognize and read one
-    (debug) (current-debugger)
+    (current-debugger)
     (failure-object?) (failure-object-message) (failure-object-irritants)
     ; (skint c99-math) library is defined if host provides the corresponding functions
     (flcopysign . c99-math) (flsign-bit . c99-math) (fladjacent . c99-math) (flnormalized? . c99-math) 
@@ -2854,6 +2854,7 @@
       [(pp *) (repl-pretty-print op args)]
       [(da) (repl-disasm op args)]
       [(da *) (repl-disasm op args)]
+      [(db) (debug)]
       [(v)  (set! *verbose* #t) (format #t "verbosity is on~%")]
       [(v-) (set! *verbose* #f) (format #t "verbosity is off~%")]
       [(q)  (set! *quiet* #t) (format #t "quiet is on~%")]
@@ -2881,6 +2882,7 @@
        (display " ,ap <name>          list names containing <name>, fetching (skint apropos)\n" op)
        (display " ,pp <expr>          pretty-print <expr>, fetching (skint print)\n" op)
        (display " ,da <proc>          disassemble <proc>, fetching (skint disasm)\n" op)
+       (display " ,db                 debug the last error, fetching (skint debug)\n" op)
        (display " ,q                  quiet: disable informational messages\n" op)
        (display " ,q-                 enable informational messages\n" op)
        (display " ,v                  turn verbosity on\n" op)
@@ -2964,7 +2966,7 @@
 ; and (reset) is what knows how.
 (define *batch-mode?* #f)
 
-; The debugger is loaded on demand, the first time (debug) is called. The startup
+; The debugger is loaded on demand, the first time ,db is used. The startup
 ; code below decides whether it is worth offering at all by looking for the library
 ; on the search path; this is the procedure that acts on that, and it replaces itself
 ; with the real debugger by way of the library's own initialisation.
