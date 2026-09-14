@@ -2902,8 +2902,9 @@
        (display " ,sh <cmdline>       send <cmdline> to local shell\n" op)
        (display " ,si                 display system info\n" op)
        (display " ,gc                 force gc to finalize lost objects\n" op)
-       (display " ,help               this help\n" op)]
+       (display " ,help               this help (aliases: ,h ,?)\n" op)]
       [(h) (retry '(help))]
+      [(?) (retry '(help))]
       [else
        (display "syntax error in repl command\n" op)
        (display "type ,help to see available commands\n" op)])))
@@ -2944,8 +2945,8 @@
           (unless (eof-object? x)
             (if (and prompt (sexp-match? '(unquote *) x))
                 (repl-exec-command (cadr x) (read-line ip) op)
-                (repl-evaluate-top-form x env op))
-            (clear-last-error!) ; only on the way through, never from the guard
+                (begin (repl-evaluate-top-form x env op)
+                       (clear-last-error!)))
             (loop (repl-read ip prompt op))))))))
 
 (define (run-benchmark fname args) ; for debug purposes only
@@ -3033,7 +3034,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.8.2")
+(define *skint-version* "0.8.3")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

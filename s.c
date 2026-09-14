@@ -621,13 +621,13 @@ char *s_code[] = {
   ",@(y10:%25for-each1)[02}.2,'(c>)W0]3}.1,.1W5]2",
 
   "P", "print-error-message",
-  "%3,,,#0#1#2.1,&1{%2.0p?{.0a~?{${.3,'(s2::%0a),@(y12:write-string)[02}."
-  "1,.1d,:0^[22}.0aY0?{${.3,'(s4: in ),@(y12:write-string)[02}.1,.1aW5${."
-  "3,'(s2::%0a),@(y12:write-string)[02}.1,.1d,:0^[22}${.3,'(s2::%0a),@(y1"
-  "2:write-string)[02}.1,.1,:0^[22}]2}.!0.2,&1{%2.0p?{.0aS0?{.1,.1aW4.1,."
-  "1d,:0^[22}.1,.1,:0^[22}]2}.!1.2,&1{%2.0p?{.1,'(c )W0${.3,.3a,@(y14:wri"
-  "te-irritant)[02}.1,.1d,:0^[22}]2}.!2.3S0,.0?{.0}{.4Y0}_1?{.5,.4W4}{${."
-  "7,'(s5:Error),@(y12:write-string)[02}}${.7,.7,.4^[02}.5W6]6",
+  "%3,,,#0#1#2.1,&1{%2.0p?{.0a~?{${.3,'(s2:: ),@(y12:write-string)[02}.1,"
+  ".1d,:0^[22}.0aY0?{${.3,'(s4: in ),@(y12:write-string)[02}.1,.1aW5${.3,"
+  "'(s2:: ),@(y12:write-string)[02}.1,.1d,:0^[22}${.3,'(s2:: ),@(y12:writ"
+  "e-string)[02}.1,.1,:0^[22}]2}.!0.2,&1{%2.0p?{.0aS0?{.1,.1aW4.1,.1d,:0^"
+  "[22}.1,.1,:0^[22}]2}.!1.2,&1{%2.0p?{.1,'(c )W0${.3,.3a,@(y14:write-irr"
+  "itant)[02}.1,.1d,:0^[22}]2}.!2.3S0,.0?{.0}{.4Y0}_1?{.5,.4W4}{${.7,'(s5"
+  ":Error),@(y12:write-string)[02}}${.7,.7,.4^[02}.5W6]6",
 
   "C", 0,
   "f@!(y20:*debugger-available*)",
@@ -695,8 +695,8 @@ char *s_code[] = {
 
   "P", "print-failure",
   "%2${.2,@(y24:failure-object-irritants)[01},${.3,@(y22:failure-object-m"
-  "essage)[01},.3,.2,${.5,.5,@(y22:failure-message-string)[02}c,'(y2:vm)c"
-  ",'(s7:Failure),@(y19:print-error-message)[43",
+  "essage)[01},.3,.2,'(s1::),${.6,.6,@(y22:failure-message-string)[02},Sa"
+  "2c,fc,'(s7:Failure),@(y19:print-error-message)[43",
 
   "P", "simple-failure",
   "%1Pe,.0W6${.2,.4,@(y13:print-failure)[02}${.2,@(y19:print-debugger-hin"
@@ -724,11 +724,11 @@ char *s_code[] = {
   "c-wind)[53",
 
   "P", "%default-failure-handler",
-  "%1&0{%0@(y24:%25default-failure-handler)Zv]0},.1,&1{%0:0,@(y5:raise)[0"
-  "1},&0{%0f]0},@(y12:dynamic-wind)[13",
+  "%1&0{%0@(y24:%25default-failure-handler),@(y21:%25set-failure-handler!"
+  ")[01},.1,&1{%0:0,@(y5:raise)[01},&0{%0f]0},@(y12:dynamic-wind)[13",
 
   "C", 0,
-  "@(y24:%25default-failure-handler)Zv",
+  "${@(y24:%25default-failure-handler),@(y21:%25set-failure-handler!)[01}",
 
   "P", "raise-continuable",
   "%1${@(y25:current-exception-handler)[00},@(y25:current-exception-handl"
@@ -791,14 +791,15 @@ char *s_code[] = {
   "%1'4,'4,.2Ppv]1",
 
   "C", 0,
-  "&0{%2.1?{.0Zv]2}.0]2}%x,&0{%1.0Zv]1}%x,&0{%0Zr]0}%x,&3{|00|11|22%%}@!("
-  "y34:%25current-failure-handler-parameter)",
+  "&0{%2.1?{.0,@(y21:%25set-failure-handler!)[21}.0]2}%x,&0{%1.0,@(y21:%2"
+  "5set-failure-handler!)[11}%x,&0{%0@(y16:%25failure-handler)[00}%x,&3{|"
+  "00|11|22%%}@!(y34:%25current-failure-handler-parameter)",
 
   "S", "current-failure-handler",
-  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y24:%25current-failure-handler;;;"
-  "l2:l2:y1:_;y1:p;;l2:y29:%25set-current-failure-handler!;y1:p;;;l2:py1:"
-  "_;y1:r;;py34:%25current-failure-handler-parameter;y1:r;;;l2:y1:_;y34:%"
-  "25current-failure-handler-parameter;;",
+  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y16:%25failure-handler;;;l2:l2:y1"
+  ":_;y1:p;;l2:y21:%25set-failure-handler!;y1:p;;;l2:py1:_;y1:r;;py34:%25"
+  "current-failure-handler-parameter;y1:r;;;l2:y1:_;y34:%25current-failur"
+  "e-handler-parameter;;",
 
   "C", 0,
   "&0{%2.1?{.0Psi]2}.0]2}%x,&0{%1.0Psi]1}%x,&0{%0Pi]0}%x,&3{|00|11|22%%}@"

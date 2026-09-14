@@ -1839,11 +1839,12 @@ char *t_code[] = {
   "ry%0a)W4:2,'(s62: ,cd <dir>           change skint's current working d"
   "irectory%0a)W4:2,'(s51: ,sh <cmdline>       send <cmdline> to local sh"
   "ell%0a)W4:2,'(s41: ,si                 display system info%0a)W4:2,'(s"
-  "55: ,gc                 force gc to finalize lost objects%0a)W4:2,'(s3"
-  "1: ,help               this help%0a)W4]1}${.2,'(l1:y1:h;),@(y11:sexp-m"
-  "atch?)[02}?{'(l1:y4:help;),:1^[11}:2,'(s29:syntax error in repl comman"
-  "d%0a)W4:2,'(s37:type ,help to see available commands%0a)W4]1}.!0.0^_1["
-  "41",
+  "55: ,gc                 force gc to finalize lost objects%0a)W4:2,'(s4"
+  "8: ,help               this help (aliases: ,h ,?)%0a)W4]1}${.2,'(l1:y1"
+  ":h;),@(y11:sexp-match?)[02}?{'(l1:y4:help;),:1^[11}${.2,'(l1:y1:?;),@("
+  "y11:sexp-match?)[02}?{'(l1:y4:help;),:1^[11}:2,'(s29:syntax error in r"
+  "epl command%0a)W4:2,'(s37:type ,help to see available commands%0a)W4]1"
+  "}.!0.0^_1[41",
 
   "P", "repl-from-port",
   "%4,#0${@(y18:current-file-stack)[00}.!0${k0,.0,${.2,.8,.(i11),.(i13),."
@@ -1851,7 +1852,7 @@ char *t_code[] = {
   "0[11},:0,:1,:2,:3,&4{%0:0,:1,:2,:3,&4{%0${:1,:2,:3,@(y9:repl-read)[03}"
   ",,#0:0,:3,:2,:1,.4,&5{%1.0R8~?{:2?{${.2,'(l2:y7:unquote;y1:*;),@(y11:s"
   "exp-match?)[02}}{f}?{${:1,:3R6,.4da,@(y17:repl-exec-command)[03}}{${:1"
-  ",:4,.4,@(y22:repl-evaluate-top-form)[03}}${@(y17:clear-last-error!)[00"
+  ",:4,.4,@(y22:repl-evaluate-top-form)[03}${@(y17:clear-last-error!)[00}"
   "}${:1,:2,:3,@(y9:repl-read)[03},:0^[11}]1}.!0.0^_1[01},&0{%1${.2,@(y11"
   ":note-error!)[01}.0,@(y5:raise)[11},@(y22:with-exception-handler)[02},"
   "@(y16:call-with-values)[02},.(i11),.(i11),.(i11),.(i11),.(i11),.8,&6{%"
@@ -1917,7 +1918,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.8.2)@!(y15:*skint-version*)",
+  "'(s5:0.8.3)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",

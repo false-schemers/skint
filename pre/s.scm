@@ -1250,13 +1250,13 @@
   (define (pr-where args ep)
     (when (pair? args) 
       (cond [(not (car args)) 
-             (write-string ":\n" ep)
+             (write-string ": " ep)
              (pr-msg (cdr args) ep)]
             [(symbol? (car args)) 
-             (write-string " in " ep) (write (car args) ep) (write-string ":\n" ep)
+             (write-string " in " ep) (write (car args) ep) (write-string ": " ep)
              (pr-msg (cdr args) ep)]
             [else 
-             (write-string ":\n" ep)
+             (write-string ": " ep)
              (pr-msg args ep)]))) 
   (define (pr-msg args ep)
     (when (pair? args) 
@@ -1350,7 +1350,7 @@
   (let ([msg (failure-object-message obj)]
         [args (failure-object-irritants obj)])
     (print-error-message "Failure"
-      (cons 'vm (cons (failure-message-string msg args) args))
+      (cons #f (cons (string-append (failure-message-string msg args) ":") args))
       ep)))
 
 ; the shortcut around the exception mechanism, straight to printing and reset;
@@ -1406,9 +1406,9 @@
   (dynamic-wind
     (lambda () #f)
     (lambda () (raise obj))
-    (lambda () (%set-current-failure-handler! %default-failure-handler))))
+    (lambda () (%set-failure-handler! %default-failure-handler))))
 
-(%set-current-failure-handler! %default-failure-handler)
+(%set-failure-handler! %default-failure-handler)
 
 (define (raise-continuable obj)
   (let ([eh (current-exception-handler)])
@@ -1533,14 +1533,14 @@
 
 (define %current-failure-handler-parameter
   (case-lambda 
-    [() (%current-failure-handler)]
-    [(p) (%set-current-failure-handler! p)]
-    [(p s) (if s (%set-current-failure-handler! p) p)]))
+    [() (%failure-handler)]
+    [(p) (%set-failure-handler! p)]
+    [(p s) (if s (%set-failure-handler! p) p)]))
 
 (define-syntax current-failure-handler
   (syntax-rules ()
-    [(_) (%current-failure-handler)]
-    [(_ p) (%set-current-failure-handler! p)]
+    [(_) (%failure-handler)]
+    [(_ p) (%set-failure-handler! p)]
     [(_ . r) (%current-failure-handler-parameter . r)]
     [_ %current-failure-handler-parameter]))
 

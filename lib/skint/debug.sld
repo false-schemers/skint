@@ -11,11 +11,12 @@
   (import (scheme base) (scheme read) (scheme write) (scheme case-lambda) (scheme cxr))
   (import (skint print))
   (import (only (skint disasm) da da-name da-prune-globals))
-  (import (only (skint) failure-object? failure-object-message current-debugger
-                        void
-                        failure-object-irritants))
-  (import (only (skint hidden) closure? closure->vector set-port-prompt!
-                               note-error! repl-from-port repl-evaluate-top-form))
+  (import (only (skint) 
+           failure-object? failure-object-message current-debugger
+           void failure-object-irritants))
+  (import (only (skint hidden) 
+           closure? closure->vector set-port-prompt!
+           note-error! clear-last-error! repl-from-port repl-evaluate-top-form))
 
   (export failure-frames continuation-frames print-failure-frames
           print-frames debugger)
@@ -232,7 +233,8 @@
     "     s    to show this frame again"
     "     sf   to list the frames"
     "     g    to switch between pruned and full global names, for this debugger only"
-    "     e    or eof to exit the debugger"))
+    "     e    to exit the debugger, retaining error continuation"
+    "     q    to exit the debugger, discarding error continuation"))
 
 ;; list the frames FS, with the code of the first, then take commands
 (define (debug-frames fs port)
@@ -272,6 +274,7 @@
         (let ([cmd (guard (x (#t #f)) (read (open-input-string line)))])
           (cond [(eof-object? cmd) (loop)]
                 [(eq? cmd 'e)]
+                [(eq? cmd 'q) (clear-last-error!)]
                 [else
                  (parameterize ([da-prune-globals prune])
                    (cond [(and (integer? cmd) (exact? cmd)) (show cmd)]

@@ -665,8 +665,8 @@ declare_instruction(heapsz,     "Zh",           0,  "%heap-size",               
 declare_instruction(hostsig,    "Zs",           0,  "%host-sig",                '0', AUTOGL)
 declare_instruction(hostfct,    "Zf",           0,  "%host-facet",              '1', AUTOGL)
 declare_instruction(libdir,     "Zd",           0,  "base-library-directory",   '0', AUTOGL)
-declare_instruction(cfh,        "Zr",           0,  "%current-failure-handler", '0', AUTOGL)
-declare_instruction(setcfh,     "Zv",           0,  "%set-current-failure-handler!",'1', AUTOGL)
+declare_instruction(cfh,        "Zr",           0,  "%failure-handler",         '0', AUTOGL)
+declare_instruction(setcfh,     "Zv",           0,  "%set-failure-handler!",    '1', AUTOGL)
 declare_instruction(hshim,      "Zi\0f",        0,  "immediate-hash",           'b', AUTOGL)
 
 /* serialization, deserialization, compilation-related instructions */             
