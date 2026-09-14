@@ -14,6 +14,7 @@ Up: [documentation index](../README.md).
 | [stack.md](stack.md) | the accumulator convention, the VM stack and its frames, continuations as stack copies, and how several values are returned |
 | [bytecode.md](bytecode.md) | the compiler's intermediate language and its conversion to threaded code |
 | [builtins.md](builtins.md) | how `i.h` becomes the instruction tables, and how those become Scheme bindings |
+| [inlining.md](inlining.md) | how built-in names compile to instructions, and what that means for redefining them, the REPL and the debugger |
 | [store.md](store.md) | the global store: where non-local variables get their locations, and how names resolve to them |
 | [notes.md](notes.md) | numbered implementation notes, referenced from the sources in place of long comment blocks |
 | [registries.md](registries.md) | expand-time name registries: denotations, environments, and how libraries are bound to their names |
