@@ -1683,21 +1683,62 @@ char *t_code[] = {
   "-form)[23}${.2a,@(y16:repl-import-name)[01},.0?{.0,.3,.1c,.3d,:1^[42}:"
   "0,'(s22:invalid ,im argument: )W4:0,.2aW5:0W6]3}.!0.0^_1[22",
 
-  "P", "repl-require-library",
-  "%2${@(y16:root-environment),.3,@(y19:find-library-in-env)[02}~?{.1,@(y"
-  "16:repl-environment),.2,'(y6:import),l2,@(y22:repl-evaluate-top-form)["
-  "23}]2",
+  "P", "repl-library",
+  "%1${.2,&1{%0${k0,.0,${.2,:0,&2{%0:1,&1{%!0.0,&1{%0:0,@(y6:values),@(y1"
+  "3:apply-to-list)[02},:0[11},:0,&1{%0&0{%1${@(y20:*root-name-registry*)"
+  ",@(y20:make-sld-environment)[01},.1,@(y13:fetch-library)[12},:0,@(y20:"
+  "*root-name-registry*),@(y11:name-lookup)[03},@(y16:call-with-values)[0"
+  "2},.3,&1{%1${k0,.0,${.6,.3,&2{%0:1,${.2,@(y13:error-object?)[01}?{'(s1"
+  "7:library not found),${.3,@(y20:error-object-message)[01}e?{${${.4,@(y"
+  "22:error-object-irritants)[01},@(y6:list1?)[01}}{f}}{f}?{${.2,@(y22:er"
+  "ror-object-irritants)[01}a,@(y20:repl-missing-library)[11}:1,&1{%0:0,@"
+  "(y17:raise-continuable)[01},:0[11},:0[01}_1_3}[10},@(y22:with-exceptio"
+  "n-handler)[02}_1_3}[00},@(y12:repl-quietly)[01},.0?{.0z}{f},.0V0~?{${."
+  "4,@(y20:repl-missing-library)[01}}${.2,&1{%0'0,:0V4,@(y25:compile-and-"
+  "run-core-expr)[01},@(y12:repl-quietly)[01}.0]3",
+
+  "P", "repl-quietly",
+  "%1@(y9:*verbose*),@(y7:*quiet*),.1,.1,&2{%0:0@!(y7:*quiet*):1@!(y9:*ve"
+  "rbose*)]0},.3,&0{%0t@!(y7:*quiet*)f@!(y9:*verbose*)]0},@(y12:dynamic-w"
+  "ind)[33",
+
+  "P", "repl-missing-library",
+  "%1P51,.0,.2W5@(y24:*library-directory-list*),'(s42: is not found; the "
+  "library search path is:),.2P90,'(s8:library ),Sa3c,@(y5:error),@(y13:a"
+  "pply-to-list)[22",
+
+  "P", "repl-library-procedure",
+  "%2'1,${.3,@(y12:repl-library)[01}V4,.2A3,.0?{.0dz}{f},${.2,'(l2:y3:ref"
+  ";y8:<symbol>;),@(y11:sexp-match?)[02}?{.0da}{${.5,.5,@(y37:fully-quali"
+  "fied-library-prefixed-name)[02}},${.2,@(y13:lookup-global)[01},.0?{.0z"
+  "}{f},.0K0?{.0]7}.6,.6,'(s30:library has no such procedure:),@(y5:error"
+  ")[73",
+
+  "P", "repl-value",
+  "%1.0,&1{%!0${.2,@(y6:list1?)[01}?{.0a]1}:0,'(s35:expression does not g"
+  "ive one value:),@(y5:error)[12},.1,&1{%0@(y16:repl-environment),:0,@(y"
+  "17:evaluate-top-form)[02},@(y16:call-with-values)[12",
+
+  "P", "repl-variable-box",
+  "%1${f,.3,@(y20:*user-name-registry*),@(y11:name-lookup)[03},.0?{.0z}{f"
+  "},${.2,'(l2:y3:ref;y8:<symbol>;),@(y11:sexp-match?)[02}?{.0da,@(y13:lo"
+  "okup-global)[31}f]3",
 
   "P", "repl-trace",
-  "%4${.2,'(l2:y5:skint;y5:trace;),@(y20:repl-require-library)[02}.3,,#0."
-  "2,.5,.2,.8,.7,&5{%1.0u?{:4,@(y16:repl-environment),:1,:0c,@(y22:repl-e"
-  "valuate-top-form)[13}.0aY0?{.0d,:2^[11}:4,'(s9:invalid ,)W4:4,:3W4:4,'"
-  "(s11: argument: )W4:4,.1aW5:4W6]1}.!0.0^_1[41",
+  "%4,,#0#1&0{%1.0,'(l2:y5:skint;y5:trace;),@(y22:repl-library-procedure)"
+  "[12}.!0.2,&1{%1:0,.1W5:0W6]1}.!1${.7,@(y7:symbol?),@(y6:andmap)[02}~?{"
+  ".2,'(s9:invalid ,)W4.2,.5W4.2,'(s11: argument: )W4.2,${.8,,#0.0,&1{%1."
+  "0aY0?{.0d,:0^[11}.0a]1}.!0.0^_1[01}W5.2W6]6}.5u?{${${.7?{'(y13:%25trac"
+  "ed-names)}{'(y13:%25untrace-all!)},.5^[01}[00},.2^[61}.3~?{${.7,${'(y1"
+  "5:%25untrace-names!),.6^[01}[01},.2^[61}${.7,&0{%1${.2,@(y17:repl-vari"
+  "able-box)[01},.0?{.0]2}.1,'(s35:not a variable defined at the repl:),@"
+  "(y5:error)[22},@(y5:%25map1)[02},${.2,.9,.5,&1{%2.1,&1{%1.0,:0sz]1},.2"
+  ",&1{%0:0z]0},.2,${'(y11:%25trace-one!),:0^[01}[23},@(y10:%25for-each2)"
+  "[03}.6,.3^[71",
 
   "P", "repl-apropos",
-  "%2${.2,'(l2:y5:skint;y7:apropos;),@(y20:repl-require-library)[02}.1u?{"
-  ".0,'(s23:no argument to apropos%0a)W4]2}.0,@(y16:repl-environment),.3a"
-  ",'(y5:quote),l2,'(y7:apropos),l2,@(y22:repl-evaluate-top-form)[23",
+  "%2.1u?{.0,'(s23:no argument to apropos%0a)W4]2}.1a,${'(y7:apropos),'(l"
+  "2:y5:skint;y7:apropos;),@(y22:repl-library-procedure)[02}[21",
 
   "P", "repl-global-name?",
   "%1.0Y0?{.0X4,'2,.1S3-,'0,,#0.0,.4,.4,&3{%1:0,.1<?{'(c:),.1,:1S4C=?{'(c"
@@ -1705,16 +1746,16 @@ char *t_code[] = {
   "]1}.!0.0^_1[31}f]1",
 
   "P", "repl-pretty-print",
-  "%2${.2,'(l2:y5:skint;y5:print;),@(y20:repl-require-library)[02}.1u?{.0"
-  ",'(s28:no argument to pretty-print%0a)W4]2}.0,@(y16:repl-environment),"
-  ".3a,'(y12:pretty-print),l2,@(y22:repl-evaluate-top-form)[23",
+  "%2.1u?{.0,'(s28:no argument to pretty-print%0a)W4]2}.0,${.4a,@(y10:rep"
+  "l-value)[01},${'(y12:pretty-print),'(l2:y5:skint;y5:print;),@(y22:repl"
+  "-library-procedure)[02}[22",
 
   "P", "repl-disasm",
-  "%2${.2,'(l2:y5:skint;y5:print;),@(y20:repl-require-library)[02}${.2,'("
-  "l2:y5:skint;y6:disasm;),@(y20:repl-require-library)[02}.1u?{.0,'(s27:n"
-  "o argument to disassemble%0a)W4]2}.1a,.1,@(y16:repl-environment),${.4,"
-  "@(y17:repl-global-name?)[01}?{.2,'(y5:quote),l2}{.2},'(y2:da),l2,'(y12"
-  ":pretty-print),l2,@(y22:repl-evaluate-top-form)[33",
+  "%2.1u?{.0,'(s27:no argument to disassemble%0a)W4]2}.1a,${${.4,@(y17:re"
+  "pl-global-name?)[01}?{.2}{${.4,@(y10:repl-value)[01}},${'(y2:da),'(l2:"
+  "y5:skint;y6:disasm;),@(y22:repl-library-procedure)[02}[01},.2,.1,${'(y"
+  "12:pretty-print),'(l2:y5:skint;y5:print;),@(y22:repl-library-procedure"
+  ")[02}[42",
 
   "P", "repl-exec-command",
   "%3,#0'(l3:y4:load;y2:cd;y2:sh;),.2A0?{${.4,@(y22:string-trim-whitespac"
@@ -1743,64 +1784,64 @@ char *t_code[] = {
   ",:2,.1,.3V4,.4A3,.0?{.0d}{f}_1W5:2W6]4}${.2,'(l2:y4:load;y8:<string>;)"
   ",@(y11:sexp-match?)[02}?{:0^a,@(y4:load)[11}${.2,'(l3:y2:im;y1:*;y3:.."
   ".;),@(y11:sexp-match?)[02}?{:2,:0^,@(y11:repl-import)[12}${.2,'(l3:y2:"
-  "tr;y1:*;y3:...;),@(y11:sexp-match?)[02}?{:0^,'(s2:tr),'(y5:trace),:2,@"
-  "(y10:repl-trace)[14}${.2,'(l3:y4:untr;y1:*;y3:...;),@(y11:sexp-match?)"
-  "[02}?{:0^,'(s4:untr),'(y7:untrace),:2,@(y10:repl-trace)[14}${.2,'(l1:y"
-  "2:ap;),@(y11:sexp-match?)[02}?{:0^,:2,@(y12:repl-apropos)[12}${.2,'(l2"
-  ":y2:ap;y1:*;),@(y11:sexp-match?)[02}?{:0^,:2,@(y12:repl-apropos)[12}${"
-  ".2,'(l1:y2:pp;),@(y11:sexp-match?)[02}?{:0^,:2,@(y17:repl-pretty-print"
-  ")[12}${.2,'(l2:y2:pp;y1:*;),@(y11:sexp-match?)[02}?{:0^,:2,@(y17:repl-"
-  "pretty-print)[12}${.2,'(l1:y2:da;),@(y11:sexp-match?)[02}?{:0^,:2,@(y1"
-  "1:repl-disasm)[12}${.2,'(l2:y2:da;y1:*;),@(y11:sexp-match?)[02}?{:0^,:"
-  "2,@(y11:repl-disasm)[12}${.2,'(l1:y1:v;),@(y11:sexp-match?)[02}?{t@!(y"
-  "9:*verbose*)'(s17:verbosity is on~%25),t,@(y6:format)[12}${.2,'(l1:y2:"
-  "v-;),@(y11:sexp-match?)[02}?{f@!(y9:*verbose*)'(s18:verbosity is off~%"
-  "25),t,@(y6:format)[12}${.2,'(l1:y1:q;),@(y11:sexp-match?)[02}?{t@!(y7:"
-  "*quiet*)'(s13:quiet is on~%25),t,@(y6:format)[12}${.2,'(l1:y2:q-;),@(y"
-  "11:sexp-match?)[02}?{f@!(y7:*quiet*)'(s14:quiet is off~%25),t,@(y6:for"
-  "mat)[12}${.2,'(l2:y4:time;y1:*;),@(y11:sexp-match?)[02}?{Z3,${:2,@(y16"
-  ":repl-environment),:0^a,@(y22:repl-evaluate-top-form)[03}Z4,.1,Z3-/,'("
-  "i1000)*,'(s24:; elapsed time: ~s ms.~%25),t,@(y6:format)[23}${.2,'(l1:"
-  "y3:pwd;),@(y11:sexp-match?)[02}?{:2,${@(y17:current-directory)[00}W4:2"
-  "W6]1}${.2,'(l2:y2:cd;y8:<string>;),@(y11:sexp-match?)[02}?{:0^a,@(y17:"
-  "current-directory)[11}${.2,'(l2:y2:sh;y8:<string>;),@(y11:sexp-match?)"
-  "[02}?{:0^aZ6]1}${.2,'(l1:y2:si;),@(y11:sexp-match?)[02}?{${@(y14:print"
-  "-version!)[00}@(y20:enhanced-tty-library)?{${@(y20:enhanced-tty-librar"
-  "y),'(s26:enhanced-tty library: ~a~%25),t,@(y6:format)[03}}Zh,Zb,Zc,'(s"
-  "49:~d collections, ~d reallocs, heap size ~d words~%25),t,@(y6:format)"
-  "[15}${.2,'(l1:y2:gc;),@(y11:sexp-match?)[02}?{Zg'(l1:y2:si;),:1^[11}${"
-  ".2,'(l1:y4:help;),@(y11:sexp-match?)[02}?{:2,'(s57:%0aREPL commands (,"
-  "load ,cd ,sh arguments need no quotes):%0a)W4:2,'(s44: ,load <fname>  "
-  "     load <fname> into REPL%0a)W4:2,'(s71: ,im <lib> ...       import "
-  "libraries: 1 is (srfi 1), fx is (skint fx)%0a)W4:2,'(s68: ,tr <name> ."
-  "..      trace named procedures, fetching (skint trace)%0a)W4:2,'(s41: "
-  ",tr                 show what is traced%0a)W4:2,'(s39: ,untr <name> .."
-  ".    stop tracing them%0a)W4:2,'(s45: ,untr               stop tracing"
-  " everything%0a)W4:2,'(s76: ,ap <name>          list names containing <"
-  "name>, fetching (skint apropos)%0a)W4:2,'(s65: ,pp <expr>          pre"
-  "tty-print <expr>, fetching (skint print)%0a)W4:2,'(s65: ,da <proc>    "
-  "      disassemble <proc>, fetching (skint disasm)%0a)W4:2,'(s59: ,q   "
-  "               quiet: disable informational messages%0a)W4:2,'(s51: ,q"
-  "-                 enable informational messages%0a)W4:2,'(s39: ,v     "
-  "             turn verbosity on%0a)W4:2,'(s40: ,v-                 turn"
-  " verbosity off%0a)W4:2,'(s48: ,ref <name>         show denotation for "
-  "<name>%0a)W4:2,'(s45: ,rnr                show root name registry%0a)W"
-  "4:2,'(s50: ,rref <name>        lookup name in root registry%0a)W4:2,'("
-  "s52: ,rrem! <name>       remove name from root registry%0a)W4:2,'(s45:"
-  " ,unr                show user name registry%0a)W4:2,'(s50: ,uref <nam"
-  "e>        lookup name in user registry%0a)W4:2,'(s52: ,urem! <name>   "
-  "    remove name from user registry%0a)W4:2,'(s46: ,gs                 "
-  "show global store (big!)%0a)W4:2,'(s55: ,gs <name>          lookup glo"
-  "bal location for <name>%0a)W4:2,'(s56: ,time <expr>        time single"
-  "-line expression <expr>%0a)W4:2,'(s60: ,pwd                show skint'"
-  "s current working directory%0a)W4:2,'(s62: ,cd <dir>           change "
-  "skint's current working directory%0a)W4:2,'(s51: ,sh <cmdline>       s"
-  "end <cmdline> to local shell%0a)W4:2,'(s41: ,si                 displa"
-  "y system info%0a)W4:2,'(s55: ,gc                 force gc to finalize "
-  "lost objects%0a)W4:2,'(s31: ,help               this help%0a)W4]1}${.2"
-  ",'(l1:y1:h;),@(y11:sexp-match?)[02}?{'(l1:y4:help;),:1^[11}:2,'(s29:sy"
-  "ntax error in repl command%0a)W4:2,'(s37:type ,help to see available c"
-  "ommands%0a)W4]1}.!0.0^_1[41",
+  "tr;y1:*;y3:...;),@(y11:sexp-match?)[02}?{:0^,'(s2:tr),t,:2,@(y10:repl-"
+  "trace)[14}${.2,'(l3:y4:untr;y1:*;y3:...;),@(y11:sexp-match?)[02}?{:0^,"
+  "'(s4:untr),f,:2,@(y10:repl-trace)[14}${.2,'(l1:y2:ap;),@(y11:sexp-matc"
+  "h?)[02}?{:0^,:2,@(y12:repl-apropos)[12}${.2,'(l2:y2:ap;y1:*;),@(y11:se"
+  "xp-match?)[02}?{:0^,:2,@(y12:repl-apropos)[12}${.2,'(l1:y2:pp;),@(y11:"
+  "sexp-match?)[02}?{:0^,:2,@(y17:repl-pretty-print)[12}${.2,'(l2:y2:pp;y"
+  "1:*;),@(y11:sexp-match?)[02}?{:0^,:2,@(y17:repl-pretty-print)[12}${.2,"
+  "'(l1:y2:da;),@(y11:sexp-match?)[02}?{:0^,:2,@(y11:repl-disasm)[12}${.2"
+  ",'(l2:y2:da;y1:*;),@(y11:sexp-match?)[02}?{:0^,:2,@(y11:repl-disasm)[1"
+  "2}${.2,'(l1:y1:v;),@(y11:sexp-match?)[02}?{t@!(y9:*verbose*)'(s17:verb"
+  "osity is on~%25),t,@(y6:format)[12}${.2,'(l1:y2:v-;),@(y11:sexp-match?"
+  ")[02}?{f@!(y9:*verbose*)'(s18:verbosity is off~%25),t,@(y6:format)[12}"
+  "${.2,'(l1:y1:q;),@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)'(s13:quiet is"
+  " on~%25),t,@(y6:format)[12}${.2,'(l1:y2:q-;),@(y11:sexp-match?)[02}?{f"
+  "@!(y7:*quiet*)'(s14:quiet is off~%25),t,@(y6:format)[12}${.2,'(l2:y4:t"
+  "ime;y1:*;),@(y11:sexp-match?)[02}?{Z3,${:2,@(y16:repl-environment),:0^"
+  "a,@(y22:repl-evaluate-top-form)[03}Z4,.1,Z3-/,'(i1000)*,'(s24:; elapse"
+  "d time: ~s ms.~%25),t,@(y6:format)[23}${.2,'(l1:y3:pwd;),@(y11:sexp-ma"
+  "tch?)[02}?{:2,${@(y17:current-directory)[00}W4:2W6]1}${.2,'(l2:y2:cd;y"
+  "8:<string>;),@(y11:sexp-match?)[02}?{:0^a,@(y17:current-directory)[11}"
+  "${.2,'(l2:y2:sh;y8:<string>;),@(y11:sexp-match?)[02}?{:0^aZ6]1}${.2,'("
+  "l1:y2:si;),@(y11:sexp-match?)[02}?{${@(y14:print-version!)[00}@(y20:en"
+  "hanced-tty-library)?{${@(y20:enhanced-tty-library),'(s26:enhanced-tty "
+  "library: ~a~%25),t,@(y6:format)[03}}Zh,Zb,Zc,'(s49:~d collections, ~d "
+  "reallocs, heap size ~d words~%25),t,@(y6:format)[15}${.2,'(l1:y2:gc;),"
+  "@(y11:sexp-match?)[02}?{Zg'(l1:y2:si;),:1^[11}${.2,'(l1:y4:help;),@(y1"
+  "1:sexp-match?)[02}?{:2,'(s57:%0aREPL commands (,load ,cd ,sh arguments"
+  " need no quotes):%0a)W4:2,'(s44: ,load <fname>       load <fname> into"
+  " REPL%0a)W4:2,'(s71: ,im <lib> ...       import libraries: 1 is (srfi "
+  "1), fx is (skint fx)%0a)W4:2,'(s68: ,tr <name> ...      trace named pr"
+  "ocedures, fetching (skint trace)%0a)W4:2,'(s41: ,tr                 sh"
+  "ow what is traced%0a)W4:2,'(s39: ,untr <name> ...    stop tracing them"
+  "%0a)W4:2,'(s45: ,untr               stop tracing everything%0a)W4:2,'("
+  "s76: ,ap <name>          list names containing <name>, fetching (skint"
+  " apropos)%0a)W4:2,'(s65: ,pp <expr>          pretty-print <expr>, fetc"
+  "hing (skint print)%0a)W4:2,'(s65: ,da <proc>          disassemble <pro"
+  "c>, fetching (skint disasm)%0a)W4:2,'(s59: ,q                  quiet: "
+  "disable informational messages%0a)W4:2,'(s51: ,q-                 enab"
+  "le informational messages%0a)W4:2,'(s39: ,v                  turn verb"
+  "osity on%0a)W4:2,'(s40: ,v-                 turn verbosity off%0a)W4:2"
+  ",'(s48: ,ref <name>         show denotation for <name>%0a)W4:2,'(s45: "
+  ",rnr                show root name registry%0a)W4:2,'(s50: ,rref <name"
+  ">        lookup name in root registry%0a)W4:2,'(s52: ,rrem! <name>    "
+  "   remove name from root registry%0a)W4:2,'(s45: ,unr                s"
+  "how user name registry%0a)W4:2,'(s50: ,uref <name>        lookup name "
+  "in user registry%0a)W4:2,'(s52: ,urem! <name>       remove name from u"
+  "ser registry%0a)W4:2,'(s46: ,gs                 show global store (big"
+  "!)%0a)W4:2,'(s55: ,gs <name>          lookup global location for <name"
+  ">%0a)W4:2,'(s56: ,time <expr>        time single-line expression <expr"
+  ">%0a)W4:2,'(s60: ,pwd                show skint's current working dire"
+  "ctory%0a)W4:2,'(s62: ,cd <dir>           change skint's current workin"
+  "g directory%0a)W4:2,'(s51: ,sh <cmdline>       send <cmdline> to local"
+  " shell%0a)W4:2,'(s41: ,si                 display system info%0a)W4:2,"
+  "'(s55: ,gc                 force gc to finalize lost objects%0a)W4:2,'"
+  "(s31: ,help               this help%0a)W4]1}${.2,'(l1:y1:h;),@(y11:sex"
+  "p-match?)[02}?{'(l1:y4:help;),:1^[11}:2,'(s29:syntax error in repl com"
+  "mand%0a)W4:2,'(s37:type ,help to see available commands%0a)W4]1}.!0.0^"
+  "_1[41",
 
   "P", "repl-from-port",
   "%4,#0${@(y18:current-file-stack)[00}.!0${k0,.0,${.2,.8,.(i11),.(i13),."
@@ -1841,11 +1882,11 @@ char *t_code[] = {
 
   "P", "autoload-debugger",
   "%!0${'(l2:y5:skint;y5:debug;),@(y17:find-library-path)[01}~?{${f,@(y23"
-  ":set-debugger-available!)[01}.0,@(y12:%25no-debugger),@(y13:apply-to-l"
-  "ist)[12}${Po,'(l2:y5:skint;y5:debug;),@(y20:repl-require-library)[02}@"
-  "(y17:autoload-debugger),${@(y16:current-debugger)[00}q?{${f,@(y23:set-"
-  "debugger-available!)[01}.0,@(y12:%25no-debugger),@(y13:apply-to-list)["
-  "12}.0,${@(y16:current-debugger)[00},@(y13:apply-to-list)[12",
+  ":set-debugger-available!)[01}'(l2:y5:skint;y5:debug;),@(y20:repl-missi"
+  "ng-library)[11}${'(l2:y5:skint;y5:debug;),@(y12:repl-library)[01}@(y17"
+  ":autoload-debugger),${@(y16:current-debugger)[00}q?{${f,@(y23:set-debu"
+  "gger-available!)[01}.0,@(y12:%25no-debugger),@(y13:apply-to-list)[12}."
+  "0,${@(y16:current-debugger)[00},@(y13:apply-to-list)[12",
 
   "P", "repl",
   "%0,,,#0#1#2Pi.!0Po.!1.0^P09?{'(s7:skint] )}{f}.!2@(y13:*batch-mode?*)?"

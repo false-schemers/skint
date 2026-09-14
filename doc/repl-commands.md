@@ -70,7 +70,9 @@ saves typing, and it cannot express `only`, `except`, `prefix` or `rename`.
 
 Start and stop tracing the procedures those names are bound to. Both fetch the
 `(skint trace)` library the first time they are used, so nothing has to be
-imported first:
+imported first — and they import nothing themselves: the commands call the
+library's procedures directly, and no name of the library's appears at the
+prompt.
 
 ```
 skint] (define (f x) (* x 2))
@@ -109,10 +111,12 @@ skint] ,tr
 ()
 ```
 
-These are `(trace)` and `(untrace)`. The rest of what the library offers is in
-[doc/skint/trace.md](skint/trace.md).
+These do what `(trace)` and `(untrace)` do. The rest of what the library offers
+is in [doc/skint/trace.md](skint/trace.md).
 
-An argument that is not a name is reported and nothing is traced.
+An argument that is not a name is reported and nothing is traced. So is a name
+that is not a variable you defined at the prompt: tracing works by assigning the
+variable, and a built-in or an imported name cannot be assigned there.
 
 ### Printing and disassembling
 
@@ -127,9 +131,11 @@ skint] ,pp (map (lambda (i) (list i (* i i))) '(1 2 3 4 5 6 7 8 9 10 11 12))
   (10 100) (11 121) (12 144))
 ```
 
-This is `(pretty-print <expression>)` and nothing more, so the layout obeys
+This is `pretty-print` applied to the value and nothing more, so the layout obeys
 whatever the printer's parameters currently say about width, depth, radix and
-the rest — see [doc/skint/print.md](skint/print.md).
+the rest — see [doc/skint/print.md](skint/print.md). As with tracing, nothing is
+imported: `pretty-print` is not a name at the prompt until you import
+`(skint print)` yourself.
 
 `,da <procedure>`
 
@@ -156,8 +162,8 @@ for you:
 
 ```
 skint] ,da lib://skint/disasm?da-global
-(lambda (.a)
-  (cond [(global-name-of .a) => da-procedure] [else #f]))
+(lambda (.b . .a)
+  (apply-to-list da-procedure (cons (global-name-of .b) .a)))
 ```
 
 so that line means what `,da 'lib://skint/disasm?da-global` means. Quoting it
@@ -165,9 +171,7 @@ yourself works as well. This is the only place where a command rewrites what you
 typed, and it applies to `,da` alone: `,pp` quotes nothing, and the same symbol
 there is an ordinary variable reference.
 
-With nothing after them, both commands fetch their libraries, say so, and stop.
-That is a short way to bring the libraries in when what you want next is
-`pretty-print` or `da` written out in full.
+With nothing after them, both commands say there is no argument and stop.
 
 ### Looking things up
 
@@ -188,7 +192,7 @@ interaction environment:
 ```
 
 [doc/skint/apropos.md](skint/apropos.md) describes what is listed and what is
-left out. With nothing after it, `,ap` fetches the library, says so, and stops.
+left out. With nothing after it, `,ap` says there is no argument and stops.
 
 The commands below are for finding out what the interpreter currently thinks a
 name means. What they print is an internal object written out, so treat the

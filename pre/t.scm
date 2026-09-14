@@ -2698,28 +2698,101 @@
                => (lambda (n) (loop (cdr l) (cons n names)))]
               [else (display "invalid ,im argument: " op) (write (car l) op) (newline op)]))))
 
-; commands that depend on a library fetch it on first use
-(define (repl-require-library name op)
-  (unless (find-library-in-env name root-environment)
-    (repl-evaluate-top-form (list 'import name) repl-environment op)))
+; Commands that depend on a library fetch it on first use and apply procedures
+; taken from it. Nothing is imported, defined or allocated in the repl
+; environment: the library goes into the root registry, as any library a library
+; imports does, and its procedures are looked up each time they are wanted.
 
-; ,tr and ,untr: trace and untrace by name, fetching (skint trace) on first use.
-; With no names they are (trace), which answers what is traced, and (untrace),
-; which untraces everything.
-(define (repl-trace op what cname args)
-  (repl-require-library '(skint trace) op)
-  (let loop ([l args])
-    (cond [(null? l) (repl-evaluate-top-form (cons what args) repl-environment op)]
-          [(symbol? (car l)) (loop (cdr l))]
-          [else (display "invalid ," op) (display cname op)
-                (display " argument: " op) (write (car l) op) (newline op)])))
+; the library NAME, fetched on first use and initialized, or an error. Fetching
+; only expands a library; its code is what import runs, and that code is wrapped
+; in once, with its dependencies', so running it again does nothing. The loader
+; says nothing while a command fetches what it needs, whatever ,q and ,v are set
+; to; errors still come through. A library NAME imports that cannot be found is
+; reported the same way as NAME itself -- xenv-lookup raises that one.
+(define (repl-library name)
+  (let* ([loc (repl-quietly
+                (lambda ()
+                  (guard (e [(and (error-object? e)
+                                  (equal? (error-object-message e) "library not found")
+                                  (list1? (error-object-irritants e)))
+                             (repl-missing-library (car (error-object-irritants e)))])
+                    (name-lookup *root-name-registry* name
+                      (lambda (n) (fetch-library n (make-sld-environment *root-name-registry*)))))))]
+         [lib (and loc (location-val loc))])
+    (unless (val-library? lib) (repl-missing-library name))
+    (repl-quietly (lambda () (compile-and-run-core-expr (library-code lib))))
+    lib))
+
+; THUNK's result, with the loader's progress messages off while it runs
+(define (repl-quietly thunk)
+  (let ([quiet *quiet*] [verbose *verbose*])
+    (dynamic-wind
+      (lambda () (set! *quiet* #t) (set! *verbose* #f))
+      thunk
+      (lambda () (set! *quiet* quiet) (set! *verbose* verbose)))))
+
+; a command needs library NAME and it cannot be found: say which, and where it
+; was looked for
+(define (repl-missing-library name)
+  (let ([p (open-output-string)])
+    (write name p)
+    (apply error
+      (string-append "library " (get-output-string p)
+                     " is not found; the library search path is:")
+      *library-directory-list*)))
+
+; the procedure ID of library NAME: an export, or one of the library's own
+; globals, as the procedures behind a library's syntax are
+(define (repl-library-procedure name id)
+  (let* ([e (assq id (library-exports (repl-library name)))]
+         [d (and e (location-val (cdr e)))]
+         [g (if (sexp-match? '(ref <symbol>) d)
+                (cadr d)
+                (fully-qualified-library-prefixed-name name id))]
+         [b (lookup-global g)]
+         [p (and b (unbox b))])
+    (if (procedure? p) p (error "library has no such procedure:" name id))))
+
+; the value of expression X, evaluated as the repl evaluates a form
+(define (repl-value x)
+  (call-with-values (lambda () (evaluate-top-form x repl-environment))
+    (lambda vals
+      (if (list1? vals) (car vals) (error "expression does not give one value:" x)))))
+
+; the store box of a variable defined at the repl, which is what can be assigned
+; there; #f for anything else -- a built-in, an import, syntax, an unbound name
+(define (repl-variable-box name)
+  (let* ([loc (name-lookup *user-name-registry* name #f)]
+         [d (and loc (location-val loc))])
+    (and (sexp-match? '(ref <symbol>) d) (lookup-global (cadr d)))))
+
+; ,tr and ,untr: trace and untrace variables defined at the repl, fetching
+; (skint trace) on first use. With no names ,tr answers what is traced and ,untr
+; untraces everything; either way the names affected are written out.
+(define (repl-trace op trace? cname args)
+  (define (proc id) (repl-library-procedure '(skint trace) id))
+  (define (answer x) (write x op) (newline op))
+  (cond [(not (andmap symbol? args))
+         (display "invalid ," op) (display cname op) (display " argument: " op)
+         (write (let loop ([l args]) (if (symbol? (car l)) (loop (cdr l)) (car l))) op)
+         (newline op)]
+        [(null? args) (answer ((proc (if trace? '%traced-names '%untrace-all!))))]
+        [(not trace?) (answer ((proc '%untrace-names!) args))]
+        [else
+         (let ([boxes (map (lambda (n)
+                             (or (repl-variable-box n)
+                                 (error "not a variable defined at the repl:" n)))
+                           args)])
+           (for-each (lambda (n b)
+                       ((proc '%trace-one!) n (lambda () (unbox b)) (lambda (v) (set-box! b v))))
+                     args boxes)
+           (answer args))]))
 
 ; ,ap: apropos on the name given, fetching (skint apropos) on first use
 (define (repl-apropos op args)
-  (repl-require-library '(skint apropos) op)
   (if (null? args)
       (display "no argument to apropos\n" op)
-      (repl-evaluate-top-form (list 'apropos (list 'quote (car args))) repl-environment op)))
+      ((repl-library-procedure '(skint apropos) 'apropos) (car args))))
 
 ; a symbol with a :// in it is a global store name such as repl://?f or
 ; lib://skint/print?pp; ,da takes one unquoted, so quote it for the user
@@ -2735,20 +2808,17 @@
 
 ; ,pp and ,da: pretty-print an expression, or the decompilation of a procedure
 (define (repl-pretty-print op args)
-  (repl-require-library '(skint print) op)
   (if (null? args)
       (display "no argument to pretty-print\n" op)
-      (repl-evaluate-top-form (list 'pretty-print (car args)) repl-environment op)))
+      ((repl-library-procedure '(skint print) 'pretty-print) (repl-value (car args)) op)))
 
 (define (repl-disasm op args)
-  (repl-require-library '(skint print) op)
-  (repl-require-library '(skint disasm) op)
   (if (null? args)
       (display "no argument to disassemble\n" op)
-      (let ([x (car args)])
-        (repl-evaluate-top-form
-          (list 'pretty-print (list 'da (if (repl-global-name? x) (list 'quote x) x)))
-          repl-environment op))))
+      (let* ([x (car args)]
+             [form ((repl-library-procedure '(skint disasm) 'da)
+                    (if (repl-global-name? x) x (repl-value x)))])
+        ((repl-library-procedure '(skint print) 'pretty-print) form op))))
 
 (define (repl-exec-command cmd argstr op)
   (define args
@@ -2776,8 +2846,8 @@
          (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
       [(load <string>) (load (car args))]
       [(im * ...) (repl-import args op)]
-      [(tr * ...) (repl-trace op (quote trace) "tr" args)]
-      [(untr * ...) (repl-trace op (quote untrace) "untr" args)]
+      [(tr * ...) (repl-trace op #t "tr" args)]
+      [(untr * ...) (repl-trace op #f "untr" args)]
       [(ap) (repl-apropos op args)]
       [(ap *) (repl-apropos op args)]
       [(pp) (repl-pretty-print op args)]
@@ -2903,9 +2973,9 @@
     [(not (find-library-path '(skint debug)))
      ; the path search at startup said yes and now says no, or was never run
      (set-debugger-available! #f)
-     (apply %no-debugger args)]
+     (repl-missing-library '(skint debug))]
     [else
-     (repl-require-library '(skint debug) (current-output-port))
+     (repl-library '(skint debug))
      (cond
        [(eq? (current-debugger) autoload-debugger)
         ; it loaded but installed nothing, so there is no debugger after all

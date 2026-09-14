@@ -112,7 +112,8 @@ prints `(let ((x 1)) x)` and not `(let ([x 1]) x)`.
 | `print-radix` | `2`, `8`, `10` or `16` | `10` | radix for exact integers |
 | `print-length` | `#f` or exact non-negative integer | `#f` | how many elements of a sequence to show |
 | `print-level` | `#f` or exact non-negative integer | `#f` | how deep to descend into nested structure |
-| `print-brackets` | boolean | `#f` | write binding lists with square brackets |
+| `print-brackets` | boolean | `#f` | square brackets for binding lists, or with a cursor for the cursor form |
+| `print-cursor` | `#f` or a pair | `#f` | mark that pair: a left column when laid out over lines, brackets with `print-brackets` |
 
 Setting one to a value outside its range is an error, signalled when the value is
 installed:
@@ -255,11 +256,89 @@ Telling a binding list from a call is a matter of reading the form as code, so t
 parameter has an effect only where that is being done — which is
 `pretty-print`. `print` prints data, and takes no notice of it.
 
+While `print-cursor` holds a pair, brackets change job: they go to the cursor form
+instead of to binding lists, and `print` then uses them as well. See Cursor below.
+
 ```scheme
 (pretty-print '(let ((x 1)) x))            ; prints (let ([x 1]) x)
 (pretty-print '(let ((x 1)) x) print-brackets #f)   ; prints (let ((x 1)) x)
 (print '(let ((x 1)) x) print-brackets #t)          ; prints (let ((x 1)) x)
 ```
+
+### Cursor
+
+`print-cursor` points at one pair inside the datum being printed, typically to show
+which subexpression of some code is being evaluated. Two marks show it, and each can
+be had without the other.
+
+When output is laid out over lines — as `pretty-print` lays it out, or `print` with
+`print-indent` set — every line gains one extra column on the left. The column holds
+`>` on each line where the pair begins and a space on every other line.
+
+When `print-brackets` is true, the pair itself is written in square brackets in place
+of its parentheses, so that its whole extent shows, not only where it starts.
+`pretty-print` has `print-brackets` on unless told otherwise:
+
+```scheme
+(define code '(define (fact n) (if (< n 2) 1 (* n (fact (- n 1))))))
+(define call (caddr (cadddr (caddr code))))   ; the recursive call
+
+(pretty-print code print-cursor call print-width 20)
+```
+
+prints
+
+```
+ (define (fact n)
+   (if (< n 2)
+       1
+       (* n
+>         [fact (- n
+                   1)])))
+```
+
+Those brackets are the ones `print-brackets` controls, put to a different use. While
+a cursor is set, binding lists and clauses are written with parentheses, so the only
+brackets in the output belong to the cursor form:
+
+```scheme
+(define lt '(let ((x 1) (y 2)) (display x) (+ x y)))
+(pretty-print lt)                            ; prints (let ([x 1] [y 2]) (display x) (+ x y))
+(pretty-print lt print-cursor (cadddr lt))   ; prints >(let ((x 1) (y 2)) (display x) [+ x y])
+```
+
+Output kept on a single line has no column, since there is only the one line to point
+at, and the brackets are then the only mark. Bracketing one pair is not a matter of
+reading code, so here `print` honours `print-brackets` too — for the cursor form, and
+only while a cursor is set:
+
+```scheme
+(define l (list 'a (list 'b 'c) 'd))
+(print l print-cursor (cadr l) print-brackets #t)   ; prints (a [b c] d)
+(print l print-cursor (cadr l))                     ; prints (a (b c) d)
+```
+
+With neither mark available, as in the second line, a cursor has no visible effect.
+
+The pair is found by identity, as `eq?` would, not by content. It must be a part of
+the datum itself; a list that merely looks the same marks nothing:
+
+```scheme
+(print l print-cursor (list 'b 'c) print-brackets #t)   ; prints (a (b c) d)
+```
+
+A pair printed more than once is marked, and bracketed, wherever it begins. Nothing
+is marked where no parenthesis of the pair is printed: when it is not part of the datum,
+when `print-level` or `print-length` hides it, or where it appears only as a datum
+label reference such as `#0#`.
+
+Neither mark changes the layout. Lines break exactly where they would without a
+cursor, which keeps the layout still while the cursor moves from one subexpression to
+the next; the column makes the output one column wider. Whether there is a column
+depends on the layout, not on how many lines a particular datum needs, so it does not
+come and go as a form grows — a form laid out over lines keeps its column even when it
+fits on one, as the `let` example above shows. With `print-indent` set, the column
+sits at that indent on every line, so it lines up beneath the first.
 
 ### pretty-style
 

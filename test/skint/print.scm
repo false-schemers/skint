@@ -936,6 +936,178 @@
 (test 1 (length (lines (printed sexp1))))
 
 
+
+(display "\n--- print-cursor: a left column marking where one pair starts ---\n")
+
+;; pretty-print or print with a cursor, returning the output
+(define (ppc width obj cursor . kv)
+  (let ([p (open-output-string)])
+    (apply pretty-print obj p print-width width print-cursor cursor kv)
+    (get-output-string p)))
+(define (prc obj cursor . kv)
+  (let ([p (open-output-string)])
+    (apply print obj p print-cursor cursor kv)
+    (get-output-string p)))
+
+;; small list and string helpers, (scheme base) only
+(define (keep ok? l)
+  (cond [(null? l) '()] [(ok? (car l)) (cons (car l) (keep ok? (cdr l)))] [else (keep ok? (cdr l))]))
+(define (all? ok? l) (or (null? l) (and (ok? (car l)) (all? ok? (cdr l)))))
+(define (some? ok? l) (and (pair? l) (or (ok? (car l)) (some? ok? (cdr l)))))
+(define (contains? s sub)
+  (let ([n (string-length s)] [m (string-length sub)])
+    (let loop ([i 0])
+      (and (<= (+ i m) n)
+           (or (string=? (substring s i (+ i m)) sub) (loop (+ i 1)))))))
+(define (marked-lines str) (keep (lambda (l) (char=? (string-ref l 0) #\>)) (lines str)))
+(define (count-char c s)
+  (let loop ([i 0] [k 0])
+    (if (= i (string-length s)) k (loop (+ i 1) (if (char=? (string-ref s i) c) (+ k 1) k)))))
+(define (unbracket s)
+  (let ([t (string-copy s)])
+    (do ([i 0 (+ i 1)]) [(= i (string-length t)) t]
+      (case (string-ref t i)
+        [(#\[) (string-set! t i #\()]
+        [(#\]) (string-set! t i #\))]
+        [else #f]))))
+
+(test #f (print-cursor))
+
+;; single-line output has no column: brackets are the only mark there, and they
+;; apply to print as well as pretty-print
+(let ([l (datum "(a (b c) d)")])
+  (test "(a (b c) d)" (prc l (cadr l)))                         ; brackets off: print's default
+  (test "(a [b c] d)" (prc l (cadr l) print-brackets #t))
+  (test "[a (b c) d]" (prc l l print-brackets #t))
+  (test "(a (b c) d)" (prc l (list 'b 'c) print-brackets #t))   ; equal, not the same pair
+  (test "(a (b c) d)" (prc l (list 1) print-brackets #t)))
+;; without a cursor, print still takes no notice of print-brackets
+(test "(let ((x 1)) x)" (printed (datum "(let ((x 1)) x)") print-brackets #t))
+;; pretty-print kept on one line
+(let ([lt (datum "(let ((x 1) (y 2)) (display x) (+ x y))")])
+  (test "(let ((x 1) (y 2)) (display x) [+ x y])" (ppc 80 lt (cadddr lt) print-indent #f)))
+;; print laid out over lines gets both
+(let ([l (datum "(a (b c) d)")])
+  (test " (list\n> [a (b c) d]\n> [a (b c) d])\n"
+    (prc (list 'list l l) l print-indent 0 print-width 12 print-brackets #t)))
+;; a cycle inside the cursor, on one line
+(let ([cyc (list 'q 'r)])
+  (set-cdr! (cdr cyc) cyc)
+  (let ([anc (list 'wrap cyc)])
+    (test "(f [wrap #0=(q r . #0#)])" (prc (list 'f anc) anc print-brackets #t))))
+
+;; pretty-print brackets the cursor form, and only it, in place of its parentheses
+(define fact-code (datum "(define (fact n) (if (< n 2) 1 (* n (fact (- n 1)))))"))
+(test " (define (fact n)\n   (if (< n 2)\n       1\n       (* n\n>         [fact (- n\n                   1)])))\n"
+  (ppc 20 fact-code (caddr (cadddr (caddr fact-code)))))
+;; without brackets the column alone marks it
+(test " (define (fact n)\n   (if (< n 2)\n       1\n       (* n\n>         (fact (- n\n                   1)))))\n"
+  (ppc 20 fact-code (caddr (cadddr (caddr fact-code))) print-brackets #f))
+;; laid out over lines, the column stays even when the form fits on one:
+;; it follows the mode, not the line count
+(test ">(define (fact n) (if (< n 2) 1 [* n (fact (- n 1))]))\n"
+  (ppc 80 fact-code (cadddr (caddr fact-code))))
+;; a cursor that is not in the datum marks nothing and brackets nothing
+(test " (define (fact n) (if (< n 2) 1 (* n (fact (- n 1)))))\n"
+  (ppc 80 fact-code (list 'fact)))
+
+;; with a cursor, binding lists lose their brackets; without one they keep them
+(let ([lt (datum "(let ((x 1) (y 2)) (display x) (+ x y))")])
+  (test "(let ([x 1] [y 2]) (display x) (+ x y))\n" (pp 80 "(let ((x 1) (y 2)) (display x) (+ x y))"))
+  (test ">(let ((x 1) (y 2)) (display x) [+ x y])\n" (ppc 80 lt (cadddr lt)))
+  (test ">(let ((x 1) [y 2]) (display x) (+ x y))\n" (ppc 80 lt (cadr (cadr lt)))))
+
+;; printed twice: both occurrences are marked and bracketed
+(let* ([g (list 'g 'x)] [top (list 'list g (list 'something 'else 'here) g)])
+  (test ">(list [g x]\n       (something else\n         here)\n>      [g x])\n"
+    (ppc 22 top g))
+  ;; under print-graph only the labelled occurrence has parentheses to replace
+  (test ">(list #0=[g x]\n       (something else\n         here)\n       #0#)\n"
+    (ppc 22 top g print-graph #t))
+  ;; with a base indent the column sits at that indent on every line
+  (test " (list\n    > (g x)\n      (something\n       else\n       here)\n    > (g x))\n"
+    (prc top g print-indent 4 print-width 24)))
+
+;; the cursor contains a cycle, so the printer works from a marked copy of it
+(let* ([cyc (list 'q 'r)])
+  (set-cdr! (cdr cyc) cyc)
+  (let* ([anc (list 'wrap cyc 'tail)]
+         [top (list 'begin anc (list 'other 'stuff))]
+         [marked (marked-lines (ppc 18 top anc))])
+    (test 1 (length marked))
+    (test #t (and (pair? marked) (contains? (car marked) "[wrap")))))
+
+;; a cut-off shell has parentheses; a pair hidden inside a cut has none
+(let ([deep (datum "(a (b (c (d (e f)))))")])
+  (test ">(a (b [...]))\n" (ppc 80 deep (cadr (cadr deep)) print-level 2))
+  (test " (a (b (...)))\n" (ppc 80 deep (cadr (cadr (cadr deep))) print-level 2)))
+
+;; a list laid out by a style pattern of its own: guard's (var clause ...)
+(define guard-code (datum "(guard (e [(string? e) (display e)] [else (raise e)]) (risky 1) (risky 2))"))
+(test " (guard\n>  [e ((string? e) (display e))\n      (else (raise e))]\n   (risky 1)\n   (risky 2))\n"
+  (ppc 30 guard-code (cadr guard-code)))
+
+;; clauses, quoted data and abbreviations
+(let ([cnd (datum "(cond [(null? x) 'empty] [(pair? x) (car x)] [else 'other])")])
+  (test " (cond ((null? x)\n        'empty)\n>      [(pair? x)\n        (car x)]\n       (else\n        'other))\n"
+    (ppc 20 cnd (caddr cnd))))
+(let ([qd (datum "(f '(a b) c)")])
+  (test ">(f '[a b] c)\n" (ppc 80 qd (cadr (cadr qd)))))
+;; a quote form prints as 'x, with no parentheses to replace
+(let ([qt (list 'f (list 'quote 'x) 'y)])
+  (test ">(f 'x y)\n" (ppc 80 qt (cadr qt))))
+
+;; anything but #f or a pair is refused
+(test-error (parameterize ([print-cursor 'sym]) 'unreachable))
+(test-error (parameterize ([print-cursor 42]) 'unreachable))
+(test-error (parameterize ([print-cursor (vector 1)]) 'unreachable))
+(test-error (prc '(a) #t))
+
+;; The oracle, over sub-forms of a datum pretty-printed with a cursor on each:
+;; - stripped of the column, and with its brackets turned back into parentheses,
+;;   the output is exactly what printing without a cursor or brackets gives, so
+;;   nothing moves;
+;; - the column holds only > and space, and the form is marked at least once;
+;; - unless the form prints abbreviated, the lines holding a [ are exactly the
+;;   marked lines, [ and ] balance, and a marked line holds [ and the head symbol.
+(define (subforms x)
+  (let walk ([x x] [acc '()])
+    (if (pair? x)
+        (let loop ([l x] [acc (cons x acc)])
+          (if (pair? l) (loop (cdr l) (walk (car l) acc)) acc))
+        acc)))
+;; every step-th sub-form: each check re-prints the whole datum, so checking
+;; all of a large one is quadratic for little extra coverage
+(define (every-nth step l)
+  (let loop ([l l] [i 0] [acc '()])
+    (cond [(null? l) (reverse acc)]
+          [(= 0 (remainder i step)) (loop (cdr l) (+ i 1) (cons (car l) acc))]
+          [else (loop (cdr l) (+ i 1) acc)])))
+(define (cursor-faults obj width step)
+  (define plain (lines (ppc width obj #f print-brackets #f)))
+  (define (fault? f)
+    (let* ([out (ppc width obj f)] [ls (lines out)]
+           [body (map (lambda (l) (substring l 1 (string-length l))) ls)]
+           [abbrev? (memq (car f) '(quote quasiquote unquote unquote-splicing))]
+           [head (and (symbol? (car f)) (not abbrev?) (symbol->string (car f)))]
+           [marks (map (lambda (l) (char=? (string-ref l 0) #\>)) ls)]
+           [brackets (map (lambda (b) (contains? b "[")) body)])
+      (not (and (equal? (map unbracket body) plain)
+                (all? (lambda (l) (memv (string-ref l 0) '(#\space #\>))) ls)
+                (some? (lambda (m) m) marks)
+                (or abbrev?
+                    (and (equal? marks brackets)
+                         (= (count-char #\[ out) (count-char #\] out))
+                         (or (not head)
+                             (some? (lambda (l) (contains? l (string-append "[" head)))
+                                    (marked-lines out)))))))))
+  (keep fault? (every-nth step (subforms obj))))
+(test '() (cursor-faults fact-code 80 1))
+(test '() (cursor-faults fact-code 20 1))
+(test '() (cursor-faults guard-code 80 1))
+(test '() (cursor-faults guard-code 18 1))
+(test '() (cursor-faults sexp1 30 7))
+
 (display "\n--- All tests complete. ---\n")
 
 (test-end)
