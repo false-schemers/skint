@@ -4,7 +4,9 @@
   (import
     (scheme base)
     (scheme cxr)
+    (scheme write)
     (only (skint) box? unbox)
+    (only (skint print) atom-print-hook)
     (only (skint hidden)
       instruction-table
       deserialize-code
@@ -27,6 +29,7 @@
     da-core
     da-procedure
     da-name
+    da-print-hook
     da-global
     da-prune-globals
     da-void-for-empty-begin)
@@ -113,13 +116,55 @@
 ;; da-code
 ;; ---------------------------------------------------------------------------
 
-(define (%da-code cv)
-  (let ([out (open-output-string)])
-    (define (arg x) (write-serialized-arg x out))
-    (define (emit s) (write-string s out))
+;; --- cursors ------------------------------------------------------------------
+;; Every entry point takes two optional arguments: a cursor into its input, and a
+;; procedure of one argument that is handed the matching cursor into its output.
+;; A parameter such as print-cursor is the natural receiver.
+;;
+;; The cursor followed is an instruction pointer as the VM keeps one: an index in
+;; a procedure's code just past an instruction.  A frame on the stack holds one,
+;; where the call made from its save block returns to; so does a failure, where
+;; the instruction that failed had got to.  Either way it stands for the
+;; expression that instruction completed -- the call a frame is waiting on, the
+;; operation that failed -- and where several end at that index, the innermost.
+;; In a bytecode string the cursor is the offset where that index is written, in
+;; Core the expression itself, and in a Scheme form the pair it became.  Anything
+;; else -- no cursor, an index inside an instruction or past one that completes
+;; nothing, a Core expression that is not part of the input -- has no
+;; counterpart, and the receiver gets #f.
+
+(define %track-cv #f)   ; the code vector whose instruction ends are being recorded
+(define %ends #f)       ; index -> the innermost expression completed just before it
+(define %sx-on #f)      ; whether Core -> Scheme is being recorded
+(define %sx-marks '())  ; (core-node . scheme-form), newest first
+
+(define (arg-ref l n) (and (> (length l) n) (list-ref l n)))
+(define (deliver receive out) (when (procedure? receive) (receive out)))
+
+;; Call TRACKED on the cursor in OPT, and hand the receiver in OPT the cursor out
+;; of what it answers, (result . cursor) or #f.  Without a receiver the cursor is
+;; #f, so nothing is recorded that nobody will hear about.
+(define (with-cursor opt tracked)
+  (let* ([r (arg-ref opt 1)]
+         [res (tracked (and (procedure? r) (arg-ref opt 0)))])
+    (deliver r (and res (cdr res)))
+    (and res (car res))))
+
+;; The bytecode string for TOP, and -- when MARKS? -- where each of its
+;; instructions starts, and where it ends, as a list of (index . offset), last
+;; first.  Instructions of a nested code vector belong to another procedure and
+;; are not listed.
+(define (%encode top marks?)
+  (let ([out (open-output-string)] [pos 0] [marks '()])
+    (define (emit s) (write-string s out) (set! pos (+ pos (string-length s))))
+    (define (arg x)
+      (if marks?
+          (let ([p (open-output-string)]) (write-serialized-arg x p) (emit (get-output-string p)))
+          (write-serialized-arg x out)))
     (define (walk cv i end)
       (when (< i end)
         (let ([w (vector-ref cv i)])
+          (when (and marks? (eq? cv top)) (set! marks (cons (cons i pos) marks)))
           (cond
             ;; the decoder appends halt at end of stream; drop it again
             [(eq? w halt-word) (walk cv (+ i 1) end)]
@@ -164,8 +209,10 @@
                           (emit "{") (walk cv b stop) (emit "}")
                           (walk cv stop end))))]
                  [else (error "da-code: unhandled etyp" ty)]))]))))
-    (walk cv 0 (vector-length cv))
-    (get-output-string out)))
+    (walk top 0 (vector-length top))
+    (cons (get-output-string out) (cons (cons (vector-length top) pos) marks))))
+
+(define (%da-code cv) (car (%encode cv #f)))
 
 ;; the code vector of a live procedure
 (define (procedure-code p) (vector-ref (closure->vector p) 0))
@@ -233,9 +280,15 @@
 
 ;; A bytecode string that decodes back to the code vector of X, or #f when no
 ;; code vector can be got out of X at all.  A malformed code vector is an error.
-(define (da-code x)
+;; With a cursor, an index in that code vector; the receiver gets the offset in
+;; the string where it is written.
+(define (da-code x . opt)
   (let ([cv (as-code-vector x)])
-    (and cv (%da-code cv))))
+    (with-cursor opt
+      (lambda (c)
+        (and cv
+             (let* ([e (%encode cv c)] [m (assv c (cdr e))])
+               (cons (car e) (and m (cdr m)))))))))
 
 
 ;; ---------------------------------------------------------------------------
@@ -375,9 +428,6 @@
 (define (slot-tmp e) (cons 't e))
 (define (slot-cc name) (cons 'c name))
 (define (slot-name s) (cdr s))
-;; (a b c) with x => (a b x)
-(define (repl-last l x)
-  (if (null? (cdr l)) (list x) (cons (car l) (repl-last (cdr l) x))))
 
 ;; Some instructions live only in hand-written procedures -- call/cc,
 ;; call-with-values, values and friends -- and are never emitted by codegen.
@@ -476,6 +526,11 @@
   (define ac #f)
   (define live #f)      ; ac holds a value nothing has consumed yet
   (define stmts (quote ()))  ; values discarded before use: a begin sequence
+  ;; for a cursor: E is complete when control reaches J.  An enclosing expression
+  ;; that ends at J too is finished later, so the first one noted is innermost.
+  (define (note-end! j e)
+    (when (and (eq? cv %track-cv) (< j (vector-length %ends)) (not (vector-ref %ends j)))
+      (vector-set! %ends j e)))
   ;; a temp slot referenced as a variable becomes one, so that a let-like call
   ;; can be rebuilt from the bindings when its adrop closes the frame
   ;; the stack is only as deep as the bytecode says; a mismatch means the
@@ -636,6 +691,7 @@
                     [post (list-ref d 3)] [pre (list-ref d 4)])
                ;; an instruction that consumes ac and replaces it
                (define (finish e j)
+                 (note-end! j e)
                  (set! ac e)
                  (set! live #t)
                  (let post-loop ([p post])
@@ -689,7 +745,9 @@
                  ;; and the last was pushed twice; the instruction before this
                  ;; one consumed the copy and this one pops the original, so the
                  ;; whole run is a single n-ary integrable.  The copy carried no
-                 ;; expression, so put the original in its place.
+                 ;; expression, so put the original in its place.  The node grows
+                 ;; in place: a step that fails is part of the whole comparison,
+                 ;; so a cursor noted at any step has to be the finished node.
                  [(string=? base ";")
                   (let* ([w2 (vector-ref cv next)]
                          [nm2 (and (lookup w2) (norm-of w2))]
@@ -702,7 +760,10 @@
                            [rest (cdr stk)]
                            [newarg (slot-expr (car rest))])
                       (set! stk (cdr rest))
-                      (finish (append (repl-last ac real) (list newarg)) (+ next 1))))]
+                      (let ([tail (let last ([l ac]) (if (pair? (cdr l)) (last (cdr l)) l))])
+                        (set-car! tail real)
+                        (set-cdr! tail (list newarg)))
+                      (finish ac (+ next 1))))]
                  ;; sbox marks a binding the body assigns: its slot holds a box
                  [(string=? base "#")
                   (let ([sl (nth (car ops))])
@@ -828,7 +889,9 @@
                     (prune-marks! (length stk))
                     (let* ([avail (max 0 (- (length stk) fbase))]
                            [m (if (< kdrop avail) kdrop avail)]
-                           [body (take-seq (close-count (cons (quote call) (cons f args)) m))])
+                           [call (cons (quote call) (cons f args))]
+                           [body (take-seq (close-count call m))])
+                      (note-end! next call)
                       (drop! (- kdrop m))
                       body))]
                  [(string=? base "[0")
@@ -1037,10 +1100,41 @@
 ;; bytecode has no Core preimage -- which is the answer for the hand-written and
 ;; generated procedures the compiler never emitted.  #f also when no bytecode can
 ;; be got out of X at all.  A malformed bytecode string is an error.
-(define (da-bytecode x)
-  (cond [(string? x) (%core-of-code-vector (deserialize-code x))]
-        [(as-code-vector x) => %core-of-code-vector]
+;; With a cursor -- an offset into a bytecode string or an index into a code
+;; vector, as X is -- the receiver gets the expression completed there.
+(define (da-bytecode x . opt)
+  (with-cursor opt (lambda (c) (%bytecode x c))))
+
+;; => (core . expression) for X following cursor C, or #f with no code vector
+(define (%bytecode x c)
+  (let ([ck (%code-and-index x c)])
+    (and ck (%decode-tracked (car ck) (cdr ck)
+                             (lambda () (%core-of-code-vector (car ck)))))))
+
+;; The code vector X stands for, and the index cursor C stands for in it:
+;; (cv . index).  C is an offset for a string and an index for anything else; an
+;; offset where no instruction starts gives an index of #f.  An instruction that
+;; writes nothing -- the halt a stream ends with -- shares its offset with the
+;; next index, and the earlier one is meant.
+(define (%code-and-index x c)
+  (cond [(string? x)
+         (let ([cv (deserialize-code x)])
+           (cons cv (and c (let loop ([l (cdr (%encode cv #t))] [k #f])
+                             (cond [(null? l) k]
+                                   [(eqv? (cdar l) c) (loop (cdr l) (caar l))]
+                                   [else (loop (cdr l) k)])))))]
+        [(as-code-vector x) => (lambda (cv) (cons cv c))]
         [else #f]))
+
+;; Run DECODE on CV, recording where its expressions end when there is a K to
+;; look for: (core . expression), the expression completed at index K, or #f.
+(define (%decode-tracked cv k decode)
+  (set! %track-cv (and k cv))
+  (set! %ends (and k (make-vector (+ (vector-length cv) 1) #f)))
+  (let* ([core (decode)]
+         [e (and core (integer? k) (exact? k) (<= 0 k (vector-length cv)) (vector-ref %ends k))])
+    (set! %track-cv #f) (set! %ends #f)
+    (cons core e)))
 
 ;; Decompile a code vector that is a closure body, given names for its display.
 ;; Unlike da-bytecode this needs no wrapper block, so the caller decides what
@@ -1149,12 +1243,63 @@
 ;; A Scheme form for X.  A pair is taken to be Core already; anything else is
 ;; put through da-bytecode first, so a procedure, a global name, a code vector
 ;; and a bytecode string all work.  #f when nothing can be got out of X.
-(define (da-core x)
-  (cond [(pair? x) (sx x)]
-        [(da-bytecode x) => sx]
-        [else #f]))
+;; With a cursor, a sub-expression of X when X is Core, and otherwise what
+;; da-bytecode takes; the receiver gets the pair of the result it became.
+(define (da-core x . opt)
+  (with-cursor opt
+    (lambda (c)
+      (if (pair? x)
+          (%form-tracked x c)
+          (let ([cr (%bytecode x c)])
+            (and cr (car cr) (%form-tracked (car cr) (cdr cr))))))))
 
-(define (sx x)
+;; Translate CORE following its sub-expression NODE: (form . pair), the pair of
+;; FORM that node became, or #f.
+(define (%form-tracked core node)
+  (set! %sx-on (pair? node)) (set! %sx-marks '())
+  (let* ([form (sx core)]
+         [out (and (pair? node) (form-at core node form))])
+    (set! %sx-on #f) (set! %sx-marks '())
+    (cons form out)))
+
+;; What NODE of ROOT became in FORM, or #f if NODE is not in ROOT.  A node with no
+;; pair of its own in FORM is shown by the nearest enclosing node that has one:
+;; a variable became a symbol, a call was absorbed into a derived form, or a
+;; later rewrite took its translation apart -- the lambda of a short define, say.
+;; The newest translation is the one kept: where sx tries a shape out on a node
+;; first, it does so before the real work.
+(define (form-at root node form)
+  (let ([shown (element-pairs form)])
+    (let loop ([path (or (core-path root node) '())])
+      (and (pair? path)
+           (let ([m (assq (car path) %sx-marks)])
+             (if (and m (memq (cdr m) shown)) (cdr m) (loop (cdr path))))))))
+
+;; the pairs of X that print with parentheses of their own: every pair that is an
+;; element of a list rather than the rest of one
+(define (element-pairs x)
+  (let walk ([x x] [acc '()])
+    (if (pair? x)
+        (let loop ([l x] [acc (cons x acc)])
+          (if (pair? l) (loop (cdr l) (walk (car l) acc)) acc))
+        acc)))
+
+;; NODE and its ancestors in ROOT, innermost first; #f if NODE is not in ROOT
+(define (core-path root node)
+  (let walk ([x root] [up '()])
+    (cond [(eq? x node) (cons x up)]
+          [(pair? x)
+           (let loop ([l x])
+             (and (pair? l) (or (walk (car l) (cons x up)) (loop (cdr l)))))]
+          [else #f])))
+
+(define (note-sx! x form)
+  (when %sx-on (set! %sx-marks (cons (cons x form) %sx-marks)))
+  form)
+
+(define (sx x) (note-sx! x (sx* x)))
+
+(define (sx* x)
   (cond
     [(sexp-match? '(quote *) x) (quotation (cadr x))]
     [(core-ref? x) (ref-of x)]
@@ -1718,11 +1863,30 @@
                         [else (string<? sa sb)]))])))
 
 ;; the name the store files P under, or #f if nothing holds it
-(define (da-name p)
+;; A name has no parts to point at, so a receiver is always handed #f.
+(define (da-name p . opt)
+  (deliver (arg-ref opt 1) #f)
   (let loop ([l (store-names-of p)] [best #f])
     (cond [(null? l) (and best (varname best))]
           [(or (not best) (better-name? (car l) best)) (loop (cdr l) (car l))]
           [else (loop (cdr l) best)])))
+
+;; A print hook for (skint print), to go into print-hooks with add-print-hook:
+;; a procedure the store files under a name is printed with that name, in the
+;; form write gives it -- #<procedure car @0x...> for #<procedure @0x...>.  The
+;; address comes from write, so it is only as stable as write's is.  A procedure
+;; with no name, and anything else, is left to the other hooks.
+(define (da-print-hook x)
+  (let ([n (and (procedure? x) (da-name x))])
+    (and n
+         (let* ([s (let ([p (open-output-string)]) (write x p) (get-output-string p))]
+                [k (string-length "#<procedure")]
+                [s (if (and (> (string-length s) k) (string=? (substring s 0 k) "#<procedure"))
+                       (string-append (substring s 0 k) " " (symbol->string n) (substring s k (string-length s)))
+                       s)])
+           (atom-print-hook #f
+             (lambda (x) (string-length s))
+             (lambda (x port) (write-string s port)))))))
 
 ;; --- whole procedures -------------------------------------------------------
 ;; A closure carries its free variables in a display.  Naming those :a :b ... in
@@ -1855,49 +2019,70 @@
 ;; Code with no Core preimage still has an answer: the name the store files the
 ;; procedure under.  A bare symbol cannot be confused with a disassembly, which
 ;; is always a lambda, let or case-lambda form.
-(define (%da-procedure p)
+;; A closure whose code has no arity check is a top-level expression compiled to
+;; run as a thunk -- what eval and the REPL make of a form.  Its code is a whole
+;; instruction stream, and what it reads back as is the thunk: a lambda with no
+;; formals around the expression.  #f when the stream has no Core preimage, or
+;; refers to a display, which a closure with none cannot give it.
+(define (%thunk-core cv)
+  (let ([e (%dcmp-stream cv)])
+    (and e (null? (dsp-names %top-dsp)) (list (quote lambda) (quote ()) e))))
+
+;; => (form . pair), following cursor C into P's code.
+(define (%da-procedure p c)
   ;; Not every procedure is a closure, and one that is not has no code vector to
-  ;; read.  Its name is then all there is to say.
+  ;; read.  Its name is then all there is to say.  A dispatcher makes no calls of
+  ;; its own; its clauses are closures with code of their own.
   (let ([v (closure-contents p)])
     (cond
       [(not (and (vector? v) (> (vector-length v) 0) (vector? (vector-ref v 0))))
-       (da-name p)]
+       (cons (da-name p) #f)]
       [(dispatcher-slots (vector-ref v 0))
-       => (lambda (slots) (or (%da-case-lambda v slots) (da-name p)))]
-      [else (%da-closure-vector p v)])))
+       => (lambda (slots) (cons (or (%da-case-lambda v slots) (da-name p)) #f))]
+      [else (%da-closure-vector p v c)])))
 
-(define (%da-closure-vector p v)
+(define (%da-closure-vector p v c)
   (let* ([cv (vector-ref v 0)]
          [n (- (vector-length v) 1)]
          [names (let loop ([i 0] [r (quote ())])
                   (if (>= i n) (reverse r) (loop (+ i 1) (cons (display-var i) r))))]
-         [core (da-closure cv names)])
+         [cr (%decode-tracked cv c
+               (lambda ()
+                 (if (or (arity-preamble? cv) (> n 0))
+                     (da-closure cv names)
+                     (%thunk-core cv))))]
+         [core (car cr)])
     (if (not core)
-        (da-name p)
-         (let ([form (da-core core)]
-               [boxed (dsp-boxed %top-dsp)])
-           (if (= n 0)
-               form
-               (cons (quote let)
-                     (cons (let loop ([i 0] [bs (quote ())])
-                             (if (>= i n)
-                                 (reverse bs)
-                                 (let* ([cell (vector-ref v (+ i 1))]
-                                        [val (if (and (memv i boxed) (box? cell))
-                                                 (unbox cell)
-                                                 cell)])
-                                   (loop (+ i 1)
-                                         (cons (list (display-var i) (quotation val)) bs)))))
-                           (list form))))))))
+        (cons (da-name p) #f)
+         (let* ([fr (%form-tracked core (cdr cr))]
+                [form (car fr)]
+                [boxed (dsp-boxed %top-dsp)])
+           (cons
+             (if (= n 0)
+                 form
+                 (cons (quote let)
+                       (cons (let loop ([i 0] [bs (quote ())])
+                               (if (>= i n)
+                                   (reverse bs)
+                                   (let* ([cell (vector-ref v (+ i 1))]
+                                          [val (if (and (memv i boxed) (box? cell))
+                                                   (unbox cell)
+                                                   cell)])
+                                     (loop (+ i 1)
+                                           (cons (list (display-var i) (quotation val)) bs)))))
+                             (list form))))
+             (cdr fr))))))
 
 ;; --- disassembling by name --------------------------------------------------
 
 ;; The whole chain for a procedure, or for the global name of one: #f if there is
 ;; no procedure to be had, the name the store files it under when its code has no
 ;; Core preimage, and otherwise the Scheme form.
-(define (da-procedure x)
+;; With a cursor, an index in the procedure's code; the receiver gets the pair of
+;; the result the expression completed there became.
+(define (da-procedure x . opt)
   (let ([p (as-procedure x)])
-    (and p (%da-procedure p))))
+    (with-cursor opt (lambda (c) (and p (%da-procedure p c))))))
 
 ;; The disassembly of whatever procedure the store holds under a global name, or
 ;; #f if it holds nothing, holds something that is not a procedure, or has no
@@ -1906,9 +2091,8 @@
 ;; the bare identifier da-prune-globals shows; an integrable index stands for one
 ;; too.  Nothing is allocated: asking about a name the store has never seen
 ;; leaves it unseen.
-(define (da-global x)
-  (let ([n (global-name-of x)])
-    (and n (da-procedure n))))
+(define (da-global x . opt)
+  (apply da-procedure (global-name-of x) opt))
 
 
 ;; --- da: the whole chain, from whatever there is ----------------------------
@@ -1924,16 +2108,19 @@
 ;;
 ;; Such a let does not compile back to the fragment, and is not meant to: ? is
 ;; not a value.
-(define (da-fragment cv)
-  (let ([core (%core-of-code-vector cv)])
-    (and core
-         (let* ([form (sx core)]
+;; => (form . pair), following cursor K, or #f
+(define (%da-fragment cv k)
+  (let ([cr (%decode-tracked cv k (lambda () (%core-of-code-vector cv)))])
+    (and (car cr)
+         (let* ([fr (%form-tracked (car cr) (cdr cr))]
+                [form (car fr)]
                 [names (dsp-names %top-dsp)])
-           (if (or (not names) (null? names))
-               form
-               (cons 'let
-                     (cons (map (lambda (n) (list (varname n) '?)) names)
-                           (list form))))))))
+           (cons (if (or (not names) (null? names))
+                     form
+                     (cons 'let
+                           (cons (map (lambda (n) (list (varname n) '?)) names)
+                                 (list form))))
+                 (cdr fr))))))
 
 ;; Whatever X is, the most that can be said about it:
 ;;
@@ -1947,12 +2134,19 @@
 ;; #f when X is none of those, or is one but yields nothing -- a name the store
 ;; does not hold, a procedure with no code vector, bytecode the compiler never
 ;; emitted.  Only a malformed value of the right type is an error.
-(define (da x)
-  (cond [(as-procedure x) => %da-procedure]
-        [(vector? x) (da-fragment x)]
-        [(string? x) (da-fragment (deserialize-code x))]
-        [(pair? x) (sx x)]
-        [else #f]))
+;;
+;; With a cursor into X in X's own terms -- an index in a procedure's code or a
+;; code vector, its offset in a string, a sub-expression of Core -- the receiver
+;; gets the pair of the result it became, or #f.
+(define (da x . opt)
+  (with-cursor opt
+    (lambda (c)
+      (cond [(as-procedure x) => (lambda (p) (%da-procedure p c))]
+            [(or (vector? x) (string? x))
+             (let ([ck (%code-and-index x c)])
+               (and ck (%da-fragment (car ck) (cdr ck))))]
+            [(pair? x) (%form-tracked x c)]
+            [else #f]))))
 
 ;; --- built once, when the library is loaded ---------------------------------
 ;; Everything above reads the instruction table rather than a hand-written list,

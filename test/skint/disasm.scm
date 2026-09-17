@@ -496,6 +496,312 @@
 (test-assert (eq? 'lambda (car (da 'lib://skint/print?pp))))
 (test-assert (eq? 'define-values (car (caddr (da 'lib://skint/print?pp)))))
 
+(display "\n--- cursors ---\n")
+
+;; Every entry point takes a cursor into its input and a procedure to receive
+;; the same place in its output.  The cursor is an index just past an instruction,
+;; as the VM keeps one: where a call returns, or where a failing instruction had
+;; got to.  The receiver is called whatever happens, with #f when there is no such
+;; place.  TRACKED returns (result . what it was handed).
+(define (tracked proc x c)
+  (let* ([got 'never] [res (proc x c (lambda (v) (set! got v)))])
+    (cons res got)))
+
+(define (every? ok? l) (or (null? l) (and (ok? (car l)) (every? ok? (cdr l)))))
+
+;; the way down from X to the pair P, as car/cdr steps; #f if P is not in X
+(define (path-to x p)
+  (let walk ([x x] [up '()])
+    (cond [(eq? x p) (reverse up)]
+          [(pair? x) (or (walk (car x) (cons 'a up)) (walk (cdr x) (cons 'd up)))]
+          [else #f])))
+
+;; the pair TRACKED handed over, as a path into the result it came with
+(define (tracked-path proc x c)
+  (let ([r (tracked proc x c)]) (and (cdr r) (path-to (car r) (cdr r)))))
+
+;; Return points found the way the VM makes them: save's operand is the length of
+;; the block after it, and the call made inside resumes just past the block.
+(define save-word (vector-ref (deserialize-code "${}") 0))
+(define (return-points p)
+  (let ([cv (procedure-code p)])
+    (let loop ([i 0] [r '()])
+      (if (>= i (vector-length cv))
+          (reverse r)
+          (loop (+ i 1) (if (eq? (vector-ref cv i) save-word)
+                            (cons (+ i 2 (vector-ref cv (+ i 1))) r)
+                            r))))))
+
+(define (cur-sum l) (if (null? l) 0 (+ (car l) (cur-sum (cdr l)))))
+(define (cur-seq f) (f 1) (f 2) (f 3))
+(define (cur-defs n) (define (sq y) (* y y)) (define z (sq n)) (+ z (sq 2)))
+(define (cur-or f g) (or (f) (g)))
+(define (cur-let* f) (let ([a (f)]) (let ([b (f a)]) (let ([c (f b)]) (list a b c)))))
+(define (cur-dv f) (define-values (a b) (f)) (list a b))
+(define (cur-rev x y) (if (null? x) y (cur-rev (cdr x) (cons (car x) y))))
+(define (make-caller f) (lambda (x) (f (f x))))
+(define (cur-nest f) (list (f (lambda (x) (f x) (f x) x))))
+(define cur-cl (case-lambda [(a) (list (a))] [(a b) (list (a) b)]))
+
+(define *cursor-procs* (list cur-sum cur-seq cur-defs cur-or cur-dv (make-caller car)))
+
+(test-assert (every? (lambda (p) (pair? (return-points p))) *cursor-procs*))
+(test '() (return-points cur-rev))
+
+;; The workflow this is for: a frame on a captured stack is a closure next to the
+;; index it resumes at, and that index is a cursor as it stands.
+(define (stack-frames k)
+  (let ([v (closure->vector k)])
+    (let loop ([i 2] [r '()])
+      (if (>= (+ i 1) (vector-length v))
+          r
+          (let ([p (vector-ref v i)] [n (vector-ref v (+ i 1))])
+            (if (and (closure? p) (integer? n) (exact? n) (>= n 0)
+                     (<= n (vector-length (procedure-code p))))
+                (loop (+ i 2) (cons (cons p n) r))
+                (loop (+ i 1) r)))))))
+(define *frames* #f)
+(define (cur-probe) (call/cc (lambda (k) (set! *frames* (stack-frames k)))) 0)
+(define (cur-probe-sum l) (if (null? l) (cur-probe) (+ (car l) (cur-probe-sum (cdr l)))))
+(cur-probe-sum '(1 2))
+
+(define (frame-view fr)
+  (let* ([r (tracked da (car fr) (cdr fr))] [out (open-output-string)])
+    (print (car r) out print-cursor (cdr r) print-brackets #t)
+    (get-output-string out)))
+(test '("(lambda (.a) (if (null? .a) (cur-probe) (+ (car .a) [cur-probe-sum (cdr .a)])))"
+        "(lambda (.a) (if (null? .a) (cur-probe) (+ (car .a) [cur-probe-sum (cdr .a)])))")
+      (map frame-view (filter-if (lambda (fr) (eq? (car fr) cur-probe-sum)) *frames*)))
+
+;; a cursor changes what the receiver hears, never what is returned
+(for-each
+  (lambda (p)
+    (let ([c (car (return-points p))])
+      (test (da p) (car (tracked da p c)))
+      (test (da-procedure p) (car (tracked da-procedure p c)))
+      (test (da-code p) (car (tracked da-code p c)))
+      (test (da-bytecode p) (car (tracked da-bytecode p c)))
+      (test (da-core p) (car (tracked da-core p c)))))
+  *cursor-procs*)
+(test (da cur-cl) (car (tracked da cur-cl 0)))
+
+;; every return point is somewhere in the disassembly: at worst the whole of it
+(test-assert
+  (every? (lambda (p) (every? (lambda (c) (tracked-path da p c)) (return-points p)))
+          *cursor-procs*))
+
+;; and so it is for the library's own procedures, at their first return point
+(test (length *display-free*)
+      (count-if (lambda (n+p)
+                  (let* ([p (cdr n+p)] [rps (return-points p)] [r (and (pair? rps) (tracked da p (car rps)))])
+                    (or (not r) (not (pair? (car r))) (path-to (car r) (cdr r)))))
+                *display-free*))
+
+;; Any index at all gives either nothing or a pair of the form -- never a symbol
+;; or a constant that a variable or a literal became.
+(test-assert
+  (every? (lambda (p)
+            (let ([len (vector-length (procedure-code p))])
+              (let loop ([i 0])
+                (or (> i len)
+                    (and (let ([r (tracked da p i)]) (or (not (cdr r)) (path-to (car r) (cdr r))))
+                         (loop (+ i 1)))))))
+          *cursor-procs*))
+
+;; An index inside an instruction has no counterpart -- save's operand, say -- and
+;; neither has one past an instruction that completes nothing, as save itself does.
+(test-assert
+  (every? (lambda (p)
+            (every? (lambda (c)
+                      (let* ([i (let find ([i 0])
+                                  (if (and (eq? (vector-ref (procedure-code p) i) save-word)
+                                           (eqv? (+ i 2 (vector-ref (procedure-code p) (+ i 1))) c))
+                                      i
+                                      (find (+ i 1))))])
+                        (and (not (cdr (tracked da p (+ i 1))))
+                             (not (cdr (tracked da-code p (+ i 1))))
+                             (not (cdr (tracked da-bytecode p (+ i 1))))
+                             (not (cdr (tracked da p (+ i 2))))
+                             (not (cdr (tracked da-bytecode p (+ i 2)))))))
+                    (return-points p)))
+          (list cur-sum cur-seq cur-nest)))
+(test #f (cdr (tracked da cur-sum -1)))
+(test #f (cdr (tracked da cur-sum (+ 1 (vector-length (procedure-code cur-sum))))))
+
+;; The stages compose.  Going the whole way from a return point lands where going
+;; a stage at a time does: through its offset in the bytecode string, and through
+;; the Core call.  A string decodes into fresh pairs, so what is compared is where
+;; the cursor is, not which pair it is.  da-core binds no display, so these are
+;; procedures without one.
+(define (stages-agree? p c)
+  (let* ([want (tracked-path da p c)]
+         [bytes (tracked da-code p c)]
+         [core (tracked da-bytecode p c)])
+    (and want (cdr bytes) (cdr core)
+         (equal? want (tracked-path da-core (car core) (cdr core)))
+         (equal? want (tracked-path da (car bytes) (cdr bytes)))
+         (equal? (path-to (car core) (cdr core))
+                 (tracked-path da-bytecode (car bytes) (cdr bytes))))))
+
+(for-each
+  (lambda (p) (test-assert (every? (lambda (c) (stages-agree? p c)) (return-points p))))
+  (list cur-sum cur-seq cur-defs cur-or cur-dv))
+
+;; A return point's offset is the end of its save block.  An offset means the
+;; index written there -- the first of them, where an instruction writes nothing --
+;; and no other offset means anything: not one inside an operand, and not one
+;; inside a nested lambda, whose code has indices of its own.
+(for-each
+  (lambda (p)
+    (let* ([bytes (da-code p)]
+           [len (vector-length (procedure-code p))]
+           [offs (let loop ([i len] [r '()])
+                   (if (< i 0) r (loop (- i 1) (cons (cons (cdr (tracked da-code p i)) i) r))))])
+      (test-assert (every? (lambda (c) (char=? #\} (string-ref bytes (- (cdr (tracked da-code p c)) 1))))
+                           (return-points p)))
+      (test-assert
+        (let loop ([o 0])
+          (or (> o (string-length bytes))
+              (let ([m (assv o offs)])
+                (and (if m
+                         (equal? (tracked-path da bytes o) (tracked-path da p (cdr m)))
+                         (not (cdr (tracked da bytes o))))
+                     (loop (+ o 1)))))))))
+  (list cur-seq cur-nest cur-sum))
+
+;; What a debugger would show at each return point of a procedure.
+(define (cursor-views p) (map (lambda (c) (frame-view (cons p c))) (return-points p)))
+
+(test '("(lambda (.a) [.a 1] (.a 2) (.a 3))"
+        "(lambda (.a) (.a 1) [.a 2] (.a 3))")
+      (cursor-views cur-seq))
+(test '("(lambda (.a) (define (.b .d) (* .d .d)) (define .c [.b .a]) (+ .c (.b 2)))"
+        "(lambda (.a) (define (.b .d) (* .d .d)) (define .c (.b .a)) (+ .c [.b 2]))")
+      (cursor-views cur-defs))
+(test '("(lambda (.a .b) (or [.a] (.b)))") (cursor-views cur-or))
+;; nested lets are translated once to see whether they merge, and again for real
+(test '("(lambda (.a) (let* ((.b [.a]) (.c (.a .b)) (.d (.a .c))) (list .b .c .d)))"
+        "(lambda (.a) (let* ((.b (.a)) (.c [.a .b]) (.d (.a .c))) (list .b .c .d)))"
+        "(lambda (.a) (let* ((.b (.a)) (.c (.a .b)) (.d [.a .c])) (list .b .c .d)))")
+      (cursor-views cur-let*))
+;; a call absorbed into a derived form shows the nearest form that is still there
+(test '("[lambda (.a) (define-values (.b .c) (.a)) (list .b .c)]") (cursor-views cur-dv))
+
+;; A failure keeps an instruction pointer too.  The frame on top of a failure
+;; object's stack is the procedure that failed and the index just past the
+;; instruction that failed, and the expression that instruction completes is the
+;; one that failed.
+(define (failing-frame thunk)
+  (guard (e [(failure-object? e)
+             (let* ([v (closure->vector e)] [n (vector-length v)] [nirr (vector-ref v (- n 4))])
+               (cons (vector-ref v (- n 6 nirr)) (vector-ref v (- n 5 nirr))))])
+    (thunk)
+    #f))
+(define (cur-f1 x) (list (car x)))
+(define (cur-f2 v i) (list (vector-ref v i) 2))
+(define (cur-f3 x) (car x))
+(define (cur-f4 x) (list (x 1)))
+(define (cur-f5 x) (x 1))
+(define (cur-f6 x c) (list (if c (car x) (cdr x))))
+(define (cur-f7 x) (list (< 1 2 x 5)))
+
+(test "(lambda (.a) (list [car .a]))" (frame-view (failing-frame (lambda () (cur-f1 5)))))
+(test "(lambda (.a .b) (list [vector-ref .a .b] 2))"
+      (frame-view (failing-frame (lambda () (cur-f2 (vector 1) 3)))))
+(test "(lambda (.a) [car .a])" (frame-view (failing-frame (lambda () (cur-f3 5)))))
+;; a call that fails on a non-procedure fails where it would have returned
+(test "(lambda (.a) (list [.a 1]))" (frame-view (failing-frame (lambda () (cur-f4 5)))))
+(test "(lambda (.a) [.a 1])" (frame-view (failing-frame (lambda () (cur-f5 5)))))
+;; an arm ends where its if does, and the arm is what failed
+(test "(lambda (.a .b) (list (if .b (car .a) [cdr .a])))"
+      (frame-view (failing-frame (lambda () (cur-f6 5 #f)))))
+;; a comparison of several arguments is one expression, whichever step fails
+(test "(lambda (.a) (list [< 1 2 .a 5]))" (frame-view (failing-frame (lambda () (cur-f7 'a)))))
+(test "(lambda () [< 1 2 3 (quote a) 5 6])"
+      (frame-view (failing-frame
+                    (lambda () (eval '(< 1 2 3 'a 5 6) (scheme-report-environment 5))))))
+(test-assert
+  (every? (lambda (thunk) (let ([fr (failing-frame thunk)]) (stages-agree? (car fr) (cdr fr))))
+          (list (lambda () (cur-f1 5)) (lambda () (cur-f2 (vector 1) 3)) (lambda () (cur-f4 5)))))
+;; A top-level expression runs as a thunk whose code has no arity check -- eval
+;; makes one -- and reads back as that thunk.
+(test "(lambda () (+ (+ 1 [car 5]) 2))"
+      (frame-view (failing-frame
+                    (lambda () (eval '(+ 1 (car 5) 2) (scheme-report-environment 5))))))
+;; a procedure with no readable form fails with nothing to point at
+(test '(car . #f) (let ([fr (failing-frame (lambda () (map car '(5))))]) (tracked da (car fr) (cdr fr))))
+
+;; a display is outside the code, so a closure and its bare code vector put the
+;; cursor in the same place
+(let ([p (make-caller car)])
+  (test-assert
+    (every? (lambda (c) (equal? (tracked-path da p c) (tracked-path da (procedure-code p) c)))
+            (return-points p))))
+
+;; a case-lambda's dispatcher makes no calls; its clauses are closures of their own
+(test #f (cdr (tracked da cur-cl 0)))
+
+;; Core in, with a call of it as the cursor
+(let* ([r (tracked da-bytecode cur-sum (car (return-points cur-sum)))]
+       [core (car r)] [call (cdr r)])
+  (test 'call (car call))
+  (test '(cur-sum (cdr .a)) (cdr (tracked da-core core call)))
+  (test '(cur-sum (cdr .a)) (cdr (tracked da core call)))
+  ;; a cursor is a place in this Core, so an equal copy of it is not one
+  (test #f (cdr (tracked da-core core (list-copy call))))
+  (test #f (cdr (tracked da-core core 3))))
+
+;; no place to be had: the receiver still hears, and hears #f
+(test '(cur-sum . #f) (tracked da-name cur-sum #f))
+(test '(#f . #f) (tracked da-global 'no-such-global-anywhere 0))
+(test '(#f . #f) (tracked da #t 0))
+(test #f (cdr (tracked da cur-sum #f)))
+
+(display "\n--- da-print-hook ---\n")
+
+(define (hooked obj)
+  (let ([p (open-output-string)])
+    (print obj p print-hooks (add-print-hook (print-hooks) da-print-hook))
+    (get-output-string p)))
+(define (written obj)
+  (let ([p (open-output-string)]) (write obj p) (get-output-string p)))
+(define (contains? s sub)
+  (let loop ([i 0])
+    (and (<= (+ i (string-length sub)) (string-length s))
+         (or (string=? sub (substring s i (+ i (string-length sub)))) (loop (+ i 1))))))
+(define (prefix? pfx s)
+  (and (<= (string-length pfx) (string-length s))
+       (string=? pfx (substring s 0 (string-length pfx)))))
+
+;; a named procedure gets its name after #<procedure, and keeps write's address
+(test-assert (prefix? "#<procedure car @" (hooked car)))
+(test (string-append "#<procedure car" (substring (written car) 11 (string-length (written car))))
+      (hooked car))
+(test-assert (prefix? "#<procedure da @" (hooked da)))
+(test-assert (prefix? "#<procedure box? @" (hooked box?)))
+;; the name is da-name's, so it follows da-prune-globals
+(test-assert (prefix? "#<procedure lib://skint/disasm?da @"
+                      (parameterize ([da-prune-globals #f]) (hooked da))))
+
+;; no name, or not a procedure: the hook declines and write's form stays
+;; (a procedure a global holds is named, so this one is kept in a list)
+(define anon-list (list (lambda (x) x)))
+(define (anon) (car anon-list))
+(test #f (da-print-hook (anon)))
+(test #f (da-print-hook 42))
+(test #f (da-print-hook 'car))
+(test (written (anon)) (hooked (anon)))
+(test "(1 \"s\" #(a))" (hooked '(1 "s" #(a))))
+
+;; inside a disassembly, where the procedures a closure holds are quoted
+(define holds-car (let ([c car] [i (anon)]) (lambda (x) (i (c x)))))
+(let ([s (let ([p (open-output-string)])
+           (pretty-print (da holds-car) p
+                         print-hooks (add-print-hook (print-hooks) da-print-hook))
+           (get-output-string p))])
+  (test-assert (contains? s "'#<procedure car @"))
+  (test-assert (contains? s "'#<procedure @")))
+
 (display "\n--- malformed input of the right type ---\n")
 
 ;; A vector that is not a code vector is the right type with the wrong contents.

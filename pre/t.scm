@@ -2245,6 +2245,9 @@
     (port-fold-case?) (set-port-fold-case!) (rename-file) (current-directory) (directory-separator)
     (path-separator) (void) (void?) (implementation-name) (implementation-version) (version-alist)
     (current-language) (current-country) (current-locale-details) (id?) (string->id) (id->string)
+    ; vm failures: what a guard clause needs to recognize and read one
+    (current-debugger)
+    (failure-object?) (failure-object-message) (failure-object-irritants)
     ; (skint c99-math) library is defined if host provides the corresponding functions
     (flcopysign . c99-math) (flsign-bit . c99-math) (fladjacent . c99-math) (flnormalized? . c99-math) 
     (fldenormalized? . c99-math) (flexponent . c99-math) (flilogb . c99-math) (fl+* . c99-math) 
@@ -2616,7 +2619,7 @@
   (define ci? #f) ; normal load-like behavior is the default
   (define callmain #f) ; got changed via first #! line
   (define main-args (cons filename args))
-  (set-repl-handler! reset) ; exit on hard errors too
+  (set! *batch-mode?* #t) ; a failure must exit, not open a prompt
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (let ([x0 (read-code-sexp port)])
@@ -2651,7 +2654,7 @@
   (define env (make-controlled-environment ial global pre))
   (define ci? #f) ; normal load-like behavior is the default
   (define main-args (cons filename args))
-  (set-repl-handler! reset) ; exit on hard errors too
+  (set! *batch-mode?* #t) ; a failure must exit, not open a prompt
   (call-with-current-input-file filename ;=>
     (lambda (port) 
       (command-line main-args)
@@ -2695,28 +2698,101 @@
                => (lambda (n) (loop (cdr l) (cons n names)))]
               [else (display "invalid ,im argument: " op) (write (car l) op) (newline op)]))))
 
-; commands that depend on a library fetch it on first use
-(define (repl-require-library name op)
-  (unless (find-library-in-env name root-environment)
-    (repl-evaluate-top-form (list 'import name) repl-environment op)))
+; Commands that depend on a library fetch it on first use and apply procedures
+; taken from it. Nothing is imported, defined or allocated in the repl
+; environment: the library goes into the root registry, as any library a library
+; imports does, and its procedures are looked up each time they are wanted.
 
-; ,tr and ,untr: trace and untrace by name, fetching (skint trace) on first use.
-; With no names they are (trace), which answers what is traced, and (untrace),
-; which untraces everything.
-(define (repl-trace op what cname args)
-  (repl-require-library '(skint trace) op)
-  (let loop ([l args])
-    (cond [(null? l) (repl-evaluate-top-form (cons what args) repl-environment op)]
-          [(symbol? (car l)) (loop (cdr l))]
-          [else (display "invalid ," op) (display cname op)
-                (display " argument: " op) (write (car l) op) (newline op)])))
+; the library NAME, fetched on first use and initialized, or an error. Fetching
+; only expands a library; its code is what import runs, and that code is wrapped
+; in once, with its dependencies', so running it again does nothing. The loader
+; says nothing while a command fetches what it needs, whatever ,q and ,v are set
+; to; errors still come through. A library NAME imports that cannot be found is
+; reported the same way as NAME itself -- xenv-lookup raises that one.
+(define (repl-library name)
+  (let* ([loc (repl-quietly
+                (lambda ()
+                  (guard (e [(and (error-object? e)
+                                  (equal? (error-object-message e) "library not found")
+                                  (list1? (error-object-irritants e)))
+                             (repl-missing-library (car (error-object-irritants e)))])
+                    (name-lookup *root-name-registry* name
+                      (lambda (n) (fetch-library n (make-sld-environment *root-name-registry*)))))))]
+         [lib (and loc (location-val loc))])
+    (unless (val-library? lib) (repl-missing-library name))
+    (repl-quietly (lambda () (compile-and-run-core-expr (library-code lib))))
+    lib))
+
+; THUNK's result, with the loader's progress messages off while it runs
+(define (repl-quietly thunk)
+  (let ([quiet *quiet*] [verbose *verbose*])
+    (dynamic-wind
+      (lambda () (set! *quiet* #t) (set! *verbose* #f))
+      thunk
+      (lambda () (set! *quiet* quiet) (set! *verbose* verbose)))))
+
+; a command needs library NAME and it cannot be found: say which, and where it
+; was looked for
+(define (repl-missing-library name)
+  (let ([p (open-output-string)])
+    (write name p)
+    (apply error
+      (string-append "library " (get-output-string p)
+                     " is not found; the library search path is:")
+      *library-directory-list*)))
+
+; the procedure ID of library NAME: an export, or one of the library's own
+; globals, as the procedures behind a library's syntax are
+(define (repl-library-procedure name id)
+  (let* ([e (assq id (library-exports (repl-library name)))]
+         [d (and e (location-val (cdr e)))]
+         [g (if (sexp-match? '(ref <symbol>) d)
+                (cadr d)
+                (fully-qualified-library-prefixed-name name id))]
+         [b (lookup-global g)]
+         [p (and b (unbox b))])
+    (if (procedure? p) p (error "library has no such procedure:" name id))))
+
+; the value of expression X, evaluated as the repl evaluates a form
+(define (repl-value x)
+  (call-with-values (lambda () (evaluate-top-form x repl-environment))
+    (lambda vals
+      (if (list1? vals) (car vals) (error "expression does not give one value:" x)))))
+
+; the store box of a variable defined at the repl, which is what can be assigned
+; there; #f for anything else -- a built-in, an import, syntax, an unbound name
+(define (repl-variable-box name)
+  (let* ([loc (name-lookup *user-name-registry* name #f)]
+         [d (and loc (location-val loc))])
+    (and (sexp-match? '(ref <symbol>) d) (lookup-global (cadr d)))))
+
+; ,tr and ,untr: trace and untrace variables defined at the repl, fetching
+; (skint trace) on first use. With no names ,tr answers what is traced and ,untr
+; untraces everything; either way the names affected are written out.
+(define (repl-trace op trace? cname args)
+  (define (proc id) (repl-library-procedure '(skint trace) id))
+  (define (answer x) (write x op) (newline op))
+  (cond [(not (andmap symbol? args))
+         (display "invalid ," op) (display cname op) (display " argument: " op)
+         (write (let loop ([l args]) (if (symbol? (car l)) (loop (cdr l)) (car l))) op)
+         (newline op)]
+        [(null? args) (answer ((proc (if trace? '%traced-names '%untrace-all!))))]
+        [(not trace?) (answer ((proc '%untrace-names!) args))]
+        [else
+         (let ([boxes (map (lambda (n)
+                             (or (repl-variable-box n)
+                                 (error "not a variable defined at the repl:" n)))
+                           args)])
+           (for-each (lambda (n b)
+                       ((proc '%trace-one!) n (lambda () (unbox b)) (lambda (v) (set-box! b v))))
+                     args boxes)
+           (answer args))]))
 
 ; ,ap: apropos on the name given, fetching (skint apropos) on first use
 (define (repl-apropos op args)
-  (repl-require-library '(skint apropos) op)
   (if (null? args)
       (display "no argument to apropos\n" op)
-      (repl-evaluate-top-form (list 'apropos (list 'quote (car args))) repl-environment op)))
+      ((repl-library-procedure '(skint apropos) 'apropos) (car args))))
 
 ; a symbol with a :// in it is a global store name such as repl://?f or
 ; lib://skint/print?pp; ,da takes one unquoted, so quote it for the user
@@ -2730,22 +2806,23 @@
                          (char=? (string-ref s (+ i 2)) #\/))
                     (loop (+ i 1))))))))
 
-; ,pp and ,da: pretty-print an expression, or the decompilation of a procedure
+; ,pp and ,da: pretty-print an expression, or the decompilation of a procedure;
+; ,da names the procedures in the decompilation, with (skint disasm)'s print hook
 (define (repl-pretty-print op args)
-  (repl-require-library '(skint print) op)
   (if (null? args)
       (display "no argument to pretty-print\n" op)
-      (repl-evaluate-top-form (list 'pretty-print (car args)) repl-environment op)))
+      ((repl-library-procedure '(skint print) 'pretty-print) (repl-value (car args)) op)))
 
 (define (repl-disasm op args)
-  (repl-require-library '(skint print) op)
-  (repl-require-library '(skint disasm) op)
+  (define (pr id) (repl-library-procedure '(skint print) id))
+  (define (da id) (repl-library-procedure '(skint disasm) id))
   (if (null? args)
       (display "no argument to disassemble\n" op)
-      (let ([x (car args)])
-        (repl-evaluate-top-form
-          (list 'pretty-print (list 'da (if (repl-global-name? x) (list 'quote x) x)))
-          repl-environment op))))
+      (let* ([x (car args)]
+             [form ((da 'da) (if (repl-global-name? x) x (repl-value x)))]
+             [hooks (pr 'print-hooks)])
+        ((pr 'pretty-print) form op
+         hooks ((pr 'add-print-hook) (hooks) (da 'da-print-hook))))))
 
 (define (repl-exec-command cmd argstr op)
   (define args
@@ -2773,14 +2850,15 @@
          (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
       [(load <string>) (load (car args))]
       [(im * ...) (repl-import args op)]
-      [(tr * ...) (repl-trace op (quote trace) "tr" args)]
-      [(untr * ...) (repl-trace op (quote untrace) "untr" args)]
+      [(tr * ...) (repl-trace op #t "tr" args)]
+      [(untr * ...) (repl-trace op #f "untr" args)]
       [(ap) (repl-apropos op args)]
       [(ap *) (repl-apropos op args)]
       [(pp) (repl-pretty-print op args)]
       [(pp *) (repl-pretty-print op args)]
       [(da) (repl-disasm op args)]
       [(da *) (repl-disasm op args)]
+      [(db) (debug)]
       [(v)  (set! *verbose* #t) (format #t "verbosity is on~%")]
       [(v-) (set! *verbose* #f) (format #t "verbosity is off~%")]
       [(q)  (set! *quiet* #t) (format #t "quiet is on~%")]
@@ -2808,6 +2886,7 @@
        (display " ,ap <name>          list names containing <name>, fetching (skint apropos)\n" op)
        (display " ,pp <expr>          pretty-print <expr>, fetching (skint print)\n" op)
        (display " ,da <proc>          disassemble <proc>, fetching (skint disasm)\n" op)
+       (display " ,db                 debug the last error, fetching (skint debug)\n" op)
        (display " ,q                  quiet: disable informational messages\n" op)
        (display " ,q-                 enable informational messages\n" op)
        (display " ,v                  turn verbosity on\n" op)
@@ -2827,8 +2906,9 @@
        (display " ,sh <cmdline>       send <cmdline> to local shell\n" op)
        (display " ,si                 display system info\n" op)
        (display " ,gc                 force gc to finalize lost objects\n" op)
-       (display " ,help               this help\n" op)]
+       (display " ,help               this help (aliases: ,h ,?)\n" op)]
       [(h) (retry '(help))]
+      [(?) (retry '(help))]
       [else
        (display "syntax error in repl command\n" op)
        (display "type ,help to see available commands\n" op)])))
@@ -2839,25 +2919,39 @@
           [(error-object? err)
            (let ([p (current-error-port)])
             (display (error-object-message err) p) (newline p)
-            (for-each (lambda (arg) (write arg p) (newline p)) 
-              (error-object-irritants err)))
+            (for-each (lambda (arg) (write-irritant arg p) (newline p)) 
+              (error-object-irritants err))
+            (print-debugger-hint p))
            (when (read-error? err) (clear-input-port ip)) ; don't get stuck!
            (set-current-file-stack! cfs) 
+           (%gc) ; to close lost ports
+           (when prompt (repl-from-port ip env prompt op))]
+          [(failure-object? err)
+           (let ([p (current-error-port)]) (print-failure err p) (print-debugger-hint p))
+           (set-current-file-stack! cfs)
            (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))]
           [else 
            (let ([p (current-error-port)])
              (display "Unknown error:" p) (newline p)
-             (write err p) (newline p))
+             (write err p) (newline p)
+             (print-debugger-hint p))
            (set-current-file-stack! cfs)
            (%gc) ; to close lost ports
            (when prompt (repl-from-port ip env prompt op))])
-    (let loop ([x (repl-read ip prompt op)])
-      (unless (eof-object? x)
-        (if (and prompt (sexp-match? '(unquote *) x))
-            (repl-exec-command (cadr x) (read-line ip) op)
-            (repl-evaluate-top-form x env op))
-        (loop (repl-read ip prompt op))))))
+    ; note the error while the raising stack is still standing: by the time a guard
+    ; clause runs it has been abandoned, and the continuation with it. The handler
+    ; only records and declines, so the guard above still does the reporting.
+    (with-exception-handler
+      (lambda (e) (note-error! e) (raise e))
+      (lambda ()
+        (let loop ([x (repl-read ip prompt op)])
+          (unless (eof-object? x)
+            (if (and prompt (sexp-match? '(unquote *) x))
+                (repl-exec-command (cadr x) (read-line ip) op)
+                (begin (repl-evaluate-top-form x env op)
+                       (clear-last-error!)))
+            (loop (repl-read ip prompt op))))))))
 
 (define (run-benchmark fname args) ; for debug purposes only
   (define ip (open-input-file fname))
@@ -2872,21 +2966,58 @@
   (close-input-port ip))
 
 (define *repl-first-time* #t)
+; set by run-script and run-program. The kernel re-enters `repl` after a vm
+; failure that had to unwind; in a batch run that must exit instead of prompting,
+; and (reset) is what knows how.
+(define *batch-mode?* #f)
+
+; The debugger is loaded on demand, the first time ,db is used. The startup
+; code below decides whether it is worth offering at all by looking for the library
+; on the search path; this is the procedure that acts on that, and it replaces itself
+; with the real debugger by way of the library's own initialisation.
+(define (autoload-debugger . args)
+  (cond
+    [(not (find-library-path '(skint debug)))
+     ; the path search at startup said yes and now says no, or was never run
+     (set-debugger-available! #f)
+     (repl-missing-library '(skint debug))]
+    [else
+     (repl-library '(skint debug))
+     (cond
+       [(eq? (current-debugger) autoload-debugger)
+        ; it loaded but installed nothing, so there is no debugger after all
+        (set-debugger-available! #f)
+        (apply %no-debugger args)]
+       [else (apply (current-debugger) args)])]))
 
 (define (repl)
   (define ip (current-input-port))
   (define op (current-output-port))
   (define prompt (and (tty-port? ip) "skint] ")) 
+  (when *batch-mode?* (reset)) ; re-entered after a failure in a batch run
   (set-current-file-stack! '())
   (when *repl-first-time*
     (set! *repl-first-time* #f)
     (skint-main))
+  ; the search directories are settled now, so this is the moment to decide whether
+  ; a debugger can be offered; loading it later is what confirms the guess
+  (set-debugger-available! (find-library-path '(skint debug)))
+  (current-debugger autoload-debugger)
   ; capture cc to handle unhandled exceptions
-  (letcc k (set-reset-handler! k)
-    (repl-from-port ip repl-environment prompt op))
+  ; (reset) comes back HERE, not out of the interpreter: the continuation is
+  ; re-armed on each turn, so the loop survives any number of recoveries. Running
+  ; out of input leaves the letcc with #f and ends it.
+  (let loop ()
+    (when (letcc k
+            ; a thunk, not the bare continuation: (reset) passes no arguments, and
+            ; a continuation invoked with none yields zero values
+            (current-reset-handler (lambda () (k #t)))
+            (repl-from-port ip repl-environment prompt op)
+            #f)
+      (loop)))
   #t) ; exited normally via end-of-input
 
-(define (set-repl-handler! fn) (set! repl fn))
+; nothing replaces `repl` any more -- see *batch-mode?* above
 
 ;--------------------------------------------------------------------------------------------------
 ; Main
@@ -2907,7 +3038,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.8.2")
+(define *skint-version* "0.8.3")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")

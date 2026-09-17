@@ -15,9 +15,11 @@ obj cx_current_input;
 obj cx_current_output;
 obj cx_dynamic_state;
 obj cx_global_store;
+obj cx_failure_handler;
 obj cx_tansformers;
 obj cx_callmv_adapter_closure;
 obj cx_continuation_adapter_code;
+obj cx_failure_halt_closure;
 
 /* gc roots */
 static obj *globv[] = {
@@ -26,9 +28,11 @@ static obj *globv[] = {
   &cx_current_output,
   &cx_dynamic_state,
   &cx_global_store,
+  &cx_failure_handler,
   &cx_tansformers,
   &cx_callmv_adapter_closure,
   &cx_continuation_adapter_code,
+  &cx_failure_halt_closure,
 };
 
 static cxroot_t root = {
@@ -60,8 +64,10 @@ static obj *init_kernel_globals(obj *r, obj *sp, obj *hp)
   cx_current_input = bool_obj(0);
   cx_current_output = bool_obj(0);
   cx_current_error = bool_obj(0);
+  cx_failure_handler = bool_obj(0); /* #f until the scheme prelude installs one */
   cx_tansformers = null_obj();
   cx_continuation_adapter_code = bool_obj(0);
+  cx_failure_halt_closure = bool_obj(0); /* built by i.c alongside the adapter code */
   return hp;
 }
 

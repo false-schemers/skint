@@ -1194,31 +1194,79 @@
 
 (define (abort) (%abort))
 
-(define (reset) (%exit 1))
+; Recovering from an error: back to the top-level loop when there is one, out of
+; the interpreter with a failure code when there is not. The handler lives in a
+; parameter rather than in this variable, so that it obeys the usual dynamic
+; scoping -- a parameterize around some computation is undone when control leaves
+; it, by the same dynamic-wind machinery that unwinding to the top level runs.
+; Batch and program runs keep the default, which is why they exit rather than
+; dropping into a prompt.
+(define current-reset-handler (make-parameter (lambda () (%exit 1))))
 
-(define (set-reset-handler! fn) (set! reset fn))
+(define (reset) ((current-reset-handler)))
+
+; A failure is an error the vm itself detects -- not one signalled by calling
+; error, so it is deliberately not an error object and error-object? stays #f.
+;
+; Its object is shaped as an ordinary CONTINUATION: the same adapter code at 0,
+; the dynamic state at 1, and a stack image from 2 on -- so closure->vector and
+; anything that walks a continuation works on it unchanged. What sets it apart,
+; and what failure-object? tests for in constant time, is the return frame at
+; the top of that image: the vm's distinguished halt closure, so that calling
+; one resets cleanly rather than resuming a computation whose stack is dead.
+;
+; Reading from the END of the closure: [n-1] the return offset, [n-2] the halt
+; closure, [n-3] the message, [n-4] the irritant count, then that many
+; irritants, and everything below them is the stack of the failing computation.
+;
+; failure-object? is an instruction (i.h); it cannot be written here because the
+; two objects it compares against are vm globals.
+
+(define (failure-object-message x)
+  (closure-ref x (- (closure-length x) 3)))
+
+(define (failure-object-irritants x)
+  (let* ([n (closure-length x)] [k (closure-ref x (- n 4))])
+    (let loop ([i 0] [r '()])
+      (if (>= i k) r (loop (+ i 1) (cons (closure-ref x (- n 5 i)) r))))))
+
+; the message of a failure names the wanted type when there are irritants,
+; and is the whole message when there are none
+(define (failure-message-string msg args)
+  (if (null? args) msg (string-append "argument is not a " msg)))
+
+; irritants are written, except that writing a simple-failure object would dump the
+; whole captured stack, so it is abbreviated to its message and its irritants
+(define (write-irritant x p)
+  (cond [(failure-object? x)
+         (let ([args (failure-object-irritants x)])
+           (write-string "#<failure " p)
+           (write (failure-message-string (failure-object-message x) args) p)
+           (for-each (lambda (a) (write-char #\space p) (write a p)) args)
+           (write-char #\> p))]
+        [else (write x p)]))
 
 (define (print-error-message prefix args ep)
   (define (pr-where args ep)
     (when (pair? args) 
       (cond [(not (car args)) 
-             (write-string ":\n" ep)
+             (write-string ": " ep)
              (pr-msg (cdr args) ep)]
             [(symbol? (car args)) 
-             (write-string " in " ep) (write (car args) ep) (write-string ":\n" ep)
+             (write-string " in " ep) (write (car args) ep) (write-string ": " ep)
              (pr-msg (cdr args) ep)]
             [else 
-             (write-string ":\n" ep)
+             (write-string ": " ep)
              (pr-msg args ep)]))) 
   (define (pr-msg args ep)
     (when (pair? args) 
       (cond [(string? (car args))
              (display (car args) ep)
              (pr-rest (cdr args) ep)]
-            [else (pr-rest args ep)])))
+            [else (write-irritant (car args) ep) (pr-rest (cdr args) ep)])))
    (define (pr-rest args ep)
      (when (pair? args)
-       (write-char #\space ep) (write (car args) ep)
+       (write-char #\space ep) (write-irritant (car args) ep)
        (pr-rest (cdr args) ep)))
    (cond [(or (string? prefix) (symbol? prefix)) 
           (display prefix ep)]
@@ -1226,10 +1274,60 @@
    (pr-where args ep)
    (newline ep))
 
+
+;---------------------------------------------------------------------------------------------
+; Debugger hooks
+;---------------------------------------------------------------------------------------------
+
+; Nothing here changes behaviour until *debugger-available* is true, and only the
+; startup code in t.scm sets it -- once, after the library search directories are in
+; place and before the repl runs, by looking for (skint debug) on the path. The flag
+; is a prediction; loading the library confirms it by installing a real debugger.
+
+(define *debugger-available* #f)
+(define (set-debugger-available! x) (set! *debugger-available* (and x #t)))
+
+; What the last error left behind, for the debugger to work on: a failure object as
+; it stands, or (continuation . error-object) for an ordinary error, whose stack is
+; still live and has to be captured to be kept. Overwritten by each error, and
+; cleared after each successful top-level form.
+(define *last-error* #f)
+(define (set-last-error! x) (set! *last-error* x))
+(define (clear-last-error!) (set! *last-error* #f))
+
+; Replaced at startup by a version that can load the library, and by the library
+; itself once it is loaded.
+(define (%no-debugger . args)
+  (let ([ep (%current-error-port)])
+    (write-string "Error: (skint debug) library is not available" ep)
+    (newline ep))
+  (void))
+
+(define current-debugger (make-parameter %no-debugger))
+
+; what the ,db repl command runs; not a name at the prompt
+(define (debug) ((current-debugger) *last-error*))
+
+; Called by whatever is about to report an error, before it reports. Keeping the
+; continuation is the whole reason this runs at raise time rather than in the
+; reporter: by the time a guard clause runs, the erroring stack is gone.
+(define (note-error! obj)
+  (when *debugger-available*
+    (set-last-error!
+      (if (failure-object? obj)
+          obj
+          (cons (call-with-current-continuation (lambda (k) k)) obj)))))
+
+(define (print-debugger-hint ep)
+  (when *debugger-available*
+    (write-string "Type ,db to enter the debugger." ep)
+    (newline ep)))
+
 (define (simple-error . args)
   (let ([ep (%current-error-port)])
     (newline ep)
     (print-error-message "Error" args ep)
+    (print-debugger-hint ep)
     (reset)))
 
 (define (assertion-violation . args)
@@ -1248,16 +1346,38 @@
 (define (error msg . args)
   (raise (error-object #f msg args)))
 
+(define (print-failure obj ep)
+  (let ([msg (failure-object-message obj)]
+        [args (failure-object-irritants obj)])
+    (print-error-message "Failure"
+      (cons #f (cons (if (null? args)
+                         (failure-message-string msg args)
+                         (string-append (failure-message-string msg args) ":"))
+                     args))
+      ep)))
+
+; the shortcut around the exception mechanism, straight to printing and reset;
+; internal, not exposed to the user -- the sibling of simple-error
+(define (simple-failure obj)
+  (let ([ep (%current-error-port)])
+    (newline ep)
+    (print-failure obj ep)
+    (print-debugger-hint ep)
+    (reset)))
+
 (define current-exception-handler 
   (make-parameter
     (letrec 
       ([default-handler
         (case-lambda 
           [() default-handler] ; make this one its own parent 
-          [(obj) 
-           (if (error-object? obj)
-               (apply simple-error (error-object-kind obj) (error-object-message obj) (error-object-irritants obj)) 
-               (simple-error #f "unhandled exception" obj))])])
+          [(obj)
+           (note-error! obj)
+           (cond 
+              [(error-object? obj)
+               (apply simple-error (error-object-kind obj) (error-object-message obj) (error-object-irritants obj))]
+              [(failure-object? obj) (simple-failure obj)]
+              [else (simple-error #f "unhandled exception" obj)])])])
       default-handler)))
 
 (define (with-exception-handler handler thunk)
@@ -1270,6 +1390,28 @@
     (parameterize ([current-exception-handler (eh)])
       (eh obj)
       (raise (error-object 'raise "exception handler returned" (list eh obj))))))
+
+; From here on a vm failure is an ordinary raise.
+;
+; Between detecting a failure and reaching here the vm holds off calling this
+; again -- its recursion guard -- and installing a handler is what lifts the
+; hold. We lift it only AFTER handling is over, on the way out, which is why
+; the raise sits inside a dynamic-wind: control leaves this handler either by a
+; guard escaping to its own continuation or by the reporting path reaching
+; reset, and the after thunk covers both.
+;
+; It used to re-arm BEFORE the raise, which left the reporting path itself
+; unprotected: a failure raised while reporting a failure re-entered here
+; forever, snapshotting the whole stack each time. Now a failure in the
+; reporting path finds the guard still up and takes the vm's own fallback --
+; a plain message and an unwind -- and the next top-level run re-arms.
+(define (%default-failure-handler obj)
+  (dynamic-wind
+    (lambda () #f)
+    (lambda () (raise obj))
+    (lambda () (%set-failure-handler! %default-failure-handler))))
+
+(%set-failure-handler! %default-failure-handler)
 
 (define (raise-continuable obj)
   (let ([eh (current-exception-handler)])
@@ -1391,6 +1533,19 @@
 (define (port? x) (fixnum? (%port? x)))
 (define (textual-port? x) (eqv? (%port? x 4) 0))
 (define (binary-port? x) (eqv? (%port? x 4) 4))
+
+(define %current-failure-handler-parameter
+  (case-lambda 
+    [() (%failure-handler)]
+    [(p) (%set-failure-handler! p)]
+    [(p s) (if s (%set-failure-handler! p) p)]))
+
+(define-syntax current-failure-handler
+  (syntax-rules ()
+    [(_) (%failure-handler)]
+    [(_ p) (%set-failure-handler! p)]
+    [(_ . r) (%current-failure-handler-parameter . r)]
+    [_ %current-failure-handler-parameter]))
 
 (define %current-input-port-parameter
   (case-lambda 

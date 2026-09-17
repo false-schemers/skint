@@ -14,6 +14,8 @@ extern obj cx_callmv_adapter_closure;
 extern obj cx_current_input;
 extern obj cx_current_output;
 extern obj cx_current_error;
+extern obj cx_failure_handler;
+extern obj cx_failure_halt_closure;
 
 /* forwards */
 static struct intgtab_entry *lookup_integrable(int sym);
@@ -240,6 +242,8 @@ typedef obj* regcall (*ins_t)(IPARAMS);
 
 
 /* defining instruction helpers */
+#define declare_instrhelper(name) \
+  static outofline obj* regcall nochecks name(IPARAMS)
 #define define_instrhelper(name) \
   static outofline obj* regcall nochecks name(IPARAMS)
 
@@ -261,6 +265,13 @@ typedef obj* regcall (*ins_t)(IPARAMS);
 /* protects registers from r to sp, in: ra=closure, out: ra=result;
  * note: the vm runs on its own stack, so anything the caller has
  * pushed above r + VM_REGC is lost here */
+/* Set while a failure is on its way to the scheme handler, so a failure
+ * raised by the handler itself falls back to reporting instead of recursing.
+ * Re-armed when a handler is installed and at the top of every vm run. */
+static int in_failure_handler = 0;
+declare_instrhelper(cxi_fail);
+declare_instrhelper(cxi_failactype);
+
 obj *vm_execute_thunk_closure(obj *r, obj *sp, obj *hp)
 {
   obj *ip;
@@ -269,6 +280,7 @@ obj *vm_execute_thunk_closure(obj *r, obj *sp, obj *hp)
 #endif
   assert(r == cxg_regs); /* the vm's stack is the register file's tail */
   assert(cxg_rend - cxg_regs >= VM_REGC + VM_STACK_LEN);
+  in_failure_handler = 0; /* a fresh top-level run re-arms the handler */
   rd = ra; /* thunk closure to execute */
   ra = fixnum_obj(0); /* argc, shadow ac */
   rx = fixnum_obj(0); /* shadow ip */
@@ -320,8 +332,53 @@ obj *vm_initialize_modules(obj *r, obj *sp, obj *hp)
 
 /* instructions for basic vm machinery */
 
+#define fail(msg) do { ac = (obj)msg; musttail return cxi_fail(IARGS); } while (0)
+#define failtype(x, msg) do { ac = (x); spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
+#define failactype(msg) do { spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
+
+/* why this frame is pushed, and guarded: see doc/internals/notes.md [3] */
+#define push_failing_frame() do {\
+    if (is_procedure(rd)) {\
+      obj _cv = procedure_ref(rd, 0);\
+      obj *_c0 = &vector_ref(_cv, 0);\
+      if (ip >= _c0 && ip <= _c0 + vector_len(_cv)) {\
+        spush(rd);\
+        spush(fixnum_obj(ip - _c0));\
+      }\
+    }\
+  } while (0)
+
+/* the failure object's shape and layout: see doc/internals/notes.md [2] */
+#define build_fail_object(msg) do {\
+    int _n;\
+    ac = hp_string_obj(newsdata(msg)); /* may collect */\
+    spush(ac);\
+    _n = (int)(sp - (r + VM_REGC));\
+    hp_reserve(procedure_bsz(_n + 4));\
+    *--hp = fixnum_obj(0);\
+    *--hp = cx_failure_halt_closure;\
+    hp -= _n; objcpy(hp, r + VM_REGC, _n);\
+    *--hp = cx_dynamic_state;\
+    *--hp = cx_continuation_adapter_code;\
+    ac = hend_procedure(_n + 4);\
+    sp = r + VM_REGC;\
+    spush(cx_failure_halt_closure);\
+    spush(fixnum_obj(0));\
+  } while (0)
+
 define_instrhelper(cxi_fail) { 
   char *msg = (char*)ac;
+  if (cx_failure_handler != bool_obj(0) && !in_failure_handler) {
+    in_failure_handler = 1;
+    push_failing_frame();
+    spush(fixnum_obj(0)); /* no irritants */
+    build_fail_object(msg);
+    spush(ac);
+    /* re-read the global: build_fail_object may have collected, and only the
+     * global is a gc root -- a C local caching it would now be stale */
+    rd = cx_failure_handler; rx = fixnum_obj(0); ac = fixnum_obj(1); /* argc */
+    callsubi();
+  }
   fprintf(stderr, "run-time failure: %s\n", msg);
   ac = void_obj(); /* so it is not printed by repl */
   unwindi(0); 
@@ -329,6 +386,17 @@ define_instrhelper(cxi_fail) {
 
 define_instrhelper(cxi_failactype) { 
   char *msg = (char*)spop(); obj p;
+  if (cx_failure_handler != bool_obj(0) && !in_failure_handler) {
+    in_failure_handler = 1;
+    push_failing_frame();
+    spush(ac); spush(fixnum_obj(1)); /* the offending object is the irritant */
+    build_fail_object(msg);
+    spush(ac);
+    /* re-read the global: build_fail_object may have collected, and only the
+     * global is a gc root -- a C local caching it would now be stale */
+    rd = cx_failure_handler; rx = fixnum_obj(0); ac = fixnum_obj(1); /* argc */
+    callsubi();
+  }
   fprintf(stderr, "run-time failure: argument is not a %s:\n", msg); 
   p = hp_oport_file_obj(stderr); spush(p);
   oportputcircular(ac, p, 0);
@@ -338,9 +406,6 @@ define_instrhelper(cxi_failactype) {
   unwindi(0); 
 }
 
-#define fail(msg) do { ac = (obj)msg; musttail return cxi_fail(IARGS); } while (0)
-#define failtype(x, msg) do { ac = (x); spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
-#define failactype(msg) do { spush((obj)msg); musttail return cxi_failactype(IARGS); } while (0) 
 
 #define ckp(x) do { obj _x = (x); if (unlikely(!is_pair(_x))) \
   { ac = _x; spush((obj)"pair"); musttail return cxi_failactype(IARGS); } } while (0)
@@ -3676,6 +3741,21 @@ define_instruction(setcerr) {
   ckw(ac);
   cx_current_error = ac;
   gonexti();
+}
+
+/* The procedure the vm hands a failure to, kept in a rooted global so the
+ * failure path can reach it without a store lookup. #f until the scheme
+ * prelude installs one, and #f again is how a handler is taken away. */
+define_instruction(cfh) {
+  ac = cx_failure_handler;
+  gonexti();
+}
+
+define_instruction(setcfh) {
+  if (ac != bool_obj(0)) ckx(ac);
+  in_failure_handler = 0;
+  cx_failure_handler = ac;
+  ac = void_obj();
   gonexti();
 }
 
@@ -4116,15 +4196,45 @@ define_instruction(ctov) {
   gonexti();
 }
 
-/* closure? => whether x is a heap-allocated vm closure, i.e. a block whose
- * cell 0 is a code vector. This is the thorough form of the test procedure?
- * makes: procedure? settles for any heap pointer in cell 0, which nothing but
- * a code vector can be, so the two agree on every object the vm builds. Kept
- * apart because it is the one that cannot be fooled by a hand-made block, and
- * because (skint disasm) reads closures and wants to be sure of one. */
+/* the thorough form of procedure?: see doc/internals/notes.md [6] */
 define_instruction(vmclop) {
   obj x = ac;
   ac = bool_obj(isobjptr(x) && is_vector(block_ref(x, 0)));
+  gonexti();
+}
+
+/* A failure object is a continuation in every respect except one: the return
+ * frame at the top of its stack image is the distinguished halt closure. That
+ * is what identifies it, exactly and in constant time -- no scanning, and no
+ * heuristic that user data at the top of a real continuation could satisfy. */
+define_instruction(failp) {
+  obj x = ac; int ok = 0;
+  if (is_procedure(x)) {
+    int n = procedure_len(x);
+    /* smallest possible: adapter, dynstate, count, message, halt, offset */
+    ok = (n >= 6)
+      && (procedure_ref(x, 0) == cx_continuation_adapter_code)
+      && (procedure_ref(x, n-2) == cx_failure_halt_closure);
+  }
+  ac = bool_obj(ok);
+  gonexti();
+}
+
+/* closure-length / closure-ref: closure->vector without copying the block.
+ * A failure object's stack image can be the whole vm stack, so the accessors
+ * must not copy it just to read the message off the end. */
+define_instruction(clolen) {
+  ckx(ac);
+  ac = fixnum_obj(procedure_len(ac));
+  gonexti();
+}
+
+define_instruction(cloref) {
+  obj x = spop(); int i;
+  ckx(ac); ckk(x);
+  i = get_fixnum(x);
+  if (i >= procedure_len(ac)) failtype(x, "valid closure index");
+  ac = procedure_ref(ac, i);
   gonexti();
 }
 
@@ -5614,6 +5724,14 @@ static obj *init_module(obj *r, obj *sp, obj *hp, const char **mod)
       if (!is_eof(ra)) hp = revlist2vec(r, sp, hp); /* ra => ra */
       assert(!is_eof(ra));
       cx_continuation_adapter_code = ra;
+      /* while we are here: the procedure a failure object carries as the return
+       * frame at the top of its stack image, so that invoking one halts cleanly
+       * instead of resuming a dead computation. Its code is a bare halt. */
+      hreserve(vector_bsz(1) + procedure_bsz(1), sp - r);
+      *--hp = glue(cx_ins_2D, halt);
+      ra = hend_vector(1);
+      *--hp = ra;
+      cx_failure_halt_closure = hend_procedure(1);
       continue;
     }
     /* skipped prefix or no prefix */
@@ -5693,34 +5811,12 @@ char *i_code[] = {
   "%1.0,,#0.0,&1{%1.0,yq~?{${.2d,:0^[01}.0ad,.1aa,y,.1,.3c,.1sa.3,.1sdf,."
   "4san,.4sd.3sy_1.0[30}]1}.!0.0^_1[11",
 
-  /* code for dynamic-wind's internal lambda is modified as follows:
-   * ,    save argc by pushing it on top of args in stack
-   * ${   push new frame for return from %dynamic-state-reroot!
-   * :0   get 'here' dynamic state from internal lambda's display
-   * ,    put it on the stack for dynamic-state-reroot!
-   * @(y22:%25dynamic-state-reroot!) get the d-s-r! procedure
-   * [01  call it with 1 argument ('here' dynamic state)
-   * }    we will return here when d-s-r! is finished 
-   * _!   pop saved argc from stack into ac register
-   * K6   use sdmv opcode to return args from the lambda
-   * also, %x procedure checks inserted for early error detection
-  */
+  /* bytecode explained: see doc/internals/notes.md [4] */
   "P", "dynamic-wind",
   "%3y,${.2,.6%x,.5%xcc,@(y22:%25dynamic-state-reroot!)[01}.0,&1{,${:0,@("
   "y22:%25dynamic-state-reroot!)[01}_!K6},.3,@(y16:call-with-values)[42",
 
-  /* code for the continuation adapter:
-   * k!   first attempt; does not return if nothing to un/re-wind
-   * ,    save argc by pushing it on top of args in stack
-   * ${   push new frame for return from %dynamic-state-reroot!
-   * :0   get old dynamic state from continuation's display
-   * ,    put it on the stack for dynamic-state-reroot!
-   * @(y22:%25dynamic-state-reroot!) get the d-s-r! procedure
-   * [01  call it with 1 argument (old dynamic state)
-   * }    we will return here when d-s-r! is finished 
-   * _!   pop saved argc from stack; we are ready to retry
-   * k!   retry; should not return this time
-   * %%   signal an (argument?) error if we return ?? */
+  /* bytecode explained: see doc/internals/notes.md [5] */
   "K", 0, 
   "k!,${:0,@(y22:%25dynamic-state-reroot!)[01}_!k!%%",
 

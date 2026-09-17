@@ -598,24 +598,75 @@ char *s_code[] = {
   "P", "abort",
   "%0tZ8]0",
 
-  "P", "reset",
-  "%0'1Z9]0",
+  "C", 0,
+  "${&0{%0'1Z9]0},@(y14:make-parameter)[01}@!(y21:current-reset-handler)",
 
-  "P", "set-reset-handler!",
-  "%1.0@!(y5:reset)]1",
+  "P", "reset",
+  "%0${@(y21:current-reset-handler)[00}[00",
+
+  "P", "failure-object-message",
+  "%1'3,.1Ul-,.1Ur]1",
+
+  "P", "failure-object-irritants",
+  "%1.0Ul,'4,.1-,.2Ur,n,'0,,#0.4,.6,.2,.6,&4{%2:0,.1<!?{.1]2}.1,.1,'5,:3-"
+  "-,:2Urc,'1,.2+,:1^[22}.!0.0^_1[32",
+
+  "P", "failure-message-string",
+  "%2.1u?{.0]2}.0,'(s18:argument is not a ),Sa2]2",
+
+  "P", "write-irritant",
+  "%2.0Uf?{${.2,@(y24:failure-object-irritants)[01},${.4,'(s10:#<failure "
+  "),@(y12:write-string)[02}.2,${.3,${.7,@(y22:failure-object-message)[01"
+  "},@(y22:failure-message-string)[02}W5${.2,.5,&1{%1:0,'(c )W0:0,.1W5]1}"
+  ",@(y10:%25for-each1)[02}.2,'(c>)W0]3}.1,.1W5]2",
 
   "P", "print-error-message",
-  "%3,,,#0#1#2.1,&1{%2.0p?{.0a~?{${.3,'(s2::%0a),@(y12:write-string)[02}."
-  "1,.1d,:0^[22}.0aY0?{${.3,'(s4: in ),@(y12:write-string)[02}.1,.1aW5${."
-  "3,'(s2::%0a),@(y12:write-string)[02}.1,.1d,:0^[22}${.3,'(s2::%0a),@(y1"
-  "2:write-string)[02}.1,.1,:0^[22}]2}.!0.2,&1{%2.0p?{.0aS0?{.1,.1aW4.1,."
-  "1d,:0^[22}.1,.1,:0^[22}]2}.!1.2,&1{%2.0p?{.1,'(c )W0.1,.1aW5.1,.1d,:0^"
-  "[22}]2}.!2.3S0,.0?{.0}{.4Y0}_1?{.5,.4W4}{${.7,'(s5:Error),@(y12:write-"
-  "string)[02}}${.7,.7,.4^[02}.5W6]6",
+  "%3,,,#0#1#2.1,&1{%2.0p?{.0a~?{${.3,'(s2:: ),@(y12:write-string)[02}.1,"
+  ".1d,:0^[22}.0aY0?{${.3,'(s4: in ),@(y12:write-string)[02}.1,.1aW5${.3,"
+  "'(s2:: ),@(y12:write-string)[02}.1,.1d,:0^[22}${.3,'(s2:: ),@(y12:writ"
+  "e-string)[02}.1,.1,:0^[22}]2}.!0.2,&1{%2.0p?{.0aS0?{.1,.1aW4.1,.1d,:0^"
+  "[22}${.3,.3a,@(y14:write-irritant)[02}.1,.1d,:0^[22}]2}.!1.2,&1{%2.0p?"
+  "{.1,'(c )W0${.3,.3a,@(y14:write-irritant)[02}.1,.1d,:0^[22}]2}.!2.3S0,"
+  ".0?{.0}{.4Y0}_1?{.5,.4W4}{${.7,'(s5:Error),@(y12:write-string)[02}}${."
+  "7,.7,.4^[02}.5W6]6",
+
+  "C", 0,
+  "f@!(y20:*debugger-available*)",
+
+  "P", "set-debugger-available!",
+  "%1.0?{t}{f}@!(y20:*debugger-available*)]1",
+
+  "C", 0,
+  "f@!(y12:*last-error*)",
+
+  "P", "set-last-error!",
+  "%1.0@!(y12:*last-error*)]1",
+
+  "P", "clear-last-error!",
+  "%0f@!(y12:*last-error*)]0",
+
+  "P", "%no-debugger",
+  "%!0Pe,${.2,'(s45:Error: (skint debug) library is not available),@(y12:"
+  "write-string)[02}.0W6_1Y9]1",
+
+  "C", 0,
+  "${@(y12:%25no-debugger),@(y14:make-parameter)[01}@!(y16:current-debugg"
+  "er)",
+
+  "P", "debug",
+  "%0@(y12:*last-error*),${@(y16:current-debugger)[00}[01",
+
+  "P", "note-error!",
+  "%1@(y20:*debugger-available*)?{.0Uf?{.0}{.0,${k0,.0,.0_1_3}c},@(y15:se"
+  "t-last-error!)[11}]1",
+
+  "P", "print-debugger-hint",
+  "%1@(y20:*debugger-available*)?{${.2,'(s31:Type ,db to enter the debugg"
+  "er.),@(y12:write-string)[02}.0W6]1}]1",
 
   "P", "simple-error",
-  "%!0Pe,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}@(y5:reset"
-  ")[20",
+  "%!0Pe,.0W6${.2,.4,'(s5:Error),@(y19:print-error-message)[03}${.2,@(y19"
+  ":print-debugger-hint)[01}@(y5:reset)[20",
 
   "P", "assertion-violation",
   "%!0Pe,.0W6${.2,.4,'(s19:Assertion violation),@(y19:print-error-message"
@@ -643,13 +694,23 @@ char *s_code[] = {
   "P", "error",
   "%!1${.2,.4,f,@(y12:error-object)[03},@(y5:raise)[21",
 
+  "P", "print-failure",
+  "%2${.2,@(y24:failure-object-irritants)[01},${.3,@(y22:failure-object-m"
+  "essage)[01},.3,.2,.3u?{${.5,.5,@(y22:failure-message-string)[02}}{'(s1"
+  "::),${.6,.6,@(y22:failure-message-string)[02},Sa2}c,fc,'(s7:Failure),@"
+  "(y19:print-error-message)[43",
+
+  "P", "simple-failure",
+  "%1Pe,.0W6${.2,.4,@(y13:print-failure)[02}${.2,@(y19:print-debugger-hin"
+  "t)[01}@(y5:reset)[20",
+
   "C", 0,
-  "${,#0&0{%1${.2,@(y13:error-object?)[01}?{${.2,@(y22:error-object-irrit"
-  "ants)[01},${.3,@(y20:error-object-message)[01}c,${.3,@(y17:error-objec"
-  "t-kind)[01}c,@(y12:simple-error),@(y13:apply-to-list)[12}.0,'(s19:unha"
-  "ndled exception),f,@(y12:simple-error)[13}%x,.1,&1{%0:0^]0}%x,&2{|00|1"
-  "1%%}.!0.0^_1,@(y14:make-parameter)[01}@!(y25:current-exception-handler"
-  ")",
+  "${,#0&0{%1${.2,@(y11:note-error!)[01}${.2,@(y13:error-object?)[01}?{${"
+  ".2,@(y22:error-object-irritants)[01},${.3,@(y20:error-object-message)["
+  "01}c,${.3,@(y17:error-object-kind)[01}c,@(y12:simple-error),@(y13:appl"
+  "y-to-list)[12}.0Uf?{.0,@(y14:simple-failure)[11}.0,'(s19:unhandled exc"
+  "eption),f,@(y12:simple-error)[13}%x,.1,&1{%0:0^]0}%x,&2{|00|11%%}.!0.0"
+  "^_1,@(y14:make-parameter)[01}@!(y25:current-exception-handler)",
 
   "P", "with-exception-handler",
   "%2${@(y25:current-exception-handler)[00},@(y25:current-exception-handl"
@@ -663,6 +724,13 @@ char *s_code[] = {
   "0,:1[01}${:0,:1,l2,'(s26:exception handler returned),'(y5:raise),@(y12"
   ":error-object)[03},@(y5:raise)[01},.3,.5,&2{%0t,:1,:0[02},@(y12:dynami"
   "c-wind)[53",
+
+  "P", "%default-failure-handler",
+  "%1&0{%0@(y24:%25default-failure-handler)Zv]0},.1,&1{%0:0,@(y5:raise)[0"
+  "1},&0{%0f]0},@(y12:dynamic-wind)[13",
+
+  "C", 0,
+  "@(y24:%25default-failure-handler)Zv",
 
   "P", "raise-continuable",
   "%1${@(y25:current-exception-handler)[00},@(y25:current-exception-handl"
@@ -723,6 +791,16 @@ char *s_code[] = {
 
   "P", "binary-port?",
   "%1'4,'4,.2Ppv]1",
+
+  "C", 0,
+  "&0{%2.1?{.0Zv]2}.0]2}%x,&0{%1.0Zv]1}%x,&0{%0Zr]0}%x,&3{|00|11|22%%}@!("
+  "y34:%25current-failure-handler-parameter)",
+
+  "S", "current-failure-handler",
+  "l6:y12:syntax-rules;n;l2:l1:y1:_;;l1:y16:%25failure-handler;;;l2:l2:y1"
+  ":_;y1:p;;l2:y21:%25set-failure-handler!;y1:p;;;l2:py1:_;y1:r;;py34:%25"
+  "current-failure-handler-parameter;y1:r;;;l2:y1:_;y34:%25current-failur"
+  "e-handler-parameter;;",
 
   "C", 0,
   "&0{%2.1?{.0Psi]2}.0]2}%x,&0{%1.0Psi]1}%x,&0{%0Pi]0}%x,&3{|00|11|22%%}@"

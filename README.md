@@ -131,6 +131,8 @@ Here are some details on SKINT's interactive Read-Eval-Print-Loop (REPL) and eva
   *  both `import` and `define-library` forms can be entered interactively into REPL
   *  REPL supports single-line “comma-commands” — type `,help` for a full list,
      or see [doc/repl-commands.md](doc/repl-commands.md)
+  *  documentation is under [doc/](doc/README.md): the [`(skint ...)` libraries](doc/skint/README.md)
+     for users, and [internals](doc/internals/README.md) for people working on the interpreter
   *  on Un*x-like systems, interactive use of SKINT with line editing requires external readline wrapper
      such as [rlwrap](https://github.com/hanslub42/rlwrap) (unless compiled with the `OPT_ENHTTY` / `--use-enhanced-tty option`) 
   

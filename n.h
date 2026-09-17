@@ -217,15 +217,6 @@ typedef int bool_t;
 #define is_bool(o) (!((o) & ~(obj)1))
 #define bool_obj(b) ((b) ? mkimm(0, TRUE_ITAG) : 0)
 
-/* void */
-#define VOID_ITAG 1
-#define void_obj() mkimm(0, VOID_ITAG)
-#define is_void(o) ((o) == mkimm(0, VOID_ITAG))
-
-/* unit */
-#define unit_obj() (obj_from_size(0x6DF6F577))
-#define is_unit(o) ((o) == unit_obj())
-
 /* numbers */
 #define FIXNUM_WIDTH 30
 #define FIXNUM_MASK 0x3FFFFFFF
@@ -522,17 +513,8 @@ extern const int *symsdata(int sym);
 #define record_len(r) typed_len(r)
 #define record_ref(r, i) *typed_ref(r, i)
 
-/* procedures (vm closures) -- a block with a pointer to its code vector in
- * cell 0. No other block kind can look like that: tuples, vectors, boxes and
- * pairs keep a size immediate in cell 0 and records a symbol immediate, while
- * a native keeps a type pointer in its header word and its payload pointer,
- * which lies outside the heap, in cell 0. So the quick test reads cell 0 and
- * needs no header or size check of its own; the debug versions in n.c return
- * the same answers and assert the whole convention on the way.
- * NB: the quick isprocedure is a macro rather than a static function because
- * it sits in every call instruction, where the extra inlining step costs the
- * register allocator six instructions a call; it evaluates o twice, so pass
- * it a variable, as every caller does. */
+/* procedures (vm closures): recognised by cell 0 alone, and why is_procedure
+ * must stay a macro -- see doc/internals/notes.md [1] */
 #ifdef NDEBUG
    #define is_procedure(o) (isobjptr(o) && isobjptr(block_ref(o, 0)))
    #define procedure_len(o) block_len(o)
@@ -583,6 +565,16 @@ extern const int *symsdata(int sym);
 #else
 #define is_number(o) (is_fixnum(o) || is_flonum(o))
 #endif
+
+/* void: the value of an expression that has nothing to return */
+#define VOID_ITAG 5
+#define void_obj() mkimm(0, VOID_ITAG)
+#define is_void(o) ((o) == mkimm(0, VOID_ITAG))
+
+/* unit: what (values) with no values becomes in a single-value context */
+#define UNIT_ITAG 6
+#define unit_obj() mkimm(0, UNIT_ITAG)
+#define is_unit(o) ((o) == mkimm(0, UNIT_ITAG))
 
 /* eof */
 #define EOF_ITAG 7

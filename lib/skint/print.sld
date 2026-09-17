@@ -22,7 +22,16 @@
           print-length
           print-level
           print-indent
-          print-brackets)
+          print-brackets
+          print-cursor
+          print-hooks)
+
+  ; hooks for nonstandard data
+  (export add-print-hook
+          rmac-print-hook
+          glist-print-hook
+          bvec-print-hook
+          atom-print-hook)
 
 (begin
 
@@ -76,6 +85,13 @@
 ; print r6rs-style square brackets if printing code
 (define print-brackets (make-parameter #f cv-boolean))
 
+; #f, or a pair: adds a left column holding > on each line where that pair
+; starts printing, and a space elsewhere; for showing the subexpression being run
+(define (cv-cursor x)
+  (if (or (not x) (pair? x)) x
+      (error "invalid value for print-cursor" x)))
+(define print-cursor (make-parameter #f cv-cursor))
+
 ; interface to formatting style registry
 (define (pretty-style sym . args)
   (let ([tab (print-styles)])
@@ -85,8 +101,14 @@
           (table-set! tab sym (car args))
           #f)))) 
 
-; predicate-based hooks for nonstandard data
-(define print-hooks (make-parameter '()))
+; predicate-based hooks for nonstandard data: a list of (pred . hook-or-#f)
+(define (cv-hooks x)
+  (if (let ok? ([l x])
+        (or (null? l)
+            (and (pair? l) (pair? (car l)) (procedure? (caar l)) (ok? (cdr l)))))
+      x
+      (error "invalid value for print-hooks" x)))
+(define print-hooks (make-parameter '() cv-hooks))
 
 ; adding a hook to the explicit hook registry
 (define (add-print-hook hooks pred . opt-hook)
@@ -173,7 +195,7 @@
 ; instead of threading them through the code
 (define (pp sexp . rest)
   ; port is always distinguishable from a param procedure
-  (define-values (*port* kv*) 
+  (define-values (*out* kv*) 
     (if (and (pair? rest) (output-port? (car rest))) 
         (values (car rest) (cdr rest))
         ; if port is not given as optional, look for the kw
@@ -199,7 +221,15 @@
   (define *level*            (kval kv* print-level cv-level))
   (define *indent*           (kval kv* print-indent cv-indent))
   (define *code*             (kval kv* print-code cv-boolean))
-  (define *brackets*         (and *code* (kval kv* print-brackets cv-boolean)))
+  (define *cursor*           (kval kv* print-cursor cv-cursor))
+  (define *hooks*            (kval kv* print-hooks cv-hooks))
+  ; with a cursor, print-brackets puts the cursor form in brackets instead, data or code
+  (define *brackets*         (and *code* (not *cursor*) (kval kv* print-brackets cv-boolean)))
+  (define *cursor-brackets*  (and *cursor* (kval kv* print-brackets cv-boolean)))
+  ; the > column only when laying out over lines: a single line needs no pointer
+  (define *column*           (and *cursor* *indent* #t))
+  ; with a column, output is collected and prefixed with it at the end
+  (define *port*             (if *column* (open-output-string) *out*))
   (define *tab*              1)
   (define *alt-tab*          5)
   (define *miser-width*      #f)
@@ -263,12 +293,17 @@
           [else (newline *port*)
                 (do ([i 0 (+ i 1)]) [(>= i ind)] 
                   (write-char #\space *port*))]))
-  (define (emit-lpar) (write-char #\( *port*))
-  (define (emit-rpar) (write-char #\) *port*))
-  (define (emit-lbra) (write-char (if *brackets* #\[ #\() *port*))
-  (define (emit-rbra) (write-char (if *brackets* #\] #\)) *port*))
+  ; delimiters of pair x: brackets for binding lists, or for the cursor form alone
+  (define (bracket? x) (and *cursor-brackets* (cursor-at? x)))
+  (define (emit-lpar x) (write-char (if (bracket? x) #\[ #\() *port*))
+  (define (emit-rpar x) (write-char (if (bracket? x) #\] #\)) *port*))
+  (define (emit-lbra x) (write-char (if (or *brackets* (bracket? x)) #\[ #\() *port*))
+  (define (emit-rbra x) (write-char (if (or *brackets* (bracket? x)) #\] #\)) *port*))
+  (define (emit-lpfx pfx x) (emit (if (and (string=? pfx "(") (bracket? x)) "[" pfx)))
+  (define (emit-rsfx sfx x) (emit (if (and (string=? sfx ")") (bracket? x)) "]" sfx)))
   (define (emit-cuti) (display *length-stub* *port*))
-  (define print-cutd 
+  (define (print-cutd x bk?) (cursor-note! x) (print-cutd-shell x bk?))
+  (define print-cutd-shell
     (if (string? *level-stub*) ; CL-like model
         (lambda (x bk?) ; bk? is brackets flag, ignored
           (dispatch-on-type x
@@ -279,12 +314,12 @@
         ; Chez-like model: print "shell" of the object
         (lambda (x bk?) ; bk? is brackets flag
           (cond [(and bk? (pair? x))
-                 (emit-lbra) (emit-cuti) (emit-rbra)]
+                 (emit-lbra x) (emit-cuti) (emit-rbra x)]
                 [else (dispatch-on-type x
                         (lambda (pfx reff tomf) ; '...
                           (emit pfx) (emit-cuti))
                         (lambda (pfx tolf toxf sfx) ; (...)
-                          (emit pfx) (emit-cuti) (emit sfx))
+                          (emit-lpfx pfx x) (emit-cuti) (emit-rsfx sfx x))
                         (lambda (pfx lenf reff sfx) ; #u8(...)
                           (emit pfx) (emit-cuti) (emit sfx))
                         (lambda (sh? widf wrtf) ; atoms
@@ -293,7 +328,7 @@
   ; locating hooks and calling handlers
   ; 'normalizes' input objects to simplify and sync all phases
   (define (dispatch-on-type x retm retl retv reta)
-    (let loop ([al (print-hooks)])
+    (let loop ([al *hooks*])
       (cond [(null? al) ; dispatch on builtins
              ; the reader's abbreviations are for code: as data, (quote x) is
              ; printed as the list it is, which is what write does too
@@ -325,6 +360,19 @@
                    ; TODO: pre-check, this shouldn't happen! 
                    [else (error "invalid hook!")])))]
             [else (loop (cdr al))])))
+
+  ; print-cursor: where each printed occurrence of the cursor starts, as offsets
+  ; into the collected output; marking shared structure copies every pair above
+  ; a mark, so copies of the cursor made there are recognized as the cursor too
+  (define cursor-images '())
+  (define cursor-starts '())
+  (define (cursor-image x y) ; y stands for x in the marked copy
+    (when (and *cursor* (eq? x *cursor*)) (set! cursor-images (cons y cursor-images)))
+    y)
+  (define (cursor-at? x) (and *cursor* (or (eq? x *cursor*) (memq x cursor-images))))
+  (define (cursor-note! x)
+    (when (and *column* (cursor-at? x))
+      (set! cursor-starts (cons (string-length (get-output-string *port*)) cursor-starts))))
 
   ; graph sharing/cycles detection
   ; NB: if print-graph is off, print-circle determines if it is called with cycles-only? #t
@@ -419,7 +467,7 @@
                 (lambda (pfx reff tomf) ; read-macro
                   (if (cutd? v) x ; Caveat: no nesting below! 
                       (let* ([e (reff x)] [ne (rebuild e v)])
-                        (if (eq? e ne) x (tomf ne)))))
+                        (if (eq? e ne) x (cursor-image x (tomf ne))))))
                 (lambda (pfx tolf toxf sfx) ; list-like
                   (if (cutd? v) x
                       (let ([l (tolf x)]) ; beware: l could be eq x
@@ -428,7 +476,7 @@
                                    [t (let ([l (cdr l)] [v (step v)])
                                         (if (and (cuti? v) (pair? l))
                                              l (rebuild l v)))])
-                              (if (and (eq? h (car l)) (eq? t (cdr l))) x (toxf (cons h t))))))))
+                              (if (and (eq? h (car l)) (eq? t (cdr l))) x (cursor-image x (toxf (cons h t)))))))))
                 ; bytevector-like and atoms can't contain cycles!
                 (lambda (pfx lenf reff sfx) x)
                 (lambda (sh? widf wrtf) x)))
@@ -582,12 +630,12 @@
 
   (define (print-list-like x ind v pfx lst sfx)
     (let ([ind (fit-ind x ind v)])
-      (emit pfx)
+      (emit-lpfx pfx x)
       (let ([ind (ind+ ind (string-width pfx))] [v (nest v)])
         (if (vector? x) ; hack: fill-print vectors 
             (print*/fill lst ind v 0 print-datum print-datum)
             (print*/body lst ind v print-datum print-datum)))
-      (emit sfx)))
+      (emit-rsfx sfx x)))
   
   ; fill-style binary vector printing: saves verical space
   ; NB: adjacent closers may cause last-line overflow!
@@ -612,6 +660,7 @@
     (emit sfx))
 
   (define (print-datum x ind v)
+    (cursor-note! x)
     (cond [(shared-mark? x) (print-mark x ind v print-datum)]
           [(cutd? v) (print-cutd x #f)] ; no brackets w/o fmt!
           [else (dispatch-on-type x ;=>
@@ -627,7 +676,7 @@
   ; default list exp printer; precondition: x is a pair
   (define (print-app x ind v) 
     (let ([ind (fit-ind x ind v)])
-      (emit-lpar)
+      (emit-lpar x)
       (let ([ind (ind+ ind 1)] [v (nest v)])
         (if (and (symbol? (car x)) (pair? (cdr x))  (not (cuti? v)))
             (let ([oplen (atom-width (car x))])
@@ -639,21 +688,22 @@
                     print-exp print-exp)))
             (print*/fill x ind v (std-indent ind) 
               print-exp print-exp)))
-      (emit-rpar)))
+      (emit-rpar x)))
 
   ; clause printer, prin1 is used for the head
   (define (print-clause x ind v prin1)
+    (cursor-note! x)
     (let ([ind (fit-ind x ind v)])
       (cond [(shared-mark? x) (print-mark x ind v print-exp)]
             [(cutd? v) (print-cutd x #t)] ; brackets!
             [(and (list? x) (= (length x) 3) (eq? (cadr x) '=>)) ; (* => *)
-             (emit-lbra)
+             (emit-lbra x)
              (print*/fill x (ind+ ind 1) (nest v) 0 prin1 print-exp)
-             (emit-rbra)] 
+             (emit-rbra x)] 
             [(pair? x)
-             (emit-lbra)
+             (emit-lbra x)
              (print*/body x (ind+ ind 1) (nest v) prin1 print-exp)
-             (emit-rbra)]
+             (emit-rbra x)]
             [else (print-datum x ind v)])))
 
   (define (print-datum-clause x ind v) (print-clause x ind v print-datum))
@@ -662,16 +712,18 @@
   ; clause block printer, prin1 is used for each clause's head
   (define (print-clauses x ind v prin1)
     (define (print x ind v) (print-clause x ind v prin1))
+    (cursor-note! x)
     (let ([ind (fit-ind x ind v)])
       (cond [(shared-mark? x) (print-mark x ind v print-exp)]
             [(cutd? v) (print-cutd x #f)] ; no brackets!
             [(pair? x)
-             (emit-lpar)
+             (emit-lpar x)
              (print*/body x (ind+ ind 1) (nest v) print print)
-             (emit-rpar)]
+             (emit-rpar x)]
             [else (print-datum x ind v)])))
 
   (define (print-exp x ind v)
+    (cursor-note! x)
     (cond [(shared-mark? x) (print-mark x ind v print-exp)]
           [(cutd? v) (print-cutd x #f)] ; no brackets w/o fmt!
           [else (dispatch-on-type x ;=>
@@ -697,6 +749,7 @@
           [else (print-app x ind v)]))
  
   (define (print/fmt fmt x ind v) ; x is a pair, no cutd/mark
+    (cursor-note! x)
     (let ([ind (fit-ind x ind v)])
       (cond [(eq? fmt 'e) (print-exp x ind v)]
             [(memq fmt '(d i)) (print-datum x ind v)]
@@ -704,7 +757,7 @@
             [(eq? fmt 'ec) (print-clause x ind v print-exp)]
             [(eq? fmt 'ec*) (print-clauses x ind v print-exp)]
             [(eq? fmt 'dc*) (print-clauses x ind v print-datum)]
-            [else (emit-lpar) (print/fmt* x (ind+ ind 1) (nest v) fmt) (emit-rpar)])))
+            [else (emit-lpar x) (print/fmt* x (ind+ ind 1) (nest v) fmt) (emit-rpar x)])))
 
   ; print via atomic tail format
   ; if lst is atom, prints dot before it; v is env for lst head
@@ -778,12 +831,38 @@
                   (fitsi? e c v) ; need to bump c!
                   (ploop lst e v ind (ind+ ind roff) ind c fmt*))]))
 
+  ; print-cursor: copy the collected output to the real port, adding the extra
+  ; column; continuation lines get it after the base indent, so the column lines
+  ; up under the first line's, which starts wherever the caller left the port
+  (define (cursor-flush)
+    (define s (get-output-string *port*))
+    (define n (string-length s))
+    (define base (or *indent* 0))
+    (define (line-of pos)
+      (let loop ([i 0] [line 0])
+        (cond [(>= i pos) line]
+              [(char=? (string-ref s i) #\newline) (loop (+ i 1) (+ line 1))]
+              [else (loop (+ i 1) line)])))
+    (define marked (map line-of cursor-starts))
+    (let loop ([i 0] [line 0] [bol #t])
+      (when (< i n)
+        (cond [bol
+               (let skip ([i i] [k 0])
+                 (if (and (> line 0) (< k base) (< i n) (char=? (string-ref s i) #\space))
+                     (begin (write-char #\space *out*) (skip (+ i 1) (+ k 1)))
+                     (begin (write-char (if (memv line marked) #\> #\space) *out*)
+                            (loop i line #f))))]
+              [(char=? (string-ref s i) #\newline)
+               (write-char #\newline *out*) (loop (+ i 1) (+ line 1) #t)]
+              [else (write-char (string-ref s i) *out*) (loop (+ i 1) line #f)]))))
+
   (let* ([pg (if *graph* 2 (if *circle* 1 0))] 
          [x (if (> pg 0) (mark-shared sexp env (= pg 1)) sexp)])
     (cond [*code* (print-exp x *indent* env)]
           [else   (print-datum x *indent* env)])
     ; do not add newline if we are printing inline
-    (when *indent* (newline *port*))))
+    (when *indent* (newline *port*))
+    (when *column* (cursor-flush))))
 
 ; accepts a keyword-value list as last argument
 (define (pp* obj arg . args)

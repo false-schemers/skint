@@ -13,6 +13,7 @@ trace
 print
 apropos
 disasm
+debug
 ))
 
 (define *results* '())

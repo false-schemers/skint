@@ -13,9 +13,8 @@ the store files a location is that global's *global name*.
 
 ### The table
 
-The store is the value of the runtime variable `*globals*` — `cx__2Aglobals_2A` in C
-after name mangling. It is an ordinary Scheme vector used as a hash table with
-overflow lists:
+The store is a rooted kernel global, `cx_global_store` in `k.c`. It is an ordinary
+Scheme vector used as a hash table with overflow lists:
 
 ```
     *globals*: #( bucket bucket bucket ... )
@@ -76,8 +75,8 @@ same routine as the library names, with a symbol standing in for the library pat
 
 ```c
 uint64_t v = (uint64_t)ra; int i = (int)(v % base);
-obj p = isassv(ra, vectorref(cx__2Aglobals_2A, i));
-if (ispair(p)) ra = cdr(p);
+obj p = isassv(ra, vector_ref(cx_global_store, i));
+if (is_pair(p)) ra = pair_cdr(p);
 else { /* prepend (sym . #&sym) to *globals* */ ... }
 ```
 
