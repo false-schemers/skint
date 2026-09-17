@@ -50,17 +50,15 @@ static obj *init_kernel_globals(obj *r, obj *sp, obj *hp)
 {
   { /* (define *globals* (make-vector 991 '())) */
   obj o; int i = 0, c = 991;
-  hreserve(block_bsz(c+1), sp-r);
+  hreserve(vector_bsz(c), sp-r);
   o = null_obj(); /* gc-safe */
   while (i++ < c) *--hp = o;
-  *--hp = obj_from_size(VECTOR_BTAG);
-  cx_global_store = hend_block(c+1); }
+  cx_global_store = hend_vector(c); }
   { /* (define *dynamic-state* (cons #f '())) */
-  hreserve(block_bsz(3), sp-r);
+  hreserve(pair_bsz(), sp-r);
   *--hp = null_obj();
   *--hp = bool_obj(0);
-  *--hp = obj_from_size(PAIR_BTAG);
-  cx_dynamic_state = hend_block(3); }
+  cx_dynamic_state = hend_pair(); }
   cx_current_input = bool_obj(0);
   cx_current_output = bool_obj(0);
   cx_current_error = bool_obj(0);
