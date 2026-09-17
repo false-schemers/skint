@@ -291,6 +291,45 @@ A display entry that the code assigns holds a box rather than the value. `da`
 binds the box's contents, so what you see is the variable's value and not its
 cell.
 
+A display entry can hold any value, and a value with no written form that reads
+back, such as a procedure, is quoted as `write` shows it. That says little about
+which procedure it is, so this library has a hook for
+[(skint print)](print.md#hooks) that adds the name:
+
+`(da-print-hook obj)` → *hook* or `#f`
+
+A predicate for `add-print-hook`. For a procedure that `da-name` finds a name for,
+it answers a hook that prints the procedure as `write` does with that name added
+after `#<procedure`; for anything else it answers `#f`, leaving the object to the
+other entries. The rest of what is printed is `write`'s, and is no more stable than
+`write`'s is: the address in it can change even between two printings of the same
+procedure. Like `da-name`, it walks the store for each procedure it is asked about.
+
+```scheme
+(import (skint print))
+
+(define (twice x) (* 2 x))
+(define twice-car (let ([f twice] [g car]) (lambda (x) (f (g x)))))
+
+(pretty-print (da twice-car))
+(pretty-print (da twice-car)
+              print-hooks (add-print-hook (print-hooks) da-print-hook))
+```
+
+```scheme
+(let
+  ([:a '#<procedure @0x7f4e1a3c2e50>]
+   [:b '#<procedure @0x7f4e1a8d5ab8>])
+  (lambda (.a) (:a (:b .a))))
+(let
+  ([:a '#<procedure twice @0x7f4e1a3c2e50>]
+   [:b '#<procedure car @0x7f4e1a8d5ab8>])
+  (lambda (.a) (:a (:b .a))))
+```
+
+The name is the one `da-name` gives, so it follows `da-prune-globals`, below.
+The `,da` command at the REPL prints with this hook.
+
 ### case-lambda
 
 A `case-lambda` does not compile to one procedure with several arities. It

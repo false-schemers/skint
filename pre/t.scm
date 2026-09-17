@@ -2806,19 +2806,23 @@
                          (char=? (string-ref s (+ i 2)) #\/))
                     (loop (+ i 1))))))))
 
-; ,pp and ,da: pretty-print an expression, or the decompilation of a procedure
+; ,pp and ,da: pretty-print an expression, or the decompilation of a procedure;
+; ,da names the procedures in the decompilation, with (skint disasm)'s print hook
 (define (repl-pretty-print op args)
   (if (null? args)
       (display "no argument to pretty-print\n" op)
       ((repl-library-procedure '(skint print) 'pretty-print) (repl-value (car args)) op)))
 
 (define (repl-disasm op args)
+  (define (pr id) (repl-library-procedure '(skint print) id))
+  (define (da id) (repl-library-procedure '(skint disasm) id))
   (if (null? args)
       (display "no argument to disassemble\n" op)
       (let* ([x (car args)]
-             [form ((repl-library-procedure '(skint disasm) 'da)
-                    (if (repl-global-name? x) x (repl-value x)))])
-        ((repl-library-procedure '(skint print) 'pretty-print) form op))))
+             [form ((da 'da) (if (repl-global-name? x) x (repl-value x)))]
+             [hooks (pr 'print-hooks)])
+        ((pr 'pretty-print) form op
+         hooks ((pr 'add-print-hook) (hooks) (da 'da-print-hook))))))
 
 (define (repl-exec-command cmd argstr op)
   (define args

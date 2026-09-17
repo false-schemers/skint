@@ -1,16 +1,13 @@
-;; A SKETCH, not a finished library.  It exists to answer one question: can the
-;; stack captured in a failure object be walked and printed frame by frame?
-;;
-;; On load it installs a handler into the current-exception-handler parameter,
-;; keeping the previous value as the fall-back.  A failure object is walked and
-;; printed, then handed on to the fall-back so that reporting and reset happen
-;; as before; anything else goes straight to the fall-back.
+;; The debugger behind the ,db repl command: the stack an error left behind,
+;; walked frame by frame, each frame shown with the code it is running.  Loading
+;; the library installs it as current-debugger; see "The debugger" below.  It
+;; touches nothing else -- reporting and reset stay where they were.
 
 (define-library (skint debug)
 
   (import (scheme base) (scheme read) (scheme write) (scheme case-lambda) (scheme cxr))
   (import (skint print))
-  (import (only (skint disasm) da da-name da-prune-globals))
+  (import (only (skint disasm) da da-name da-print-hook da-prune-globals))
   (import (only (skint) 
            failure-object? failure-object-message current-debugger
            void failure-object-irritants))
@@ -146,9 +143,12 @@
 
 ;; values are printed with length and level capped at 3, so one deep or long
 ;; value cannot bury the trace; the code under a frame is printed whole, since
-;; cutting it could cut out the call it marks
+;; cutting it could cut out the call it marks.  Either way a procedure the store
+;; has a name for is printed with it: #<procedure car @0x...>.
 
-(define (put x port) (print x port print-length 3 print-level 3))
+(define (hooks) (add-print-hook (print-hooks) da-print-hook))
+
+(define (put x port) (print x port print-length 3 print-level 3 print-hooks (hooks)))
 
 (define print-failure-frames
   (case-lambda
@@ -217,7 +217,7 @@
                  (da (car f) (cadr f) (lambda (w) (set! where w))))])
     (and (pair? form) where
          (begin (display "     " port)
-                (pretty-print form port print-cursor where print-indent 5)
+                (pretty-print form port print-cursor where print-indent 5 print-hooks (hooks))
                 #t))))
 
 ;; ---------------------------------------------------------------------------

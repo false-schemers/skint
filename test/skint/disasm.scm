@@ -757,6 +757,51 @@
 (test '(#f . #f) (tracked da #t 0))
 (test #f (cdr (tracked da cur-sum #f)))
 
+(display "\n--- da-print-hook ---\n")
+
+(define (hooked obj)
+  (let ([p (open-output-string)])
+    (print obj p print-hooks (add-print-hook (print-hooks) da-print-hook))
+    (get-output-string p)))
+(define (written obj)
+  (let ([p (open-output-string)]) (write obj p) (get-output-string p)))
+(define (contains? s sub)
+  (let loop ([i 0])
+    (and (<= (+ i (string-length sub)) (string-length s))
+         (or (string=? sub (substring s i (+ i (string-length sub)))) (loop (+ i 1))))))
+(define (prefix? pfx s)
+  (and (<= (string-length pfx) (string-length s))
+       (string=? pfx (substring s 0 (string-length pfx)))))
+
+;; a named procedure gets its name after #<procedure, and keeps write's address
+(test-assert (prefix? "#<procedure car @" (hooked car)))
+(test (string-append "#<procedure car" (substring (written car) 11 (string-length (written car))))
+      (hooked car))
+(test-assert (prefix? "#<procedure da @" (hooked da)))
+(test-assert (prefix? "#<procedure box? @" (hooked box?)))
+;; the name is da-name's, so it follows da-prune-globals
+(test-assert (prefix? "#<procedure lib://skint/disasm?da @"
+                      (parameterize ([da-prune-globals #f]) (hooked da))))
+
+;; no name, or not a procedure: the hook declines and write's form stays
+;; (a procedure a global holds is named, so this one is kept in a list)
+(define anon-list (list (lambda (x) x)))
+(define (anon) (car anon-list))
+(test #f (da-print-hook (anon)))
+(test #f (da-print-hook 42))
+(test #f (da-print-hook 'car))
+(test (written (anon)) (hooked (anon)))
+(test "(1 \"s\" #(a))" (hooked '(1 "s" #(a))))
+
+;; inside a disassembly, where the procedures a closure holds are quoted
+(define holds-car (let ([c car] [i (anon)]) (lambda (x) (i (c x)))))
+(let ([s (let ([p (open-output-string)])
+           (pretty-print (da holds-car) p
+                         print-hooks (add-print-hook (print-hooks) da-print-hook))
+           (get-output-string p))])
+  (test-assert (contains? s "'#<procedure car @"))
+  (test-assert (contains? s "'#<procedure @")))
+
 (display "\n--- malformed input of the right type ---\n")
 
 ;; A vector that is not a code vector is the right type with the wrong contents.

@@ -23,7 +23,15 @@
           print-level
           print-indent
           print-brackets
-          print-cursor)
+          print-cursor
+          print-hooks)
+
+  ; hooks for nonstandard data
+  (export add-print-hook
+          rmac-print-hook
+          glist-print-hook
+          bvec-print-hook
+          atom-print-hook)
 
 (begin
 
@@ -93,8 +101,14 @@
           (table-set! tab sym (car args))
           #f)))) 
 
-; predicate-based hooks for nonstandard data
-(define print-hooks (make-parameter '()))
+; predicate-based hooks for nonstandard data: a list of (pred . hook-or-#f)
+(define (cv-hooks x)
+  (if (let ok? ([l x])
+        (or (null? l)
+            (and (pair? l) (pair? (car l)) (procedure? (caar l)) (ok? (cdr l)))))
+      x
+      (error "invalid value for print-hooks" x)))
+(define print-hooks (make-parameter '() cv-hooks))
 
 ; adding a hook to the explicit hook registry
 (define (add-print-hook hooks pred . opt-hook)
@@ -208,6 +222,7 @@
   (define *indent*           (kval kv* print-indent cv-indent))
   (define *code*             (kval kv* print-code cv-boolean))
   (define *cursor*           (kval kv* print-cursor cv-cursor))
+  (define *hooks*            (kval kv* print-hooks cv-hooks))
   ; with a cursor, print-brackets puts the cursor form in brackets instead, data or code
   (define *brackets*         (and *code* (not *cursor*) (kval kv* print-brackets cv-boolean)))
   (define *cursor-brackets*  (and *cursor* (kval kv* print-brackets cv-boolean)))
@@ -313,7 +328,7 @@
   ; locating hooks and calling handlers
   ; 'normalizes' input objects to simplify and sync all phases
   (define (dispatch-on-type x retm retl retv reta)
-    (let loop ([al (print-hooks)])
+    (let loop ([al *hooks*])
       (cond [(null? al) ; dispatch on builtins
              ; the reader's abbreviations are for code: as data, (quote x) is
              ; printed as the list it is, which is what write does too

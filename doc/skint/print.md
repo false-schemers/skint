@@ -114,6 +114,7 @@ prints `(let ((x 1)) x)` and not `(let ([x 1]) x)`.
 | `print-level` | `#f` or exact non-negative integer | `#f` | how deep to descend into nested structure |
 | `print-brackets` | boolean | `#f` | square brackets for binding lists, or with a cursor for the cursor form |
 | `print-cursor` | `#f` or a pair | `#f` | mark that pair: a left column when laid out over lines, brackets with `print-brackets` |
+| `print-hooks` | a hooks object, made by `add-print-hook` | the library's own entries | how to print data the printer does not know; see [Hooks](#hooks) |
 
 Setting one to a value outside its range is an error, signalled when the value is
 installed:
@@ -394,6 +395,82 @@ head, then its arguments packed onto as many lines as they need.
 The exact placement of line breaks within a style is heuristic and may change;
 what a style fixes is which elements are treated as bindings, clauses, or body,
 not the column each one lands in.
+
+### Hooks
+
+The printer knows how to lay out the standard kinds of data. Hooks tell it how to
+print anything else — a record, say — or how to print a standard kind differently.
+A hook is found by a predicate, and describes the object as one of four shapes the
+printer already knows how to lay out.
+
+`print-hooks` → *hooks*
+
+A parameter, set like the others; see [Parameters](#parameters). Its value is a
+*hooks* object: a sequence of entries, each a predicate with a hook. For each
+object it prints, the printer tries the predicates in order, before anything of
+its own, and the first that answers true decides: the object is printed as its
+hook says. An entry may have no hook of its own, and then the predicate's true
+value is the hook, so one predicate can pick among several.
+
+What a hooks object is made of is unspecified. The initial value holds the
+library's own entries, and a new one is made from an existing one with
+`add-print-hook`; it is an error to set `print-hooks` to anything else.
+
+`(add-print-hook hooks predicate)` → *hooks*
+<br>`(add-print-hook hooks predicate hook)` → *hooks*
+
+A hooks object like `hooks` with an entry for `predicate` and `hook`; without
+`hook`, the entry has no hook of its own. If `hooks` already has an entry for
+`predicate` (compared with `eqv?`), the new one takes its place; otherwise it goes
+first, ahead of every entry already there. `hooks` itself is not changed.
+
+```scheme
+(define-record-type point (make-point x y) point? (x point-x) (y point-y))
+
+(define point-hooks
+  (add-print-hook (print-hooks) point?
+    (glist-print-hook "#<point " (lambda (p) (list (point-x p) (point-y p)))
+                      (lambda (l) (make-point (car l) (cadr l))) ">")))
+
+(print (list (make-point 1 2) 3) print-hooks point-hooks)   ; prints (#<point 1 2> 3)
+(print (make-point 255 0) print-hooks point-hooks print-radix 16)
+                                                           ; prints #<point #xff #x0>
+```
+
+These make the hooks, one for each shape:
+
+`(atom-print-hook shared? width write)` → *hook*
+
+The object is printed whole, by `(write obj port)`; the printer does not look
+inside it. `(width obj)` answers how many columns the output takes, which layout
+uses to decide where lines break. With `shared?` true the object takes part in
+the marking of shared structure, as a string does, so with `print-graph` on a
+second occurrence is printed as a reference to the first.
+
+`(glist-print-hook prefix ->list list-> suffix)` → *hook*
+
+The object is printed as the string `prefix`, then the elements of
+`(->list obj)` the way a list's are printed, then `suffix`. The elements are
+printed by the printer, so every parameter applies to them, and they can contain
+anything, hooked objects included. `(list-> list)` makes an object of the same
+kind from a list of elements; the printer uses it when marking shared structure
+inside the object.
+
+`(rmac-print-hook prefix ref rebuild)` → *hook*
+
+The object is printed as the string `prefix` followed by the one datum
+`(ref obj)`, the way `'x` stands for `(quote x)`. `(rebuild datum)` makes an
+object of the same kind from a datum, for the same purpose as `list->` above.
+
+`(bvec-print-hook prefix length ref suffix)` → *hook*
+
+The object is printed as the string `prefix`, then `(ref obj i)` for each `i`
+below `(length obj)`, then `suffix`, the way a bytevector is. The elements are
+expected to be numbers or other objects with no parts; the object is marked as
+shared structure as a whole, and its elements never are.
+
+It is an error for a predicate or a hook's procedures to change the object being
+printed.
 
 ### Relation to the standard output procedures
 

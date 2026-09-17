@@ -155,6 +155,24 @@ make an expression out of what it was given —
 [doc/skint/disasm.md](skint/disasm.md) says what the answer means and how far to
 trust it.
 
+A value a procedure carries with it is shown as the value it is. Where that value
+is a procedure, `,da` adds the name the procedure has, if it has one; the rest,
+the address included, is what `write` shows, and can change from one printing to
+the next:
+
+```
+skint] (define (twice x) (* 2 x))
+skint] (define twice-car (let ([f twice] [g car]) (lambda (x) (f (g x)))))
+skint] ,da twice-car
+(let
+  ([:a '#<procedure twice @0x7f7926e59258>]
+   [:b '#<procedure car @0x7f7926e59268>])
+  (lambda (.a) (:a (:b .a))))
+```
+
+This is `pretty-print` with `da-print-hook` from `(skint disasm)` added to its
+hooks.
+
 *A global name may be written without quoting it.* Names in the global store
 have a `://` in them — `repl://?fact` for something you defined at the prompt,
 `lib://skint/disasm?da-global` for a library's — and `,da` quotes such a symbol
@@ -203,8 +221,10 @@ debug> e
 Each frame is one line: the procedure, by name where it has one, the place in its
 code where it stopped, and the values it was working with. Frame 0 is where the
 error happened and the rest are its callers, outermost last; the REPL's own
-frames are left out. The code of frame 0 is shown straight away, as `,da` would
-show it, with the expression each frame is stopped at in brackets and marked `>`:
+frames are left out. Values are cut short where they are long or deep, and a
+procedure among them is written with its name where it has one, as `,da` writes
+it. The code of frame 0 is shown straight away, as `,da` would show it, with the
+expression each frame is stopped at in brackets and marked `>`:
 the call a frame is waiting on, or the operation that failed. The other frames'
 code is shown on request, since a disassembly can be long:
 

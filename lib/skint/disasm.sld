@@ -4,7 +4,9 @@
   (import
     (scheme base)
     (scheme cxr)
+    (scheme write)
     (only (skint) box? unbox)
+    (only (skint print) atom-print-hook)
     (only (skint hidden)
       instruction-table
       deserialize-code
@@ -27,6 +29,7 @@
     da-core
     da-procedure
     da-name
+    da-print-hook
     da-global
     da-prune-globals
     da-void-for-empty-begin)
@@ -1867,6 +1870,23 @@
     (cond [(null? l) (and best (varname best))]
           [(or (not best) (better-name? (car l) best)) (loop (cdr l) (car l))]
           [else (loop (cdr l) best)])))
+
+;; A print hook for (skint print), to go into print-hooks with add-print-hook:
+;; a procedure the store files under a name is printed with that name, in the
+;; form write gives it -- #<procedure car @0x...> for #<procedure @0x...>.  The
+;; address comes from write, so it is only as stable as write's is.  A procedure
+;; with no name, and anything else, is left to the other hooks.
+(define (da-print-hook x)
+  (let ([n (and (procedure? x) (da-name x))])
+    (and n
+         (let* ([s (let ([p (open-output-string)]) (write x p) (get-output-string p))]
+                [k (string-length "#<procedure")]
+                [s (if (and (> (string-length s) k) (string=? (substring s 0 k) "#<procedure"))
+                       (string-append (substring s 0 k) " " (symbol->string n) (substring s k (string-length s)))
+                       s)])
+           (atom-print-hook #f
+             (lambda (x) (string-length s))
+             (lambda (x port) (write-string s port)))))))
 
 ;; --- whole procedures -------------------------------------------------------
 ;; A closure carries its free variables in a display.  Naming those :a :b ... in

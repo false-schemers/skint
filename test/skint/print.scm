@@ -1108,6 +1108,74 @@
 (test '() (cursor-faults guard-code 18 1))
 (test '() (cursor-faults sexp1 30 7))
 
+(display "\n--- print hooks ---\n")
+
+;; a record type the printer knows nothing about, for the hooks to print
+(define-record-type <pt> (make-pt x y) pt? (x pt-x) (y pt-y))
+
+(define (printed obj . kv)
+  (let ([p (open-output-string)])
+    (apply print obj p kv)
+    (get-output-string p)))
+
+;; an atom hook: the object is printed whole, by the hook's writer
+(define pt-atom
+  (add-print-hook (print-hooks) pt?
+    (atom-print-hook #f (lambda (x) 5) (lambda (x p) (write-string "#<pt>" p)))))
+(test "(#<pt> 1)" (printed (list (make-pt 1 2) 1) print-hooks pt-atom))
+(test "(#<pt> 1)" (parameterize ([print-hooks pt-atom]) (printed (list (make-pt 1 2) 1))))
+
+;; a list hook: the printer lays out the contents, so parameters apply to them
+(define pt-list
+  (add-print-hook (print-hooks) pt?
+    (glist-print-hook "#pt(" (lambda (x) (list (pt-x x) (pt-y x)))
+                      (lambda (l) (make-pt (car l) (cadr l))) ")")))
+(test "#pt(1 (a b))" (printed (make-pt 1 '(a b)) print-hooks pt-list))
+(test "#pt(#xff #x2)" (printed (make-pt 255 2) print-hooks pt-list print-radix 16))
+(test "#pt(1 ...)" (printed (make-pt 1 2) print-hooks pt-list print-length 1))
+(test "#pt(#0=(a) #0#)"
+      (let ([l (list 'a)]) (printed (make-pt l l) print-hooks pt-list print-graph #t)))
+
+;; a read-macro hook: a prefix and the one datum under it
+(define pt-rmac
+  (add-print-hook (print-hooks) pt?
+    (rmac-print-hook "#!" pt-x (lambda (x) (make-pt x #f)))))
+(test "#!(1 2)" (printed (make-pt '(1 2) #f) print-hooks pt-rmac))
+
+;; a binary-vector hook: a prefix, a length and an element reader
+(define pt-bvec
+  (add-print-hook (print-hooks) pt?
+    (bvec-print-hook "#p(" (lambda (x) 2)
+                     (lambda (x i) (if (= i 0) (pt-x x) (pt-y x))) ")")))
+(test "#p(#b1 #b10)" (printed (make-pt 1 2) print-hooks pt-bvec print-radix 2))
+
+;; with no hook given, the predicate's own true value is the hook
+(define pt-by-pred
+  (add-print-hook (print-hooks)
+    (lambda (x)
+      (and (pt? x)
+           (atom-print-hook #f (lambda (x) 4)
+             (lambda (x p) (write-string (if (pt-x x) "#<t>" "#<f>") p)))))))
+(test "(#<t> #<f>)" (printed (list (make-pt 1 2) (make-pt #f 2)) print-hooks pt-by-pred))
+
+;; a new entry goes ahead of the ones already there; one for a predicate already
+;; there takes that entry's place, so it stays behind entries added after it;
+;; and the hooks added to are left as they were
+(define (pt-named s)
+  (atom-print-hook #f (lambda (x) (string-length s)) (lambda (x p) (write-string s p))))
+(define (pt-too? x) (pt? x))
+(define pt-both (add-print-hook pt-atom pt-too? (pt-named "#<too>")))
+(test "#<too>" (printed (make-pt 1 2) print-hooks pt-both))
+(test "#<too>" (printed (make-pt 1 2) print-hooks (add-print-hook pt-both pt? (pt-named "#<new>"))))
+(test "#<new>" (printed (make-pt 1 2) print-hooks (add-print-hook pt-atom pt? (pt-named "#<new>"))))
+(test "#<pt>" (printed (make-pt 1 2) print-hooks pt-atom))
+
+;; outside a print call the hooks are not in force
+(test-assert (not (string=? (printed (make-pt 1 2)) "#<pt>")))
+
+;; print-hooks takes what add-print-hook makes
+(test-error (print 1 (open-output-string) print-hooks 5))
+
 (display "\n--- All tests complete. ---\n")
 
 (test-end)

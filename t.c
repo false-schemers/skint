@@ -1751,11 +1751,13 @@ char *t_code[] = {
   "-library-procedure)[02}[22",
 
   "P", "repl-disasm",
-  "%2.1u?{.0,'(s27:no argument to disassemble%0a)W4]2}.1a,${${.4,@(y17:re"
-  "pl-global-name?)[01}?{.2}{${.4,@(y10:repl-value)[01}},${'(y2:da),'(l2:"
-  "y5:skint;y6:disasm;),@(y22:repl-library-procedure)[02}[01},.2,.1,${'(y"
-  "12:pretty-print),'(l2:y5:skint;y5:print;),@(y22:repl-library-procedure"
-  ")[02}[42",
+  "%2,,#0#1&0{%1.0,'(l2:y5:skint;y5:print;),@(y22:repl-library-procedure)"
+  "[12}.!0&0{%1.0,'(l2:y5:skint;y6:disasm;),@(y22:repl-library-procedure)"
+  "[12}.!1.3u?{.2,'(s27:no argument to disassemble%0a)W4]4}.3a,${${.4,@(y"
+  "17:repl-global-name?)[01}?{.2}{${.4,@(y10:repl-value)[01}},${'(y2:da),"
+  ".8^[01}[01},${'(y11:print-hooks),.5^[01},${${'(y13:da-print-hook),.9^["
+  "01},${.5[00},${'(y14:add-print-hook),.(i10)^[01}[02},.1,.7,.4,${'(y12:"
+  "pretty-print),.(i10)^[01}[74",
 
   "P", "repl-exec-command",
   "%3,#0'(l3:y4:load;y2:cd;y2:sh;),.2A0?{${.4,@(y22:string-trim-whitespac"

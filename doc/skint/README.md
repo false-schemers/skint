@@ -40,6 +40,9 @@ libraries and the global store.
 [disasm.md](disasm.md) — *(skint disasm)*, reading compiled code back: bytecode, core
 forms, and the source-like rendering.
 
+[debug.md](debug.md) — *(skint debug)*, the stack an error left behind: the frames
+behind the `,db` command, and how to print them.
+
 [trace.md](trace.md) — *(skint trace)*, tracing procedure calls and returns.
 
 ### Command lines
