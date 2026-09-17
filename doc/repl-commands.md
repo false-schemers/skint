@@ -8,7 +8,7 @@ skint] ,pwd
 C:\Users\ESL\scheme\
 ```
 
-Type `,help` for the list, or `,h` for short. What follows describes each one.
+Type `,help` for the list, or `,h` or `,?` for short. What follows describes each one.
 
 Commands are for working interactively and nothing else. They are available only
 when skint is reading from a terminal — piping a script into skint, or `,load`ing
@@ -186,11 +186,10 @@ skint] (define (f x) (+ 1 (g x)))
 skint] (define (g x) (* 2 (h x)))
 skint] (define (h x) (vector-ref x 10))
 skint] (f (vector 1 2))
-Failure in vm:
-argument is not a valid vector index 10
+Failure: argument is not a valid vector index: 10
 Type ,db to enter the debugger.
 skint] ,db
-Failure: valid vector index 10
+Failure: argument is not a valid vector index: 10
   0: h @6
      >(lambda (.a) [vector-ref .a 10])
   1: g @7 #(1 2)
@@ -218,11 +217,14 @@ code is shown on request, since a disassembly can be long:
 | `sf` | list the frames, with `*` on this one |
 | `g` | switch between pruned and full global names, for this debugger only |
 | `?` | list these commands |
-| `e` | leave the debugger; so does the end of input |
+| `e` | leave the debugger, keeping the error to debug again; so does the end of input |
+| `q` | leave the debugger and forget the error |
 
-The last error is forgotten as soon as a form completes without one, and `,db`
-then says there is no error to debug. There is no `debug` procedure to call; the
-debugger is reached through this command only.
+The error is kept until an expression or definition is evaluated without one, or
+until the debugger is left with `q`; a command that completes, `,db` itself
+included, leaves it alone. Once it is gone, `,db` says there is no error to debug.
+There is no `debug` procedure to call; the debugger is reached through this command
+only.
 
 ### Looking things up
 
@@ -396,5 +398,6 @@ type ,help to see available commands
 
 `,help`
 <br>`,h`
+<br>`,?`
 
 The list of commands, one line each.

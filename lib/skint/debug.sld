@@ -15,7 +15,7 @@
            failure-object? failure-object-message current-debugger
            void failure-object-irritants))
   (import (only (skint hidden) 
-           closure? closure->vector set-port-prompt!
+           closure? closure->vector set-port-prompt! failure-message-string
            note-error! clear-last-error! repl-from-port repl-evaluate-top-form))
 
   (export failure-frames continuation-frames print-failure-frames
@@ -157,12 +157,15 @@
      (print-failure obj port)
      (print-frames (failure-frames obj) port)]))
 
+;; worded as the REPL words it, with the irritants capped like every other value
 (define (print-failure obj port)
-  (display "Failure: " port)
-  (display (failure-object-message obj) port)
-  (for-each (lambda (a) (display " " port) (put a port))
-            (failure-object-irritants obj))
-  (newline port))
+  (let ([args (failure-object-irritants obj)])
+    (display "Failure: " port)
+    (display (failure-message-string (failure-object-message obj) args) port)
+    (unless (null? args)
+      (display ":" port)
+      (for-each (lambda (a) (display " " port) (put a port)) args))
+    (newline port)))
 
 ;; ---------------------------------------------------------------------------
 ;; The debugger

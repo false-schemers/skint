@@ -132,11 +132,10 @@ integrable expression:
 
 ```
 skint] (< 1 2 3 'a 5 6)
-Failure in vm:
-argument is not a number a
+Failure: argument is not a number: a
 Type ,db to enter the debugger.
 skint] ,db
-Failure: number a
+Failure: argument is not a number: a
   0: #<procedure @0x7f980b2c4320> @18
      >(lambda () [< 1 2 3 'a 5 6])
 ```

@@ -56,8 +56,7 @@ found and the test's imports resolve.
 From anywhere else they do not, and the failure says so:
 
 ```
-Error:
-library not found (skint fx)
+Error: library not found (skint fx)
 ```
 
 Point the interpreter at the right directory when that happens. Note it is `lib` you

@@ -1263,7 +1263,7 @@
       (cond [(string? (car args))
              (display (car args) ep)
              (pr-rest (cdr args) ep)]
-            [else (pr-rest args ep)])))
+            [else (write-irritant (car args) ep) (pr-rest (cdr args) ep)])))
    (define (pr-rest args ep)
      (when (pair? args)
        (write-char #\space ep) (write-irritant (car args) ep)
@@ -1350,7 +1350,10 @@
   (let ([msg (failure-object-message obj)]
         [args (failure-object-irritants obj)])
     (print-error-message "Failure"
-      (cons #f (cons (string-append (failure-message-string msg args) ":") args))
+      (cons #f (cons (if (null? args)
+                         (failure-message-string msg args)
+                         (string-append (failure-message-string msg args) ":"))
+                     args))
       ep)))
 
 ; the shortcut around the exception mechanism, straight to printing and reset;
