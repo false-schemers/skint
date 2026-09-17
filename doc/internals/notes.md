@@ -10,17 +10,22 @@ off the screen lives here instead, and the source keeps a one-line pointer:
 Numbers are permanent: add at the end, and leave a retired entry in place saying what
 became of it rather than renumbering. Nothing outside this file depends on the order.
 
-### [1] Why a procedure is recognised by cell 0 alone
+### [1] Why a procedure is recognised by its header alone
 
 `n.h`, the procedure section.
 
-A procedure — a VM closure — is a block with a pointer to its code vector in cell 0.
-No other block kind can look like that: tuples, vectors, boxes and pairs keep a size
-immediate in cell 0, records keep a symbol immediate, and a native keeps a type
-pointer in its header word with its payload pointer — which lies outside the heap —
-in cell 0. So the quick test reads cell 0 and needs no header or size check of its
-own. The debug versions in `n.c` return the same answers and assert the whole
-convention on the way.
+A procedure — a VM closure — is a block whose header carries `CLOSURE_MTAG`, so
+`is_procedure` is that one test: a heap pointer whose header word has the closure
+tag. Nothing about cell 0 enters into it. The debug versions in `n.c` return the
+same answers and assert the rest of the shape — that cell 0 really is a code vector
+of at least one instruction word.
+
+This replaced an older test that read cell 0 and asked whether it pointed into the
+heap. That worked because every other block kind was obliged to keep a non-pointer
+there — a size immediate for vectors, boxes, pairs and tuples, a symbol for a
+record's type — and it is the obligation that made a record type descriptor have to
+be an immediate. With the kind in the header, cell 0 is free: a pair's car is cell 0,
+and an rtd can be any object but `#f`.
 
 `is_procedure` is a macro rather than a static function because it sits in every call
 instruction, where the extra inlining step costs the register allocator six
@@ -134,17 +139,16 @@ to fold — see the `.text$vm` arrangement.
 
 ### [7] What the debug predicates in n.c assert
 
-`n.c`, the tagged/typed section and the procedure section.
+`n.c`, the typed section and the procedure section.
 
 They give the same answers as the quick tests in `n.h`, with the convention asserted.
 
-For tagged and typed objects: that the object is a block — not a native — and has a
-cell 0 of its own. The quick versions never look at the header, which is sound only
-because a native keeps its payload pointer in cell 0, and that can be neither a small
-size immediate nor a symbol, and because no block is ever built with a length of
-zero.
+For typed objects: that the object is a block — not a native — and has a cell 0 of
+its own for the rtd. The quick version reads the header alone, which is sound
+because a native's header holds a type-descriptor pointer, and a pointer can never
+carry a microtag pattern: a header is odd, a type pointer is not.
 
 For procedures the assertion runs in both directions: on a yes, that the object
 really is a well-formed closure; on a no, that nothing closure-shaped was passed
-over. The second is the one that catches a block carrying a foreign pointer in cell 0
-— the shape of the static procedures sfc used to emit, which nothing constructs now.
+over.
+

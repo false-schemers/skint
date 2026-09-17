@@ -285,9 +285,9 @@
 
 (define *rtd-count* 0) 
 (define (new-record-type name fields)
-  ; should be something like (cons name fields), but that would complicate procedure? 
-  ; check that now relies on block tag being a non-immediate object, so we'll better put 
-  ; some pseudo-unique immediate object here -- and we don't have to be fast doing that
+  ; an rtd may be any object but #f -- records are told apart by eq? on it -- so this
+  ; could be (cons name fields); a symbol is kept because it prints readably, and the
+  ; :count in it shows which of several record types of that name this one is
   ; NOTE: R7RS requires d-r-t records to be generative, so we have to "gensym" rtds
   (set! *rtd-count* (+ *rtd-count* 1))
   (string->symbol (string-append "rtd://" (symbol->string name) 

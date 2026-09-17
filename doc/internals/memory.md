@@ -64,18 +64,19 @@ copy. Fixnums, characters, symbols, `#t`, the empty list, the end-of-file object
 and the block-size headers described below are all immediates.
 
 *Block* is a pointer to a run of consecutive cells in the Scheme heap. The word
-immediately below the pointed-to cell is a header holding the length as an
-immediate, so a block of `n` cells occupies `n + 1` words:
+immediately below the pointed-to cell is a header holding the length, and beside it
+a two-bit microtag the object layer uses to say what kind of block this is, so a
+block of `n` cells occupies `n + 1` words:
 
 ```
-    [ obj_from_size(n) ] [ cell 0 ] [ cell 1 ] ... [ cell n-1 ]
-                          ^
-                          the obj points here
+    [ obj_from_sztag(n, m) ] [ cell 0 ] [ cell 1 ] ... [ cell n-1 ]
+                              ^
+                              the obj points here
 ```
 
-`hbsz(n)` is the total word count `n + 1`, `hblklen(p)` reads the length back, and
-`hblkref(p, i)` is cell `i`. The collector copies all `n + 1` words and traces every
-cell; it never asks what the cells mean.
+`block_bsz(n)` is the total word count `n + 1`, `block_len(p)` reads the length back,
+and `block_ref(p, i)` is cell `i`. The collector copies all `n + 1` words and traces
+every cell; it never asks what the cells mean.
 
 *Native* is a two-cell wrapper around something that does not live in the Scheme
 heap and may need releasing. The header slot holds a pointer to a `cxtype_t`
@@ -111,8 +112,9 @@ in the accumulator on their way to a helper.
 
 Note what is *not* in the list: there is no category for "block of a particular
 kind". Vectors, pairs, records and closures are all just blocks. Their distinctions
-are made one layer up, by convention about what goes in cell 0, and the collector
-is unaware of them.
+are made one layer up, by the microtag the object layer writes into the header, and
+the collector is unaware of them — it reads the size out of a header and copies the
+word whole, so the tag rides along without it ever being consulted.
 
 ### The heap
 
@@ -120,11 +122,11 @@ Two semispaces, each `cxg_hsize` words. `cxg_heap` is the base of the current
 from-space and `cxg_hp` the allocation pointer. Allocation runs *downward*: the
 free region is `[cxg_heap, hp)` and live data occupies `[hp, cxg_heap + hsize)`.
 Every construction macro therefore writes cells with `*--hp` in reverse order and
-finishes with `hendblk`, which lays down the header and returns the resulting
-`obj`:
+finishes with `hend_tagged`, which lays down the header — size and microtag
+together — and returns the resulting `obj`:
 
 ```c
-#define hendblk(n) (*--hp = obj_from_size(n), (obj)(hp+1))
+#define hend_tagged(n, m) (*--hp = obj_from_sztag(n, m), (obj)(hp+1))
 ```
 
 The initial size is `HEAP_SIZE` (131072 words) per semispace, and it only ever

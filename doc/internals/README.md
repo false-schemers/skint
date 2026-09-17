@@ -29,7 +29,7 @@ and knows nothing else. It can copy and trace the entire heap without a single
 object-layout descriptor.
 
 *The object layer* subdivides Immediate, Block and Native into Scheme types by
-convention: a secondary tag in the immediate word, the contents of cell 0 in a block,
+convention: a secondary tag in the immediate word, the microtag in a block's header,
 a type-descriptor pointer in a native's header. All of it is invisible to the layer
 below.
 

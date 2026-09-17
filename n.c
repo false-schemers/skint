@@ -48,33 +48,12 @@ void set_native(obj o, cxtype_t *tp, void *v) {
 #ifndef NDEBUG
 
 /* what these assert: see doc/internals/notes.md [7] */
-int is_tagged(obj o, int t) {
-  if (!isobjptr(o) || block_ref(o, 0) != obj_from_size(t)) return 0;
-  else { obj h = objptr_from_obj(o)[-1];
-    assert(notaptr(h));            /* a block, not a native */
-    assert(size_from_obj(h) >= 1); /* with a cell 0 of its own */
-    return 1; }
-}
-obj ck_tagged(obj o, int t) {
-  assert(is_tagged((o), t));
-  return o;
-}
-int tagged_len(obj o, int t) {
-  assert(is_tagged((o), t));
-  return block_len(o) - 1;
-}
-obj* tagged_ref(obj o, int t, int i) {
-  int len; assert(is_tagged((o), t));
-  len = block_len(o);
-  assert(i >= 0 && i < len-1);  
-  return &block_ref(o, i+1);
-}
 
 int is_typed(obj o) {
-  if (!isobjptr(o) || !is_symbol(block_ref(o, 0))) return 0;
+  if (!is_tagged(o, TYPED_MTAG)) return 0;
   else { obj h = objptr_from_obj(o)[-1];
     assert(notaptr(h));
-    assert(size_from_obj(h) >= 1);
+    assert(size_from_obj(h) >= 1); /* with a cell 0 for the rtd */
     return 1; }
 }
 obj ck_typed(obj o) {
@@ -582,17 +561,12 @@ const char *symbolname(int sym) {
 /* what these assert: see doc/internals/notes.md [7] */
 int is_procedure(obj o) {
   if (!isobjptr(o)) return 0;
-  else { obj h = objptr_from_obj(o)[-1], c = block_ref(o, 0);
-    if (isobjptr(c)) {
-      assert(notaptr(h));              /* a block, not a native */
-      assert(size_from_obj(h) >= 1);   /* with a cell 0 of its own */
-      assert(is_vector(c));             /* holding a code vector */
-      assert(block_len(c) >= 2);         /* of at least one instruction word */
-      return 1;
-    } else {
-      assert(!(notaptr(h) && size_from_obj(h) >= 1 && isaptr(c)));
-      return 0;
-    } }
+  else { obj h = objptr_from_obj(o)[-1];
+    if (!obj_is_blkhdr(h, CLOSURE_MTAG)) return 0;
+    assert(size_from_obj(h) >= 1);
+    assert(is_vector(block_ref(o, 0)));
+    assert(block_len(block_ref(o, 0)) >= 2);
+    return 1; }
 }
 
 int procedure_len(obj o) {
@@ -935,7 +909,8 @@ static stab_t *stabfree(stab_t *p) {
 }
 static int stabnew(obj o, stab_t *p, int circ) {
   if (!o || notaptr(o) || notobjptr(o) || (circ && isaptr(objptr_from_obj(o)[-1]))) return 0;
-  else if (circ && isaptr(objptr_from_obj(o)[0])) return 0; /* opaque */ 
+  /* a closure is opaque; cell 0 is payload in an PACKED_MTAG block, not a tag */
+  else if (circ && obj_is_blkhdr(objptr_from_obj(o)[-1], CLOSURE_MTAG)) return 0;
   else { /* v[i] is 0 or heap obj, possibly with lower bit set if it's not new */
     unsigned long h = (unsigned long)o; size_t sz = p->sz, i, j;
     for (i = h & (sz-1); p->v[i]; i = (i-1) & (sz-1))
@@ -1042,11 +1017,17 @@ static int stabequal(obj x, obj y, stab_t *p) {
   if (h == (obj)FATNUM_NTAG) return fneqv(get_fatnum(x), get_fatnum(y));
 #endif
   if (h == (obj)STRING_NTAG) return sdatacmp(string_data(x), string_data(y)) == 0;
-  if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevector_data(x), bytevector_data(y)); 
-  if (isaptr(h) || !(n = size_from_obj(h)) || block_ref(x, 0) != block_ref(y, 0)) return 0;
+  if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevector_data(x), bytevector_data(y));
+  if (isaptr(h)) return 0;
+  n = size_from_obj(h);
+  /* a cell-less block, such as #(), is settled by the headers alone */
+  if (!n) return !obj_is_blkhdr(h, TYPED_MTAG);
+  /* cell 0 is the descriptor in an R block, and payload in any other kind */
+  i = obj_is_blkhdr(h, TYPED_MTAG) ? 1 : 0;
+  if (i && block_ref(x, 0) != block_ref(y, 0)) return 0;
   if (stabufind(x, y, p)) return 1; /* seen before and decided to be equal */
-  for (i = 1; i < n-1; ++i) if (!stabequal(block_ref(x, i), block_ref(y, i), p)) return 0;
-  if (i == n-1) { x = block_ref(x, i); y = block_ref(y, i); goto loop; } else return 1; 
+  for (; i < n-1; ++i) if (!stabequal(block_ref(x, i), block_ref(y, i), p)) return 0;
+  if (i == n-1) { x = block_ref(x, i); y = block_ref(y, i); goto loop; } else return 1;
 }
 static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on failure */
   obj h; int i, n; loop: assert(fuel > 0); if (x == y) return fuel-1;
@@ -1061,9 +1042,13 @@ static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on fa
 #endif
   if (h == (obj)STRING_NTAG) return sdatacmp(string_data(x), string_data(y)) == 0 ? fuel-1 : -1;
   if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevector_data(x), bytevector_data(y)) ? fuel-1 : -1;
-  if (isaptr(h) || !(n = size_from_obj(h)) || block_ref(x, 0) != block_ref(y, 0)) return -1;
+  if (isaptr(h)) return -1;
+  n = size_from_obj(h);
+  if (!n) return obj_is_blkhdr(h, TYPED_MTAG) ? -1 : fuel-1; /* #() and the like */
+  i = obj_is_blkhdr(h, TYPED_MTAG) ? 1 : 0;
+  if (i && block_ref(x, 0) != block_ref(y, 0)) return -1;
   if (--fuel == 0) return 0; /* we must spend fuel while comparing objects themselves */
-  for (i = 1; i < n-1; ++i) if ((fuel = boundequal(block_ref(x, i), block_ref(y, i), fuel)) <= 0) return fuel;
+  for (; i < n-1; ++i) if ((fuel = boundequal(block_ref(x, i), block_ref(y, i), fuel)) <= 0) return fuel;
   if (i == n-1) { x = block_ref(x, i); y = block_ref(y, i); goto loop; } else return fuel;
 }
 
@@ -1484,11 +1469,11 @@ static void wrdatum(obj o, wenv_t *e) {
     wrc(')', e);
   } else if (is_box(o)) {
     wrs("#&", e); o = box_ref(o); goto tail;
-  } else if (is_tagged(o, 0)) {
-    int i, n = tagged_len(o, 0);
+  } else if (is_tuple(o)) {
+    int i, n = tuple_len(o);
     wrs("#<values", e);
-    for (i = 0; i < n; ++i) { 
-      wrc(' ', e); wrdatum(*tagged_ref(o, 0, i), e); 
+    for (i = 0; i < n; ++i) {
+      wrc(' ', e); wrdatum(tuple_ref(o, i), e);
     }
     wrc('>', e);
   } else if (is_procedure(o)) {

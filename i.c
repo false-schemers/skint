@@ -436,6 +436,8 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"byte"); musttail return cxi_failactype(IARGS); } } while (0)
 #define cky(x) do { obj _x = (x); if (unlikely(!is_symbol(_x))) \
   { ac = _x; spush((obj)"symbol"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckd(x) do { obj _x = (x); if (unlikely(_x == TUPLE_RTD)) \
+  { ac = _x; spush((obj)"record type"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckr(x) do { obj _x = (x); if (unlikely(!is_iport(_x))) \
   { ac = _x; spush((obj)"input port"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckw(x) do { obj _x = (x); if (unlikely(!is_oport(_x))) \
@@ -1102,15 +1104,16 @@ define_instruction(assq) {
     if (notobjptr(l)) break; 
     else { /* l is a heap object */
       obj* lh = objptr_from_obj(l), p;
-      if (lh[-1] != obj_from_size(2+1) || lh[0] != obj_from_size(PAIR_BTAG)) break;
-      p = lh[1]; /* pair_car(l) */
+      /* the header is the whole pair test, and the cells hold car and cdr */
+      if (lh[-1] != obj_from_packed(2)) break;
+      p = lh[0]; /* pair_car(l) */
       if (notobjptr(p)) goto next;
       else { /* p is a heap object */
         obj* ph = objptr_from_obj(p);
-        if (ph[-1] != obj_from_size(2+1) || ph[0] != obj_from_size(PAIR_BTAG)) goto next;
-        if (ph[1] == ac) { ac = p; gonexti(); }
+        if (ph[-1] != obj_from_packed(2)) goto next;
+        if (ph[0] == ac) { ac = p; gonexti(); }
       }
-      next: l = lh[2]; /* pair_cdr(l) */
+      next: l = lh[1]; /* pair_cdr(l) */
     }
   }
 #else   
@@ -1772,9 +1775,9 @@ define_instruction(recp) {
 
 define_instruction(rmk) {
   int i, n; obj v;
-  /* the rtd goes into cell 0, where a pointer would make the record
-   * indistinguishable from a closure, so it has to be an immediate */
-  cky(ac); ckk(sref(0));
+  /* the rtd is any object that is not #f, which marks a values tuple; records
+   * are told apart by eq? on it, so nothing more is asked of it */
+  ckd(ac); ckk(sref(0));
   n = get_fixnum(sref(0)); 
   hp_reserve(record_bsz(n)); v = sref(1);
   for (i = 0; i < n; ++i) *--hp = v;

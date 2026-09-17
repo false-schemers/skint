@@ -316,9 +316,8 @@ that asks for values. Bind one to a variable to see it, then hand it on:
     (call-with-values (lambda () t) (lambda a a))  =>  (1 2)
     (call-with-values (lambda () u) (lambda a a))  =>  ()
 
-A tuple that escapes into ordinary code is a block whose cell 0 is `obj_from_size(0)`
-— the same discriminator the object layer uses for tuples — and it writes as
-`#<values 1 2>`. It is not a vector, a pair or a procedure, and the values protocol
+A tuple that escapes into ordinary code is a typed block whose rtd is `TUPLE_RTD`,
+which is `#f` — the one rtd no record may carry — and it writes as `#<values 1 2>`. It is not a vector, a pair or a procedure, and the values protocol
 is the only thing that makes one.
 
 Zero values become the unit object, a tagged immediate under `UNIT_ITAG` with no

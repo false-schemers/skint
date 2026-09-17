@@ -140,10 +140,10 @@ written in Scheme rather than in C:
 | `(closure? x)` | whether `x` is a VM closure: a heap block whose cell 0 is a code vector |
 
 `closure?` and `procedure?` now agree on every object the VM builds. `procedure?`
-asks the cheaper question — cell 0 holds a pointer into the heap — and `closure?`
-the exact one — cell 0 holds a code vector. Since a closure is the only block kind
-with a pointer in cell 0 at all, the cheap question has only one right answer, and
-`procedure?` is the test every call instruction makes.
+asks the cheaper question — the block's header carries `CLOSURE_MTAG` — and
+`closure?` the exact one — cell 0 holds a code vector. Since the tag is written by
+the allocation macro and nothing else, the cheap question has only one right answer,
+and `procedure?` is the test every call instruction makes.
 
 They were not always the same. The procedure test came from the runtime SKINT
 inherited, where a procedure without a display was a foreign pointer, so it

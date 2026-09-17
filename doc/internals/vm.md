@@ -12,8 +12,8 @@ is `i.h`, described in [bytecode.md](bytecode.md).
 
 ### The code representation
 
-A closure is a heap block whose cell 0 is its code and whose remaining cells are its
-captured display. The code is a *vector* whose elements are, in sequence,
+A closure is a heap block tagged `CLOSURE_MTAG`, whose cell 0 is its code and whose
+remaining cells are its captured display. The code is a *vector* whose elements are, in sequence,
 instruction words and their operands:
 
 ```

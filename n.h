@@ -108,11 +108,38 @@ typedef struct {              /* type descriptor */
 #endif
 
 #define obj_from_objptr(p)    ((obj)(p))
-#define obj_from_size(n)      (((cxoint_t)(n) << 1) | 1)
+
+/* A block header carries a 2-bit microtag beside the size, and that tag says
+ * what the block is.  Every block is one of four kinds:
+ *
+ *   TYPED    an rtd in cell 0 says which type: any object but TUPLE_RTD for a
+ *            record, and TUPLE_RTD for the tuple a (values ...) makes
+ *   PACKED   the size says which type: one cell is a box, two cells are a pair
+ *   CLOSURE  cell 0 is its code vector
+ *   VECTOR   every cell is an element
+ *
+ * so only a record spends a cell saying what it is.  The size is three bits
+ * narrower than the word, which matters only on 32-bit builds -- the whole
+ * model is in doc/internals/objects.md. */
+#define TYPED_MTAG 0
+#define PACKED_MTAG 1
+#define CLOSURE_MTAG 2
+#define VECTOR_MTAG 3
+#define obj_from_sztag(n, m)  (((cxoint_t)(n) << 3) | ((m) << 1) | 1)
+#define obj_from_packed(n)    obj_from_sztag(n, PACKED_MTAG)
+#define size_from_obj(o)      ((int)((cxoint_t)(o) >> 3))
+#define mtag_from_obj(o)      ((int)(((cxoint_t)(o) >> 1) & 3))
+#define obj_is_blkhdr(o, m)   ((((cxoint_t)(o)) & 7) == (((m) << 1) | 1))
+/* the vocabulary the kinds below are written in */
+#define blkhdr(o)             (objptr_from_obj(o)[-1])
+#define is_tagged(o, m)       (isobjptr(o) && obj_is_blkhdr(blkhdr(o), m))
+#define is_packed(o, n)       (isobjptr(o) && blkhdr(o) == obj_from_packed(n))
+#define hend_tagged(n, m)     (*--hp = obj_from_sztag(n, m), (obj)(hp+1))
+#define hend_packed(n)        hend_tagged(n, PACKED_MTAG)
+#define packed_bsz(n)         block_bsz(n)
+#define packed_ref(o, i)      block_ref(o, i)
 
 #define objptr_from_obj(o)    ((obj*)(o))
-
-#define size_from_obj(o)      ((int)((o) >> 1))
 
 
 #define get_bool(o)      (o)
@@ -121,7 +148,6 @@ typedef struct {              /* type descriptor */
 #define hpushptr(p, pt, l)    (hreserve(2, l), *--hp = (obj)(p), *--hp = (obj)(pt), (obj)(hp+1))   
 #define block_bsz(s)               ((s) + 1) /* 1 extra word to store block size */
 #define hreserve(n, l)        ((hp < cxg_heap + (n)) ? hp = cxm_hgc(r, r+(l), hp, n) : hp)
-#define hend_block(n)            (*--hp = obj_from_size(n), (obj)(hp+1))
 #define block_len(p)            size_from_obj(((obj*)(p))[-1])
 #define block_ref(p, i)         (((obj*)(p))[i])
 
@@ -181,24 +207,12 @@ extern char **cxg_argv;
   extern void *get_native(obj o, cxtype_t *tp);
   extern void set_native(obj o, cxtype_t *tp, void *v);
 #endif
-/* Blocks tagged by a small size immediate in cell 0. The minimal test reads
- * cell 0 and nothing else: a native keeps its payload pointer there, which is
- * never a small immediate, and every other block kind keeps a different one.
- * The debug versions in n.c give the same answers and assert the rest. */
+/* TYPED blocks keep their rtd in cell 0 and their fields from cell 1 on; the
+ * kind test reads the header alone, so the rtd itself can be any object --
+ * records are told apart by eq? on it.  The debug versions in n.c give the
+ * same answers and assert the rest. */
 #ifdef NDEBUG
-   static int is_tagged(obj o, int t) { return isobjptr(o) && block_ref(o, 0) == obj_from_size(t); }
-   #define ck_tagged(o, t) (o)
-   #define tagged_len(o, t) (block_len(o)-1) 
-   #define tagged_ref(o, t, i) (&block_ref(o, (i)+1))
-#else
-  extern int is_tagged(obj o, int t);
-  extern obj ck_tagged(obj o, int t);
-  extern int tagged_len(obj o, int t);
-  extern obj* tagged_ref(obj o, int t, int i); 
-#endif
-/* Blocks typed by a symbol in cell 0 (records). is_typed is defined with the
- * record section below, where SYMBOL_ITAG is in scope. */
-#ifdef NDEBUG
+  #define is_typed(o) is_tagged(o, TYPED_MTAG)
   #define ck_typed(o, t) (o)
   #define typed_type(o) (&block_ref(o, 0))
   #define typed_len(o) (block_len(o)-1) 
@@ -443,10 +457,10 @@ extern int strncmp_ci(const char *s1, const char *s2, size_t n);
 #define hstring_obj(l, s) hpushptr(s, STRING_NTAG, l)
 
 /* vectors */
-#define VECTOR_BTAG 1
-#define is_vector(o) is_tagged(o, VECTOR_BTAG)
-#define vector_ref(v, i) *tagged_ref(v, VECTOR_BTAG, i)
-#define vector_len(v) tagged_len(v, VECTOR_BTAG)
+/* V kind: every cell is an element */
+#define is_vector(o) is_tagged(o, VECTOR_MTAG)
+#define vector_ref(v, i) block_ref(v, i)
+#define vector_len(v) block_len(v)
 
 /* bytevectors */
 extern cxtype_t *BYTEVECTOR_NTAG;
@@ -479,9 +493,9 @@ extern int bytevectoreq(int *d0, int *d1);
 extern int *subbytevector(int *d, int from, int to);
 
 /* boxes */
-#define BOX_BTAG 2
-#define is_box(o) is_tagged(o, BOX_BTAG)
-#define box_ref(o) *tagged_ref(o, BOX_BTAG, 0)
+/* S kind, one cell: the header is the whole test and the cell is the value */
+#define is_box(o) is_packed(o, 1)
+#define box_ref(o) packed_ref(o, 0)
 
 /* null */
 #define NULL_ITAG 3
@@ -489,10 +503,10 @@ extern int *subbytevector(int *d, int from, int to);
 #define is_null(o) ((o) == mkimm(0, NULL_ITAG))
 
 /* pairs and lists */
-#define PAIR_BTAG 3
-#define is_pair(o) is_tagged(o, PAIR_BTAG)
-#define pair_car(o) *tagged_ref(o, PAIR_BTAG, 0)
-#define pair_cdr(o) *tagged_ref(o, PAIR_BTAG, 1)
+/* S kind, two cells: car and cdr, with no btag between them */
+#define is_pair(o) is_packed(o, 2)
+#define pair_car(o) packed_ref(o, 0)
+#define pair_cdr(o) packed_ref(o, 1)
 extern int is_list(obj l);
 
 /* symbols */
@@ -505,10 +519,7 @@ extern int internsym(const char *name);
 extern int internsdata(int *d, int dup);
 extern const int *symsdata(int sym);
 
-/* records */
-#ifdef NDEBUG
-   static int is_typed(obj o) { return isobjptr(o) && is_symbol(block_ref(o, 0)); }
-#endif
+/* records: a TYPED block whose rtd is anything but TUPLE_RTD */
 #define record_rtd(r) *typed_type(r)
 #define record_len(r) typed_len(r)
 #define record_ref(r, i) *typed_ref(r, i)
@@ -516,7 +527,7 @@ extern const int *symsdata(int sym);
 /* procedures (vm closures): recognised by cell 0 alone, and why is_procedure
  * must stay a macro -- see doc/internals/notes.md [1] */
 #ifdef NDEBUG
-   #define is_procedure(o) (isobjptr(o) && isobjptr(block_ref(o, 0)))
+   #define is_procedure(o) is_tagged(o, CLOSURE_MTAG)
    #define procedure_len(o) block_len(o)
    #define procedure_refp(o, i) (&block_ref(o, i))
 #else
@@ -527,39 +538,42 @@ extern const int *symsdata(int sym);
 #define procedure_ref(o, i) (*procedure_refp(o, i))
 
 /* box representation extras */
-#define box_bsz()      block_bsz(1+1)
-#define hend_box()    (*--hp = obj_from_size(BOX_BTAG), hend_block(1+1))
+#define hend_tagged(n, m)  (*--hp = obj_from_sztag(n, m), (obj)(hp+1))
+#define box_bsz()      block_bsz(1)
+#define hend_box()    hend_packed(1)
 
 /* pair representation extras */
-#define pair_bsz()     block_bsz(2+1)
-#define hend_pair()   (*--hp = obj_from_size(PAIR_BTAG), hend_block(2+1))
+#define pair_bsz()     block_bsz(2)
+#define hend_pair()   hend_packed(2)
 
 /* vector representation extras */
-#define vector_bsz(n)     block_bsz((n)+1)
-#define hend_vector(n)   (*--hp = obj_from_size(VECTOR_BTAG), hend_block((n)+1))
+#define vector_bsz(n)     block_bsz(n)
+#define hend_vector(n)   hend_tagged(n, VECTOR_MTAG)
 
-/* record representation extras  */
+/* record representation extras: a TYPED block whose rtd is a symbol */
 #define record_bsz(c)     block_bsz((c)+1)
-#define hend_record(rtd, c) (*--hp = rtd, hend_block((c)+1))
+#define hend_record(rtd, c) (*--hp = rtd, hend_tagged((c)+1, TYPED_MTAG))
 
 /* vm closure representation; isprocedure and friends are the quick tests in
  * a release build and the same tests plus assertions in a debug one, so the
  * answers no longer depend on NDEBUG -- see n.h */
 #define procedure_bsz(c)   block_bsz(c)
-#define hend_procedure(c) hend_block(c)
+#define hend_procedure(c) hend_tagged(c, CLOSURE_MTAG)
 
 /* vm tuple representation (c != 1) */
-#define is_tuple(x)    is_tagged(x, 0)
-#define tuple_ref(x,i) *tagged_ref(x, 0, i)
-#define tuple_len(x)   tagged_len(x, 0)
+/* a TYPED block too, with the one rtd that no record may use */
+#define TUPLE_RTD      bool_obj(0)
+#define is_tuple(x)    (is_typed(x) && record_rtd(x) == TUPLE_RTD)
+#define tuple_ref(x,i) block_ref(x, (i)+1)
+#define tuple_len(x)   (block_len(x)-1)
 #define tuple_bsz(c)   block_bsz((c)+1)
-#define hend_tuple(c) (*--hp = obj_from_size(0), hend_block((c)+1))
+#define hend_tuple(c)  (*--hp = TUPLE_RTD, hend_tagged((c)+1, TYPED_MTAG))
 
 /* extras shared by every kind of code */
 #define are_fixnums(o1, o2) (is_fixnum(o1) && is_fixnum(o2))
 #define is_noncircular(o) (!is_circular(o))
 #define bytevector_ref(o, i) (*bytevector_refp(o, i))
-#define is_record(o) (is_typed(o) && record_rtd(o) != 0)
+#define is_record(o) (is_typed(o) && record_rtd(o) != TUPLE_RTD)
 #ifdef OPT_TOWER
 #define is_number(o) (is_fixnum(o) || is_flonum(o) || is_bignum(o) || is_fatnum(o))
 #else
