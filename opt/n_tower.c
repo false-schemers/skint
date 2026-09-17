@@ -615,6 +615,10 @@ static int parse_zero(const char *s, char **ep)
 * public interface procedures named bnfoo return bn0, bn1, or shared bignums
 * all returned bignums are owned by the caller and should be bnfree()d */
 
+/* esl** B<n> and U<n> in comments below are defects and undefined behaviour
+* listed in the report on the original library (doc/BUGS.md of avp's bignum);
+* the ones marked latent are not reachable from skint as it stands */
+
 /* pick 32-bit unsigned type for bignum 'limbs' */
 #define LIMB_BITS 32
 #define LIMB_MAX UINT32_MAX
@@ -644,7 +648,7 @@ struct bignum {
   size_t  size;
   int     dupcount;
   int     isneg;
-  limb_t  limb[1]; /* alloc as many limbs as needed */
+  limb_t  limb[1]; /* alloc as many limbs as needed; U1: indexed past [0] (struct hack) */
 };
 
 /* operations on limbs */
@@ -697,10 +701,11 @@ struct bignum {
 #define BNMINUSONE(n) BNONE(n,1)
 #define BNTWO(n, neg) (((n)->size==1) && ((n)->limb[0]==2) && ((n)->isneg==(neg)))
 #define BNPLUSTWO(n) BNTWO(n,0)
-#define BNMINUSTWO(n) BNONE(n,1)
+#define BNMINUSTWO(n) BNONE(n,1) /* latent: tests -1, so bnexptull's -2 branch is dead */
 
 #define INT64_LIMBS (1+(sizeof(int64_t)+sizeof(slimb_t)-1)/sizeof(limb_t))
 
+/* U2: read through bignum_t *, relying on the two layouts agreeing */
 typedef struct bignum_ll { /* DO NOT ALLOC */
   size_t   size;
   int      dupcount;
@@ -716,11 +721,13 @@ bignum_t *lltobn(int64_t n);
 bignum_t *ulltobn(uint64_t n);
 bignumll_t bnll(int64_t v);
 
-static bignum_t zero = {0, DUP_STATIC, 0, {0}};
-bignum_t *bn0 = &zero;
+/* the shared constants are read-only: a write into one faults instead of
+ * silently changing the value every holder sees */
+static const bignum_t zero = {0, DUP_STATIC, 0, {0}};
+bignum_t *bn0 = (bignum_t *)&zero;
 
-static bignum_t plus1 =  {1, DUP_STATIC, 0, {1}};
-bignum_t *bn1 = &plus1;
+static const bignum_t plus1 =  {1, DUP_STATIC, 0, {1}};
+bignum_t *bn1 = (bignum_t *)&plus1;
 
 static void bnx_failure(char *msg)
 {
@@ -1319,6 +1326,7 @@ static bignum_t *bnz_dmod(bignum_t **rem, const bignum_t *num, const bignum_t *d
   assert(!BNZERO(den));
   assert(den->size > 1);
 
+  /* B17 (latent, partly): a zero num is read at limb[SIZE_MAX] before the check below */
   SET_SIZE(n, num->size - 1, bnx_bitsl(num->limb[num->size - 1]));
   SET_SIZE(d, den->size - 1, bnx_bitsl(den->limb[den->size - 1]));
 
@@ -1401,6 +1409,7 @@ static bignum_t *bnz_dmod(bignum_t **rem, const bignum_t *num, const bignum_t *d
       snstart = sdsize;
       snsize += 1;
     } else {
+      /* (slimb_t) of a value above INT32_MAX is implementation-defined */
       limb_t f0 = LO_LIMB(HILO(-(slimb_t)(sd_hi+1), 0) / (sd_hi+1));
       size_t ps;
 
@@ -1508,7 +1517,7 @@ static bignum_t *bnz_dmod(bignum_t **rem, const bignum_t *num, const bignum_t *d
     NEWBN(div, snsize, "bnx_dmod");
     COPY_LIMBS(div->limb, b_block + snstart, snsize);
 
-    free(block);
+    free(block); /* B10 (latent): came from bnrealloc, which is realloc for now */
     return_NEW(div);
   }
 }
@@ -1519,6 +1528,7 @@ static bignum_t *bny_dupll(const bignum_t *n)
   bignum_t *nn;
   assert(n); 
   assert(n->dupcount == DUP_AUTO);
+  assert(n->size > 0); /* NEWBN gives bn0 for 0, and bn0 must not get the sign */
   NEWBN(nn, n->size, "bndup");
   COPY_LIMBS(nn->limb, n->limb, n->size);
   nn->isneg = n->isneg;
@@ -1534,6 +1544,8 @@ static bignum_t *bndup(const bignum_t *n)
   switch (n->dupcount) {
     case DUP_AUTO: {
       bignum_t *nn;
+      if (BNZERO(n)) /* NEWBN would give bn0, which must not get the sign */
+        return bn0;
       NEWBN(nn, n->size, "bndup");
       COPY_LIMBS(nn->limb, n->limb, n->size);
       nn->isneg = n->isneg;
@@ -1718,6 +1730,8 @@ bignum_t *bnaddll(const bignum_t *n, int64_t incr)
 
   assert(n != NULL);
   CHECKSIGN(n);
+  /* the LONG_MIN case below stands for INT64_MIN only where long is 64 bits */
+  assert(incr != INT64_MIN || (int64_t)LONG_MIN == INT64_MIN);
 
   if (BNZERO(n))
     return lltobn(incr);
@@ -1786,6 +1800,7 @@ bignum_t *bnashll(const bignum_t *a, int64_t sh)
   bignum_t *r = bn0;
   assert(a != NULL);
   CHECKSIGN(a);
+  assert(sh != INT64_MIN); /* -sh below would overflow */
 
   if (BNZERO(a))
     return bn0;
@@ -1829,6 +1844,8 @@ bignum_t *bnmulll(const bignum_t *n, int64_t v)
 
   assert(n != NULL);
   CHECKSIGN(n);
+  /* the LONG_MIN case below stands for INT64_MIN only where long is 64 bits */
+  assert(v != INT64_MIN || (int64_t)LONG_MIN == INT64_MIN);
 
   if (BNZERO(n))
     return bn0;
@@ -1928,6 +1945,7 @@ bignum_t *bnexptull(const bignum_t *a, uint64_t n)
 
   assert(a != NULL);
   CHECKSIGN(a);
+  assert(n != 0 || !BNZERO(a)); /* B16: 0^0 would be 0 below */
 
   if (BNZERO(a))
     return bn0;
@@ -2025,7 +2043,9 @@ bignum_t *bndmodl(long *rem, const bignum_t *num, long den)
   assert(rem != NULL);
   CHECKSIGN(num);
 
-  if (den >= LIMB_MAX) {
+  /* bnz_dmodl takes a divisor that fits a limb, bnz_dmod only a wider one;
+   * compared as int64_t, since long and limb_t may have the same width */
+  if ((int64_t)den > (int64_t)LIMB_MAX) {
     d = bnz_dmod(&r, num, bnx_makell(&b, den));
     isneg = 0;
     goto from_limb;
@@ -2041,8 +2061,8 @@ bignum_t *bndmodl(long *rem, const bignum_t *num, long den)
   } else if (den == -1) {
     *rem = 0;
     return bnneg(num);
-  } else if (den > -(slimb_t)LIMB_MAX) {
-    d = bnz_dmodl(&rl, num, (limb_t)-den);
+  } else if ((int64_t)den >= -(int64_t)LIMB_MAX) {
+    d = bnz_dmodl(&rl, num, (limb_t)-(int64_t)den);
     isneg = 1;
   } else {
     d = bnz_dmod(&r, num, bnx_makell(&b, den));
@@ -2064,8 +2084,9 @@ from_limb:
   {
     size_t i;
     int64_t v;
+    /* the remainder is below |den|, so it fits */
     for (i = r->size, v = 0; i--;)
-      v += (v << LIMB_BITS) | r->limb[i];
+      v = (v << LIMB_BITS) | r->limb[i];
     if (num->isneg)
       v = -v;
     *rem = v;
@@ -2105,11 +2126,12 @@ bignum_t *bndivl(const bignum_t *num, long den)
   assert(num != NULL);
   CHECKSIGN(num);
 
-  if (den > 0 && den >= LIMB_MAX) {
+  /* as in bndmodl */
+  if ((int64_t)den > (int64_t)LIMB_MAX) {
     r = bnz_dmod(&rem, num, bnx_makell(&b, den));
     isneg = num->isneg;
   } else if (den > 1) {
-    r = bnz_dmodl(&reml, num, den);
+    r = bnz_dmodl(&reml, num, (limb_t)den);
     isneg = num->isneg;
   } else if (den == 1) {
     return bndup(num);
@@ -2118,8 +2140,8 @@ bignum_t *bndivl(const bignum_t *num, long den)
     return NULL; /* never happen */
   } else if (den == -1) {
     return bnneg(num);
-  } else if (den > -(slimb_t)LIMB_MAX) {
-    r = bnz_dmodl(&reml, num, -den);
+  } else if ((int64_t)den >= -(int64_t)LIMB_MAX) {
+    r = bnz_dmodl(&reml, num, (limb_t)-(int64_t)den);
     isneg = !num->isneg;
   } else {
     r = bnz_dmod(&rem, num, bnx_makell(&b, den));
@@ -2148,11 +2170,12 @@ long bnmodl(const bignum_t *num, long den)
   assert(num != NULL);
   CHECKSIGN(num);
 
-  if (den >= LIMB_MAX) {
+  /* as in bndmodl */
+  if ((int64_t)den > (int64_t)LIMB_MAX) {
     bnfree(bnz_dmod(&rem, num, bnx_makell(&b, den)));
     goto from_limb;
   } else if (den > 1) {
-    bnfree(bnz_dmodl(&reml, num, den));
+    bnfree(bnz_dmodl(&reml, num, (limb_t)den));
   } else if (den == 1) {
     return 0;
   } else if (den == 0) {
@@ -2160,8 +2183,8 @@ long bnmodl(const bignum_t *num, long den)
     return 0; /* never happen */
   } else if (den == -1) {
     return 0;
-  } else if (den > -(slimb_t)LIMB_MAX) {
-    bnfree(bnz_dmodl(&reml, num, -den));
+  } else if ((int64_t)den >= -(int64_t)LIMB_MAX) {
+    bnfree(bnz_dmodl(&reml, num, (limb_t)-(int64_t)den));
   } else {
     bnfree(bnz_dmod(&rem, num, bnx_makell(&b, den)));
     goto from_limb;
@@ -2175,8 +2198,9 @@ from_limb:
   {
     size_t i;
     int64_t v;
+    /* the remainder is below |den|, so it fits */
     for (i = rem->size, v = 0; i--;)
-      v += (v << LIMB_BITS) | rem->limb[i];
+      v = (v << LIMB_BITS) | rem->limb[i];
     if (num->isneg)
       v = -v;
     bnfree(rem);
@@ -2272,6 +2296,7 @@ size_t bnwidths(const bignum_t *n)
   } else {
     int i;
     limb_t w = 0;
+    assert(n->size <= INT_MAX); /* U6: counted with an int */
     for (i = (int)n->size - 1; i--;) {
       w |= n->limb[i];
     }
@@ -2296,10 +2321,12 @@ long bntol(const bignum_t *n)
 
   if (bnwidths(n) > sizeof(long) * CHAR_BIT)
     return (errno = ERANGE, 0);
+  /* B14: LONG_MIN would shift into the sign bit and be negated; bntoll handles it */
+  assert(!(n->isneg && bnwidthu(n) == sizeof(long) * CHAR_BIT));
 
 #if (ULONG_MAX > LIMB_MAX)
   {
-    int i;
+    int i; /* U6: an int, but size is at most 2 here */
     for (v = 0, i = n->size; i--;)
       v = (v << (sizeof(limb_t) * CHAR_BIT)) + n->limb[i];
   }
@@ -2318,7 +2345,7 @@ long bntol(const bignum_t *n)
 /* esl+ */
 int64_t bntoll(const bignum_t *n)
 {
-  int64_t v;
+  uint64_t v;
 
   assert(n != NULL);
   CHECKSIGN(n);
@@ -2326,22 +2353,26 @@ int64_t bntoll(const bignum_t *n)
   if (bnwidths(n) > sizeof(int64_t) * CHAR_BIT)
     return (errno = ERANGE, 0);
 
+  /* B14: the magnitude is collected unsigned, so INT64_MIN (which s64 vectors
+   * take) neither shifts into the sign bit nor is negated as a signed value */
 #if (UINT64_MAX > LIMB_MAX)
   {
     size_t i;
     for (v = 0, i = n->size; i--;)
-      v = (v << (sizeof(limb_t) * CHAR_BIT)) + n->limb[i];
+      v = (v << LIMB_BITS) | n->limb[i];
   }
 #elif (UINT64_MAX == LIMB_MAX)
-  v = n->limb[0]; 
+  v = n->limb[0];
 #else
 #error "Long is unreasonably short"
 #endif
 
-  if (n->isneg)
-    return -v;
+  if (!n->isneg)
+    return (int64_t)v;
+  else if (v > (uint64_t)INT64_MAX) /* the width check leaves only 2^63 */
+    return INT64_MIN;
   else
-    return v;
+    return -(int64_t)v;
 }
 
 /* esl+ */
@@ -2370,19 +2401,56 @@ uint64_t bntoull(const bignum_t *n)
     return v;
 }
 
+#if (DBL_MANT_DIG + 1 > 64)
+#error "bntod needs the double mantissa and a guard bit to fit in 64 bits"
+#endif
+
+/* the double nearest to n, ties to even; HUGE_VAL and ERANGE if too big */
 double bntod(const bignum_t *n)
 {
-  double v, s;
-  int i;
+  size_t w;
+  double v;
 
   assert(n != NULL);
   CHECKSIGN(n);
 
-  for (s = 1, v = 0, i = 0; i < (int)n->size; i++) {
-    if (s >= HUGE_VAL) { errno = ERANGE; v = HUGE_VAL; break; } /* [esl+] */
-    v = v + s * n->limb[i];
-    if (v >= HUGE_VAL) { errno = ERANGE; break; } /* [esl+] */
-    s = s * (1.0 + LIMB_MAX);
+  w = bnwidthu(n);
+  if (w <= DBL_MANT_DIG) { /* exact */
+    uint64_t m = 0;
+    size_t i;
+    for (i = n->size; i--;)
+      m = (m << LIMB_BITS) | n->limb[i];
+    v = (double)m;
+  } else {
+    /* m: the top DBL_MANT_DIG + 1 bits, the last one being the guard bit;
+     * sticky: whether any bit below them is set */
+    size_t sh = w - (DBL_MANT_DIG + 1), e, i;
+    size_t li = sh / LIMB_BITS;
+    int off = (int)(sh % LIMB_BITS);
+    uint64_t m = n->limb[li] >> off;
+    int sticky = (n->limb[li] & (((limb_t)1 << off) - 1)) != 0;
+    /* a limb above li+1 exists only when off leaves room for its bits */
+    if (li + 1 < n->size)
+      m |= (uint64_t)n->limb[li + 1] << (LIMB_BITS - off);
+    if (li + 2 < n->size)
+      m |= (uint64_t)n->limb[li + 2] << (2 * LIMB_BITS - off);
+    for (i = 0; !sticky && i < li; i++)
+      sticky = n->limb[i] != 0;
+    /* round to nearest, ties to even */
+    if ((m & 1) && (sticky || (m & 2)))
+      m += 2;
+    m >>= 1;
+    e = sh + 1;
+    if (m >> DBL_MANT_DIG) { /* rounded up to the next power of 2 */
+      m >>= 1;
+      ++e;
+    }
+    if (e > (size_t)(DBL_MAX_EXP - DBL_MANT_DIG)) {
+      errno = ERANGE;
+      v = HUGE_VAL;
+    } else {
+      v = ldexp((double)m, (int)e);
+    }
   }
   if (n->isneg)
     return -v;
@@ -2470,7 +2538,7 @@ static size_t bntostr_small(char *out, const bignum_t *n, size_t req_digits, int
   while (bnwidthu(curr) > 0) {
     bignum_t *rem = NULL;
     bignum_t *q = bndmod(&rem, curr, bn_chunk);
-    if (num_chunks >= 128) break;
+    if (num_chunks >= 128) break; /* latent: leaks q and rem, truncates; DC_THRESHOLD keeps it away */
     chunks[num_chunks++] = (rem && rem->size > 0) ? rem->limb[0] : 0;
     if (rem) bnfree(rem);
     if (curr != n) bnfree(curr);
@@ -2557,6 +2625,7 @@ char *bntostr(char *buffer, size_t len, const bignum_t *n, int radix)
   size_t prefix_len = 0, body_len, total_len;
   char *right_ptr;
 
+  assert(radix >= 2 && radix <= 36); /* U4: not checked in release builds */
   if (radix == 2 || radix == 4 || radix == 8 || radix == 16 || radix == 32) {
     int bbits = radix == 2 ? 1 : radix == 4 ? 2 : radix == 8 ? 3 : radix == 16 ? 4 : 5;
     char *res = bntostr_po2(buffer, len, n, bbits);
@@ -2672,9 +2741,11 @@ static bignum_t *dtobn(double x)
 
   if (x != x || fabs(x) > DBL_MAX) /* exclude nans, infinities */
     return NULL;
+  assert(!(x < 0)); /* B3: a negative x would come out as 0 (f is negative below) */
 
   f = frexp(x, &e);
 
+  /* U6: int i against a size_t, harmless at this bound */
   for (i = 0; e > 0 && i < sizeof(double) * CHAR_BIT; i++, e--) {
     bignum_t *v2 = bnashll(v, 1);
 
@@ -2709,10 +2780,10 @@ bignum_t *strtobn(const char *str, char **endp, int radix)
   bignum_t *v = NULL;
 
   assert(str != NULL);
-  assert(radix >= 2);
+  assert(radix >= 2); /* U4: not checked in release builds */
   assert(radix <= 36);
 
-  while (isspace(*str))
+  while (isspace(*str)) /* U3: a negative char is undefined for isspace */
     str++;
 
   switch (*str) {
@@ -2771,11 +2842,12 @@ size_t bnfmtsize(const bignum_t *n, int radix)
 
   assert(n != NULL);
   CHECKSIGN(n);
-  assert(radix >= 2);
+  assert(radix >= 2); /* U4: not checked in release builds */
   assert(radix <= 36);
 
   /* include space for the sign and the traling zero */
   x = 4 + (n->size * (LOG_BASE + 2) / (log_radix[radix - 2] - 2));
+  assert(x >= 0 && x < (double)SIZE_MAX); /* U5: the checks below come after the conversion */
   xr = (size_t)x;
 
   if (xr < x)
@@ -2798,9 +2870,10 @@ int wrbn(const bignum_t *n, int radix, int (*pf)(int, void*), void *pd)
   
   if (radix < 2 || radix > 36) return (errno = 0), -1;
   len = bnfmtsize(n, radix);
-  if (len == 0) return (errno = 0), 0; /* huh? */
+  if (len == 0) return (errno = 0), 0; /* huh? latent: reports success with nothing written */
   buffer = bnrealloc(NULL, len); // use regular alloc???
   ptr = bntostr(buffer, len, n, radix);
+  assert(ptr != NULL); /* U7: NULL if bnfmtsize fell short */
   for (; *ptr; ++ptr) (*pf)(*ptr, pd); 
   bnrealloc(buffer, 0);
   return (errno = 0), 0;
@@ -6449,7 +6522,8 @@ static numt_t intfrem(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const 
 void intsqrt(numt_t *pqt, nump_t *qp, numt_t *prt, nump_t *rp, numt_t xt, const nump_t *xp)
 {
   if (!xt) { errno = EDOM; *pqt = *prt = NUMT_NONE; return; }
-  assert(NUMT_IS_INTNUM(xt) && getfix(xp) >= 0 && "non-natural number");
+  assert(NUMT_IS_INTNUM(xt) && "non-integer number");
+  assert(intsign(xt, xp) >= 0 && "negative number");
   if (isfix(xt)) {
     long x = getfix(xp), q;
     for (q = 1; q*q > x || x > q*(q+2); q = (q + x/q)/2);
@@ -6638,7 +6712,7 @@ static numt_t intash(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const n
       long x = getfix(xp);
       if (y < 0) {
         long ay = -y;
-        if (y >= FIXNUM_WIDTH) return setfix(zp, x < 0 ? -1 : 0);
+        if (ay >= FIXNUM_WIDTH) return setfix(zp, x < 0 ? -1 : 0);
         if (x >= 0) return setfix(zp, x >> ay);
         return setfix(zp, -(((-x-1) >> ay) + 1));
       } else { /* y > 0 */
@@ -8779,8 +8853,10 @@ static numt_t gnumexpt(nump_t *zp, numt_t xt, const nump_t *xp, numt_t yt, const
       return intodd(yt, yp) ? setfix(zp, -1) : setfix(zp, 1);
     /* 2^y = ash(1, y) if y > 0, 1/ash(1, -y) otherwise */
     if (isfix(xt) && getfix(xp) == 2) {
-      long x = getfix(yp), ax = labs(x); /* legal even if bignum */
-      if (isbig(yt) || ax >= BIGNUM_MAX_BITS) return setfail(ERANGE);
+      long x, ax;
+      if (isbig(yt)) return setfail(ERANGE);
+      x = getfix(yp), ax = labs(x);
+      if (ax >= BIGNUM_MAX_BITS) return setfail(ERANGE);
       if (x > 0 && ax < FIXNUM_WIDTH-1) return setfix(zp, 1L << ax);
       if (x > 0) return setbig(zp, bnashll(bn1, ax));
       if (ax < FIXNUM_WIDTH-1) return NUMT_MKRAT(setfix(zp, 1), setfix(zp+1, 1L << ax));
