@@ -13439,4 +13439,29 @@
 (test 10000000000000000019/7+1/7i (expt (expt 10000000000000000019/7+1/7i 33) 1/33))
 (test 100000000000000003/11+3/11i (expt (expt 100000000000000003/11+3/11i 55) 1/55))
 
+;; bignums divided by a negative fixnum take the single-limb divider, and
+;; -1 is not mistaken for a wide divisor where long is 32 bits wide
+(test -142857142857142857142857142857 (quotient (expt 10 30) -7))
+(test 1 (remainder (expt 10 30) -7))
+(test -6 (modulo (expt 10 30) -7))
+(test -142857142857142857142857142858 (floor-quotient (expt 10 30) -7))
+(test 142857142857142857142857142857 (quotient (- (expt 10 30)) -7))
+(test -1267650600228229401496703205376 (quotient (expt 2 100) -1))
+(test -1267650600228229401496703205376 (floor-quotient (expt 2 100) -1))
+(test 0 (modulo (expt 2 100) -1))
+(test '(-1267650600228229401496703205376 0)
+      (call-with-values (lambda () (floor/ (expt 2 100) -1)) list))
+(test -2 (quotient (* 2 (expt 2 100)) (- (expt 2 100))))
+
+;; a bignum becomes the nearest flonum, ties to even
+(test #t (= (inexact (+ (expt 2 105) (expt 2 52) 1)) (* 1.0 (+ (expt 2 105) (expt 2 53)))))
+(test #t (= (inexact (+ (expt 2 105) (expt 2 52))) (* 1.0 (expt 2 105))))
+(test #t (= (inexact (+ (expt 2 105) (* 3 (expt 2 52)))) (* 1.0 (+ (expt 2 105) (expt 2 54)))))
+(test #t (= (inexact 2523843361603000264528813269469912460708726899861133567107435996917419313657576003526985783601724101430718064421614575399037058153374428)
+            2.5238433616030004e135))
+(test #t (= (inexact (- (expt 2 1024) (expt 2 970) 1)) 1.7976931348623157e308))
+(test #t (= (inexact (- (expt 2 1024) (expt 2 970))) +inf.0))
+(test #t (= (inexact (- (expt 2 1024))) -inf.0))
+(test #t (= (inexact (- (expt 2 64) 1)) 18446744073709551616.0))
+
 (test-end)
