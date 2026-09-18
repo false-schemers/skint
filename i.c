@@ -442,6 +442,8 @@ define_instrhelper(cxi_failactype) {
   { ac = _x; spush((obj)"input port"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckw(x) do { obj _x = (x); if (unlikely(!is_oport(_x))) \
   { ac = _x; spush((obj)"output port"); musttail return cxi_failactype(IARGS); } } while (0)
+#define ckrw(x) do { obj _x = (x); if (unlikely(!is_port(_x))) \
+  { ac = _x; spush((obj)"port"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckx(x) do { obj _x = (x); if (unlikely(!is_procedure(_x))) \
   { ac = _x; spush((obj)"procedure"); musttail return cxi_failactype(IARGS); } } while (0)
 #define ckz(x) do { obj _x = (x); if (unlikely(!is_box(_x))) \
@@ -3852,7 +3854,7 @@ define_instruction(oib) {
 }
 
 define_instruction(oob) {
-  ac = hp_oport_bytevector_obj(newcb());
+  ac = hp_oport_bytevector_obj(bvoalloc());
   gonexti();
 }
 
@@ -3885,6 +3887,59 @@ define_instruction(fop) {
   ckw(ac);
   oportflush(ac);
   ac = void_obj();
+  gonexti();
+}
+
+/* port positions: int64_t at the ctl layer, numbers here; see notes.md [9] */
+
+/* the largest offset that survives the trip through a whole double */
+#define POS_DMAX (((int64_t)1) << DBL_MANT_DIG)
+
+define_instruction(pposcaps) {
+  cxtype_port_t *vt; int caps = 0; ckrw(ac);
+  vt = portvt(ac); assert(vt);
+  if (vt->ctl(CTLOP_POS, portdata(ac), (int64_t *)NULL) == 0) caps |= 1;
+  if (vt->ctl(CTLOP_SETPOS, portdata(ac), (int64_t *)NULL) == 0) caps |= 2;
+  ac = fixnum_obj(caps);
+  gonexti();
+}
+
+define_instruction(ptell) {
+  cxtype_port_t *vt; int64_t pos = 0; ckrw(ac);
+  vt = portvt(ac); assert(vt);
+  if (vt->ctl(CTLOP_POS, portdata(ac), &pos) != 0) ac = bool_obj(0);
+  else if (pos >= FIXNUM_MIN && pos <= FIXNUM_MAX) ac = fixnum_obj((long)pos);
+#ifdef OPT_TOWER
+  else ac = hp_bignum_obj(lltobn(pos)); /* a bignum holds any offset exactly */
+#else
+  else if (pos >= -POS_DMAX && pos <= POS_DMAX) ac = hp_flonum_obj((double)pos);
+  else ac = bool_obj(0); /* no exact form here, and too wide for a whole double */
+#endif
+  gonexti();
+}
+
+define_instruction(pseek) {
+  cxtype_port_t *vt; obj p = sref(0), o = sref(1); int64_t pos = 0; int org, ok = 1;
+  ckrw(ac); cki(o);
+  vt = portvt(ac); assert(vt);
+  switch (get_fixnum(o)) { /* scheme says 0, 1, 2; the stdio names need not agree */
+    case 0: org = SEEK_SET; break;
+    case 1: org = SEEK_CUR; break;
+    case 2: org = SEEK_END; break;
+    default: failtype(o, "port seek origin (0, 1, or 2)");
+  }
+  if (is_fixnum(p)) pos = (int64_t)get_fixnum(p);
+  else if (is_flonum(p) && flisint(get_flonum(p))) {
+    double d = get_flonum(p), bound = ldexp(1.0, 63); /* one past the int64_t range */
+    if (d > -bound && d < bound) pos = (int64_t)d; else ok = 0;
+#ifdef OPT_TOWER
+  } else if (is_bignum(p)) {
+    pos = bntoll(get_bignum(p)); /* 0 back from a bignum means it did not fit */
+    ok = (pos != 0);
+#endif
+  } else failtype(p, "integer");
+  ac = bool_obj(ok && vt->ctl(CTLOP_SETPOS, portdata(ac), &pos, org) == 0);
+  sdrop(2);
   gonexti();
 }
 
@@ -3952,11 +4007,14 @@ define_instruction(sppr) {
   gonexti();
 }
 
+/* a bytevector port's length is bvolen, and cbdata is unsafe on one: notes.md [8] */
 define_instruction(gos) {
   cxtype_oport_t *vt; ckw(ac);
   vt = ckoportvt(ac);
-  if (vt != (cxtype_oport_t *)OPORT_STRING_NTAG &&
-      vt != (cxtype_oport_t *)OPORT_BYTEVECTOR_NTAG) {
+  if (vt == (cxtype_oport_t *)OPORT_BYTEVECTOR_NTAG) {
+    bvofile_t *bp = oportdata(ac);
+    ac = hp_string_obj(newsdatan(bp->cb.buf, (int)bvolen(bp)));
+  } else if (vt != (cxtype_oport_t *)OPORT_STRING_NTAG) {
     ac = eof_obj();
   } else {
     cbuf_t *pcb = oportdata(ac);
@@ -3968,12 +4026,14 @@ define_instruction(gos) {
 define_instruction(gob) {
   cxtype_oport_t *vt; ckw(ac);
   vt = ckoportvt(ac);
-  if (vt != (cxtype_oport_t *)OPORT_BYTEVECTOR_NTAG &&
-      vt != (cxtype_oport_t *)OPORT_STRING_NTAG) {
+  if (vt == (cxtype_oport_t *)OPORT_BYTEVECTOR_NTAG) {
+    bvofile_t *bp = oportdata(ac);
+    ac = hp_bytevector_obj(newbytevector((unsigned char *)bp->cb.buf, (int)bvolen(bp)));
+  } else if (vt != (cxtype_oport_t *)OPORT_STRING_NTAG) {
     ac = eof_obj();
   } else {
     cbuf_t *pcb = oportdata(ac);
-    int len = (int)(pcb->fill - pcb->buf);
+    int len = (int)cblen(pcb);
     ac = hp_bytevector_obj(newbytevector((unsigned char *)pcb->buf, len));
   }
   gonexti();

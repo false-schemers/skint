@@ -602,11 +602,13 @@ extern const int *symsdata(int sym);
 #define get_shebang(o) getimmu(o, SHEBANG_ITAG)
 
 /* input/output ports */
+/* a ctl method answers -1 unimplemented, 0 ok, >0 failed; see notes.md [9] */
 typedef enum { 
   CTLOP_OFL, CTLOP_ICL, 
   CTLOP_RDLN, 
   CTLOP_CI, CTLOP_SETCI, 
-  CTLOP_SETPROMPT 
+  CTLOP_SETPROMPT, 
+  CTLOP_POS, CTLOP_SETPOS 
 } ctlop_t;
 typedef struct { /* extends cxtype_t */
   const char *tname;
@@ -632,6 +634,9 @@ static cxtype_port_t *portvt(obj o) {
   if (pt >= (cxtype_t*)&cxt_port_types[0] && 
       pt < (cxtype_t*)&cxt_port_types[PORTTYPES_MAX])
   return (cxtype_port_t*)pt; else return NULL; }
+/* for the operations that do not care which way a port goes, such as its position */
+#define is_port(o) (portvt(o) != NULL)
+#define portdata(o) ((void*)(*objptr_from_obj(o)))
 
 /* input ports */
 extern cxtype_t *IPORT_CLOSED_NTAG;
@@ -677,7 +682,8 @@ typedef struct sifile { const char *p; const char *e; void *base; siflags_t flag
 extern sifile_t *sialloc(const char *p, int span, void *base);
 #define hiport_string_obj(l, fp) hpushptr(fp, IPORT_STRING_NTAG, l)
 /* bytevector input ports */
-typedef struct bvfile { unsigned char *p, *e; void *base; } bvifile_t;
+/* s is where the data starts, so that p-s is the port's position */
+typedef struct bvfile { unsigned char *s, *p, *e; void *base; } bvifile_t;
 extern bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base);
 #define hiport_bytevector_obj(l, fp) hpushptr(fp, IPORT_BYTEVECTOR_NTAG, l)
 /* optional enhanced tty ports */
@@ -727,6 +733,10 @@ static void oportflush(obj o) {
 /* string output ports */
 #define hoport_string_obj(l, fp) hpushptr(fp, OPORT_STRING_NTAG, l)
 /* bytevector output ports */
+/* fill is the write position, hwl how far the data reaches; see notes.md [8] */
+typedef struct bvofile { cbuf_t cb; size_t hwl; } bvofile_t;
+extern bvofile_t *bvoalloc(void);
+extern size_t bvolen(bvofile_t *fp);
 #define hoport_bytevector_obj(l, fp) hpushptr(fp, OPORT_BYTEVECTOR_NTAG, l)
 
 /* internal list functions */

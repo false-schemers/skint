@@ -196,6 +196,40 @@ never traced; it is `malloc`ed memory freed by the type's `free` method. The sam
 goes for bytevectors, bignums and port state. A native's data cell is
 *uninterpreted* as far as the collector is concerned.
 
+#### The ctl method
+
+Everything a port can do beyond reading and writing one character goes through its
+`ctl` method, a varargs dispatcher on a `ctlop_t`. It answers `-1` for an operation
+it does not implement — `noctl` is the method that answers that to everything — `0`
+on success, and a positive code on failure, so a caller can tell "this port cannot
+do that" from "that did not work". The operations are flushing and clearing
+(`CTLOP_OFL`, `CTLOP_ICL`), reading a whole line (`CTLOP_RDLN`), the case-folding
+flag (`CTLOP_CI`, `CTLOP_SETCI`), the prompt of a tty port (`CTLOP_SETPROMPT`), and
+the position (`CTLOP_POS`, `CTLOP_SETPOS`).
+
+The position travels as an `int64_t` count of bytes, with an origin of `SEEK_SET`,
+`SEEK_CUR` or `SEEK_END` as for `fseek`. Passing a null position pointer asks whether
+the operation is there at all, which is how a caller finds out what a port can do
+without disturbing it. Only binary ports have positions so far:
+
+| Port | Position is |
+|---|---|
+| binary file input / output | `ftell`/`fseek` on the stream, in the widest offset type the platform offers (`fileoff_t` in `s.h`) |
+| bytevector input | the read pointer's distance from the start of the data |
+| bytevector output | how far into the buffer the next byte will go |
+| everything else | not supported |
+
+Neither kind of bytevector port can be extended by seeking, so a position past the
+end of the data is refused rather than filled with zeros. A bytevector output port
+seeks backwards without losing what follows; see notes.md [8].
+
+A port therefore never deals in Scheme numbers, and never in floating point. Scheme
+reaches all of this through three instructions — `%port-poscaps`, `%port-tell` and
+`%port-seek` — and the conversion lives there and nowhere else: a position comes back
+exact when the configuration can hold it exactly, as a whole flonum when it cannot,
+which is what puts a towerless build's ceiling at 2^53. `(srfi 192)` is the library
+written over them.
+
 ### Flonums, and why the model matters
 
 This is the one Scheme type whose category changes with the build.

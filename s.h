@@ -155,6 +155,29 @@ typedef struct stat stat_t;
 #endif
 
 
+/* file offsets, for the position of a binary port; see notes.md [9] */
+#if defined(_MSC_VER) && (_MSC_VER >= 1400)
+typedef __int64 fileoff_t;
+#define ftelloff(fp) _ftelli64(fp)
+#define fseekoff(fp, off, org) _fseeki64(fp, off, org)
+#elif defined(__MINGW32__)
+typedef __int64 fileoff_t;
+#define ftelloff(fp) _ftelli64(fp)
+#define fseekoff(fp, off, org) _fseeki64(fp, off, org)
+#elif defined(_POSIX_VERSION) && (_POSIX_VERSION >= 200112L)
+typedef off_t fileoff_t;
+#define ftelloff(fp) ftello(fp)
+#define fseekoff(fp, off, org) fseeko(fp, off, org)
+#else /* c89 only */
+typedef long fileoff_t;
+#define ftelloff(fp) ftell(fp)
+#define fseekoff(fp, off, org) fseek(fp, off, org)
+#endif
+
+/* the largest value a fileoff_t can hold, as an int64_t */
+#define FILEOFF_IMAX ((int64_t)((((uint64_t)1) << (sizeof(fileoff_t)*8 - 1)) - 1))
+
+
 /* z is zero, but is it negative zero? */
 #if  (defined(_MSC_VER) && _MSC_VER >= 1800) || defined(signbit)
 #  define zero_is_neg(z) signbit(z)

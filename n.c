@@ -794,7 +794,7 @@ static int sictl(ctlop_t op, sifile_t *sp, ...) {
 
 bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
   bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), "malloc(bvifile)");
-  fp->p = p; fp->e = e; fp->base = base; return fp; }
+  fp->s = fp->p = p; fp->e = e; fp->base = base; return fp; }
 
 static void bvifree(bvifile_t *fp) { 
   assert(fp); if (fp->base) free(fp->base); free(fp); }
@@ -804,6 +804,85 @@ static int bvigetch(bvifile_t *fp) {
 
 static int bviungetch(int c, bvifile_t *fp) {
   assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }
+
+static int bvictl(ctlop_t op, bvifile_t *fp, ...) {
+  switch (op) {
+    case CTLOP_POS: {
+      va_list args; int64_t *ppos;
+      va_start(args, fp); ppos = va_arg(args, int64_t *); va_end(args);
+      if (!ppos) return 0; /* supported */
+      *ppos = (int64_t)(fp->p - fp->s);
+      return 0;
+    } break;
+    case CTLOP_SETPOS: {
+      va_list args; int64_t *ppos; int org; int64_t off, span;
+      va_start(args, fp); ppos = va_arg(args, int64_t *);
+      if (!ppos) { va_end(args); return 0; } /* supported */
+      org = va_arg(args, int); va_end(args);
+      off = *ppos;
+      span = (int64_t)(fp->e - fp->s);
+      /* checked before the origin is added, and why: notes.md [9] */
+      if (off > span || off < -span) return 2;
+      switch (org) {
+        case SEEK_SET: break;
+        case SEEK_CUR: off += (int64_t)(fp->p - fp->s); break;
+        case SEEK_END: off += span; break;
+        default: return 2;
+      }
+      if (off < 0 || off > span) return 2;
+      fp->p = fp->s + off;
+      return 0;
+    } break;
+    default: break;
+  }
+  return -1;
+}
+
+/* bytevector output ports */
+
+bvofile_t *bvoalloc(void) {
+  bvofile_t *fp = cxm_cknull(malloc(sizeof(bvofile_t)), "malloc(bvofile)");
+  cbinit(&fp->cb); fp->hwl = 0; return fp; }
+
+static void bvofree(bvofile_t *fp) {
+  if (fp) { free(fp->cb.buf); free(fp); } }
+
+size_t bvolen(bvofile_t *fp) {
+  size_t n; assert(fp); n = cblen(&fp->cb); return (fp->hwl > n) ? fp->hwl : n; }
+
+static int bvoctl(ctlop_t op, bvofile_t *fp, ...) {
+  switch (op) {
+    case CTLOP_POS: {
+      va_list args; int64_t *ppos;
+      va_start(args, fp); ppos = va_arg(args, int64_t *); va_end(args);
+      if (!ppos) return 0; /* supported */
+      *ppos = (int64_t)cblen(&fp->cb);
+      return 0;
+    } break;
+    case CTLOP_SETPOS: {
+      va_list args; int64_t *ppos; int org; int64_t off, len, cur;
+      va_start(args, fp); ppos = va_arg(args, int64_t *);
+      if (!ppos) { va_end(args); return 0; } /* supported */
+      org = va_arg(args, int); va_end(args);
+      off = *ppos;
+      len = (int64_t)bvolen(fp); cur = (int64_t)cblen(&fp->cb);
+      /* the port cannot be extended by seeking, so [0, len] is all there is */
+      if (off > len || off < -len) return 2;
+      switch (org) {
+        case SEEK_SET: break;
+        case SEEK_CUR: off += cur; break;
+        case SEEK_END: off += len; break;
+        default: return 2;
+      }
+      if (off < 0 || off > len) return 2;
+      if ((size_t)cur > fp->hwl) fp->hwl = (size_t)cur; /* keep the tail */
+      fp->cb.fill = fp->cb.buf + off;
+      return 0;
+    } break;
+    default: break;
+  }
+  return -1;
+}
 
 /* file output ports */
 
@@ -816,6 +895,37 @@ static int fctl(ctlop_t op, FILE *fp, ...) {
     default: break;
   }
   return -1;
+}
+
+/* binary file ports, in and out; see notes.md [9] */
+
+static int bfctl(ctlop_t op, FILE *fp, ...) {
+  switch (op) {
+    case CTLOP_POS: {
+      va_list args; int64_t *ppos; fileoff_t off;
+      va_start(args, fp); ppos = va_arg(args, int64_t *); va_end(args);
+      if (!ppos) return 0; /* supported */
+      off = ftelloff(fp);
+      if (off < 0) return 1;
+      *ppos = (int64_t)off;
+      return 0;
+    } break;
+    case CTLOP_SETPOS: {
+      va_list args; int64_t *ppos; int org; int64_t off, lim;
+      va_start(args, fp); ppos = va_arg(args, int64_t *);
+      if (!ppos) { va_end(args); return 0; } /* supported */
+      org = va_arg(args, int); va_end(args);
+      off = *ppos;
+      if (org != SEEK_SET && org != SEEK_CUR && org != SEEK_END) return 2;
+      /* the one out-of-range position we can name unasked; notes.md [9] */
+      if (org == SEEK_SET && off < 0) return 2;
+      lim = FILEOFF_IMAX; /* via a variable: the test folds away on lp64 */
+      if (off > lim || off < -lim - 1) return 2;
+      return (fseekoff(fp, (fileoff_t)off, org) == 0) ? 0 : 1;
+    } break;
+    default: break;
+  }
+  return fctl(op, fp); /* CTLOP_OFL and the rest */
 }
 
 
@@ -838,7 +948,7 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_BYTEFILE_PTINDEX   2
   { "binary-file-input-port", ffree, SPT_INPUT|SPT_BINARY,
     (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
-    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))bfctl },
 #define IPORT_STRING_PTINDEX     3
   { "string-input-port", (void (*)(void*))sifree, SPT_INPUT,
     (int (*)(void*))sigetch, (int (*)(int, void*))siungetch,
@@ -846,7 +956,7 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_BYTEVECTOR_PTINDEX 4
   { "bytevector-input-port", (void (*)(void*))bvifree, SPT_INPUT|SPT_BINARY,
     (int (*)(void*))bvigetch, (int (*)(int, void*))bviungetch,
-    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))bvictl },
 #define OPORT_CLOSED_PTINDEX     5
   { "closed-output-port", (void (*)(void*))nofree, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
@@ -858,15 +968,15 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define OPORT_BYTEFILE_PTINDEX   7
   { "binary-file-output-port", ffree, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))(fputc), (int (*)(ctlop_t, void *, ...))fctl },
+    (int (*)(int, void*))(fputc), (int (*)(ctlop_t, void *, ...))bfctl },
 #define OPORT_STRING_PTINDEX     8
   { "string-output-port", (void (*)(void*))freecb, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))ucbputc, (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEVECTOR_PTINDEX 9
-  { "bytevector-output-port", (void (*)(void*))freecb, SPT_OUTPUT|SPT_BINARY,
+  { "bytevector-output-port", (void (*)(void*))bvofree, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))cbputc, (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))cbputc, (int (*)(ctlop_t, void *, ...))bvoctl },
 #ifdef OPT_ENHTTY /* + tty */
 #define IPORT_TTY_PTINDEX 10
   { "tty-input-port", (void (*)(void*))ttfree, SPT_INPUT,

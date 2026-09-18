@@ -152,3 +152,118 @@ For procedures the assertion runs in both directions: on a yes, that the object
 really is a well-formed closure; on a no, that nothing closure-shaped was passed
 over.
 
+
+### [8] Why a bytevector output port carries a length of its own
+
+`n.h`, the bytevector output port section; `n.c`, `bvoctl`.
+
+A bytevector output port is a `cbuf_t`, and until positions arrived its `fill` was
+both the write position and the end of the data: `get-output-bytevector` handed back
+`fill - buf` bytes. `CTLOP_SETPOS` breaks that identity. Seeking back to byte 3 of a
+ten-byte port and writing one byte there has to leave the other nine in place, which
+is what the same seek does to a file; moving `fill` back to 3 would instead have made
+the port three bytes long and the write would have ended it at four.
+
+So the port is a `bvofile_t`: the buffer, plus `hwl`, the length the data had when a
+backward seek moved `fill` off the end of it. The effective length is the larger of
+the two, which is what `bvolen` returns and what `gos` and `gob` ask for. Nothing
+else changes. `hwl` starts at zero and stays there unless a seek moves back, so a
+port that is only ever appended to behaves exactly as it did; and the `cbuf_t` is the
+first member, so `cbputc` goes on serving as the port's `putch` untouched.
+
+The field is on this port rather than on `cbuf_t` because `cbuf_t` is also the
+scratch buffer used throughout `n.c`, where `fill` is the length and nothing seeks.
+The string output port is still a plain `cbuf_t` and answers -1 to both position
+operations; whenever text ports get positions, it will need the same treatment.
+
+Seeking past the end of the data is refused rather than zero-filling, on both kinds
+of bytevector port: growing the buffer with bytes nobody wrote is a bigger promise
+than the operation needs to make.
+
+Two things follow for `gos` and `gob` in `i.c`, which hand back what such a port has
+collected. The length has to come from `bvolen` rather than from `fill - buf`, or a
+port that was seeked back loses its tail; and `cbdata` must not be used to get at the
+bytes, because it writes its terminating zero *at* `fill`, which on such a port is a
+byte of the data. The two instructions therefore take the bytevector port apart
+themselves and leave `cbdata` to the string port, where `fill` really is the end.
+
+### [9] How a port's position is passed around
+
+`s.h`, the file offset section; `n.h`, the `ctlop_t` declaration; `n.c`, `bvictl`,
+`bvoctl` and `bfctl`; `i.c`, the port position instructions.
+
+A ctl method answers `-1` for an operation it does not implement, `0` on success,
+and a positive code on failure, so a caller can tell "this port cannot do that" from
+"that did not work". `noctl` is the method that refuses everything. The two position
+operations are
+
+```c
+int xxxctl(CTLOP_POS, void *pdata, int64_t *ppos);
+int xxxctl(CTLOP_SETPOS, void *pdata, int64_t *ppos, int origin);
+```
+
+where `origin` is `SEEK_SET`, `SEEK_CUR` or `SEEK_END` as for `fseek`. A null `ppos`
+asks whether the operation is there at all — `-1` no, `0` yes — and passes no origin,
+which lets a caller find out what a port can do without disturbing it. The failure
+codes are `1`, the operation itself failed, and `2`, the position is out of range.
+
+#### Why the ctl layer counts in int64_t
+
+A byte offset is an integer, and a port has no business knowing that Scheme counts in
+something else. Everything above the ports is free to change — `%port-tell` could
+start handing back a record, or a rational — without a port method being touched.
+
+It also gave the conversion one home instead of two. While positions travelled as
+whole doubles, `n.c` had to test for wholeness and for the `int64_t` range on the way
+in, and for double representability on the way out, and it needed `floor` and `ldexp`
+to do it. None of that is in `n.c` now, and there is no floating point anywhere in
+the port code.
+
+#### What the instructions do with it
+
+`%port-tell` returns the position as a fixnum when it fits one; failing that, as a
+bignum where there is a tower, since a bignum holds any offset exactly; and failing
+that, as a whole flonum. That last case is what puts a ceiling on a build with no
+tower: past 2^53 a double can no longer name every integer, so rather than hand back
+a rounded position the instruction answers `#f`, which the `(srfi 192)` cover turns
+into a file error. The cap is deliberately the simple `> 2^53` rule and not a test of
+whether each particular value survives the round trip: some larger integers do and
+some do not, and a `port-position` that worked at 1e16 but failed at 1e16+1 would be
+worse than one that declines predictably.
+
+`%port-seek` accepts any integer form — a fixnum, a whole flonum, or a bignum with
+the tower — and converts it to `int64_t`. A value that is not an integer is a type
+error, as passing a string would be. A value that is an integer but names no
+reachable position is not: it answers `#f`, and the cover raises a file error. The
+origin is `0`, `1` or `2` in Scheme rather than the `SEEK_*` constants, whose values
+C does not fix.
+
+#### Offsets and the platform
+
+`fileoff_t` in `s.h` is the widest offset the platform offers — `_ftelli64` and
+`_fseeki64` on MSVC and MinGW, `ftello` and `fseeko` where `_POSIX_VERSION` is at
+least 200112L, and plain `ftell` and `fseek` otherwise. A stream can outgrow a 32-bit
+offset, so on a system whose `off_t` is still 32 bits the fallback is all there is and
+positions past 2gb are out of reach. `FILEOFF_IMAX` is what an `int64_t` position is
+checked against before it is narrowed.
+
+The binary file ports are opened in binary mode, so an offset is a plain byte count.
+A byte pushed back with `ungetc` has already moved the stream's own position back, and
+`fseek` discards the pushback, so neither operation needs to adjust for it.
+
+`bfctl` serves both binary file ports and passes everything else through to `fctl`,
+which is where `CTLOP_OFL` is handled; the text file output port keeps `fctl` alone,
+since text ports have no positions yet.
+
+#### Two checks that are easy to misread
+
+In `bvictl` and `bvoctl` the incoming offset is tested against the span of the data
+*before* the origin is added, not only after. The result has to land in `[0, span]`,
+so an offset wider than the span could not get there whatever the origin — and doing
+it in that order is also what keeps the addition from overflowing.
+
+In `bfctl` a negative `SEEK_SET` position is refused with code `2` rather than being
+handed to `fseek`, which would fail it with code `1`. It is the one out-of-range
+position that can be named without asking the stream: a relative one only turns out
+to be out of range when `fseek` says so. The bytevector ports answer `2` for the same
+mistake, so the two kinds of port agree.
