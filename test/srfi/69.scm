@@ -293,13 +293,54 @@
                  (canonical-order (hash-table-values ht4equal))))
     (fail 'hash-table-fold:1))
 
+;[esl]+ hash on structures that contain cycles
+;
+; hash walks pairs and vectors, so anything cyclic used to run until the stack
+; overflowed.  The walk is depth-limited now, and these are the shapes that
+; used to fall over; what the values are does not matter, only that they come.
+
+(define (make-cyclic-cdr) (let ((x (list 1 2))) (set-cdr! (cdr x) x) x))
+(define (make-cyclic-car) (let ((x (list 'a))) (set-car! x x) x))
+(define (make-cyclic-vector) (let ((v (vector 1 #f))) (vector-set! v 1 v) v))
+(define (make-mixed-cycle)
+  (let* ((v (vector 2 #f)) (x (list 1 v))) (vector-set! v 1 x) x))
+(define (make-deep n)
+  (let loop ((n n) (x '())) (if (= n 0) x (loop (- n 1) (list x)))))
+
+(define (hashes? obj) (exact-integer? (hash obj)))
+(define (hashes-within? obj bound)
+  (let ((h (hash obj bound)))
+    (and (exact-integer? h) (>= h 0) (< h bound))))
+
+(or (hashes? (make-cyclic-cdr)) (fail 'hash:cyclic-cdr))
+(or (hashes? (make-cyclic-car)) (fail 'hash:cyclic-car))
+(or (hashes? (make-cyclic-vector)) (fail 'hash:cyclic-vector))
+(or (hashes? (make-mixed-cycle)) (fail 'hash:cycle-through-a-vector))
+(or (hashes? (make-deep 500)) (fail 'hash:deeply-nested))
+
+(or (hashes-within? (make-cyclic-cdr) 97) (fail 'hash:cyclic-bounded))
+(or (hashes-within? (make-deep 500) 97) (fail 'hash:deep-bounded))
+
+; equal structures still hash alike, cyclic or not
+(or (= (hash '(1 (2 3) #(4 5))) (hash (list 1 (list 2 3) (vector 4 5))))
+    (fail 'hash:equal-structures-agree))
+(or (= (hash (make-cyclic-cdr)) (hash (make-cyclic-cdr)))
+    (fail 'hash:equal-cycles-agree))
+
+; and a cyclic key can be put in a table and found again
+(let ((ht (make-hash-table equal?))
+      (key (make-cyclic-cdr)))
+  (hash-table-set! ht key 'found)
+  (or (eq? 'found (hash-table-ref/default ht key 'missing))
+      (fail 'hash:cyclic-key-in-a-table)))
+
+
 ; Not yet tested:
 ;
 ; hash-table->alist
 ; hash-table-copy
 ; hash-table-merge!
 ;
-; hash
 ; string-hash
 ; string-ci-hash
 ; hash-by-identity

@@ -941,10 +941,16 @@
       (case (numvector? x)
         [(#f 0) #f]
         [(1) (bvec-print-hook "#s8(" numvector-length numvector-ref ")")]
-        [(2) (bvec-print-hook "#u16(" numvector-length numvector-ref ")")] 
+        [(2) (bvec-print-hook "#u16(" numvector-length numvector-ref ")")]
         [(3) (bvec-print-hook "#s16(" numvector-length numvector-ref ")")]
+        [(4) (bvec-print-hook "#u32(" numvector-length numvector-ref ")")]
+        [(5) (bvec-print-hook "#s32(" numvector-length numvector-ref ")")]
+        [(6) (bvec-print-hook "#u64(" numvector-length numvector-ref ")")]
+        [(7) (bvec-print-hook "#s64(" numvector-length numvector-ref ")")]
         [(10) (bvec-print-hook "#f32(" numvector-length numvector-ref ")")]
         [(11) (bvec-print-hook "#f64(" numvector-length numvector-ref ")")]
+        [(14) (bvec-print-hook "#c64(" numvector-length numvector-ref ")")]
+        [(15) (bvec-print-hook "#c128(" numvector-length numvector-ref ")")]
         ; TODO: add 2 to numvector-length for #*0101... bitvec notation
         [else (atom-print-hook #t written-width write)]))))
 
