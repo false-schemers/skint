@@ -38,9 +38,13 @@
     (when (< type 10)
       (let loop ((i 0)) (when (< i n) (numvector-set! v i 1) (loop (+ i 1)))))
     v))
-(test "#u64(1 1 1 1\n     1 1)\n" (printed (filled 6 6) pp-width 12))
-(test "#c64(0.0+0.0i\n     0.0+0.0i\n     0.0+0.0i)\n" (printed (filled 14 3) pp-width 20))
-(test "#c128(0.0+0.0i\n      0.0+0.0i\n      0.0+0.0i)\n" (printed (filled 15 3) pp-width 20))
+;[cco] the wide integer and the complex types exist only under OPT_TOWER
+(define tower? (and (memq 'full-numeric-tower (features)) #t))
+(test "#u16(1 1 1 1\n     1 1)\n" (printed (filled 2 6) pp-width 12))
+(when tower?
+  (test "#u64(1 1 1 1\n     1 1)\n" (printed (filled 6 6) pp-width 12))
+  (test "#c64(0.0+0.0i\n     0.0+0.0i\n     0.0+0.0i)\n" (printed (filled 14 3) pp-width 20))
+  (test "#c128(0.0+0.0i\n      0.0+0.0i\n      0.0+0.0i)\n" (printed (filled 15 3) pp-width 20)))
 
 ;; --------------------------------------------- pprint-file preserves comments
 

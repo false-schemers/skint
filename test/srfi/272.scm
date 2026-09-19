@@ -72,5 +72,6 @@
 (test 0 (run-sub "intermediate"))
 (test 0 (run-sub "advanced"))
 (test 0 (run-sub "fancy"))
+(test 0 (run-sub "show"))
 
 (test-end)

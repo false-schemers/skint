@@ -1192,31 +1192,41 @@
 (define (reads-back? v)
   (equal? v (read (open-input-string (printed v)))))
 
+;;[cco] u32, s32, u64, s64, c64 and c128 exist only under OPT_TOWER, so a
+;; towerless build cannot make one at all and skips these cases entirely
+(define tower? (and (memq 'full-numeric-tower (features)) #t))
+
 (test "#u8(1 1 1)" (printed (nv 0 3)))
 (test "#s8(1 1 1)" (printed (nv 1 3)))
 (test "#u16(1 1 1)" (printed (nv 2 3)))
 (test "#s16(1 1 1)" (printed (nv 3 3)))
-(test "#u32(1 1 1)" (printed (nv 4 3)))
-(test "#s32(1 1 1)" (printed (nv 5 3)))
-(test "#u64(1 1 1)" (printed (nv 6 3)))
-(test "#s64(1 1 1)" (printed (nv 7 3)))
 (test "#f32(0.0 0.0)" (printed (nv 10 2)))
 (test "#f64(0.0 0.0)" (printed (nv 11 2)))
-(test "#c64(0.0+0.0i 0.0+0.0i)" (printed (nv 14 2)))
-(test "#c128(0.0+0.0i 0.0+0.0i)" (printed (nv 15 2)))
+(when tower?
+  (test "#u32(1 1 1)" (printed (nv 4 3)))
+  (test "#s32(1 1 1)" (printed (nv 5 3)))
+  (test "#u64(1 1 1)" (printed (nv 6 3)))
+  (test "#s64(1 1 1)" (printed (nv 7 3)))
+  (test "#c64(0.0+0.0i 0.0+0.0i)" (printed (nv 14 2)))
+  (test "#c128(0.0+0.0i 0.0+0.0i)" (printed (nv 15 2))))
 
-(test-assert (reads-back? (nv 4 3)))
-(test-assert (reads-back? (nv 7 3)))
+(test-assert (reads-back? (nv 3 3)))
 (test-assert (reads-back? (nv 10 3)))
-(test-assert (reads-back? (nv 14 3)))
-(test-assert (reads-back? (nv 15 3)))
+(when tower?
+  (test-assert (reads-back? (nv 4 3)))
+  (test-assert (reads-back? (nv 7 3)))
+  (test-assert (reads-back? (nv 14 3)))
+  (test-assert (reads-back? (nv 15 3))))
 
 ;; with an indent they break at the width, which is what the hook buys over
 ;; leaving the vector to write
-(test "#u32(1 1 1 1\n     1 1)\n"
-  (printed (nv 4 6) print-indent 0 print-width 12))
-(test "#c128(0.0+0.0i\n      0.0+0.0i\n      0.0+0.0i)\n"
-  (printed (nv 15 3) print-indent 0 print-width 20))
+(test "#u16(1 1 1 1\n     1 1)\n"
+  (printed (nv 2 6) print-indent 0 print-width 12))
+(when tower?
+  (test "#u32(1 1 1 1\n     1 1)\n"
+    (printed (nv 4 6) print-indent 0 print-width 12))
+  (test "#c128(0.0+0.0i\n      0.0+0.0i\n      0.0+0.0i)\n"
+    (printed (nv 15 3) print-indent 0 print-width 20)))
 
 ;; NOTE: for f32, c64 and c128 the printer does NOT agree with write, and it
 ;; is write that is wrong: it drops the decimal point, so that #f32(1.5 2) and

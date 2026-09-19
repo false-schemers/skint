@@ -330,6 +330,7 @@ int *mapsdata(const int *d, int (*f)(int)) {
   int i, n = sdatalen(d), *d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
   const char *s = sdatachars(d); char *s1 = sdatachars(d1);
   d1[0] = d[0]; for (i = 0; i < n; ++i) *s1++ = (*f)(*s++);   
+  *s1 = 0; /*[cco] terminate, as newsdatan, makesdata and subsdata all do */
   return d1;
 }
 

@@ -19,7 +19,11 @@
                   (computation-forked forked)
                   (make-computation-environment-variable make-state-variable))
           ;[esl*] moved from chibi namespace; was (chibi show shared)
-          (srfi 166 shared))
+          (srfi 166 shared)
+          ;[cco] for exact-representable?, below
+          (only (srfi 143) fx-greatest)
+          (only (skint fl) flonum? flinteger? flfinite? flabs fl<=?)
+          (only (skint fx) fixnum->flonum))
   (export
    ;; basic
    show displayed written written-shared written-simply
@@ -335,7 +339,19 @@
               (lp (cdr ls) (cons 0 res)))
              (else
               (append (reverse res) (cons (+ 1 (car ls)) (cdr ls)))))))
-        ;[esl*] without bignums, we can't use the 'general' algorithm
+        ;[cco] Whether (exact x) is certainly representable, decided in advance
+        ; rather than by catching a failure.  With bignums and ratnums every
+        ; finite flonum converts; without them only an integer inside the
+        ; fixnum range does.  Every operation used here is total.
+        (define exact-integer-limit (fixnum->flonum fx-greatest))
+        (define (exact-representable? x)
+          (or (exact? x) ; already exact: nothing to convert
+              (and (flonum? x)
+                   (flfinite? x)
+                   (cond-expand
+                     (full-numeric-tower #t)
+                     (else (and (flinteger? x)
+                                (fl<=? (flabs x) exact-integer-limit)))))))
         (define (maybe-round n d ls)
           (let* ((q (quotient n d))
                  (digit (* 2 (if (>= q radix) (quotient q (get-scale q)) q))))
@@ -396,68 +412,122 @@
         ;; result of string->number.
         (define (gen-fixed n)
           (cond
-           ;[esl-] without bignums, we can't rely on 'exact' not failing
-           #;((and (eqv? radix 10) (zero? precision) (inexact? n))
+           ;[cco] the reference clause, asking first whether exact can do it
+           ((and (eqv? radix 10) (zero? precision) (inexact? n)
+                 (exact-representable? (round n)))
             (number->string (exact (round n))))
-           ;[esl+] 
+           ;[esl+]
            ((and (zero? precision) (exact? n))
-            (number->string n))         
+            (number->string n))
            ((and (eqv? radix 10) (or (integer? n) (inexact? n)))
-            (let* ((s (number->string n))
-                   (start (string-cursor-start s))
-                   (end (string-cursor-end s))
-                   (dec (string-index s #\.))
-                   (e (string-index s #\e))
-                   (digits (- (string-cursor->index s end)
-                              (string-cursor->index s dec))))
-              (cond
-               ((string-cursor<? e end)
-                (if (positive? precision)
-                    (let* ((e2 (string-cursor-next s e))
-                           (exp (string->number (substring/cursors s e2 end))))
-                      (if (<= (- exp) precision)
-                          ; [esl*] can't use the original (gen-general n)
-                          s 
-                          ;; Experimental, prefer to retain the
-                          ;; exponent instead of just rounding to 0.
-                          (let ((n2 (string->number
-                                     (substring/cursors s start e))))
-                            (string-append
-                             (gen-fixed n2)
-                             (substring/cursors s e end)))))
-                    ; [esl*] can't use the original (gen-general n)
-                    s #;(gen-general n)))
-               ((string-cursor=? dec end)
-                (string-append s (if (char? dec-sep) (string dec-sep) dec-sep)
-                               (make-string precision #\0)))
-               ((<= digits precision)
-                (string-append s (make-string (- precision digits -1) #\0)))
-               (else
-                (let* ((last
-                        (string-cursor-back s end (- digits precision 1)))
-                       (res (substring/cursors s start last)))
-                  (if (and
-                       (string-cursor<? last end)
-                       (let ((next (digit-value (string-ref/cursor s last))))
-                         (or (> next 5)
-                             (and (= next 5)
-                                  (string-cursor>? last start)
-                                  (memv (digit-value
-                                         (string-ref/cursor
-                                          s (string-cursor-prev s last)))
-                                        '(1 3 5 7 9))))))
-                      (reverse-list->string
-                       (map char-digit
-                            (round-up
-                             (reverse
-                              (map digit-value (string->list res))))))
-                      res))))))
+            (fixup (number->string n)))
            (else
-            ;[esl*] without bignums, we can't use the 'general' algorithm
-            (cond-expand
-              (full-numeric-tower (gen-general n))
-              (else (error "invalid radix for numeric formatting" radix n)))
-            #;(gen-general n))))
+            ;[cco] the same question, asked of the value rather than the build
+            (if (exact-representable? n)
+                (gen-general n)
+                (error "invalid radix for numeric formatting" radix n)))))
+        ;[cco] Expand an exponent form such as "1e-9" into plain decimal
+        ; digits by moving the point, which is string work only -- a build
+        ; without bignums can do it, where the general algorithm cannot.
+        ;[cco] Skint writes an exponent with as few digits as it needs;
+        ; the reference implementation prints at least two, and the tests
+        ; pin that, so the exponent this branch copies out is padded.
+        (define (pad-exponent str) ; "e-6" -> "e-06"
+          (let* ((len (string-length str))
+                 (sign (if (and (> len 1)
+                                (memv (string-ref str 1) (list #\- #\+)))
+                           (string (string-ref str 1))
+                           ""))
+                 (ds (substring str (+ 1 (string-length sign)) len)))
+            (string-append "e" sign
+                           (if (< (string-length ds) 2)
+                               (string-append
+                                (make-string (- 2 (string-length ds)) #\0) ds)
+                               ds))))
+        (define (expand-exponent s)
+          (define len (string-length s))
+          (define (scan-from c i)
+            (cond ((>= i len) #f)
+                  ((char=? (string-ref s i) c) i)
+                  (else (scan-from c (+ i 1)))))
+          (let* ((epos (or (scan-from #\e 0) len))
+                 (mant (substring s 0 epos))
+                 (expo (if (< epos len)
+                           (or (string->number (substring s (+ epos 1) len)) 0)
+                           0))
+                 (neg (and (> (string-length mant) 0)
+                           (char=? (string-ref mant 0) #\-)))
+                 (body (if (or neg (and (> (string-length mant) 0)
+                                        (char=? (string-ref mant 0) #\+)))
+                           (substring mant 1 (string-length mant))
+                           mant))
+                 (blen (string-length body))
+                 (dpos (let lp ((i 0))
+                         (cond ((>= i blen) blen)
+                               ((char=? (string-ref body i) #\.) i)
+                               (else (lp (+ i 1))))))
+                 (digits (string-append
+                          (substring body 0 dpos)
+                          (if (< dpos blen) (substring body (+ dpos 1) blen) "")))
+                 (dlen (string-length digits))
+                 (point (+ dpos expo))
+                 (out (cond ((<= point 0)
+                             (string-append "0." (make-string (- point) #\0) digits))
+                            ((>= point dlen)
+                             (string-append digits (make-string (- point dlen) #\0)))
+                            (else
+                             (string-append (substring digits 0 point) "."
+                                            (substring digits point dlen))))))
+            (if neg (string-append "-" out) out)))
+        ;[cco] The post-editing itself, over the string rather than the
+        ; number, so that an expanded exponent can be fed back through it.
+        (define (fixup s)
+          (let* ((start (string-cursor-start s))
+                 (end (string-cursor-end s))
+                 (dec (string-index s #\.))
+                 (e (string-index s #\e))
+                 (digits (- (string-cursor->index s end)
+                            (string-cursor->index s dec))))
+            (cond
+             ((string-cursor<? e end)
+              (if (positive? precision)
+                  (let* ((e2 (string-cursor-next s e))
+                         (exp (string->number (substring/cursors s e2 end))))
+                    (if (<= (- exp) precision)
+                        (fixup (expand-exponent s))
+                        ;; Experimental, prefer to retain the
+                        ;; exponent instead of just rounding to 0.
+                        (let ((n2 (string->number
+                                   (substring/cursors s start e))))
+                          (string-append
+                           (gen-fixed n2)
+                           (pad-exponent (substring/cursors s e end))))))
+                  (fixup (expand-exponent s))))
+             ((string-cursor=? dec end)
+              (string-append s (if (char? dec-sep) (string dec-sep) dec-sep)
+                             (make-string precision #\0)))
+             ((<= digits precision)
+              (string-append s (make-string (- precision digits -1) #\0)))
+             (else
+              (let* ((last
+                      (string-cursor-back s end (- digits precision 1)))
+                     (res (substring/cursors s start last)))
+                (if (and
+                     (string-cursor<? last end)
+                     (let ((next (digit-value (string-ref/cursor s last))))
+                       (or (> next 5)
+                           (and (= next 5)
+                                (string-cursor>? last start)
+                                (memv (digit-value
+                                       (string-ref/cursor
+                                        s (string-cursor-prev s last)))
+                                      '(1 3 5 7 9))))))
+                    (reverse-list->string
+                     (map char-digit
+                          (round-up
+                           (reverse
+                            (map digit-value (string->list res))))))
+                    res))))))
         ;; Generate any unsigned real number.
         (define (gen-positive-real n)
           (cond
@@ -466,11 +536,10 @@
            ((memv radix (if (exact? n) '(2 8 10 16) '(10)))
             (number->string n radix))
            (else
-            ;[esl*] without bignums, we can't use the 'general' algorithm 
-            (cond-expand
-              (full-numeric-tower (gen-general n))
-              (else (error "invalid radix for numeric formatting" radix n)))
-            #;(gen-general n))))
+            ;[cco] the same question, asked of the value rather than the build
+            (if (exact-representable? n)
+                (gen-general n)
+                (error "invalid radix for numeric formatting" radix n)))))
         ;; Insert commas according to the current comma-rule.
         (define (insert-commas str)
           (let* ((dec-pos (if (string? dec-sep)

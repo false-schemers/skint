@@ -52,14 +52,19 @@
       (let loop ((i 0)) (when (< i n) (numvector-set! v i 1) (loop (+ i 1)))))
     v))
 
-(test "#u32(1 1 1 1\n     1 1)\n" (printed (filled 4 6) pp-width 12))
-(test "#s32(1 1 1 1\n     1 1)\n" (printed (filled 5 6) pp-width 12))
-(test "#u64(1 1 1 1\n     1 1)\n" (printed (filled 6 6) pp-width 12))
-(test "#s64(1 1 1 1\n     1 1)\n" (printed (filled 7 6) pp-width 12))
-(test "#c64(0.0+0.0i\n     0.0+0.0i\n     0.0+0.0i)\n" (printed (filled 14 3) pp-width 20))
-(test "#c128(0.0+0.0i\n      0.0+0.0i\n      0.0+0.0i)\n" (printed (filled 15 3) pp-width 20))
+;[cco] u32, s32, u64, s64, c64 and c128 exist only under OPT_TOWER, so a
+; towerless build cannot make one at all and skips these cases entirely
+(define tower? (and (memq 'full-numeric-tower (features)) #t))
 
-; and the ones it already knew
+(when tower?
+  (test "#u32(1 1 1 1\n     1 1)\n" (printed (filled 4 6) pp-width 12))
+  (test "#s32(1 1 1 1\n     1 1)\n" (printed (filled 5 6) pp-width 12))
+  (test "#u64(1 1 1 1\n     1 1)\n" (printed (filled 6 6) pp-width 12))
+  (test "#s64(1 1 1 1\n     1 1)\n" (printed (filled 7 6) pp-width 12))
+  (test "#c64(0.0+0.0i\n     0.0+0.0i\n     0.0+0.0i)\n" (printed (filled 14 3) pp-width 20))
+  (test "#c128(0.0+0.0i\n      0.0+0.0i\n      0.0+0.0i)\n" (printed (filled 15 3) pp-width 20)))
+
+; and the ones it already knew, which are there in every build
 (test "#s8(1 1 1 1\n    1 1)\n" (printed (filled 1 6) pp-width 12))
 (test "#u16(1 1 1 1\n     1 1)\n" (printed (filled 2 6) pp-width 12))
 
@@ -67,11 +72,14 @@
 (define (roundtrips? type)
   (let ((v (filled type 3)))
     (equal? v (read (open-input-string (printed v))))))
-(test #t (roundtrips? 4))
-(test #t (roundtrips? 5))
-(test #t (roundtrips? 6))
-(test #t (roundtrips? 7))
-(test #t (roundtrips? 14))
-(test #t (roundtrips? 15))
+(test #t (roundtrips? 3))
+(test #t (roundtrips? 11))
+(when tower?
+  (test #t (roundtrips? 4))
+  (test #t (roundtrips? 5))
+  (test #t (roundtrips? 6))
+  (test #t (roundtrips? 7))
+  (test #t (roundtrips? 14))
+  (test #t (roundtrips? 15)))
 
 (test-end)

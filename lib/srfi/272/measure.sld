@@ -12,7 +12,7 @@
 
   (begin
     (cond-expand
-      (unicode
+      (full-unicode ;[cco] was (unicode ...), which no R7RS system defines
        ; char-width: portable Scheme approximation of traditional wcwidth()
        ; assumes some (?) UTF-8 locale; returns #f (=not ptintable), 0, 1, 2
        ; if your system has access to the real wcwidth, better use it

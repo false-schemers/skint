@@ -7,7 +7,9 @@
           (scheme char)
           (srfi 130)
           (srfi 151)
-          (srfi 166 base))
+          (srfi 166 base)
+          ;[cco] skint keeps a wcwidth analogue here
+          (only (srfi 272 measure) char-width-procedure))
   (export terminal-aware
           string-terminal-width string-terminal-width/wide
           substring-terminal-width substring-terminal-width/wide
@@ -16,8 +18,15 @@
 
 (begin
 
-;[esl-] no unicode support in Skint
-(define (unicode-char-width ch ambiguous-is-wide?) 1) ;[esl*] ascii stub
+;[cco] Use that table where the build has unicode, and count every character
+; as one column where it does not.  The table does not distinguish East Asian
+; Ambiguous, so ambiguous-is-wide? has nothing to select and is ignored.
+(cond-expand
+  (full-unicode
+   (define (unicode-char-width ch ambiguous-is-wide?)
+     (or ((char-width-procedure) ch) 1)))
+  (else
+   (define (unicode-char-width ch ambiguous-is-wide?) 1)))
 
 (define (string-terminal-width/aux str start end ambiguous-is-wide?)
   (let lp1 ((sc start) (width 0))

@@ -6,7 +6,8 @@
   (import (scheme base)
           (scheme char)
           (scheme write)
-          #;(chibi show shared)
+          ;[cco] the same move base.sld makes; this one was missed
+          (srfi 166 shared)
           (srfi 1)
           (srfi 69)
           (srfi 130)

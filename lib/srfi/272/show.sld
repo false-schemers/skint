@@ -20,8 +20,11 @@
   (begin
 
     (define (pprinted obj . kv*)
-      (fn (width) ; default width is taken from show env
-        (let* ((ppe (append kv* (list pp-width width)))
+      (fn (width) ; the width is taken from the show env
+        ;[cco] prepended, not appended: kval takes the FIRST match, so an
+        ; appended pair could never override an explicit pp-width in kv*,
+        ; which the spec requires the show width to do
+        (let* ((ppe (cons pp-width (cons width kv*)))
                (g (apply make-pprint-generator obj ppe)))
           (let lp ((s (g)))
             (if (eof-object? s)

@@ -56,10 +56,15 @@
 
 (define (narrow v) (printed v pp-width 12))
 
-(test "#u32(1 1 1 1\n     1 1)\n" (narrow (filled 4 6)))
-(test "#s32(1 1 1 1\n     1 1)\n" (narrow (filled 5 6)))
-(test "#u64(1 1 1 1\n     1 1)\n" (narrow (filled 6 6)))
-(test "#s64(1 1 1 1\n     1 1)\n" (narrow (filled 7 6)))
+;[cco] u32, s32, u64, s64, c64 and c128 exist only under OPT_TOWER, so a
+; towerless build cannot make one at all and skips these cases entirely
+(define tower? (and (memq 'full-numeric-tower (features)) #t))
+
+(when tower?
+  (test "#u32(1 1 1 1\n     1 1)\n" (narrow (filled 4 6)))
+  (test "#s32(1 1 1 1\n     1 1)\n" (narrow (filled 5 6)))
+  (test "#u64(1 1 1 1\n     1 1)\n" (narrow (filled 6 6)))
+  (test "#s64(1 1 1 1\n     1 1)\n" (narrow (filled 7 6))))
 
 ; the ones skint already knew still work
 (test "#s8(1 1 1 1\n    1 1)\n" (narrow (filled 1 6)))
@@ -69,17 +74,20 @@
 (define (roundtrips? type)
   (let ((v (filled type 3)))
     (equal? v (read (open-input-string (printed v))))))
-(test #t (roundtrips? 4))
-(test #t (roundtrips? 7))
+(test #t (roundtrips? 3))
 (test #t (roundtrips? 11))
-(test #t (roundtrips? 14))
-(test #t (roundtrips? 15))
+(when tower?
+  (test #t (roundtrips? 4))
+  (test #t (roundtrips? 7))
+  (test #t (roundtrips? 14))
+  (test #t (roundtrips? 15)))
 
 ; the complex ones are the widest, and they break like the rest
-(test "#c64(0.0+0.0i\n     0.0+0.0i\n     0.0+0.0i)\n"
-  (printed (filled 14 3) pp-width 20))
-(test "#c128(0.0+0.0i\n      0.0+0.0i\n      0.0+0.0i)\n"
-  (printed (filled 15 3) pp-width 20))
+(when tower?
+  (test "#c64(0.0+0.0i\n     0.0+0.0i\n     0.0+0.0i)\n"
+    (printed (filled 14 3) pp-width 20))
+  (test "#c128(0.0+0.0i\n      0.0+0.0i\n      0.0+0.0i)\n"
+    (printed (filled 15 3) pp-width 20)))
 
 ;; ------------------------------------------------------------- pretty-style
 
