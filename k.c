@@ -104,7 +104,8 @@ static obj *run_kernel(obj *r, obj *sp, obj *hp)
 #define HEAP_SIZE 131072 /* 2^17 */
 #define REGS_SIZE 4092
 
-obj *cxg_heap = NULL;
+/* NB: in-heap check got to check for header word being in heap range */
+obj *cxg_heap = NULL, *cxg_heap_plus1 = NULL; /* use h+1 for masking! */
 cxoint_t cxg_hmask = 0;
 obj *cxg_hp = NULL;
 static cxroot_t cxg_root = { 0, NULL, NULL };
@@ -121,12 +122,12 @@ int cxg_gccount = 0, cxg_bumpcount = 0;
 static obj *toheap2(obj* p, obj *hp, obj *h1, cxoint_t m1, obj *h2, cxoint_t m2)
 {
   obj o = *p, *op, fo, *fop;
-  if (((cxoint_t)(o) - (cxoint_t)h1) & m1) return hp;
+  if (((cxoint_t)(o) - (cxoint_t)(h1+1)) & m1) return hp;
   fo = (op = objptr_from_obj(o))[-1]; assert(fo);
   if (notaptr(fo)) {
     fop = op + size_from_obj(fo); while (fop >= op) *--hp = *--fop;
     *p = *fop = obj_from_objptr(hp+1);
-  } else if (((cxoint_t)(fo) - (cxoint_t)h2) & m2) {
+  } else if (((cxoint_t)(fo) - (cxoint_t)(h2+1)) & m2) {
     *--hp = *op--; *--hp = *op;
     *p = *op = obj_from_objptr(hp+1);
   } else *p = fo;
@@ -138,7 +139,7 @@ static void finalize(obj *hp1, obj *he1, obj *h2, cxoint_t m2)
   while (hp1 < he1) {
     obj fo = *hp1++; assert(fo);
     if (notaptr(fo)) hp1 += size_from_obj(fo);
-    else if (((char*)(fo) - (char*)h2) & m2) ((cxtype_t*)fo)->free((void*)*hp1++);
+    else if (((char*)(fo) - (char*)(h2+1)) & m2) ((cxtype_t*)fo)->free((void*)*hp1++);
     else if (notaptr(fo = objptr_from_obj(fo)[-1])) hp1 += size_from_obj(fo);
     else ++hp1;
   } assert(hp1 == he1);
@@ -180,7 +181,8 @@ obj *cxm_hgc(obj *regs, obj *regp, obj *hp, size_t needs)
   }
   h1 = h2; h2 = h;
 
-  cxg_heap = h1; cxg_hmask = m1; cxg_heap2 = h2; cxg_hmask2 = m2;
+  cxg_heap = h1; cxg_heap_plus1 = h1 + 1; cxg_hmask = m1; 
+  cxg_heap2 = h2; cxg_hmask2 = m2;
   cxg_hsize = hs; return cxg_hp = hp;
 }
 

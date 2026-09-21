@@ -1012,10 +1012,11 @@ define_instruction(intos) {
     pcb = newcb();
     if (is_flonum(x)) err = wrdn(get_flonum(x), radix, mode, prc, pf, pcb); 
     else if (is_fatnum(x)) err = wrfn(get_fatnum(x), radix, mode, prc, pf, pcb);
-    else failtype(x, "inexact number");
-    if (err < 0) failtype(y, "valid radix for inexact number");
-    s = cbdata(pcb);
-    ac = hp_string_obj(newsdata(s));
+    else { freecb(pcb); failtype(x, "inexact number"); }
+    if (err < 0) { freecb(pcb); failtype(y, "valid radix for inexact number"); }
+    s = cbdata(pcb); 
+    ac = hp_string_obj(newsdata(s)); 
+    freecb(pcb);
     gonexti();
   }
 }

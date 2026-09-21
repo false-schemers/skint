@@ -4147,7 +4147,7 @@ define_instruction(wr8) {
 define_instruction(wrb) {
   obj x = ac, y = spop(); int *d; ckb(x); ckw(y);
   d = bytevector_data(x);
-  oportwrite((char *)bvdatabytes(d), *d, y);
+  oportwrite(bvdatabytes(d), *d, y);
   ac = void_obj();
   gonexti();
 }

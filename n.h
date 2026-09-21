@@ -89,7 +89,7 @@ typedef struct {              /* type descriptor */
   void (*free)(void*);        /* deallocator */
 } cxtype_t;
 
-#define notobjptr(o)          (((cxoint_t)(o) - (cxoint_t)cxg_heap) & cxg_hmask)
+#define notobjptr(o)          (((cxoint_t)(o) - (cxoint_t)cxg_heap_plus1) & cxg_hmask)
 #define isobjptr(o)           (!notobjptr(o))
 #define notaptr(o)            ((o) & 0xffff000000000001ULL)
 #define isaptr(o)             (!notaptr(o))
@@ -101,7 +101,7 @@ typedef struct {              /* type descriptor */
   void (*free)(void*);        /* deallocator */
 } cxtype_t;
 
-#define notobjptr(o)          (((char*)(o) - (char*)cxg_heap) & cxg_hmask)
+#define notobjptr(o)          (((char*)(o) - (char*)cxg_heap_plus1) & cxg_hmask)
 #define isobjptr(o)           (!notobjptr(o))
 #define notaptr(o)            ((o) & 1)
 #define isaptr(o)             (!notaptr(o))
@@ -109,27 +109,17 @@ typedef struct {              /* type descriptor */
 
 #define obj_from_objptr(p)    ((obj)(p))
 
-/* A block header carries a 2-bit microtag beside the size, and that tag says
- * what the block is.  Every block is one of four kinds:
- *
- *   TYPED    an rtd in cell 0 says which type: any object but TUPLE_RTD for a
- *            record, and TUPLE_RTD for the tuple a (values ...) makes
- *   PACKED   the size says which type: one cell is a box, two cells are a pair
- *   CLOSURE  cell 0 is its code vector
- *   VECTOR   every cell is an element
- *
- * so only a record spends a cell saying what it is.  The size is three bits
- * narrower than the word, which matters only on 32-bit builds -- the whole
- * model is in doc/internals/objects.md. */
-#define TYPED_MTAG 0
-#define PACKED_MTAG 1
-#define CLOSURE_MTAG 2
-#define VECTOR_MTAG 3
+/* block header cells carry block size and a 2-bit microtag (MTAG) */
+#define TYPED_MTAG            0 /* cell 0 is rtd / #f for tuples */
+#define PACKED_MTAG           1 /* size defines type: 1=box, 2=pair */
+#define CLOSURE_MTAG          2 /* closures with code vec in cell 0 */
+#define VECTOR_MTAG           3 /* regular vectors, including #() */
 #define obj_from_sztag(n, m)  (((cxoint_t)(n) << 3) | ((m) << 1) | 1)
 #define obj_from_packed(n)    obj_from_sztag(n, PACKED_MTAG)
 #define size_from_obj(o)      ((int)((cxoint_t)(o) >> 3))
 #define mtag_from_obj(o)      ((int)(((cxoint_t)(o) >> 1) & 3))
 #define obj_is_blkhdr(o, m)   ((((cxoint_t)(o)) & 7) == (((m) << 1) | 1))
+
 /* the vocabulary the kinds below are written in */
 #define blkhdr(o)             (objptr_from_obj(o)[-1])
 #define is_tagged(o, m)       (isobjptr(o) && obj_is_blkhdr(blkhdr(o), m))
@@ -140,23 +130,20 @@ typedef struct {              /* type descriptor */
 #define packed_ref(o, i)      block_ref(o, i)
 
 #define objptr_from_obj(o)    ((obj*)(o))
-
-
-#define get_bool(o)      (o)
-
+#define get_bool(o)           (o)
 
 #define hpushptr(p, pt, l)    (hreserve(2, l), *--hp = (obj)(p), *--hp = (obj)(pt), (obj)(hp+1))   
-#define block_bsz(s)               ((s) + 1) /* 1 extra word to store block size */
+#define block_bsz(s)          ((s) + 1) /* 1 extra word to store block size and mtag */
 #define hreserve(n, l)        ((hp < cxg_heap + (n)) ? hp = cxm_hgc(r, r+(l), hp, n) : hp)
-#define block_len(p)            size_from_obj(((obj*)(p))[-1])
-#define block_ref(p, i)         (((obj*)(p))[i])
+#define block_len(p)          size_from_obj(((obj*)(p))[-1])
+#define block_ref(p, i)       (((obj*)(p))[i])
 
 typedef struct cxroot_tag {
   int globc; obj **globv;
   struct cxroot_tag *next;
 } cxroot_t;
 
-extern obj *cxg_heap;
+extern obj *cxg_heap, *cxg_heap_plus1;
 extern obj *cxg_hp;
 extern cxoint_t cxg_hmask;
 extern cxroot_t *cxg_rootp;
@@ -538,26 +525,25 @@ extern const int *symsdata(int sym);
 #define procedure_ref(o, i) (*procedure_refp(o, i))
 
 /* box representation extras */
-#define hend_tagged(n, m)  (*--hp = obj_from_sztag(n, m), (obj)(hp+1))
-#define box_bsz()      block_bsz(1)
-#define hend_box()    hend_packed(1)
+#define box_bsz() block_bsz(1)
+#define hend_box() hend_packed(1)
 
 /* pair representation extras */
-#define pair_bsz()     block_bsz(2)
-#define hend_pair()   hend_packed(2)
+#define pair_bsz() block_bsz(2)
+#define hend_pair() hend_packed(2)
 
 /* vector representation extras */
-#define vector_bsz(n)     block_bsz(n)
-#define hend_vector(n)   hend_tagged(n, VECTOR_MTAG)
+#define vector_bsz(n) block_bsz(n)
+#define hend_vector(n) hend_tagged(n, VECTOR_MTAG)
 
 /* record representation extras: a TYPED block whose rtd is a symbol */
-#define record_bsz(c)     block_bsz((c)+1)
+#define record_bsz(c) block_bsz((c)+1)
 #define hend_record(rtd, c) (*--hp = rtd, hend_tagged((c)+1, TYPED_MTAG))
 
 /* vm closure representation; isprocedure and friends are the quick tests in
  * a release build and the same tests plus assertions in a debug one, so the
  * answers no longer depend on NDEBUG -- see n.h */
-#define procedure_bsz(c)   block_bsz(c)
+#define procedure_bsz(c) block_bsz(c)
 #define hend_procedure(c) hend_tagged(c, CLOSURE_MTAG)
 
 /* vm tuple representation (c != 1) */
@@ -718,11 +704,11 @@ static void oportputc(int c, obj o) {
 }
 static void oportputs(const char *s, obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
-  assert(vt); while (*s) vt->putch(*s++, pp);
+  assert(vt); while (*s) vt->putch(unextc(s), pp); /* chars to text port */
 }
-static void oportwrite(const char *s, int n, obj o) {
+static void oportwrite(const unsigned char *s, int n, obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
-  assert(vt); while (n-- > 0) vt->putch(*s++, pp);
+  assert(vt); while (n-- > 0) vt->putch(*s++, pp); /* bytes to bin port */
 }
 static void oportflush(obj o) {
   cxtype_oport_t *vt = oportvt(o); void *pp = oportdata(o);
