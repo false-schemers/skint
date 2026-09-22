@@ -7,19 +7,9 @@ about pairs, strings, closures, or the virtual machine. The next layer up, which
 turns those five categories into Scheme types, is described in
 [objects.md](objects.md).
 
-The code discussed here lives in `n.h` (declarations and macros, hand-maintained)
+The code discussed here lives in `n.h` (declarations and macros)
 and in the "basic runtime" section at the end of `k.c`, which holds the collector
 itself.
-
-That second half is worth a word of warning. It is not SKINT's code: it is the
-standard runtime the `#F` compiler emits for any program it compiles. It reached
-`k.c` back when `k.c` was generated from `pre/k.sf` by `sfc`, and two small
-adjustments were made to it on the way in — `static` was dropped from `cxg_hsize`,
-`cxg_gccount` and `cxg_bumpcount` so that `i.c` can expose them to Scheme, and the
-`(char*)` casts in the pointer tests became `(cxoint_t)` casts so the arithmetic is
-correct when `obj` is an `int64_t` under `NAN_BOXING`. The rest of `k.c` is
-hand-written now, but this section is still best treated as imported code: it is
-kept as it came, and it is the one part of the file not written for SKINT.
 
 ### Two memory models
 
@@ -98,14 +88,13 @@ typedef struct {
 
 `hpushptr(p, pt, l)` builds one, `isnative(o, tp)` recognises one belonging to a
 given type, and `getnative` reads the data cell out. Strings, bytevectors, ports,
-bignums and — in a build without `NAN_BOXING` — flonums are all natives. This is
+bignums, fatnums, and — in a build without `NAN_BOXING` — flonums are all natives. This is
 the only category the collector finalizes.
 
 *Foreign* is a non-null pointer that does not address the current from-space. The
 collector leaves such a word exactly as it found it. This category is what makes it
-safe for ordinary C values to sit in traced slots, and the interpreter uses that
-freedom liberally: `cxtype_t` pointers in native headers, the addresses of
-statically allocated closures emitted by the `#F` compiler, the red-zone pointer the
+safe for ordinary C pointers to sit in traced slots, and the interpreter uses that
+freedom liberally: `cxtype_t` pointers in native headers, the red-zone pointer the
 VM keeps in `r[5]`, the C string literals the type-check macros push on the VM stack
 before reporting a failure, and the C function pointer the tower instructions stash
 in the accumulator on their way to a helper.
@@ -139,7 +128,7 @@ than an immediate, and does it point into the current from-space? — and it ans
 both with a single mask:
 
 ```c
-#define notobjptr(o) (((char*)(o) - (char*)cxg_heap) & cxg_hmask)
+#define notobjptr(o) (((char*)(o) - (char*)cxg_heap_plus1) & cxg_hmask)
 ```
 
 where the mask is built as
@@ -152,7 +141,9 @@ Because the byte size of a semispace is always a power of two, `~(bytes - 1)`
 clears exactly when the offset from the base lies in `[0, bytes)`, and the extra
 `| 1` adds the requirement that the word be even. One `and` against one cached
 constant does the whole classification. Note that only the *size* must be a power
-of two; the base address is whatever `realloc` returned.
+of two; the base address is whatever `realloc` returned. The reason `cxg_heap_plus1`
+is used in place of `cxg_heap` is that a block can be empty and the test needs
+to make sure the header cell, which is always present, is within range.
 
 ### Roots
 
@@ -174,9 +165,7 @@ live in a register or be pushed below `sp`, never held only in a C local.
 
 The file is allocated at its full size once, before any Scheme code runs, so it
 never moves; `cxm_rgc(regs, needs)` can still grow it and, if `regs` is above the
-base, slide `needs` words back down to it, but nothing does that any more. It was
-needed when `k.c` was generated code, which treated the file as a sliding window of
-virtual registers and shifted the window upward on every continuation entry.
+base, slide `needs` words back down to it, but nothing does that any more.
 
 *A chain of static global tables.* A module that owns `obj` globals declares an
 array of their addresses and links a `cxroot_t` record into `cxg_rootp`:
@@ -189,12 +178,12 @@ typedef struct cxroot_tag {
 ```
 
 At present exactly one module does: `k.c` registers the kernel globals, among them
-`*globals*` (the vector in which every Scheme global's box is interned),
-`*transformers*`, `*dynamic-state*` and the three current-port cells. Everything
-else in the Scheme world is reachable from those. They are the globals `i.c` names
-as imports at the top of the file; nothing else in `k.c` outlives a call, so
-nothing else needs a root. `s.c` and `t.c` contain no `obj` globals at all — they
-are tables of serialized strings — so they register nothing.
+`cx_global_store` (the vector in which every Scheme global's box is interned),
+`cx_tansformers`, `cx_dynamic_state` and the three current-port cells. Everything
+else in the Scheme world is reachable from those. They are the globals `i.c` imports;
+nothing else in `k.c` outlives a call, so nothing else needs a root. `s.c` and `t.c` 
+contain no `obj` globals at all — they are tables of serialized strings — so they 
+register nothing.
 
 ### The collector
 
@@ -220,7 +209,7 @@ one slot `p`. It reads `o = *p` and:
    forwarding address left by an earlier visit; the slot is set to it.
 
 Overwriting the header slot with a to-space address is the forwarding mark, and
-case 5 is how it is recognised. It works precisely because a header can otherwise
+case 5 is how it is recognized. It works precisely because a header can otherwise
 only be an immediate (block) or an out-of-heap pointer (native) — the two cases
 tested first.
 
@@ -289,7 +278,7 @@ words:
 The contract every allocation site must honour follows from the fact that a
 collection moves objects and updates only what it can see.
 
-*Reserve before you build.* `hreserve(n, l)` (in `#F`-generated code) and
+*Reserve before you build.* `hreserve(n, l)` (outside VM instructions) and
 `hp_reserve(n)` (in VM instructions) may collect, so all the space a composite
 object needs must be reserved in one call before any of it is written. Sites that
 build several objects at once ask for the sum:
@@ -299,9 +288,8 @@ hreserve(boxbsz()*1 + pairbsz()*2, sp-r);
 ```
 
 *Everything live must be in a scanned slot at that moment.* An `obj` held only in a
-C local is invisible to the collector and will dangle. In `#F`-generated code the
-live registers are `r[0]` through `r[l-1]`; in the VM they are `r[0]`–`r[5]` and the
-stack below `sp`. This is why VM instructions push their operands before taking a
+C local is invisible to the collector and will dangle. In the VM the live registers 
+are `r[0]`–`r[5]` and the stack below `sp`. This is why VM instructions push their operands before taking a
 slow path that can allocate, and why the accumulator and instruction pointer are
 written back to their shadow registers around every reserve — see
 [vm.md](vm.md#working-registers-and-shadow-registers).
