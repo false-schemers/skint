@@ -63,8 +63,7 @@ Everything above them is the VM stack: `VM_REGC` is 6, `VM_STACK_LEN` is 256000,
 `VM_STACK_RSZ` is 256 words of headroom so that an overflow check can be a single
 comparison against `rz` rather than a bounds test on every push. On entry to the VM,
 `execute-thunk-closure` grows the register file to `VM_REGC + VM_STACK_LEN` words and
-pins `r` at its base; unlike the `#F`-generated code that shares the same file, the
-VM never shifts its window.
+pins `r` at its base; currently, the VM never reallocates it during execution.
 
 Note that `rz` holds a raw `obj*` into the register file. The collector sees it as a
 Foreign value and leaves it alone — see [memory.md](memory.md#the-five-categories).
@@ -106,7 +105,7 @@ the register file, and there are macro pairs to move values between them:
 
 `ip` and `sp` are stored as fixnums rather than pointers because both the code vector
 and the register file can move: the code vector is a heap object that a collection
-relocates, and the register file is `realloc`ed when it grows.
+relocates, and the register file may be `realloc`ed when it grows (in the future).
 
 ```c
 #define unload_ip() (rx = fixnum_obj(ip - &vector_ref(procedure_ref(rd, 0), 0)))
@@ -161,7 +160,7 @@ do {
 ```
 
 Where tail calls are guaranteed, `trampcnd()` is 0 and the loop body runs exactly
-once — the entire program executes as one chain of jumps, and the loop is left only
+once — the entire program executes as one chain of jumps, and the chain ends only
 when an instruction calls `unwindi(0)`. Where they are not, every Scheme-level call
 and return returns to the loop, which reloads the working registers from their
 shadows and re-enters. `unwindi(0)` sets `rd` to 0 and so terminates the loop in
@@ -241,7 +240,7 @@ names because their standard counterparts are called `flinteger-fraction`,
 
 ### Allocating inside an instruction
 
-The reserve-then-build discipline is the same as in `#F`-generated code, but the
+The reserve-then-build discipline is the same, but the
 macro is different, and the difference is the point of this section.
 
 ```c
@@ -253,7 +252,7 @@ macro is different, and the difference is the point of this section.
  } } while (0)
 ```
 
-Compare `n.h`'s version, which `#F`-generated code uses:
+Compare `n.h`'s version, which regular (non-instruction) code uses:
 
 ```c
 #define hreserve(n, l) ((hp < cxg_heap + (n)) ? hp = cxm_hgc(r, r+(l), hp, n) : hp)
@@ -262,10 +261,11 @@ Compare `n.h`'s version, which `#F`-generated code uses:
 Three differences, all consequences of how the two kinds of code use the register
 file:
 
-- *The live range.* `#F` code passes `r` and `r + l`, where `l` is a live-register
-  count the compiler computes per site. The VM passes `r` and `sp` — everything from
-  the base of the file to the top of the stack is live, and no count is needed.
-- *Unload and reload.* `#F` code keeps everything in the register file already, so
+- *The live range.* Regular code passes `r` and `r + l`, where `l` is a live register
+  count calculated on site as `sp-r`. The VM passes `r` and `sp` directly. The difference
+  is historical — in both cases everything from the base of the file to the top of the
+  stack is live.
+- *Unload and reload.* Regular code keeps everything in the register file already, so
   there is nothing to spill. The VM must write `ac` and `ip` to their shadows before
   collecting and read them back afterwards, because a collection moves the code
   vector out from under `ip`.
@@ -278,8 +278,8 @@ a larger expression, and `hp_pushptr(p, pt)` is the reserve-and-build for a nati
 
 Two rules follow for instruction writers. Everything live must be in the register
 file or on the stack across a reserve — an `obj` held only in a C local will dangle.
-And the `flonum_obj` and `bignum_obj` constructors allocate in the boxed model, so
-an instruction that produces one must reserve for it even though a `NAN_BOXING`
+And the `flonum_obj` constructor (`hp_flonum_obj(x)`) allocates in the boxed model, 
+so an instruction that produces one must be ready for it even though a `NAN_BOXING`
 build needs nothing; see [objects.md](objects.md#flonums-and-why-the-model-matters).
 
 ### Type checks and failure
@@ -295,8 +295,8 @@ instruction:
 There is one of these per type — `ckp` pair, `ckl` list, `ckv` vector, `ckc` char,
 `cks` string, `ckb` bytevector, `cki` fixnum, `ckj` flonum, `ckn` number, `ckk`
 non-negative fixnum, `ck8` byte, `cky` symbol, `ckr` input port, `ckw` output port,
-`ckx` procedure, `ckz` box, `cko` record, `ckg` integrable, `cku` end of a proper
-list, `cksb` directive — plus `fail(msg)` for a message with no offending value and
+`ckx` procedure, `ckz` box, `cko` record, `ckg` integrable, `cku` null (end of a proper
+list), `cksb` `#!`directive — plus `fail(msg)` for a message with no offending value and
 `failtype(x, msg)` for an explicit one.
 
 Note what the failing path does with the message: it pushes a C string literal onto
@@ -375,7 +375,7 @@ shadowed.
   and MSVC — the worst of both, since the mistake will not show up in the build you
   are testing.
 - `rk`, `ra`, `rx`, `rd`, `rs` and `rz` are macros expanding to `r[N]`. Declaring a
-  local with one of those names is a syntax error, which is at least immediate.
+  local with one of those names will likely cause a syntax error, which is at least immediate.
 
 The same applies to the accessor macros `sref`, `dref` and `gref`, the stack
 operations `spush`, `spop`, `sdrop` and `sgrow`, and the whole `ck*` family. By
