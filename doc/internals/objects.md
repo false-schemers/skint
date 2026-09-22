@@ -122,6 +122,7 @@ three words including its header, and a box two.
 
 *Vectors* put their elements from cell 0 on, so `vector_len` is the block length and
 `vector_ref(v, i)` is `block_ref(v, i)`. A vector of *n* elements is *n*+1 words.
+An empty vector is just the header word.
 
 *Closures* keep their code vector in cell 0 and their captured display from cell 1
 on, and `is_procedure(o)` is `is_tagged(o, CLOSURE_MTAG)` — the tag and nothing else.
@@ -144,10 +145,7 @@ one reserved value is `#f`, which marks the other inhabitant of this kind — th
 `is_record(o)` is a typed block whose rtd is not `TUPLE_RTD`, and `is_tuple(o)` is one
 whose rtd is. `make-record` rejects `#f` and accepts everything else.
 
-That freedom is new. While a closure was recognised by a pointer in cell 0, an rtd
-had to be an immediate or a record would have read as a procedure.
-
-`new-record-type` in `pre/s.scm` still makes one symbol per record type, and now does
+`new-record-type` in `pre/s.scm` makes one symbol per record type, and it does
 so by choice rather than by constraint: a symbol prints readably, so a record shows
 as `#<record rtd://point:2 1 2>`, and the `:2` says which of several record types of
 that name this one is. R7RS requires `define-record-type` records to be generative,
