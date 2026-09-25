@@ -233,6 +233,9 @@ char *t_code[] = {
   "%3${.2,.4,@(y11:sexp-match?)[02}~?{.0,.3,@(y7:x-error)[32}]3",
 
   "C", 0,
+  "${f,'(y5:quote)b,'(y5:quote),@(y6:new-id)[03}@!(y8:quote-id)",
+
+  "C", 0,
   "${f,'(y6:lambda)b,'(y6:lambda),@(y6:new-id)[03}@!(y9:lambda-id)",
 
   "C", 0,
@@ -587,6 +590,9 @@ char *t_code[] = {
   "%0&0{%2,#0.2,&1{%2${.2,@(y3:id?)[01}?{@(y16:root-environment),.2,:0,.3"
   ",@(y9:free-id=?)[24}f]2}.!0${.4,.4,.4^,@(y22:preprocess-cond-expand)[0"
   "3},@(y8:begin-id)c]3}]0",
+
+  "P", "make-hide-libraries-transformer",
+  "%0&0{%2${.2d,@(y17:xpand-sexp->datum)[01},.0,@(y8:quote-id),l2]3}]0",
 
   "P", "adjoin-code",
   "%2'(l1:y5:begin;),.1e?{.1]2}'(l1:y5:begin;),.2e?{.0]2}${.2,'(l3:y5:beg"
@@ -1101,6 +1107,36 @@ char *t_code[] = {
   ".4,.4,:0^[02}A8]3}.!0.0^_1[32",
 
   "C", 0,
+  "n@!(y25:*loaded-mask-directories*)",
+
+  "C", 0,
+  "n@!(y22:*loaded-mask-patterns*)",
+
+  "C", 0,
+  "f@!(y18:*library-masks-on*)",
+
+  "P", "clear-loaded-masks!",
+  "%1n@!(y25:*loaded-mask-directories*)n@!(y22:*loaded-mask-patterns*).0@"
+  "!(y18:*library-masks-on*)]1",
+
+  "P", "load-directory-mask",
+  "%1,,#0#1${.4,'(s8:mask.slm),@(y34:file-resolve-relative-to-base-path)["
+  "02}.!0.0,&1{%1@(y25:*loaded-mask-directories*),.1A2~?{@(y25:*loaded-ma"
+  "sk-directories*),.1c@!(y25:*loaded-mask-directories*):0^S0?{:0^F0}{f}?"
+  "{${f,:0^,@(y15:read-file-sexps)[02},,#0${@(y20:*root-name-registry*),@"
+  "(y20:make-slm-environment)[01}.!0${.3,'(l1:l4:y11:cond-expand;y1:*;y1:"
+  "*;y3:...;;),@(y11:sexp-match?)[02}~?{${'(s4:read),@(y5:error)[01}}${.2"
+  "^,.4a,f,@(y5:xpand)[03},${.2,'(l2:y5:quote;l2:y1:*;y3:...;;),@(y11:sex"
+  "p-match?)[02}~?{${'(s6:expand),@(y5:error)[01}}.0da,@(y22:*loaded-mask"
+  "-patterns*),.5A5,.0?{.0,.2,.1dL6,.1sd]7}@(y22:*loaded-mask-patterns*),"
+  ".2,.7cc@!(y22:*loaded-mask-patterns*)]6}]1}]1}.!1${${k0,.0,${.2,.(i10)"
+  ",.(i12),&3{%0:2,&1{%!0.0,&1{%0:0,@(y6:values),@(y13:apply-to-list)[02}"
+  ",:0[11},:0,:1,&2{%0:1,:0^[01},@(y16:call-with-values)[02},.9,.4,&2{%1$"
+  "{k0,.0,${.6,:1,&2{%0:1,:0^,'(s27:; malformed mask file: ~a~%25),Pe,@(y"
+  "6:format)[13},:0[01}_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[0"
+  "0}.2]3",
+
+  "C", 0,
   "'(s13:SKINT_LIBDIRS)Z1,.0?{.0,${${@(y14:path-separator)[00},.3,@(y25:s"
   "plit-library-path-string)[02}_1}{${'(c:),'(s9:.:lib:...),@(y25:split-l"
   "ibrary-path-string)[02}}_1@!(y24:*library-directory-list*)",
@@ -1113,10 +1149,15 @@ char *t_code[] = {
   "%1@(y24:*library-directory-list*),${.3,@(y17:dir-add-separator)[01},l1"
   "L6@!(y24:*library-directory-list*)]1",
 
+  "P", "library-masked-in-libdir?",
+  "%2@(y18:*library-masks-on*)?{${.3,@(y19:load-directory-mask)[01}}@(y22"
+  ":*loaded-mask-patterns*),.2A5,.0?{.0,.0d,.3,&1{%1:0,.1,@(y11:sexp-matc"
+  "h?)[12},@(y5:ormap)[42}f]3",
+
   "P", "find-library-path",
-  "%1@(y24:*library-directory-list*),,#0.0,.3,&2{%1.0p?{${'(s4:.sld),.3a,"
-  ":0,@(y14:listname->path)[03},.0?{.0F0}{f}?{.0]2}.1d,:1^[21}f]1}.!0.0^_"
-  "1[11",
+  "%1@(y24:*library-directory-list*),,#0.2,.1,&2{%1.0p?{${.2a,:1,@(y25:li"
+  "brary-masked-in-libdir?)[02}~?{${'(s4:.sld),.3a,:1,@(y14:listname->pat"
+  "h)[03},.0?{.0F0}{f}?{.0]2}.1d,:0^[21}f]1}f]1}.!0.0^_1[11",
 
   "P", "read-port-sexps",
   "%1n,,#0.2,.1,&2{%1${:1,@(y14:read-code-sexp)[01},.0R8?{.1A9]2}.1,.1c,:"
@@ -1127,8 +1168,8 @@ char *t_code[] = {
   "-input-file)[22",
 
   "P", "library-available?",
-  "%2${.2,@(y9:listname?)[01}~?{f]2}${.3,.3,@(y19:find-library-in-env)[02"
-  "},.0?{.0]3}.1,@(y17:find-library-path)[31",
+  "%2${.2,@(y9:listname?)[01}~?{f]2}${'(y4:peek),.3,.5[02}Y2?{t]2}.0,@(y1"
+  "7:find-library-path)[21",
 
   "P", "fully-qualified-library-prefixed-name",
   "%2.1,'(y1:?),.2Y0?{.2}{${.4,@(y16:listname->symbol)[01}},@(y13:symbol-"
@@ -1228,6 +1269,10 @@ char *t_code[] = {
   "C", 0,
   "${&0{%1@(y28:make-cond-expand-transformer)[10},'(y11:cond-expand),@(y2"
   "0:*root-name-registry*),@(y11:name-lookup)[03}",
+
+  "C", 0,
+  "${&0{%1@(y31:make-hide-libraries-transformer)[10},'(y14:hide-libraries"
+  "),@(y20:*root-name-registry*),@(y11:name-lookup)[03}",
 
   "C", 0,
   "${'(l583:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
@@ -1497,10 +1542,16 @@ char *t_code[] = {
 
   "P", "make-sld-environment",
   "%1,#0.0,.2,&2{%2'(l2:y3:ref;y4:peek;),.2A0~?{f]2}.0K0?{.1,.1,@(y13:new"
-  "-id-lookup)[22}'(y4:peek),.2q?{${f,@(y4:name),:0,@(y11:name-lookup)[03"
-  "},.0?{.0]3}:0]3}'(y14:define-library),.1q?{'(y14:define-library)b]2}${"
-  ".2,@(y9:listname?)[01}~?{f]2}:1,.1,&2{%1:1^,:0,@(y13:fetch-library)[12"
-  "},.1,:0,@(y11:name-lookup)[23}.!0.0^]2",
+  "-id-lookup)[22}'(y4:peek),.2q?{${f,.3,:0,@(y11:name-lookup)[03},.0?{.0"
+  "]3}:0]3}'(y14:define-library),.1q?{'(y14:define-library)b]2}${.2,@(y9:"
+  "listname?)[01}~?{f]2}:1,.1,&2{%1:1^,:0,@(y13:fetch-library)[12},.1,:0,"
+  "@(y11:name-lookup)[23}.!0.0^]2",
+
+  "P", "make-slm-environment",
+  "%1,#0.1,&1{%2'(l2:y3:ref;y4:peek;),.2A0~?{f]2}.0K0?{.1,.1,@(y13:new-id"
+  "-lookup)[22}'(y4:peek),.2q?{${f,.3,:0,@(y11:name-lookup)[03},.0?{.0]3}"
+  ":0]3}'(l2:y11:cond-expand;y14:hide-libraries;),.1A0?{f,.1,:0,@(y11:nam"
+  "e-lookup)[23}f]2}.!0.0^]2",
 
   "P", "make-repl-environment",
   "%3,#0.3,&1{%1.0,:0,@(y37:fully-qualified-library-prefixed-name)[12}.!0"
@@ -1522,7 +1573,7 @@ char *t_code[] = {
   "y5:added),.1v?{'1,.8+,.7,.7,.6,:0^[84}]8}.!0.0^_1[24}f]2}]4",
 
   "P", "find-library-in-env",
-  "%2${'(y3:ref),.3,.5[02},.0?{.0z,.0V0?{.0]4}f]4}f]3",
+  "%2${'(y3:ref),.3,.5[02},.0Y2?{.0z,.0V0?{.0]4}f]4}f]3",
 
   "C", 0,
   "${@(y20:*root-name-registry*),@(y25:make-readonly-environment)[01}@!(y"
@@ -1703,9 +1754,9 @@ char *t_code[] = {
   "ind)[33",
 
   "P", "repl-missing-library",
-  "%1P51,.0,.2W5@(y24:*library-directory-list*),'(s42: is not found; the "
-  "library search path is:),.2P90,'(s8:library ),Sa3c,@(y5:error),@(y13:a"
-  "pply-to-list)[22",
+  "%1P51,.0,.2W5@(y24:*library-directory-list*),'(s49: is absent or maske"
+  "d; the library search path is:),.2P90,'(s8:library ),Sa3c,@(y5:error),"
+  "@(y13:apply-to-list)[22",
 
   "P", "repl-library-procedure",
   "%2'1,${.3,@(y12:repl-library)[01}V4,.2A3,.0?{.0dz}{f},${.2,'(l2:y3:ref"
@@ -1784,69 +1835,72 @@ char *t_code[] = {
   ":0^aW5:2W6]1}${.2,'(l1:y2:gs;),@(y11:sexp-match?)[02}?{:2,U2W5:2W6]1}$"
   "{.2,'(l2:y2:gs;y8:<symbol>;),@(y11:sexp-match?)[02}?{:0^a,U2,.0V3,.2Zi"
   ",:2,.1,.3V4,.4A3,.0?{.0d}{f}_1W5:2W6]4}${.2,'(l2:y4:load;y8:<string>;)"
-  ",@(y11:sexp-match?)[02}?{:0^a,@(y4:load)[11}${.2,'(l3:y2:im;y1:*;y3:.."
-  ".;),@(y11:sexp-match?)[02}?{:2,:0^,@(y11:repl-import)[12}${.2,'(l3:y2:"
-  "tr;y1:*;y3:...;),@(y11:sexp-match?)[02}?{:0^,'(s2:tr),t,:2,@(y10:repl-"
-  "trace)[14}${.2,'(l3:y4:untr;y1:*;y3:...;),@(y11:sexp-match?)[02}?{:0^,"
-  "'(s4:untr),f,:2,@(y10:repl-trace)[14}${.2,'(l1:y2:ap;),@(y11:sexp-matc"
-  "h?)[02}?{:0^,:2,@(y12:repl-apropos)[12}${.2,'(l2:y2:ap;y1:*;),@(y11:se"
-  "xp-match?)[02}?{:0^,:2,@(y12:repl-apropos)[12}${.2,'(l1:y2:pp;),@(y11:"
-  "sexp-match?)[02}?{:0^,:2,@(y17:repl-pretty-print)[12}${.2,'(l2:y2:pp;y"
-  "1:*;),@(y11:sexp-match?)[02}?{:0^,:2,@(y17:repl-pretty-print)[12}${.2,"
-  "'(l1:y2:da;),@(y11:sexp-match?)[02}?{:0^,:2,@(y11:repl-disasm)[12}${.2"
-  ",'(l2:y2:da;y1:*;),@(y11:sexp-match?)[02}?{:0^,:2,@(y11:repl-disasm)[1"
-  "2}${.2,'(l1:y2:db;),@(y11:sexp-match?)[02}?{@(y5:debug)[10}${.2,'(l1:y"
-  "1:v;),@(y11:sexp-match?)[02}?{t@!(y9:*verbose*)'(s17:verbosity is on~%"
-  "25),t,@(y6:format)[12}${.2,'(l1:y2:v-;),@(y11:sexp-match?)[02}?{f@!(y9"
-  ":*verbose*)'(s18:verbosity is off~%25),t,@(y6:format)[12}${.2,'(l1:y1:"
-  "q;),@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)'(s13:quiet is on~%25),t,@("
-  "y6:format)[12}${.2,'(l1:y2:q-;),@(y11:sexp-match?)[02}?{f@!(y7:*quiet*"
-  ")'(s14:quiet is off~%25),t,@(y6:format)[12}${.2,'(l2:y4:time;y1:*;),@("
-  "y11:sexp-match?)[02}?{Z3,${:2,@(y16:repl-environment),:0^a,@(y22:repl-"
-  "evaluate-top-form)[03}Z4,.1,Z3-/,'(i1000)*,'(s24:; elapsed time: ~s ms"
-  ".~%25),t,@(y6:format)[23}${.2,'(l1:y3:pwd;),@(y11:sexp-match?)[02}?{:2"
-  ",${@(y17:current-directory)[00}W4:2W6]1}${.2,'(l2:y2:cd;y8:<string>;),"
-  "@(y11:sexp-match?)[02}?{:0^a,@(y17:current-directory)[11}${.2,'(l2:y2:"
-  "sh;y8:<string>;),@(y11:sexp-match?)[02}?{:0^aZ6]1}${.2,'(l1:y2:si;),@("
-  "y11:sexp-match?)[02}?{${@(y14:print-version!)[00}@(y20:enhanced-tty-li"
-  "brary)?{${@(y20:enhanced-tty-library),'(s26:enhanced-tty library: ~a~%"
-  "25),t,@(y6:format)[03}}Zh,Zb,Zc,'(s49:~d collections, ~d reallocs, hea"
-  "p size ~d words~%25),t,@(y6:format)[15}${.2,'(l1:y2:gc;),@(y11:sexp-ma"
-  "tch?)[02}?{Zg'(l1:y2:si;),:1^[11}${.2,'(l1:y4:help;),@(y11:sexp-match?"
-  ")[02}?{:2,'(s57:%0aREPL commands (,load ,cd ,sh arguments need no quot"
-  "es):%0a)W4:2,'(s44: ,load <fname>       load <fname> into REPL%0a)W4:2"
-  ",'(s71: ,im <lib> ...       import libraries: 1 is (srfi 1), fx is (sk"
-  "int fx)%0a)W4:2,'(s68: ,tr <name> ...      trace named procedures, fet"
-  "ching (skint trace)%0a)W4:2,'(s41: ,tr                 show what is tr"
-  "aced%0a)W4:2,'(s39: ,untr <name> ...    stop tracing them%0a)W4:2,'(s4"
-  "5: ,untr               stop tracing everything%0a)W4:2,'(s76: ,ap <nam"
-  "e>          list names containing <name>, fetching (skint apropos)%0a)"
-  "W4:2,'(s65: ,pp <expr>          pretty-print <expr>, fetching (skint p"
-  "rint)%0a)W4:2,'(s65: ,da <proc>          disassemble <proc>, fetching "
-  "(skint disasm)%0a)W4:2,'(s66: ,db                 debug the last error"
-  ", fetching (skint debug)%0a)W4:2,'(s59: ,q                  quiet: dis"
-  "able informational messages%0a)W4:2,'(s51: ,q-                 enable "
-  "informational messages%0a)W4:2,'(s39: ,v                  turn verbosi"
-  "ty on%0a)W4:2,'(s40: ,v-                 turn verbosity off%0a)W4:2,'("
-  "s48: ,ref <name>         show denotation for <name>%0a)W4:2,'(s45: ,rn"
-  "r                show root name registry%0a)W4:2,'(s50: ,rref <name>  "
-  "      lookup name in root registry%0a)W4:2,'(s52: ,rrem! <name>       "
-  "remove name from root registry%0a)W4:2,'(s45: ,unr                show"
-  " user name registry%0a)W4:2,'(s50: ,uref <name>        lookup name in "
-  "user registry%0a)W4:2,'(s52: ,urem! <name>       remove name from user"
-  " registry%0a)W4:2,'(s46: ,gs                 show global store (big!)%"
-  "0a)W4:2,'(s55: ,gs <name>          lookup global location for <name>%0"
-  "a)W4:2,'(s56: ,time <expr>        time single-line expression <expr>%0"
-  "a)W4:2,'(s60: ,pwd                show skint's current working directo"
-  "ry%0a)W4:2,'(s62: ,cd <dir>           change skint's current working d"
-  "irectory%0a)W4:2,'(s51: ,sh <cmdline>       send <cmdline> to local sh"
-  "ell%0a)W4:2,'(s41: ,si                 display system info%0a)W4:2,'(s"
-  "55: ,gc                 force gc to finalize lost objects%0a)W4:2,'(s4"
-  "8: ,help               this help (aliases: ,h ,?)%0a)W4]1}${.2,'(l1:y1"
-  ":h;),@(y11:sexp-match?)[02}?{'(l1:y4:help;),:1^[11}${.2,'(l1:y1:?;),@("
-  "y11:sexp-match?)[02}?{'(l1:y4:help;),:1^[11}:2,'(s29:syntax error in r"
-  "epl command%0a)W4:2,'(s37:type ,help to see available commands%0a)W4]1"
-  "}.!0.0^_1[41",
+  ",@(y11:sexp-match?)[02}?{:0^a,@(y4:load)[11}${.2,'(l2:y2:ld;y8:<string"
+  ">;),@(y11:sexp-match?)[02}?{:0^a,@(y4:load)[11}${.2,'(l3:y2:im;y1:*;y3"
+  ":...;),@(y11:sexp-match?)[02}?{:2,:0^,@(y11:repl-import)[12}${.2,'(l3:"
+  "y2:tr;y1:*;y3:...;),@(y11:sexp-match?)[02}?{:0^,'(s2:tr),t,:2,@(y10:re"
+  "pl-trace)[14}${.2,'(l3:y4:untr;y1:*;y3:...;),@(y11:sexp-match?)[02}?{:"
+  "0^,'(s4:untr),f,:2,@(y10:repl-trace)[14}${.2,'(l1:y2:ap;),@(y11:sexp-m"
+  "atch?)[02}?{:0^,:2,@(y12:repl-apropos)[12}${.2,'(l2:y2:ap;y1:*;),@(y11"
+  ":sexp-match?)[02}?{:0^,:2,@(y12:repl-apropos)[12}${.2,'(l1:y2:pp;),@(y"
+  "11:sexp-match?)[02}?{:0^,:2,@(y17:repl-pretty-print)[12}${.2,'(l2:y2:p"
+  "p;y1:*;),@(y11:sexp-match?)[02}?{:0^,:2,@(y17:repl-pretty-print)[12}${"
+  ".2,'(l1:y2:da;),@(y11:sexp-match?)[02}?{:0^,:2,@(y11:repl-disasm)[12}$"
+  "{.2,'(l2:y2:da;y1:*;),@(y11:sexp-match?)[02}?{:0^,:2,@(y11:repl-disasm"
+  ")[12}${.2,'(l1:y2:db;),@(y11:sexp-match?)[02}?{@(y5:debug)[10}${.2,'(l"
+  "1:y1:v;),@(y11:sexp-match?)[02}?{t@!(y9:*verbose*)'(s17:verbosity is o"
+  "n~%25),t,@(y6:format)[12}${.2,'(l1:y2:v-;),@(y11:sexp-match?)[02}?{f@!"
+  "(y9:*verbose*)'(s18:verbosity is off~%25),t,@(y6:format)[12}${.2,'(l1:"
+  "y1:q;),@(y11:sexp-match?)[02}?{t@!(y7:*quiet*)'(s13:quiet is on~%25),t"
+  ",@(y6:format)[12}${.2,'(l1:y2:q-;),@(y11:sexp-match?)[02}?{f@!(y7:*qui"
+  "et*)'(s14:quiet is off~%25),t,@(y6:format)[12}${.2,'(l2:y4:time;y1:*;)"
+  ",@(y11:sexp-match?)[02}?{Z3,${:2,@(y16:repl-environment),:0^a,@(y22:re"
+  "pl-evaluate-top-form)[03}Z4,.1,Z3-/,'(i1000)*,'(s24:; elapsed time: ~s"
+  " ms.~%25),t,@(y6:format)[23}${.2,'(l1:y3:pwd;),@(y11:sexp-match?)[02}?"
+  "{:2,${@(y17:current-directory)[00}W4:2W6]1}${.2,'(l2:y2:cd;y8:<string>"
+  ";),@(y11:sexp-match?)[02}?{:0^a,@(y17:current-directory)[11}${.2,'(l2:"
+  "y2:sh;y8:<string>;),@(y11:sexp-match?)[02}?{:0^aZ6]1}${.2,'(l1:y2:si;)"
+  ",@(y11:sexp-match?)[02}?{${@(y14:print-version!)[00}@(y22:*loaded-mask"
+  "-patterns*)p?{${@(y22:*loaded-mask-patterns*),'(s19:library masks: ~w~"
+  "%25),t,@(y6:format)[03}}@(y20:enhanced-tty-library)?{${@(y20:enhanced-"
+  "tty-library),'(s26:enhanced-tty library: ~a~%25),t,@(y6:format)[03}}Zh"
+  ",Zb,Zc,'(s49:~d collections, ~d reallocs, heap size ~d words~%25),t,@("
+  "y6:format)[15}${.2,'(l1:y2:gc;),@(y11:sexp-match?)[02}?{Zg'(l1:y2:si;)"
+  ",:1^[11}${.2,'(l1:y4:help;),@(y11:sexp-match?)[02}?{:2,'(s55:%0aREPL c"
+  "ommands (,ld ,cd ,sh arguments need no quotes):%0a)W4:2,'(s61: ,ld <fn"
+  "ame>         load <fname> into REPL (aliases: ,load)%0a)W4:2,'(s71: ,i"
+  "m <lib> ...       import libraries: 1 is (srfi 1), fx is (skint fx)%0a"
+  ")W4:2,'(s68: ,tr <name> ...      trace named procedures, fetching (ski"
+  "nt trace)%0a)W4:2,'(s41: ,tr                 show what is traced%0a)W4"
+  ":2,'(s39: ,untr <name> ...    stop tracing them%0a)W4:2,'(s45: ,untr  "
+  "             stop tracing everything%0a)W4:2,'(s76: ,ap <name>        "
+  "  list names containing <name>, fetching (skint apropos)%0a)W4:2,'(s65"
+  ": ,pp <expr>          pretty-print <expr>, fetching (skint print)%0a)W"
+  "4:2,'(s65: ,da <proc>          disassemble <proc>, fetching (skint dis"
+  "asm)%0a)W4:2,'(s66: ,db                 debug the last error, fetching"
+  " (skint debug)%0a)W4:2,'(s59: ,q                  quiet: disable infor"
+  "mational messages%0a)W4:2,'(s51: ,q-                 enable informatio"
+  "nal messages%0a)W4:2,'(s39: ,v                  turn verbosity on%0a)W"
+  "4:2,'(s40: ,v-                 turn verbosity off%0a)W4:2,'(s48: ,ref "
+  "<name>         show denotation for <name>%0a)W4:2,'(s45: ,rnr         "
+  "       show root name registry%0a)W4:2,'(s50: ,rref <name>        look"
+  "up name in root registry%0a)W4:2,'(s52: ,rrem! <name>       remove nam"
+  "e from root registry%0a)W4:2,'(s45: ,unr                show user name"
+  " registry%0a)W4:2,'(s50: ,uref <name>        lookup name in user regis"
+  "try%0a)W4:2,'(s52: ,urem! <name>       remove name from user registry%"
+  "0a)W4:2,'(s46: ,gs                 show global store (big!)%0a)W4:2,'("
+  "s55: ,gs <name>          lookup global location for <name>%0a)W4:2,'(s"
+  "56: ,time <expr>        time single-line expression <expr>%0a)W4:2,'(s"
+  "60: ,pwd                show skint's current working directory%0a)W4:2"
+  ",'(s62: ,cd <dir>           change skint's current working directory%0"
+  "a)W4:2,'(s51: ,sh <cmdline>       send <cmdline> to local shell%0a)W4:"
+  "2,'(s41: ,si                 display system info%0a)W4:2,'(s55: ,gc   "
+  "              force gc to finalize lost objects%0a)W4:2,'(s48: ,help  "
+  "             this help (aliases: ,h ,?)%0a)W4]1}${.2,'(l1:y1:h;),@(y11"
+  ":sexp-match?)[02}?{'(l1:y4:help;),:1^[11}${.2,'(l1:y1:?;),@(y11:sexp-m"
+  "atch?)[02}?{'(l1:y4:help;),:1^[11}:2,'(s29:syntax error in repl comman"
+  "d%0a)W4:2,'(s37:type ,help to see available commands%0a)W4]1}.!0.0^_1["
+  "41",
 
   "P", "repl-from-port",
   "%4,#0${@(y18:current-file-stack)[00}.!0${k0,.0,${.2,.8,.(i11),.(i13),."
@@ -1920,7 +1974,7 @@ char *t_code[] = {
   "isplay this help;;)@!(y15:*skint-options*)",
 
   "C", 0,
-  "'(s5:0.8.4)@!(y15:*skint-version*)",
+  "'(s5:0.8.5)@!(y15:*skint-version*)",
 
   "P", "implementation-version",
   "%0@(y15:*skint-version*)]0",

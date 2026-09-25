@@ -378,6 +378,7 @@
   (unless (sexp-match? pat sexp) (x-error msg sexp)))
 
 ; popular context-independent ids retaining their original meaning (not for id=?)
+(define quote-id         (new-id 'quote         (make-location 'quote) #f))
 (define lambda-id        (new-id 'lambda        (make-location 'lambda) #f))
 (define begin-id         (new-id 'begin         (make-location 'begin) #f))
 (define define-id        (new-id 'define        (make-location 'define) #f))
@@ -1025,6 +1026,10 @@
       (and (id? id) (free-id=? id env sym root-environment)))
     (cons begin-id (preprocess-cond-expand lit=? sexp env))))
 
+(define (make-hide-libraries-transformer)
+  (lambda (sexp env)
+    (let ([patterns (xpand-sexp->datum (cdr sexp))])
+      (list quote-id patterns))))
 
 ; library transformers
 
@@ -1944,7 +1949,36 @@
           (if pos (loop (string-copy p (+ pos 1)) (add-dir (string-copy p 0 pos) l))
               (reverse (add-dir p l)))))))
 
-(define *library-directory-list* 
+(define *loaded-mask-directories* '()) ; dirs already scanned for mask files
+(define *loaded-mask-patterns* '()) ; loaded (dir . pattern*) masks alist
+(define *library-masks-on* #f) ; TODO: turn on when load-directory-mask works!
+
+(define (clear-loaded-masks! on?)
+  (set! *loaded-mask-directories* '())
+  (set! *loaded-mask-patterns* '())
+  (set! *library-masks-on* on?))
+
+(define (load-directory-mask dir)
+  (define mask-path (file-resolve-relative-to-base-path "mask.slm" dir))
+  (define (load-mask! dir)
+    (unless (member dir *loaded-mask-directories*)
+      (set! *loaded-mask-directories* (cons dir *loaded-mask-directories*))
+      (when (and (string? mask-path) (file-exists? mask-path))
+        (let ([sexps (read-file-sexps mask-path #f)])
+          (define env (make-slm-environment *root-name-registry*))
+          (unless (sexp-match? '((cond-expand * * ...)) sexps) (error "read"))
+          (let ([core (xpand #f (car sexps) env)])
+            (unless (sexp-match? '(quote (* ...)) core) (error "expand"))
+            (let ([patterns (cadr core)])
+              (cond [(assoc dir *loaded-mask-patterns*) =>
+                     (lambda (entry) (set-cdr! entry (append (cdr entry) patterns)))]
+                    [else (set! *loaded-mask-patterns* 
+                                (cons (cons dir patterns) *loaded-mask-patterns*))])))))))
+  (guard (x [else (format (current-error-port) "; malformed mask file: ~a~%" mask-path)])
+    (load-mask! dir))
+  dir) 
+
+(define *library-directory-list*
   (cond [(get-environment-variable "SKINT_LIBDIRS") =>
          (lambda (p) (split-library-path-string p (path-separator)))]
         [else (split-library-path-string ".:lib:..." #\:)]))
@@ -1957,9 +1991,15 @@
   (set! *library-directory-list* 
     (append (list (dir-add-separator dir)) *library-directory-list*)))
 
+(define (library-masked-in-libdir? listname dir)
+  (when *library-masks-on* (load-directory-mask dir))
+  (cond [(assoc dir *loaded-mask-patterns*) =>
+         (lambda (d&p*) (ormap (lambda (p) (sexp-match? p listname)) (cdr d&p*)))]
+        [else #f]))
+
 (define (find-library-path listname) ;=> name of existing .sld file or #f
   (let loop ([l *library-directory-list*])
-    (and (pair? l)
+    (and (pair? l) (not (library-masked-in-libdir? listname (car l)))
          (let ([p (listname->path listname (car l) ".sld")]) 
            (if (and p (file-exists? p)) p (loop (cdr l)))))))
 
@@ -1976,9 +2016,10 @@
       (when ci? (set-port-fold-case! port #t))
       (read-port-sexps port))))
 
-(define (library-available? lib env) ;=> #f | filepath (external) | <library> (loaded)
+; used in cond-expand feature tests only
+(define (library-available? lib env)
   (cond [(not (listname? lib)) #f]
-        [(find-library-in-env lib env)] ; defined below
+        [(location? (env lib 'peek)) #t] ; already in
         [else (find-library-path lib)]))
 
 ; name prefixes
@@ -2125,6 +2166,8 @@
 (name-lookup *root-name-registry* 'include     (lambda (n) (make-include-transformer #f)))
 (name-lookup *root-name-registry* 'include-ci  (lambda (n) (make-include-transformer #t)))
 (name-lookup *root-name-registry* 'cond-expand (lambda (n) (make-cond-expand-transformer)))
+(name-lookup *root-name-registry* 'hide-libraries (lambda (n) (make-hide-libraries-transformer)))
+
 
 ; register standard libraries as well as (skint) library for interactive environment
 ; ... while doing that, bind missing standard names as refs to constant globals
@@ -2368,13 +2411,23 @@
   (define (sld-env id at)
     (cond [(not (memq at '(ref peek))) #f]
           [(new-id? id) (new-id-lookup id at)]
-          [(eq? at 'peek) (or (name-lookup rr name #f) rr)] ; for free-id=? purposes
+          [(eq? at 'peek) (or (name-lookup rr id #f) rr)] ; for free-id=? purposes
           [(eq? id 'define-library) (make-location 'define-library)]
           [(not (listname? id)) #f]
           [else (name-lookup rr id
                   (lambda (n) ; no library? see if we can fetch it recursively
                     (fetch-library id sld-env)))])) ;=> <library> or #f
   sld-env)
+
+; makes environments for .slm files, with no access to list names
+(define (make-slm-environment rr)
+  (define (slm-env id at)
+    (cond [(not (memq at '(ref peek))) #f]
+          [(new-id? id) (new-id-lookup id at)]
+          [(eq? at 'peek) (or (name-lookup rr id #f) rr)] ; for free-id=? purposes
+          [(memq id '(cond-expand hide-libraries)) (name-lookup rr id #f)]
+          [else #f]))
+  slm-env)
 
 ; makes mutable environments from two registries; new bindings go to user registry
 (define (make-repl-environment rr ur gpref) ; gpref is prefix for allocated globals
@@ -2427,7 +2480,7 @@
 
 (define (find-library-in-env listname env) ;=> library | #f
   (let ([loc (env listname 'ref)])
-    (and loc (let ([val (location-val loc)]) (and (val-library? val) val)))))
+    (and (location? loc) (let ([val (location-val loc)]) (and (val-library? val) val)))))
 
 (define root-environment
   (make-readonly-environment *root-name-registry*))
@@ -2738,7 +2791,7 @@
     (write name p)
     (apply error
       (string-append "library " (get-output-string p)
-                     " is not found; the library search path is:")
+                     " is absent or masked; the library search path is:")
       *library-directory-list*)))
 
 ; the procedure ID of library NAME: an export, or one of the library's own
@@ -2849,6 +2902,7 @@
        (let* ([k (car args)] [v (global-store)] [i (immediate-hash k (vector-length v))]) 
          (write (cond [(assq k (vector-ref v i)) => cdr] [else #f]) op) (newline op))]
       [(load <string>) (load (car args))]
+      [(ld <string>) (load (car args))]
       [(im * ...) (repl-import args op)]
       [(tr * ...) (repl-trace op #t "tr" args)]
       [(untr * ...) (repl-trace op #f "untr" args)]
@@ -2871,13 +2925,14 @@
       [(cd <string>) (current-directory (car args))]
       [(sh <string>) (%system (car args))]
       [(si) (print-version!)
+       (when (pair? *loaded-mask-patterns*) (format #t "library masks: ~w~%" *loaded-mask-patterns*))
        (when enhanced-tty-library (format #t "enhanced-tty library: ~a~%" enhanced-tty-library))
        (format #t "~d collections, ~d reallocs, heap size ~d words~%" 
          (%gc-count) (%bump-count) (%heap-size))]
       [(gc) (%gc) (retry '(si))]
       [(help)
-       (display "\nREPL commands (,load ,cd ,sh arguments need no quotes):\n" op)
-       (display " ,load <fname>       load <fname> into REPL\n" op)
+       (display "\nREPL commands (,ld ,cd ,sh arguments need no quotes):\n" op)
+       (display " ,ld <fname>         load <fname> into REPL (aliases: ,load)\n" op)
        (display " ,im <lib> ...       import libraries: 1 is (srfi 1), fx is (skint fx)\n" op)
        (display " ,tr <name> ...      trace named procedures, fetching (skint trace)\n" op)
        (display " ,tr                 show what is traced\n" op)
@@ -3017,7 +3072,6 @@
       (loop)))
   #t) ; exited normally via end-of-input
 
-; nothing replaces `repl` any more -- see *batch-mode?* above
 
 ;--------------------------------------------------------------------------------------------------
 ; Main
@@ -3038,7 +3092,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.8.4")
+(define *skint-version* "0.8.5")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
