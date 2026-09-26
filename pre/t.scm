@@ -1951,12 +1951,6 @@
 
 (define *loaded-mask-directories* '()) ; dirs already scanned for mask files
 (define *loaded-mask-patterns* '()) ; loaded (dir . pattern*) masks alist
-(define *library-masks-on* #f) ; TODO: turn on when load-directory-mask works!
-
-(define (clear-loaded-masks! on?)
-  (set! *loaded-mask-directories* '())
-  (set! *loaded-mask-patterns* '())
-  (set! *library-masks-on* on?))
 
 (define (load-directory-mask dir)
   (define mask-path (file-resolve-relative-to-base-path "mask.slm" dir))
@@ -1968,9 +1962,12 @@
           (define env (make-slm-environment *root-name-registry*))
           (unless (sexp-match? '((cond-expand * * ...)) sexps) (error "read"))
           (let ([core (xpand #f (car sexps) env)])
-            (unless (sexp-match? '(quote (* ...)) core) (error "expand"))
-            (let ([patterns (cadr core)])
-              (cond [(assoc dir *loaded-mask-patterns*) =>
+            (define begin? (equal? '(begin) core))
+            (define masks? (sexp-match? '(quote (* ...)) core))
+            (unless (or begin? masks?) (error "expand"))
+            (let ([patterns (if begin? '() (cadr core))])
+              (cond [(null? patterns)]
+                    [(assoc dir *loaded-mask-patterns*) =>
                      (lambda (entry) (set-cdr! entry (append (cdr entry) patterns)))]
                     [else (set! *loaded-mask-patterns* 
                                 (cons (cons dir patterns) *loaded-mask-patterns*))])))))))
@@ -1992,7 +1989,7 @@
     (append (list (dir-add-separator dir)) *library-directory-list*)))
 
 (define (library-masked-in-libdir? listname dir)
-  (when *library-masks-on* (load-directory-mask dir))
+  (unless (member dir *loaded-mask-directories*) (load-directory-mask dir))
   (cond [(assoc dir *loaded-mask-patterns*) =>
          (lambda (d&p*) (ormap (lambda (p) (sexp-match? p listname)) (cdr d&p*)))]
         [else #f]))
@@ -2166,8 +2163,6 @@
 (name-lookup *root-name-registry* 'include     (lambda (n) (make-include-transformer #f)))
 (name-lookup *root-name-registry* 'include-ci  (lambda (n) (make-include-transformer #t)))
 (name-lookup *root-name-registry* 'cond-expand (lambda (n) (make-cond-expand-transformer)))
-(name-lookup *root-name-registry* 'hide-libraries (lambda (n) (make-hide-libraries-transformer)))
-
 
 ; register standard libraries as well as (skint) library for interactive environment
 ; ... while doing that, bind missing standard names as refs to constant globals
@@ -2421,11 +2416,14 @@
 
 ; makes environments for .slm files, with no access to list names
 (define (make-slm-environment rr)
+  (define ce-loc (make-location (make-cond-expand-transformer)))
+  (define hl-loc (make-location (make-hide-libraries-transformer)))
   (define (slm-env id at)
     (cond [(not (memq at '(ref peek))) #f]
           [(new-id? id) (new-id-lookup id at)]
           [(eq? at 'peek) (or (name-lookup rr id #f) rr)] ; for free-id=? purposes
-          [(memq id '(cond-expand hide-libraries)) (name-lookup rr id #f)]
+          [(eq? id 'cond-expand) ce-loc]
+          [(eq? id 'hide-libraries) hl-loc]
           [else #f]))
   slm-env)
 

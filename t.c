@@ -1112,13 +1112,6 @@ char *t_code[] = {
   "C", 0,
   "n@!(y22:*loaded-mask-patterns*)",
 
-  "C", 0,
-  "f@!(y18:*library-masks-on*)",
-
-  "P", "clear-loaded-masks!",
-  "%1n@!(y25:*loaded-mask-directories*)n@!(y22:*loaded-mask-patterns*).0@"
-  "!(y18:*library-masks-on*)]1",
-
   "P", "load-directory-mask",
   "%1,,#0#1${.4,'(s8:mask.slm),@(y34:file-resolve-relative-to-base-path)["
   "02}.!0.0,&1{%1@(y25:*loaded-mask-directories*),.1A2~?{@(y25:*loaded-ma"
@@ -1126,15 +1119,16 @@ char *t_code[] = {
   "{${f,:0^,@(y15:read-file-sexps)[02},,#0${@(y20:*root-name-registry*),@"
   "(y20:make-slm-environment)[01}.!0${.3,'(l1:l4:y11:cond-expand;y1:*;y1:"
   "*;y3:...;;),@(y11:sexp-match?)[02}~?{${'(s4:read),@(y5:error)[01}}${.2"
-  "^,.4a,f,@(y5:xpand)[03},${.2,'(l2:y5:quote;l2:y1:*;y3:...;;),@(y11:sex"
-  "p-match?)[02}~?{${'(s6:expand),@(y5:error)[01}}.0da,@(y22:*loaded-mask"
-  "-patterns*),.5A5,.0?{.0,.2,.1dL6,.1sd]7}@(y22:*loaded-mask-patterns*),"
-  ".2,.7cc@!(y22:*loaded-mask-patterns*)]6}]1}]1}.!1${${k0,.0,${.2,.(i10)"
-  ",.(i12),&3{%0:2,&1{%!0.0,&1{%0:0,@(y6:values),@(y13:apply-to-list)[02}"
-  ",:0[11},:0,:1,&2{%0:1,:0^[01},@(y16:call-with-values)[02},.9,.4,&2{%1$"
-  "{k0,.0,${.6,:1,&2{%0:1,:0^,'(s27:; malformed mask file: ~a~%25),Pe,@(y"
-  "6:format)[13},:0[01}_1_3}[10},@(y22:with-exception-handler)[02}_1_3}[0"
-  "0}.2]3",
+  "^,.4a,f,@(y5:xpand)[03},,,#0#1.2,'(l1:y5:begin;)e.!0${.4,'(l2:y5:quote"
+  ";l2:y1:*;y3:...;;),@(y11:sexp-match?)[02}.!1.0^,.0?{.0}{.2^}_1~?{${'(s"
+  "6:expand),@(y5:error)[01}}.0^?{n}{.2da},.0u,.0?{.0]8}@(y22:*loaded-mas"
+  "k-patterns*),.8A5,.0?{.0,.3,.1dL6,.1sd](i10)}@(y22:*loaded-mask-patter"
+  "ns*),.3,.(i10)cc@!(y22:*loaded-mask-patterns*)]9}]1}]1}.!1${${k0,.0,${"
+  ".2,.(i10),.(i12),&3{%0:2,&1{%!0.0,&1{%0:0,@(y6:values),@(y13:apply-to-"
+  "list)[02},:0[11},:0,:1,&2{%0:1,:0^[01},@(y16:call-with-values)[02},.9,"
+  ".4,&2{%1${k0,.0,${.6,:1,&2{%0:1,:0^,'(s27:; malformed mask file: ~a~%2"
+  "5),Pe,@(y6:format)[13},:0[01}_1_3}[10},@(y22:with-exception-handler)[0"
+  "2}_1_3}[00}.2]3",
 
   "C", 0,
   "'(s13:SKINT_LIBDIRS)Z1,.0?{.0,${${@(y14:path-separator)[00},.3,@(y25:s"
@@ -1150,9 +1144,9 @@ char *t_code[] = {
   "L6@!(y24:*library-directory-list*)]1",
 
   "P", "library-masked-in-libdir?",
-  "%2@(y18:*library-masks-on*)?{${.3,@(y19:load-directory-mask)[01}}@(y22"
-  ":*loaded-mask-patterns*),.2A5,.0?{.0,.0d,.3,&1{%1:0,.1,@(y11:sexp-matc"
-  "h?)[12},@(y5:ormap)[42}f]3",
+  "%2@(y25:*loaded-mask-directories*),.2A2~?{${.3,@(y19:load-directory-ma"
+  "sk)[01}}@(y22:*loaded-mask-patterns*),.2A5,.0?{.0,.0d,.3,&1{%1:0,.1,@("
+  "y11:sexp-match?)[12},@(y5:ormap)[42}f]3",
 
   "P", "find-library-path",
   "%1@(y24:*library-directory-list*),,#0.2,.1,&2{%1.0p?{${.2a,:1,@(y25:li"
@@ -1269,10 +1263,6 @@ char *t_code[] = {
   "C", 0,
   "${&0{%1@(y28:make-cond-expand-transformer)[10},'(y11:cond-expand),@(y2"
   "0:*root-name-registry*),@(y11:name-lookup)[03}",
-
-  "C", 0,
-  "${&0{%1@(y31:make-hide-libraries-transformer)[10},'(y14:hide-libraries"
-  "),@(y20:*root-name-registry*),@(y11:name-lookup)[03}",
 
   "C", 0,
   "${'(l583:l3:y1:*;y1:v;y1:b;;l3:y1:+;y1:v;y1:b;;l3:y1:-;y1:v;y1:b;;l4:y"
@@ -1548,10 +1538,11 @@ char *t_code[] = {
   "@(y11:name-lookup)[23}.!0.0^]2",
 
   "P", "make-slm-environment",
-  "%1,#0.1,&1{%2'(l2:y3:ref;y4:peek;),.2A0~?{f]2}.0K0?{.1,.1,@(y13:new-id"
-  "-lookup)[22}'(y4:peek),.2q?{${f,.3,:0,@(y11:name-lookup)[03},.0?{.0]3}"
-  ":0]3}'(l2:y11:cond-expand;y14:hide-libraries;),.1A0?{f,.1,:0,@(y11:nam"
-  "e-lookup)[23}f]2}.!0.0^]2",
+  "%1,,,#0#1#2${@(y28:make-cond-expand-transformer)[00}b.!0${@(y31:make-h"
+  "ide-libraries-transformer)[00}b.!1.1,.1,.5,&3{%2'(l2:y3:ref;y4:peek;),"
+  ".2A0~?{f]2}.0K0?{.1,.1,@(y13:new-id-lookup)[22}'(y4:peek),.2q?{${f,.3,"
+  ":0,@(y11:name-lookup)[03},.0?{.0]3}:0]3}'(y11:cond-expand),.1q?{:1^]2}"
+  "'(y14:hide-libraries),.1q?{:2^]2}f]2}.!2.2^]4",
 
   "P", "make-repl-environment",
   "%3,#0.3,&1{%1.0,:0,@(y37:fully-qualified-library-prefixed-name)[12}.!0"
