@@ -43,10 +43,11 @@ assigned so far:
 | Tag | Name | Payload |
 |---|---|---|
 | 0 | `TRUE_ITAG` | none — `#t` is the single word `1` |
-| 1 | `VOID_ITAG` | none — the unspecified value |
 | 2 | `CHAR_ITAG` | character code |
 | 3 | `NULL_ITAG` | none — the empty list |
 | 4 | `SYMBOL_ITAG` | index into the symbol table |
+| 5 | `VOID_ITAG` | none — a deterministic stand-in for an unspecified value |
+| 6 | `UNIT_ITAG` | none — zero results reaching a single-value context |
 | 7 | `EOF_ITAG` | none |
 | 8 | `SHEBANG_ITAG` | directive index |
 
@@ -57,85 +58,113 @@ interface. Because the payload is twenty-four bits, a symbol index is bounded we
 below the heap's capacity, and because the table is C-side, symbols cost the
 collector nothing.
 
-Three further immediates are built with `obj_from_size` rather than `mkimm`, and are
-compared for identity rather than decoded:
+Every immediate type goes through `mkimm` and takes a tag from that table.
+`obj_from_sztag` is not an immediate constructor, despite producing odd words: it
+builds block headers, and what it yields overlaps the immediate space in ways that
+depend on its arguments. It is not a way to mint a new singleton.
 
-```c
-#define obj_from_ktrap() (obj_from_size(0x5D56F806))
-#define obj_from_unit()  (obj_from_size(0x6DF6F577))
-```
-
-`unit` is the value delivered when zero results reach a context expecting one — a
-zero-element tuple. `ktrap` marks a continuation slot that must not be used.
+`void` deserves a word on why it exists as an object at all. Most of the expressions
+R7RS leaves unspecified need no value, and on an accumulator machine returning no
+particular value is free — the code simply returns with whatever is in `ac`. `void` is
+the deterministic alternative, for results a REPL should not echo and for operations
+whose natural result would be large or surprising. `stack.md` has the detail.
 
 Finally, `#f` is the word `0` and `#t` is the word `1`, chosen so that C's
-conventions carry through: `obj_from_bool(b)` is `b ? mkimm(0, TRUE_ITAG) : 0`, and
-`is_bool_obj(o)` is `!(o & ~(obj)1)`. Every object other than `#f` is true in a
+conventions carry through: `bool_obj(b)` is `b ? mkimm(0, TRUE_ITAG) : 0`, and
+`is_bool(o)` is `!(o & ~(obj)1)`. Every object other than `#f` is true in a
 conditional.
 
 ### Blocks
 
-A block is a run of cells with an immediate length in the header word. Three
-different kinds of Scheme object are blocks, and they are told apart by what sits in
-*cell 0* — never by anything the collector can see.
+A block is a run of cells with a header word in front of it. The header holds the
+number of cells and a two-bit *microtag* that says what kind of block it is:
 
-*Tagged blocks* put a small `obj_from_size(t)` in cell 0 and the payload from cell 1
-on. `istagged(o, t)` checks `hblkref(o, 0) == obj_from_size(t)`, `taggedlen` is the
-block length minus one, and `taggedref(o, t, i)` is `&hblkref(o, i+1)`. Three tags
-are assigned:
-
-| Tag | Type | Cells after the tag |
-|---|---|---|
-| 1 | `VECTOR_BTAG` | the elements |
-| 2 | `BOX_BTAG` | one — boxes back `set!` variables, global cells and promises |
-| 3 | `PAIR_BTAG` | two — car and cdr |
-
-Tag 0 is used for *tuples*, the object that carries multiple values through a
-context that expects one. It is defined in `i.c` rather than `n.h`, since only the
-VM builds and consumes them.
-
-*Typed blocks* put a symbol in cell 0 and the fields from cell 1 on; these are
-records. `istyped` recognises them, `typedtype` reads cell 0 back and `typedlen` and
-`typedref` address the fields. The type descriptor being a symbol is not an
-accident of convenience — the comment on `new-record-type` in `pre/s.scm` spells out
-the reason:
-
-> should be something like `(cons name fields)`, but that would complicate
-> `procedure?` check that now relies on block tag being a non-immediate object
-
-A record type descriptor must be an *immediate* so that a record can never be
-mistaken for a closure, and it must be unique per `define-record-type` evaluation
-because R7RS requires those records to be generative. Symbols satisfy both, so
-`new-record-type` interns one:
-
-```scheme
-(string->symbol (string-append "rtd://" (symbol->string name)
-                               ":" (number->string *rtd-count*)))
+```
+   (size << 3) | (mtag << 1) | 1
 ```
 
-which is why a record prints as `#<record rtd://point:2 1 2>`.
+`obj_from_sztag(n, m)` builds one, `size_from_obj` and `mtag_from_obj` read the two
+fields back, and `obj_is_blkhdr(o, m)` asks whether a word is a header of kind `m`.
+The low bit is 1 for the same reason it always was: it makes the header odd, so
+`notaptr` answers true for it and the collector can tell a header from a forwarding
+pointer. Everything the collector does is unchanged by the tag — it copies the
+header word verbatim and reads only the size.
 
-*Closures* put a pointer in cell 0 — the code — and the captured display from cell 1
-on. `isprocedure` is therefore the complement of the other two: a heap block whose
-cell 0 satisfies `isaptr`. It also accepts any non-null pointer that is not a heap
-address at all, which came from the `#F` compiler: it allocated environment-free
-global procedures in static C memory, as one-word blocks holding a code pointer.
-`k.c` no longer contains any, but instruction words are static C pointers of the
-same shape — so the allowance still has teeth, and `procedure?` can answer `#t` for
-one. Those are Foreign values to the collector, and `procedurelen` treats them as
-one-element closures. Use `closure?` when the answer has to mean a real closure;
-see [builtins.md](builtins.md).
+There are four kinds, and the header alone decides which:
 
-So the discrimination among block kinds is entirely a matter of cell 0 holding a
-small size immediate, a symbol immediate, or a pointer. The invariant that makes it
-sound is that cell 0 is never user data — a pair's car is at cell 1, not cell 0 —
-so no Scheme value can ever be mistaken for a tag.
+| Microtag | Kind | Cell 0 | Cells 1 on |
+|---|---|---|---|
+| `TYPED_MTAG` | record, values tuple | the rtd | the fields |
+| `PACKED_MTAG` | box, pair | payload | payload |
+| `CLOSURE_MTAG` | closure | the code vector | the captured display |
+| `VECTOR_MTAG` | vector | element | elements |
+
+Only a `TYPED` block spends a cell saying what it is. In every other kind all the
+cells are payload, which is why the kind has to be read from the header — a pair's
+car is at cell 0, and it can hold anything at all.
+
+Two tests cover the four kinds, and both are one load and one compare:
+
+```c
+#define is_tagged(o, m)   (isobjptr(o) && obj_is_blkhdr(blkhdr(o), m))
+#define is_packed(o, n)   (isobjptr(o) && blkhdr(o) == obj_from_packed(n))
+```
+
+`is_tagged` asks only the kind, for blocks whose size varies. `is_packed` compares
+the whole header, so it asks the kind and the size in a single comparison — which is
+what makes a size *be* a type for the packed kinds. Allocation mirrors them:
+`hend_tagged(n, m)` and `hend_packed(n)`.
+
+*Packed blocks* are the ones whose size settles their type. A box is one cell and a
+pair is two, so `is_box(o)` is `is_packed(o, 1)` and `is_pair(o)` is `is_packed(o, 2)`;
+`pair_car` and `pair_cdr` are cells 0 and 1 with nothing in front of them. A pair is
+three words including its header, and a box two.
+
+*Vectors* put their elements from cell 0 on, so `vector_len` is the block length and
+`vector_ref(v, i)` is `block_ref(v, i)`. A vector of *n* elements is *n*+1 words.
+An empty vector is just the header word.
+
+*Closures* keep their code vector in cell 0 and their captured display from cell 1
+on, and `is_procedure(o)` is `is_tagged(o, CLOSURE_MTAG)` — the tag and nothing else.
+It no longer has to reason about what cell 0 holds, which is what the old test did:
+it asked whether cell 0 pointed into the heap, and every other block kind had to
+keep something that was *not* a pointer in cell 0 to stay out of its way. Assertions
+in `n.c` still check the rest — that cell 0 really is a code vector of at least one
+instruction word. An instruction word is a static C pointer outside the heap, so
+`isobjptr` rejects it before the tag is read; the printer knows about those
+separately and shows one as `#<instruction @…>`.
+
+*Typed blocks* keep a *record type descriptor* in cell 0 and the fields from cell 1
+on. `is_typed` is the kind test, `typed_type` reads the rtd back, and `typed_len` and
+`typed_ref` address the fields.
+
+The rtd may be **any object except `#f`**. Records are told apart by `eq?` on it and
+nothing more is asked of it: it may be a symbol, a pair, a vector, a procedure. The
+one reserved value is `#f`, which marks the other inhabitant of this kind — the
+*tuple* that carries multiple values through a context expecting one. So
+`is_record(o)` is a typed block whose rtd is not `TUPLE_RTD`, and `is_tuple(o)` is one
+whose rtd is. `make-record` rejects `#f` and accepts everything else.
+
+`new-record-type` in `pre/s.scm` makes one symbol per record type, and it does
+so by choice rather than by constraint: a symbol prints readably, so a record shows
+as `#<record rtd://point:2 1 2>`, and the `:2` says which of several record types of
+that name this one is. R7RS requires `define-record-type` records to be generative,
+which is what the counter is for — whatever `new-record-type` returns must be fresh
+per evaluation.
+
+#### How wide a block can be
+
+Three bits of the header go to the tag and the low marker, leaving the size 29 bits
+on a build where an object is 32 bits wide. That is the exact width of a fixnum, and
+it is enough: the largest vector a program can index has `FIXNUM_MAX` elements, and
+since no cell is spent on a tag, such a vector is `FIXNUM_MAX` cells. On a 64-bit
+build the size field is far wider than any heap.
 
 ### Natives
 
 A native wraps a pointer to something outside the Scheme heap, with a `cxtype_t*`
 in the header slot serving simultaneously as the type and as the deallocator the
-collector calls when the object dies. `isnative(o, tp)` is a pointer comparison
+collector calls when the object dies. `is_native(o, tp)` is a pointer comparison
 against the type's global, and `hpushptr(p, pt, l)` allocates one.
 
 | Type global | Wraps | Present when |
@@ -149,7 +178,7 @@ against the type's global, and `hpushptr(p, pt, l)` allocates one.
 Ports are the one place where the type descriptor carries more than a name and a
 deallocator. `cxtype_port_t` extends `cxtype_t` with a direction flag and a
 `getch`/`ungetch`/`putch`/`ctl` vtable, and all port types live in one contiguous
-array `cxt_port_types[PORTTYPES_MAX]`. That makes `isiport` and `isoport` a range
+array `cxt_port_types[PORTTYPES_MAX]`. That makes `is_iport` and `is_oport` a range
 check on the header pointer plus a direction bit, rather than a comparison against
 each port type in turn:
 
@@ -165,6 +194,40 @@ never traced; it is `malloc`ed memory freed by the type's `free` method. The sam
 goes for bytevectors, bignums and port state. A native's data cell is
 *uninterpreted* as far as the collector is concerned.
 
+#### The ctl method
+
+Everything a port can do beyond reading and writing one character goes through its
+`ctl` method, a varargs dispatcher on a `ctlop_t`. It answers `-1` for an operation
+it does not implement — `noctl` is the method that answers that to everything — `0`
+on success, and a positive code on failure, so a caller can tell "this port cannot
+do that" from "that did not work". The operations are flushing and clearing
+(`CTLOP_OFL`, `CTLOP_ICL`), reading a whole line (`CTLOP_RDLN`), the case-folding
+flag (`CTLOP_CI`, `CTLOP_SETCI`), the prompt of a tty port (`CTLOP_SETPROMPT`), and
+the position (`CTLOP_POS`, `CTLOP_SETPOS`).
+
+The position travels as an `int64_t` count of bytes, with an origin of `SEEK_SET`,
+`SEEK_CUR` or `SEEK_END` as for `fseek`. Passing a null position pointer asks whether
+the operation is there at all, which is how a caller finds out what a port can do
+without disturbing it. Only binary ports have positions so far:
+
+| Port | Position is |
+|---|---|
+| binary file input / output | `ftell`/`fseek` on the stream, in the widest offset type the platform offers (`fileoff_t` in `s.h`) |
+| bytevector input | the read pointer's distance from the start of the data |
+| bytevector output | how far into the buffer the next byte will go |
+| everything else | not supported |
+
+Neither kind of bytevector port can be extended by seeking, so a position past the
+end of the data is refused rather than filled with zeros. A bytevector output port
+seeks backwards without losing what follows; see notes.md [8].
+
+A port therefore never deals in Scheme numbers, and never in floating point. Scheme
+reaches all of this through three instructions — `%port-poscaps`, `%port-tell` and
+`%port-seek` — and the conversion lives there and nowhere else: a position comes back
+exact when the configuration can hold it exactly, as a whole flonum when it cannot,
+which is what puts a towerless build's ceiling at 2^53. `(srfi 192)` is the library
+written over them.
+
 ### Flonums, and why the model matters
 
 This is the one Scheme type whose category changes with the build.
@@ -173,55 +236,67 @@ Without `NAN_BOXING`, `FLONUMS_BOXED` is defined and a flonum is a native holdin
 `malloc`ed `double`. Constructing one allocates:
 
 ```c
-#define obj_from_flonum(l, f) hpushptr(dupflonum(f), FLONUM_NTAG, l)
+#define hflonum_obj(l, f) hpushptr(dupflonum(f), FLONUM_NTAG, l)
 ```
 
 With `NAN_BOXING`, a flonum is the bitwise complement of its IEEE bit pattern,
 stored inline. Constructing one allocates nothing and the test is a mask:
 
 ```c
-#define is_flonum_obj(o) (((o) & 0xffff000000000000ULL) != 0ULL)
-static double flonum_from_obj(obj o) { union iod u; u.i = ~o; return u.d; }
+#define is_flonum(o) (((o) & 0xffff000000000000ULL) != 0ULL)
+static double get_flonum(obj o) { union iod u; u.i = ~o; return u.d; }
 ```
 
 Code that builds flonums must therefore reserve heap space in the boxed model and
-must not assume it in the other. The macros hide the difference — `flonum_obj(x)` in
-`i.c` expands to a reserving `hp_pushptr` or to a plain word construction — but the
+must not assume it in the other. The macros hide the difference — `hp_flonum_obj(x)`
+in `i.c` expands to a reserving `hp_pushptr` or to a plain word construction — but the
 *reservation* cannot be hidden, which is why arithmetic instructions reserve before
 they compute even though a NaN-boxed build needs nothing.
 
 ### The n.h interface
 
-Above the representation sits a naming discipline that the `#F` compiler's generated
-code relies on. For each Scheme type `X` with C representation `X_t`:
+The naming is regular, and the regularity is worth learning because it tells you what
+a name does before you look it up.
 
-`is_X_obj(o)` → does this `obj` hold an `X`
-<br>`X_from_obj(o)` → extract the C value
-<br>`obj_from_X(v)` → build the `obj` (heap-allocating types take a live-register
-count as the first argument)
-<br>`is_X_Y(v)` / `Y_from_X(v)` → the cross-type conversions and constant-folded
-predicates the compiler emits, most of them trivially `0`, `1`, or the identity
+`is_X(o)` → does this `obj` hold an `X`
+<br>`get_X(o)` → extract the C value
+<br>`X_obj(v)` → build the `obj`, for the kinds that need no allocation
+<br>`hX_obj(l, v)` / `hp_X_obj(v)` → build one that does allocate
 
-The trivial-looking ones exist so that generated code can name any conversion
-without the generator having to know which are possible: `is_bool_fixnum(i)` expands
-to `((void)(i), 0)` and disappears.
+The `h` and `hp_` prefixes are the allocation convention and they are not
+interchangeable. `h` is for hand-written C — `hflonum_obj(l, f)`, `hstring_obj(l, s)`
+— and takes the count of live registers as its first argument, because it may
+collect. `hp_` is for instruction bodies — `hp_string_obj(s)` — where the live set is
+implied by `sp` and the macro unloads and reloads the shadow registers around a
+collection. The two differ in arity, so reaching for the wrong one is a compile
+error rather than a silent bug. `hreserve(n, l)` and `hp_reserve(n)` are the same
+split one level down.
 
-Two further conventions run through the header.
+Three conventions run through the header.
 
 *Everything is a macro under `NDEBUG` and a function otherwise.* Accessors,
 predicates and the fixnum operations are all declared twice:
 
 ```c
 #ifdef NDEBUG
-  #define taggedref(o, t, i) (&hblkref(o, (i)+1))
+  #define is_typed(o) is_tagged(o, TYPED_MTAG)
 #else
-  extern obj* taggedref(obj o, int t, int i);
+  extern int is_typed(obj o);
 #endif
 ```
 
 The debug forms in `n.c` carry the assertions — type tags, index bounds, fixnum
 range — and the release forms carry none. A representation change must be made in
-both.
+both, and the two must agree on every answer: a predicate that is *broader* with
+assertions on than in release is a bug, not extra checking. See
+[notes.md](notes.md) [7] for what the debug predicates assert and why the quick ones
+are sound without it.
+
+*Release predicates are the minimum test that is correct given the conventions.*
+`is_procedure` is a heap block whose header carries `CLOSURE_MTAG`, and nothing more;
+everything that would make it thorough lives in the debug form. A few of these must
+stay macros rather than static functions because they sit in the call path, where the
+extra inlining step perturbs register allocation — [notes.md](notes.md) [1].
 
 *The fixnum operations are total.* `fxadd`, `fxmul`, `fxdiv` and the rest are
 allowed to return garbage on overflow but are not allowed to fail, except for
@@ -235,11 +310,15 @@ or check the range themselves as the tower instructions do.
 The shape of the work follows from which category the new type belongs to.
 
 *A new immediate* needs a free tag between 0 and 63, `is`/`mk`/`get` macros in the
-pattern of `CHAR_ITAG`, and nothing at all from the collector.
+pattern of `CHAR_ITAG`, and nothing at all from the collector. Build it with `mkimm`
+and nothing else — `obj_from_sztag` looks like it would do and does not, as the tag
+table above explains.
 
-*A new tagged block* needs a free small tag and the `istagged`/`taggedref` wrappers.
-Cell 0 must hold `obj_from_size(t)`, and every element from cell 1 on is traced
-automatically.
+*A new kind of block* is the rarest of the three, because there are four microtags
+and all four are taken. A type that fits an existing kind needs nothing from the
+object layer: anything with a type descriptor is a typed block with its own rtd, and
+a fixed-size object can join the packed kind if its size is free — 1 and 2 are the
+box and the pair. Every cell of a block is traced automatically whatever the kind.
 
 *A new native* needs a `cxtype_t` with a real `free`, an extern for its global, and
 `is`/`get`/`hpush` macros. The data it points at is invisible to the collector, so

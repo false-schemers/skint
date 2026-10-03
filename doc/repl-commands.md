@@ -8,7 +8,7 @@ skint] ,pwd
 C:\Users\ESL\scheme\
 ```
 
-Type `,help` for the list, or `,h` for short. What follows describes each one.
+Type `,help` for the list, or `,h` or `,?` for short. What follows describes each one.
 
 Commands are for working interactively and nothing else. They are available only
 when skint is reading from a terminal — piping a script into skint, or `,load`ing
@@ -70,7 +70,9 @@ saves typing, and it cannot express `only`, `except`, `prefix` or `rename`.
 
 Start and stop tracing the procedures those names are bound to. Both fetch the
 `(skint trace)` library the first time they are used, so nothing has to be
-imported first:
+imported first — and they import nothing themselves: the commands call the
+library's procedures directly, and no name of the library's appears at the
+prompt.
 
 ```
 skint] (define (f x) (* x 2))
@@ -109,10 +111,12 @@ skint] ,tr
 ()
 ```
 
-These are `(trace)` and `(untrace)`. The rest of what the library offers is in
-[doc/skint/trace.md](skint/trace.md).
+These do what `(trace)` and `(untrace)` do. The rest of what the library offers
+is in [doc/skint/trace.md](skint/trace.md).
 
-An argument that is not a name is reported and nothing is traced.
+An argument that is not a name is reported and nothing is traced. So is a name
+that is not a variable you defined at the prompt: tracing works by assigning the
+variable, and a built-in or an imported name cannot be assigned there.
 
 ### Printing and disassembling
 
@@ -127,9 +131,11 @@ skint] ,pp (map (lambda (i) (list i (* i i))) '(1 2 3 4 5 6 7 8 9 10 11 12))
   (10 100) (11 121) (12 144))
 ```
 
-This is `(pretty-print <expression>)` and nothing more, so the layout obeys
+This is `pretty-print` applied to the value and nothing more, so the layout obeys
 whatever the printer's parameters currently say about width, depth, radix and
-the rest — see [doc/skint/print.md](skint/print.md).
+the rest — see [doc/skint/print.md](skint/print.md). As with tracing, nothing is
+imported: `pretty-print` is not a name at the prompt until you import
+`(skint print)` yourself.
 
 `,da <procedure>`
 
@@ -149,6 +155,24 @@ make an expression out of what it was given —
 [doc/skint/disasm.md](skint/disasm.md) says what the answer means and how far to
 trust it.
 
+A value a procedure carries with it is shown as the value it is. Where that value
+is a procedure, `,da` adds the name the procedure has, if it has one; the rest,
+the address included, is what `write` shows, and can change from one printing to
+the next:
+
+```
+skint] (define (twice x) (* 2 x))
+skint] (define twice-car (let ([f twice] [g car]) (lambda (x) (f (g x)))))
+skint] ,da twice-car
+(let
+  ([:a '#<procedure twice @0x7f7926e59258>]
+   [:b '#<procedure car @0x7f7926e59268>])
+  (lambda (.a) (:a (:b .a))))
+```
+
+This is `pretty-print` with `da-print-hook` from `(skint disasm)` added to its
+hooks.
+
 *A global name may be written without quoting it.* Names in the global store
 have a `://` in them — `repl://?fact` for something you defined at the prompt,
 `lib://skint/disasm?da-global` for a library's — and `,da` quotes such a symbol
@@ -156,8 +180,8 @@ for you:
 
 ```
 skint] ,da lib://skint/disasm?da-global
-(lambda (.a)
-  (cond [(global-name-of .a) => da-procedure] [else #f]))
+(lambda (.b . .a)
+  (apply-to-list da-procedure (cons (global-name-of .b) .a)))
 ```
 
 so that line means what `,da 'lib://skint/disasm?da-global` means. Quoting it
@@ -165,9 +189,62 @@ yourself works as well. This is the only place where a command rewrites what you
 typed, and it applies to `,da` alone: `,pp` quotes nothing, and the same symbol
 there is an ordinary variable reference.
 
-With nothing after them, both commands fetch their libraries, say so, and stop.
-That is a short way to bring the libraries in when what you want next is
-`pretty-print` or `da` written out in full.
+With nothing after them, both commands say there is no argument and stop.
+
+### Debugging
+
+`,db`
+
+Look at the last error: the frames that were waiting when it happened, and the
+code each one is running. `(skint debug)` is fetched the first time. After an
+error the REPL mentions the command, when that library is on the search path:
+
+```
+skint] (define (f x) (+ 1 (g x)))
+skint] (define (g x) (* 2 (h x)))
+skint] (define (h x) (vector-ref x 10))
+skint] (f (vector 1 2))
+Failure: argument is not a valid vector index: 10
+Type ,db to enter the debugger.
+skint] ,db
+Failure: argument is not a valid vector index: 10
+  0: h @6
+     >(lambda (.a) [vector-ref .a 10])
+  1: g @7 #(1 2)
+  2: f @7 #(1 2)
+debug> d
+  1: g @7 #(1 2)
+     >(lambda (.a) (* 2 [h .a]))
+debug> e
+```
+
+Each frame is one line: the procedure, by name where it has one, the place in its
+code where it stopped, and the values it was working with. Frame 0 is where the
+error happened and the rest are its callers, outermost last; the REPL's own
+frames are left out. Values are cut short where they are long or deep, and a
+procedure among them is written with its name where it has one, as `,da` writes
+it. The code of frame 0 is shown straight away, as `,da` would show it, with the
+expression each frame is stopped at in brackets and marked `>`:
+the call a frame is waiting on, or the operation that failed. The other frames'
+code is shown on request, since a disassembly can be long:
+
+| at `debug>` | does |
+|---|---|
+| `<n>` | show frame n with its code |
+| `d` | show the next frame down, the caller of this one |
+| `u` | show the next frame up, the one this one called |
+| `s` | show this frame again |
+| `sf` | list the frames, with `*` on this one |
+| `g` | switch between pruned and full global names, for this debugger only |
+| `?` | list these commands |
+| `e` | leave the debugger, keeping the error to debug again; so does the end of input |
+| `q` | leave the debugger and forget the error |
+
+The error is kept until an expression or definition is evaluated without one, or
+until the debugger is left with `q`; a command that completes, `,db` itself
+included, leaves it alone. Once it is gone, `,db` says there is no error to debug.
+There is no `debug` procedure to call; the debugger is reached through this command
+only.
 
 ### Looking things up
 
@@ -188,7 +265,7 @@ interaction environment:
 ```
 
 [doc/skint/apropos.md](skint/apropos.md) describes what is listed and what is
-left out. With nothing after it, `,ap` fetches the library, says so, and stops.
+left out. With nothing after it, `,ap` says there is no argument and stops.
 
 The commands below are for finding out what the interpreter currently thinks a
 name means. What they print is an internal object written out, so treat the
@@ -341,5 +418,6 @@ type ,help to see available commands
 
 `,help`
 <br>`,h`
+<br>`,?`
 
 The list of commands, one line each.

@@ -609,6 +609,9 @@ declare_instruction(cip,        "P60",          0,  "close-input-port",         
 declare_instruction(cop,        "P61",          0,  "close-output-port",        '1', AUTOGL)
 declare_instruction(fip,        "P70\0Pi",      0,  "clear-input-port",         'u', AUTOGL)
 declare_instruction(fop,        "P71\0Po",      0,  "flush-output-port",        'u', AUTOGL)
+declare_instruction(pposcaps,   "P75",          0,  "%port-poscaps",            '1', AUTOGL)
+declare_instruction(ptell,      "P76",          0,  "%port-tell",               '1', AUTOGL)
+declare_instruction(pseek,      "P77",          0,  "%port-seek",               '3', AUTOGL)
 declare_instruction(pfc,        "P78",          0,  "port-fold-case?",          '1', AUTOGL)
 declare_instruction(spfc,       "P79",          0,  "set-port-fold-case!",      '2', AUTOGL)
 declare_instruction(ploc,       "P80",          0,  "%port-location",           '5', AUTOGL)
@@ -665,6 +668,8 @@ declare_instruction(heapsz,     "Zh",           0,  "%heap-size",               
 declare_instruction(hostsig,    "Zs",           0,  "%host-sig",                '0', AUTOGL)
 declare_instruction(hostfct,    "Zf",           0,  "%host-facet",              '1', AUTOGL)
 declare_instruction(libdir,     "Zd",           0,  "base-library-directory",   '0', AUTOGL)
+declare_instruction(cfh,        "Zr",           0,  "%failure-handler",         '0', AUTOGL)
+declare_instruction(setcfh,     "Zv",           0,  "%set-failure-handler!",    '1', AUTOGL)
 declare_instruction(hshim,      "Zi\0f",        0,  "immediate-hash",           'b', AUTOGL)
 
 /* serialization, deserialization, compilation-related instructions */             
@@ -681,6 +686,9 @@ declare_instruction(vmclo,      "U9",           1,  "closure",                  
 declare_instruction(ctov,       "Uv",           0,  "closure->vector",          '1', AUTOGL)
 declare_instruction(vmclop,     "Uc",           0,  "closure?",                 '1', AUTOGL)
 declare_instruction(inst,       "Ut",           0,  "instruction-table",        '0', AUTOGL)
+declare_instruction(failp,      "Uf",           0,  "failure-object?",          '1', AUTOGL)
+declare_instruction(clolen,     "Ul",           0,  "closure-length",           '1', AUTOGL)
+declare_instruction(cloref,     "Ur",           0,  "closure-ref",              '2', AUTOGL)
 
 /* inlined integrables (no custom instructions) */               
 declare_integrable(NULL,        "q",            0,  "boolean=?",                'c', AUTOGL)

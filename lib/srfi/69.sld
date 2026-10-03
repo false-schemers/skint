@@ -9,7 +9,7 @@
    hash-table-fold hash-table->alist hash-table-copy hash-table-merge! 
    hash string-hash string-ci-hash hash-by-identity)
   (import
-   (only (skint) fixnum? flonum? fx+ fx* fxmodulo fx>=?)
+   (only (skint) fixnum? flonum? fx+ fxfmar fxmodulo fx>=?)
    (only (skint hidden) immediate-hash)
    (scheme base)
    (scheme case-lambda)
@@ -42,6 +42,12 @@
 
 ;[esl] lowered to the same value as in SRFI 128 to keep calculations in fixnum
 ;range when accumulating: (+ (* 15760399 33) 15760399) < fx-greatest
+;[cco] and fxfmar makes that unnecessary: it takes the remainder of i*j+k
+; with the product formed wider than a fixnum, so nothing can overflow.  The
+; string hash never did fit the bound above anyway -- it multiplies by 37, not
+; 33, and 15760398*37 + a codepoint reaches 584248837, past the 536870911 a
+; 30-bit fixnum holds.  The bound is left where it is because raising it would
+; change every hash value; it is now a choice rather than a constraint.
 (define default-bound (make-parameter 15760399)) ; a prime
 
 (define (%string-hash s ch-conv bound)
@@ -49,9 +55,9 @@
         (len (string-length s)))
     (do ((index 0 (fx+ index 1)))
       ((fx>=? index len) (fxmodulo hash bound))
-      (set! hash (fxmodulo (fx+ (fx* 37 hash)
-                                (char->integer (ch-conv (string-ref s index))))
-                           (default-bound))))))
+      (set! hash (fxfmar hash 37
+                         (char->integer (ch-conv (string-ref s index)))
+                         (default-bound))))))
 
 (define string-hash
   (case-lambda
@@ -74,28 +80,43 @@
      (%string-hash (symbol->string s) (lambda (x) x) bound))))
 
 ;[esl] ported to skint by relying on immediate-hash for immediates
+;[cco] a hash function has to terminate, so the walk is depth-limited: a
+; pair or vector that contains a cycle would otherwise recur for ever.  Below
+; the limit the arithmetic is what it always was -- sub-hashes are taken at
+; the default bound, and only the outermost call uses the caller's bound.
+(define hash-max-depth 32)
+(define hash-too-deep 1049)
+
 (define hash
   (case-lambda
     ((obj) (hash obj (default-bound)))
     ((obj bound)
-     (cond ((fixnum? obj) (immediate-hash obj bound))
-           ((string? obj) (string-hash obj bound))
-           ((symbol? obj) (immediate-hash obj bound))
-           ((flonum? obj) (immediate-hash obj bound))
-           ((char? obj) (immediate-hash obj bound))
-           ((vector? obj) (vector-hash obj bound))
-           ((pair? obj) (fxmodulo (fx+ (hash (car obj)) (fx* 3 (hash (cdr obj)))) bound))
-           ((procedure? obj) (error "hash: procedures cannot be hashed" obj))
-           (else (immediate-hash obj bound))))))
+     (let walk ((obj obj) (bound bound) (depth 0))
+       (cond ((fixnum? obj) (immediate-hash obj bound))
+             ((string? obj) (string-hash obj bound))
+             ((symbol? obj) (immediate-hash obj bound))
+             ((flonum? obj) (immediate-hash obj bound))
+             ((char? obj) (immediate-hash obj bound))
+             ((fx>=? depth hash-max-depth) (fxmodulo hash-too-deep bound))
+             ((vector? obj)
+              (let ((len (vector-length obj)) (next (fx+ depth 1)))
+                (let loop ((index 0) (hashvalue 571))
+                  (if (fx>=? index len)
+                      (fxmodulo hashvalue bound)
+                      (loop (fx+ index 1)
+                            (fxfmar hashvalue 33
+                                    (walk (vector-ref obj index)
+                                          (default-bound) next)
+                                    (default-bound)))))))
+             ((pair? obj)
+              (let ((next (fx+ depth 1)))
+                ; i*j+k in a wider-than-fixnum width, then the remainder
+                (fxfmar (walk (cdr obj) (default-bound) next) 3
+                        (walk (car obj) (default-bound) next) bound)))
+             ((procedure? obj) (error "hash: procedures cannot be hashed" obj))
+             (else (immediate-hash obj bound)))))))
 
 (define hash-by-identity hash)
-
-(define (vector-hash v bound)
-  (let ((hashvalue 571) (len (vector-length v)))
-    (do ((index 0 (fx+ index 1)))
-      ((fx>=? index len) (fxmodulo hashvalue bound))
-      (set! hashvalue (fxmodulo (fx+ (fx* 33 hashvalue) (hash (vector-ref v index)))
-                                (default-bound))))))
 
 (define %make-hash-node cons)
 (define %hash-node-set-value! set-cdr!)

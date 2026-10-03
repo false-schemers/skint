@@ -708,6 +708,7 @@ static int ttctl(ctlop_t op, ttfile_t *tp, ...) {
       }
       return 0;
     } break;
+    default: break;
   }
   return -1;
 }

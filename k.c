@@ -15,9 +15,11 @@ obj cx_current_input;
 obj cx_current_output;
 obj cx_dynamic_state;
 obj cx_global_store;
+obj cx_failure_handler;
 obj cx_tansformers;
 obj cx_callmv_adapter_closure;
 obj cx_continuation_adapter_code;
+obj cx_failure_halt_closure;
 
 /* gc roots */
 static obj *globv[] = {
@@ -26,9 +28,11 @@ static obj *globv[] = {
   &cx_current_output,
   &cx_dynamic_state,
   &cx_global_store,
+  &cx_failure_handler,
   &cx_tansformers,
   &cx_callmv_adapter_closure,
   &cx_continuation_adapter_code,
+  &cx_failure_halt_closure,
 };
 
 static cxroot_t root = {
@@ -46,22 +50,22 @@ static obj *init_kernel_globals(obj *r, obj *sp, obj *hp)
 {
   { /* (define *globals* (make-vector 991 '())) */
   obj o; int i = 0, c = 991;
-  hreserve(hbsz(c+1), sp-r);
-  o = mknull(); /* gc-safe */
+  hreserve(vector_bsz(c), sp-r);
+  o = null_obj(); /* gc-safe */
   while (i++ < c) *--hp = o;
-  *--hp = obj_from_size(VECTOR_BTAG);
-  cx_global_store = hendblk(c+1); }
+  cx_global_store = hend_vector(c); }
   { /* (define *dynamic-state* (cons #f '())) */
-  hreserve(hbsz(3), sp-r);
-  *--hp = mknull();
-  *--hp = obj_from_bool(0);
-  *--hp = obj_from_size(PAIR_BTAG);
-  cx_dynamic_state = hendblk(3); }
-  cx_current_input = obj_from_bool(0);
-  cx_current_output = obj_from_bool(0);
-  cx_current_error = obj_from_bool(0);
-  cx_tansformers = mknull();
-  cx_continuation_adapter_code = obj_from_bool(0);
+  hreserve(pair_bsz(), sp-r);
+  *--hp = null_obj();
+  *--hp = bool_obj(0);
+  cx_dynamic_state = hend_pair(); }
+  cx_current_input = bool_obj(0);
+  cx_current_output = bool_obj(0);
+  cx_current_error = bool_obj(0);
+  cx_failure_handler = bool_obj(0); /* #f until the scheme prelude installs one */
+  cx_tansformers = null_obj();
+  cx_continuation_adapter_code = bool_obj(0);
+  cx_failure_halt_closure = bool_obj(0); /* built by i.c alongside the adapter code */
   return hp;
 }
 
@@ -79,7 +83,7 @@ static obj *run_kernel(obj *r, obj *sp, obj *hp)
 {
   hp = init_kernel_globals(r, sp, hp);
   /* (define callmv-adapter-closure (make-closure (decode "K5"))) */
-  ra = hpushstr(sp-r, newsdata(callmv_adapter_code));
+  ra = hstring_obj(sp-r, newsdata(callmv_adapter_code));
   hp = decode_closure(r, sp, hp);
   cx_callmv_adapter_closure = ra;
   /* (install-global-lambdas) */
@@ -89,10 +93,10 @@ static obj *run_kernel(obj *r, obj *sp, obj *hp)
   /* (define (main) (if (eq? (tcode-repl) #t) #f (main))) -- the repl
    * returns #t when it is done, anything else on an error exit */
   do { /* (define (tcode-repl) (execute-thunk-closure ...)) */
-    ra = hpushstr(sp-r, newsdata(repl_code));
+    ra = hstring_obj(sp-r, newsdata(repl_code));
     hp = decode_closure(r, sp, hp);
     hp = vm_execute_thunk_closure(r, sp, hp); /* ra=closure => ra=result */
-  } while (ra != obj_from_bool(1));
+  } while (ra != bool_obj(1));
   return hp;
 }
 
@@ -100,7 +104,8 @@ static obj *run_kernel(obj *r, obj *sp, obj *hp)
 #define HEAP_SIZE 131072 /* 2^17 */
 #define REGS_SIZE 4092
 
-obj *cxg_heap = NULL;
+/* NB: in-heap check got to check for header word being in heap range */
+obj *cxg_heap = NULL, *cxg_heap_plus1 = NULL; /* use h+1 for masking! */
 cxoint_t cxg_hmask = 0;
 obj *cxg_hp = NULL;
 static cxroot_t cxg_root = { 0, NULL, NULL };
@@ -117,12 +122,12 @@ int cxg_gccount = 0, cxg_bumpcount = 0;
 static obj *toheap2(obj* p, obj *hp, obj *h1, cxoint_t m1, obj *h2, cxoint_t m2)
 {
   obj o = *p, *op, fo, *fop;
-  if (((cxoint_t)(o) - (cxoint_t)h1) & m1) return hp;
+  if (((cxoint_t)(o) - (cxoint_t)(h1+1)) & m1) return hp;
   fo = (op = objptr_from_obj(o))[-1]; assert(fo);
   if (notaptr(fo)) {
     fop = op + size_from_obj(fo); while (fop >= op) *--hp = *--fop;
     *p = *fop = obj_from_objptr(hp+1);
-  } else if (((cxoint_t)(fo) - (cxoint_t)h2) & m2) {
+  } else if (((cxoint_t)(fo) - (cxoint_t)(h2+1)) & m2) {
     *--hp = *op--; *--hp = *op;
     *p = *op = obj_from_objptr(hp+1);
   } else *p = fo;
@@ -134,7 +139,7 @@ static void finalize(obj *hp1, obj *he1, obj *h2, cxoint_t m2)
   while (hp1 < he1) {
     obj fo = *hp1++; assert(fo);
     if (notaptr(fo)) hp1 += size_from_obj(fo);
-    else if (((char*)(fo) - (char*)h2) & m2) ((cxtype_t*)fo)->free((void*)*hp1++);
+    else if (((char*)(fo) - (char*)(h2+1)) & m2) ((cxtype_t*)fo)->free((void*)*hp1++);
     else if (notaptr(fo = objptr_from_obj(fo)[-1])) hp1 += size_from_obj(fo);
     else ++hp1;
   } assert(hp1 == he1);
@@ -176,7 +181,8 @@ obj *cxm_hgc(obj *regs, obj *regp, obj *hp, size_t needs)
   }
   h1 = h2; h2 = h;
 
-  cxg_heap = h1; cxg_hmask = m1; cxg_heap2 = h2; cxg_hmask2 = m2;
+  cxg_heap = h1; cxg_heap_plus1 = h1 + 1; cxg_hmask = m1; 
+  cxg_heap2 = h2; cxg_hmask2 = m2;
   cxg_hsize = hs; return cxg_hp = hp;
 }
 

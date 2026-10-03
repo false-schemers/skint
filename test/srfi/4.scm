@@ -244,6 +244,7 @@
 (test 0 (s64vector-ref (s64vector -1 0 1) 1))
 (test 1 (s64vector-ref (s64vector -1 0 1) 2))
 (test '(-1 9223372036854775807 1) (let ((bv (s64vector -1 0 1))) (s64vector-set! bv 1 9223372036854775807) (s64vector->list bv)))
+(test '(-1 -9223372036854775808 1) (let ((bv (s64vector -1 0 1))) (s64vector-set! bv 1 -9223372036854775808) (s64vector->list bv)))
 (test '() (s64vector->list (s64vector)))
 (test '(-1 0 1) (s64vector->list (s64vector -1 0 1)))
 (test '(-1 0 1) (s64vector->list (s64vector -1 0 1) 0))

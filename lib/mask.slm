@@ -1,0 +1,10 @@
+(cond-expand
+  ((not full-numeric-tower)
+   (hide-libraries 
+     (srfi 160 s32) 
+     (srfi 160 u32) 
+     (srfi 160 s64) 
+     (srfi 160 u64)
+     (srfi 160 c64)
+     (srfi 160 c128)))
+  (else))

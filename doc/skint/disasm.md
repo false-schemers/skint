@@ -75,6 +75,11 @@ with no readable form and no name. A procedure that is not a closure has no code
 to read, so for one of those `da` gives the name the store files it under, or
 `#f`.
 
+A procedure compiled from a top-level expression — what `eval` and the REPL make of
+a form in order to run it — is a thunk whose code has no argument check. It reads
+back as that thunk, `(lambda () ...)` around the expression. Such procedures are not
+filed in the store, so they are mostly met on the stack, by a debugger.
+
 A symbol is a *global name* — the name the store files a binding under, not
 necessarily the identifier you type. Built-ins are filed under their own names,
 so `'car` works; something defined at the REPL is filed under `repl://?name`.
@@ -154,6 +159,90 @@ over the longer.
 Finding a name means walking the store, so `da-name` is much the slowest thing
 here; it matters only when disassembling in bulk.
 
+### Cursors
+
+`(da x cursor receiver)`
+<br>`(da-code x cursor receiver)`, `(da-bytecode x cursor receiver)`, `(da-core x cursor receiver)`
+<br>`(da-procedure x cursor receiver)`, `(da-global x cursor receiver)`, `(da-name p cursor receiver)`
+
+Every entry point takes two more arguments, both optional. A *cursor* is a place
+in `x`, and `receiver` is a procedure of one argument that is handed the same
+place in the result. The result itself is what it would have been without them.
+
+This is for a debugger, and the places it follows are the ones the virtual machine
+keeps. A procedure that is waiting for a call to return has a frame on the stack
+holding the procedure and the index in its code at which it will resume. A
+failure records the procedure that failed and the index it had got to. Either
+index is just past an instruction, and stands for the expression that instruction
+completed: the call being waited on, or the operation that failed. Where several
+expressions end at the same index, it stands for the innermost.
+
+In each kind of input the cursor is:
+
+| `x` | cursor |
+|---|---|
+| a procedure, a global name or a code vector | the index, as a frame or a failure holds it |
+| a bytecode string | the offset where the instruction at that index starts |
+| a Core expression | the expression itself — that pair, not an equal copy |
+
+What the receiver is handed is in the result's terms:
+
+| entry point | receiver gets |
+|---|---|
+| `da-code` | the offset in the string |
+| `da-bytecode` | the expression in the Core |
+| `da-core`, `da-procedure`, `da-global`, `da` | the pair of the form that expression became |
+| `da-name` | `#f`: a name has no parts to point at |
+
+The receiver is called whenever it is given, and is handed `#f` when there is no
+such place: no cursor, an index that falls inside an instruction or after one that
+completes nothing, a pair that is not part of the Core expression `x`, or a result
+that is a name or `#f` rather than a form. A `case-lambda` makes no calls of its
+own — its clauses are procedures with code of their own — so its indices point at
+nothing.
+
+```scheme
+(define (sum l) (if (null? l) 0 (+ (car l) (sum (cdr l)))))
+
+(da 'repl://?sum 15 (lambda (where) (write where)))   ; writes (sum (cdr .a))
+(da 'repl://?sum 13 (lambda (where) (write where)))   ; writes #f
+```
+
+Index 15 of `sum` is where the recursive call returns, and 13 is inside the
+instruction that fetches `sum`. Which index is which is the compiler's business,
+so do not write indices down; take them from the stack or from a failure.
+
+An expression that has no pair of its own in the result is shown by the nearest
+enclosing one that does. A variable comes back as a bare symbol, so an index
+past the instruction that fetches it points at the expression using it. A call
+absorbed into a derived form — the producer behind a `define-values`, the call
+after a `cond` clause's `=>` — points at that form.
+
+The pair a receiver gets belongs to the form that same call returned. It is that
+form's own pair, so `eq?` finds it and an equal pair from another call is not it.
+That is exactly what [`print-cursor`](print.md#cursor) in `(skint print)` wants,
+and since a parameter is a procedure of one argument, it can be the receiver:
+
+```scheme
+(pretty-print (da 'repl://?sum 15 print-cursor) print-width 40)
+```
+
+```
+ (lambda (.a)
+   (if (null? .a)
+       0
+>      (+ (car .a) [sum (cdr .a)])))
+```
+
+That leaves `print-cursor` set, and it marks nothing in any other form. To keep
+the setting local, catch the pair and pass it to the printer instead:
+
+```scheme
+(let* ([where #f]
+       [form (da 'repl://?sum 15 (lambda (p) (set! where p)))])
+  (pretty-print form print-cursor where print-width 40))
+```
+
 ### Wrong types and bad values
 
 Every entry point answers `#f` for an argument of a type it cannot use. That is
@@ -201,6 +290,45 @@ not compile.
 A display entry that the code assigns holds a box rather than the value. `da`
 binds the box's contents, so what you see is the variable's value and not its
 cell.
+
+A display entry can hold any value, and a value with no written form that reads
+back, such as a procedure, is quoted as `write` shows it. That says little about
+which procedure it is, so this library has a hook for
+[(skint print)](print.md#hooks) that adds the name:
+
+`(da-print-hook obj)` → *hook* or `#f`
+
+A predicate for `add-print-hook`. For a procedure that `da-name` finds a name for,
+it answers a hook that prints the procedure as `write` does with that name added
+after `#<procedure`; for anything else it answers `#f`, leaving the object to the
+other entries. The rest of what is printed is `write`'s, and is no more stable than
+`write`'s is: the address in it can change even between two printings of the same
+procedure. Like `da-name`, it walks the store for each procedure it is asked about.
+
+```scheme
+(import (skint print))
+
+(define (twice x) (* 2 x))
+(define twice-car (let ([f twice] [g car]) (lambda (x) (f (g x)))))
+
+(pretty-print (da twice-car))
+(pretty-print (da twice-car)
+              print-hooks (add-print-hook (print-hooks) da-print-hook))
+```
+
+```scheme
+(let
+  ([:a '#<procedure @0x7f4e1a3c2e50>]
+   [:b '#<procedure @0x7f4e1a8d5ab8>])
+  (lambda (.a) (:a (:b .a))))
+(let
+  ([:a '#<procedure twice @0x7f4e1a3c2e50>]
+   [:b '#<procedure car @0x7f4e1a8d5ab8>])
+  (lambda (.a) (:a (:b .a))))
+```
+
+The name is the one `da-name` gives, so it follows `da-prune-globals`, below.
+The `,da` command at the REPL prints with this hook.
 
 ### case-lambda
 

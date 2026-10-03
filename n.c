@@ -32,69 +32,47 @@ long getimmu(obj o, int t) {
 #endif
 
 #ifndef NDEBUG
-int isnative(obj o, cxtype_t *tp) {
+int is_native(obj o, cxtype_t *tp) {
   return isobjptr(o) && objptr_from_obj(o)[-1] == (obj)tp; 
 }
-void *getnative(obj o, cxtype_t *tp) {
-  assert(isnative(o, tp));
+void *get_native(obj o, cxtype_t *tp) {
+  assert(is_native(o, tp));
   return (void*)(*objptr_from_obj(o));
 }
-void setnative(obj o, cxtype_t *tp, void *v) {
-  assert(isnative(o, tp));
+void set_native(obj o, cxtype_t *tp, void *v) {
+  assert(is_native(o, tp));
   *objptr_from_obj(o) = (obj)v;
 }
 #endif
 
-int istagged(obj o, int t) {
-  if (!isobjptr(o)) return 0;
-  else { obj h = objptr_from_obj(o)[-1];
-    return notaptr(h) && size_from_obj(h) >= 1 
-      && hblkref(o, 0) == obj_from_size(t); }
-}
-
 #ifndef NDEBUG
-obj cktagged(obj o, int t) {
-  assert(istagged((o), t));
+
+/* what these assert: see doc/internals/notes.md [7] */
+
+int is_typed(obj o) {
+  if (!is_tagged(o, TYPED_MTAG)) return 0;
+  else { obj h = objptr_from_obj(o)[-1];
+    assert(notaptr(h));
+    assert(size_from_obj(h) >= 1); /* with a cell 0 for the rtd */
+    return 1; }
+}
+obj ck_typed(obj o) {
+  assert(is_typed(o));
   return o;
 }
-int taggedlen(obj o, int t) {
-  assert(istagged((o), t));
-  return hblklen(o) - 1;
+obj* typed_type(obj o) {
+  assert(is_typed(o));
+  return &block_ref(o, 0);
 }
-obj* taggedref(obj o, int t, int i) {
-  int len; assert(istagged((o), t));
-  len = hblklen(o);
+int typed_len(obj o) {
+  assert(is_typed(o));
+  return block_len(o) - 1;
+}
+obj* typed_ref(obj o, int i) {
+  int len; assert(is_typed(o));
+  len = block_len(o);
   assert(i >= 0 && i < len-1);  
-  return &hblkref(o, i+1);
-}
-#endif
-
-int istyped(obj o) {
-  if (!isobjptr(o)) return 0;
-  else { obj h = objptr_from_obj(o)[-1];
-    return notaptr(h) && size_from_obj(h) >= 1 
-      /* FIXME: manual issymbol() check */
-      && isimm(hblkref(o, 0), 4/*SYMBOL_ITAG*/); }
-}
-
-#ifndef NDEBUG
-obj cktyped(obj o) {
-  assert(istyped(o));
-  return o;
-}
-obj* typedtype(obj o) {
-  assert(istyped(o));
-  return &hblkref(o, 0);
-}
-int typedlen(obj o) {
-  assert(istyped(o));
-  return hblklen(o) - 1;
-}
-obj* typedref(obj o, int i) {
-  int len; assert(istyped(o));
-  len = hblklen(o);
-  assert(i >= 0 && i < len-1);  
-  return &hblkref(o, i+1);
+  return &block_ref(o, i+1);
 }
 #endif
 
@@ -300,8 +278,8 @@ cxtype_t *STRING_NTAG = &cxt_string;
 #else /* ascii representation block */
 
 #ifndef NDEBUG
-char* stringref(obj o, int i) {
-  const int *d = stringdata(o); assert(i >= 0 && i < d[0]);  
+char* string_refp(obj o, int i) {
+  const int *d = string_data(o); assert(i >= 0 && i < d[0]);  
   return sdatachars(d)+i;
 }
 #endif
@@ -352,6 +330,7 @@ int *mapsdata(const int *d, int (*f)(int)) {
   int i, n = sdatalen(d), *d1 = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
   const char *s = sdatachars(d); char *s1 = sdatachars(d1);
   d1[0] = d[0]; for (i = 0; i < n; ++i) *s1++ = (*f)(*s++);   
+  *s1 = 0; /*[cco] terminate, as newsdatan, makesdata and subsdata all do */
   return d1;
 }
 
@@ -367,10 +346,10 @@ int sdatacmp(const int *d1, const int *d2) {
 
 int *stringr(int sc, obj pso[]) {
   int i, *d; unsigned char *s; assert(sc >= 0);
-  for (i = 0; i < sc; ++i) if (!ischar(pso[i])) return NULL; 
+  for (i = 0; i < sc; ++i) if (!is_char(pso[i])) return NULL; 
   d = cxm_cknull(malloc(sizeof(int)+sc+1), "malloc(string)");
   d[0] = sc; s = (unsigned char *)sdatachars(d);
-  for (i = sc-1; i >= 0; --i) *s++ = char_from_obj(pso[i]); 
+  for (i = sc-1; i >= 0; --i) *s++ = get_char(pso[i]); 
   *s = 0;
   return d;
 }
@@ -380,13 +359,13 @@ int *stringrcat(int sc, obj pso[]) {
   assert(sc >= 0);
   for (i = 0; i < sc; ++i) { 
     const int *di; obj oi = pso[i]; 
-    if (!isstring(oi)) return NULL; 
-    di = stringdata(oi); n += sdatalen(di);
+    if (!is_string(oi)) return NULL; 
+    di = string_data(oi); n += sdatalen(di);
   }
   d = cxm_cknull(malloc(sizeof(int)+n+1), "malloc(string)");
   d[0] = n; s = (unsigned char *)sdatachars(d);
   for (i = sc-1; i >= 0; --i) {
-    obj oi = pso[i]; const int *di = stringdata(oi), ni = sdatalen(di);
+    obj oi = pso[i]; const int *di = string_data(oi), ni = sdatalen(di);
     memcpy(s, sdatachars(di), ni); s += ni;
   }
   *s = 0;
@@ -469,8 +448,8 @@ cxtype_t *BYTEVECTOR_NTAG = &cxt_bytevector;
 #define mallocbvdata(n) cxm_cknull(calloc(2*sizeof(int)+(n), 1), "malloc(bytevector)")
 
 #ifndef NDEBUG
-unsigned char* bytevectorref(obj o, int i) {
-  int *d = bytevectordata(o); assert(i >= -2 && i < d[0]); return (bvdatabytes(d))+i;
+unsigned char* bytevector_refp(obj o, int i) {
+  int *d = bytevector_data(o); assert(i >= -2 && i < d[0]); return (bvdatabytes(d))+i;
 }
 #endif
 
@@ -510,16 +489,16 @@ int *subbytevector(int *d0, int from, int to) {
 
 /* pairs/lists */
 
-int islist(obj l) {
+int is_list(obj l) {
   obj s = l;
   for (;;) {
-    if (isnull(l)) return 1;
-    else if (!ispair(l)) return 0;
-    else if ((l = cdr(l)) == s) return 0;
-    else if (isnull(l)) return 1;
-    else if (!ispair(l)) return 0;
-    else if ((l = cdr(l)) == s) return 0;
-    else s = cdr(s); 
+    if (is_null(l)) return 1;
+    else if (!is_pair(l)) return 0;
+    else if ((l = pair_cdr(l)) == s) return 0;
+    else if (is_null(l)) return 1;
+    else if (!is_pair(l)) return 0;
+    else if ((l = pair_cdr(l)) == s) return 0;
+    else s = pair_cdr(s); 
   }
 }
 
@@ -578,26 +557,32 @@ const char *symbolname(int sym) {
 
 /* procedures/closures */
 
-int isprocedure(obj o) {
-  if (!o) return 0;
-  else if (isaptr(o) && !isobjptr(o)) return 1;
-  else if (!isobjptr(o)) return 0;
+#ifndef NDEBUG
+
+/* what these assert: see doc/internals/notes.md [7] */
+int is_procedure(obj o) {
+  if (!isobjptr(o)) return 0;
   else { obj h = objptr_from_obj(o)[-1];
-    return notaptr(h) && size_from_obj(h) >= 1 
-      && isaptr(hblkref(o, 0)); }
+    if (!obj_is_blkhdr(h, CLOSURE_MTAG)) return 0;
+    assert(size_from_obj(h) >= 1);
+    assert(is_vector(block_ref(o, 0)));
+    assert(block_len(block_ref(o, 0)) >= 2);
+    return 1; }
 }
 
-int procedurelen(obj o) {
-  assert(isprocedure(o));
-  return isobjptr(o) ? hblklen(o) : 1;
+int procedure_len(obj o) {
+  assert(is_procedure(o));
+  return block_len(o);
 }
 
-obj* procedureref(obj o, int i) {
-  int len; assert(isprocedure(o));
-  len = isobjptr(o) ? hblklen(o) : 1;
+obj* procedure_refp(obj o, int i) {
+  int len; assert(is_procedure(o));
+  len = block_len(o);
   assert(i >= 0 && i < len);
-  return &hblkref(o, i);   
+  return &block_ref(o, i);   
 }
+
+#endif
 
 /* common i/o utils */
 
@@ -810,7 +795,7 @@ static int sictl(ctlop_t op, sifile_t *sp, ...) {
 
 bvifile_t *bvialloc(unsigned char *p, unsigned char *e, void *base) { 
   bvifile_t *fp = cxm_cknull(malloc(sizeof(bvifile_t)), "malloc(bvifile)");
-  fp->p = p; fp->e = e; fp->base = base; return fp; }
+  fp->s = fp->p = p; fp->e = e; fp->base = base; return fp; }
 
 static void bvifree(bvifile_t *fp) { 
   assert(fp); if (fp->base) free(fp->base); free(fp); }
@@ -820,6 +805,85 @@ static int bvigetch(bvifile_t *fp) {
 
 static int bviungetch(int c, bvifile_t *fp) {
   assert(fp && fp->p && fp->e); --(fp->p); assert(c == *(fp->p)); return c; }
+
+static int bvictl(ctlop_t op, bvifile_t *fp, ...) {
+  switch (op) {
+    case CTLOP_POS: {
+      va_list args; int64_t *ppos;
+      va_start(args, fp); ppos = va_arg(args, int64_t *); va_end(args);
+      if (!ppos) return 0; /* supported */
+      *ppos = (int64_t)(fp->p - fp->s);
+      return 0;
+    } break;
+    case CTLOP_SETPOS: {
+      va_list args; int64_t *ppos; int org; int64_t off, span;
+      va_start(args, fp); ppos = va_arg(args, int64_t *);
+      if (!ppos) { va_end(args); return 0; } /* supported */
+      org = va_arg(args, int); va_end(args);
+      off = *ppos;
+      span = (int64_t)(fp->e - fp->s);
+      /* checked before the origin is added, and why: notes.md [9] */
+      if (off > span || off < -span) return 2;
+      switch (org) {
+        case SEEK_SET: break;
+        case SEEK_CUR: off += (int64_t)(fp->p - fp->s); break;
+        case SEEK_END: off += span; break;
+        default: return 2;
+      }
+      if (off < 0 || off > span) return 2;
+      fp->p = fp->s + off;
+      return 0;
+    } break;
+    default: break;
+  }
+  return -1;
+}
+
+/* bytevector output ports */
+
+bvofile_t *bvoalloc(void) {
+  bvofile_t *fp = cxm_cknull(malloc(sizeof(bvofile_t)), "malloc(bvofile)");
+  cbinit(&fp->cb); fp->hwl = 0; return fp; }
+
+static void bvofree(bvofile_t *fp) {
+  if (fp) { free(fp->cb.buf); free(fp); } }
+
+size_t bvolen(bvofile_t *fp) {
+  size_t n; assert(fp); n = cblen(&fp->cb); return (fp->hwl > n) ? fp->hwl : n; }
+
+static int bvoctl(ctlop_t op, bvofile_t *fp, ...) {
+  switch (op) {
+    case CTLOP_POS: {
+      va_list args; int64_t *ppos;
+      va_start(args, fp); ppos = va_arg(args, int64_t *); va_end(args);
+      if (!ppos) return 0; /* supported */
+      *ppos = (int64_t)cblen(&fp->cb);
+      return 0;
+    } break;
+    case CTLOP_SETPOS: {
+      va_list args; int64_t *ppos; int org; int64_t off, len, cur;
+      va_start(args, fp); ppos = va_arg(args, int64_t *);
+      if (!ppos) { va_end(args); return 0; } /* supported */
+      org = va_arg(args, int); va_end(args);
+      off = *ppos;
+      len = (int64_t)bvolen(fp); cur = (int64_t)cblen(&fp->cb);
+      /* the port cannot be extended by seeking, so [0, len] is all there is */
+      if (off > len || off < -len) return 2;
+      switch (org) {
+        case SEEK_SET: break;
+        case SEEK_CUR: off += cur; break;
+        case SEEK_END: off += len; break;
+        default: return 2;
+      }
+      if (off < 0 || off > len) return 2;
+      if ((size_t)cur > fp->hwl) fp->hwl = (size_t)cur; /* keep the tail */
+      fp->cb.fill = fp->cb.buf + off;
+      return 0;
+    } break;
+    default: break;
+  }
+  return -1;
+}
 
 /* file output ports */
 
@@ -832,6 +896,37 @@ static int fctl(ctlop_t op, FILE *fp, ...) {
     default: break;
   }
   return -1;
+}
+
+/* binary file ports, in and out; see notes.md [9] */
+
+static int bfctl(ctlop_t op, FILE *fp, ...) {
+  switch (op) {
+    case CTLOP_POS: {
+      va_list args; int64_t *ppos; fileoff_t off;
+      va_start(args, fp); ppos = va_arg(args, int64_t *); va_end(args);
+      if (!ppos) return 0; /* supported */
+      off = ftelloff(fp);
+      if (off < 0) return 1;
+      *ppos = (int64_t)off;
+      return 0;
+    } break;
+    case CTLOP_SETPOS: {
+      va_list args; int64_t *ppos; int org; int64_t off, lim;
+      va_start(args, fp); ppos = va_arg(args, int64_t *);
+      if (!ppos) { va_end(args); return 0; } /* supported */
+      org = va_arg(args, int); va_end(args);
+      off = *ppos;
+      if (org != SEEK_SET && org != SEEK_CUR && org != SEEK_END) return 2;
+      /* the one out-of-range position we can name unasked; notes.md [9] */
+      if (org == SEEK_SET && off < 0) return 2;
+      lim = FILEOFF_IMAX; /* via a variable: the test folds away on lp64 */
+      if (off > lim || off < -lim - 1) return 2;
+      return (fseekoff(fp, (fileoff_t)off, org) == 0) ? 0 : 1;
+    } break;
+    default: break;
+  }
+  return fctl(op, fp); /* CTLOP_OFL and the rest */
 }
 
 
@@ -854,7 +949,7 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_BYTEFILE_PTINDEX   2
   { "binary-file-input-port", ffree, SPT_INPUT|SPT_BINARY,
     (int (*)(void*))(fgetc), (int (*)(int, void*))(ungetc),
-    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))bfctl },
 #define IPORT_STRING_PTINDEX     3
   { "string-input-port", (void (*)(void*))sifree, SPT_INPUT,
     (int (*)(void*))sigetch, (int (*)(int, void*))siungetch,
@@ -862,7 +957,7 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define IPORT_BYTEVECTOR_PTINDEX 4
   { "bytevector-input-port", (void (*)(void*))bvifree, SPT_INPUT|SPT_BINARY,
     (int (*)(void*))bvigetch, (int (*)(int, void*))bviungetch,
-    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))noputch, (int (*)(ctlop_t, void *, ...))bvictl },
 #define OPORT_CLOSED_PTINDEX     5
   { "closed-output-port", (void (*)(void*))nofree, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
@@ -874,15 +969,15 @@ cxtype_port_t cxt_port_types[PORTTYPES_MAX] = {
 #define OPORT_BYTEFILE_PTINDEX   7
   { "binary-file-output-port", ffree, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))(fputc), (int (*)(ctlop_t, void *, ...))fctl },
+    (int (*)(int, void*))(fputc), (int (*)(ctlop_t, void *, ...))bfctl },
 #define OPORT_STRING_PTINDEX     8
   { "string-output-port", (void (*)(void*))freecb, SPT_OUTPUT,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
     (int (*)(int, void*))ucbputc, (int (*)(ctlop_t, void *, ...))noctl },
 #define OPORT_BYTEVECTOR_PTINDEX 9
-  { "bytevector-output-port", (void (*)(void*))freecb, SPT_OUTPUT|SPT_BINARY,
+  { "bytevector-output-port", (void (*)(void*))bvofree, SPT_OUTPUT|SPT_BINARY,
     (int (*)(void*))nogetch, (int (*)(int, void*))noungetch,
-    (int (*)(int, void*))cbputc, (int (*)(ctlop_t, void *, ...))noctl },
+    (int (*)(int, void*))cbputc, (int (*)(ctlop_t, void *, ...))bvoctl },
 #ifdef OPT_ENHTTY /* + tty */
 #define IPORT_TTY_PTINDEX 10
   { "tty-input-port", (void (*)(void*))ttfree, SPT_INPUT,
@@ -925,7 +1020,8 @@ static stab_t *stabfree(stab_t *p) {
 }
 static int stabnew(obj o, stab_t *p, int circ) {
   if (!o || notaptr(o) || notobjptr(o) || (circ && isaptr(objptr_from_obj(o)[-1]))) return 0;
-  else if (circ && isaptr(objptr_from_obj(o)[0])) return 0; /* opaque */ 
+  /* a closure is opaque; cell 0 is payload in an PACKED_MTAG block, not a tag */
+  else if (circ && obj_is_blkhdr(objptr_from_obj(o)[-1], CLOSURE_MTAG)) return 0;
   else { /* v[i] is 0 or heap obj, possibly with lower bit set if it's not new */
     unsigned long h = (unsigned long)o; size_t sz = p->sz, i, j;
     for (i = h & (sz-1); p->v[i]; i = (i-1) & (sz-1))
@@ -1025,41 +1121,51 @@ static int stabequal(obj x, obj y, stab_t *p) {
   if (!x || !y || notaptr(x) || notaptr(y) || notobjptr(x) || notobjptr(y)) return 0;
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return 0;
 #ifdef FLONUMS_BOXED
-  if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y); 
+  if (h == (obj)FLONUM_NTAG) return get_flobits(x) == get_flobits(y); 
 #endif
 #ifdef OPT_TOWER
-  if (h == (obj)BIGNUM_NTAG) return bneq(bignum_from_obj(x), bignum_from_obj(y));
-  if (h == (obj)FATNUM_NTAG) return fneqv(fatnum_from_obj(x), fatnum_from_obj(y));
+  if (h == (obj)BIGNUM_NTAG) return bneq(get_bignum(x), get_bignum(y));
+  if (h == (obj)FATNUM_NTAG) return fneqv(get_fatnum(x), get_fatnum(y));
 #endif
-  if (h == (obj)STRING_NTAG) return sdatacmp(stringdata(x), stringdata(y)) == 0;
-  if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)); 
-  if (isaptr(h) || !(n = size_from_obj(h)) || hblkref(x, 0) != hblkref(y, 0)) return 0;
+  if (h == (obj)STRING_NTAG) return sdatacmp(string_data(x), string_data(y)) == 0;
+  if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevector_data(x), bytevector_data(y));
+  if (isaptr(h)) return 0;
+  n = size_from_obj(h);
+  /* a cell-less block, such as #(), is settled by the headers alone */
+  if (!n) return !obj_is_blkhdr(h, TYPED_MTAG);
+  /* cell 0 is the descriptor in an R block, and payload in any other kind */
+  i = obj_is_blkhdr(h, TYPED_MTAG) ? 1 : 0;
+  if (i && block_ref(x, 0) != block_ref(y, 0)) return 0;
   if (stabufind(x, y, p)) return 1; /* seen before and decided to be equal */
-  for (i = 1; i < n-1; ++i) if (!stabequal(hblkref(x, i), hblkref(y, i), p)) return 0;
-  if (i == n-1) { x = hblkref(x, i); y = hblkref(y, i); goto loop; } else return 1; 
+  for (; i < n-1; ++i) if (!stabequal(block_ref(x, i), block_ref(y, i), p)) return 0;
+  if (i == n-1) { x = block_ref(x, i); y = block_ref(y, i); goto loop; } else return 1;
 }
 static int boundequal(obj x, obj y, int fuel) { /* => remaining fuel or <0 on failure */
   obj h; int i, n; loop: assert(fuel > 0); if (x == y) return fuel-1;
   if (!x || !y || notaptr(x) || notaptr(y) || notobjptr(x) || notobjptr(y)) return -1;
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return -1;
 #ifdef FLONUMS_BOXED
-  if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y) ? fuel-1 : -1; 
+  if (h == (obj)FLONUM_NTAG) return get_flobits(x) == get_flobits(y) ? fuel-1 : -1; 
 #endif
 #ifdef OPT_TOWER
-  if (h == (obj)BIGNUM_NTAG) return bneq(bignum_from_obj(x), bignum_from_obj(y)) ? fuel-1 : -1;
-  if (h == (obj)FATNUM_NTAG) return fneqv(fatnum_from_obj(x), fatnum_from_obj(y)) ? fuel-1 : -1;
+  if (h == (obj)BIGNUM_NTAG) return bneq(get_bignum(x), get_bignum(y)) ? fuel-1 : -1;
+  if (h == (obj)FATNUM_NTAG) return fneqv(get_fatnum(x), get_fatnum(y)) ? fuel-1 : -1;
 #endif
-  if (h == (obj)STRING_NTAG) return sdatacmp(stringdata(x), stringdata(y)) == 0 ? fuel-1 : -1;
-  if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevectordata(x), bytevectordata(y)) ? fuel-1 : -1;
-  if (isaptr(h) || !(n = size_from_obj(h)) || hblkref(x, 0) != hblkref(y, 0)) return -1;
+  if (h == (obj)STRING_NTAG) return sdatacmp(string_data(x), string_data(y)) == 0 ? fuel-1 : -1;
+  if (h == (obj)BYTEVECTOR_NTAG) return bytevectoreq(bytevector_data(x), bytevector_data(y)) ? fuel-1 : -1;
+  if (isaptr(h)) return -1;
+  n = size_from_obj(h);
+  if (!n) return obj_is_blkhdr(h, TYPED_MTAG) ? -1 : fuel-1; /* #() and the like */
+  i = obj_is_blkhdr(h, TYPED_MTAG) ? 1 : 0;
+  if (i && block_ref(x, 0) != block_ref(y, 0)) return -1;
   if (--fuel == 0) return 0; /* we must spend fuel while comparing objects themselves */
-  for (i = 1; i < n-1; ++i) if ((fuel = boundequal(hblkref(x, i), hblkref(y, i), fuel)) <= 0) return fuel;
-  if (i == n-1) { x = hblkref(x, i); y = hblkref(y, i); goto loop; } else return fuel;
+  for (; i < n-1; ++i) if ((fuel = boundequal(block_ref(x, i), block_ref(y, i), fuel)) <= 0) return fuel;
+  if (i == n-1) { x = block_ref(x, i); y = block_ref(y, i); goto loop; } else return fuel;
 }
 
 /* base predicates */
 
-int iscircular(obj x) {
+int is_circular(obj x) {
   if (!x || notaptr(x) || notobjptr(x)) return 0;
   else { stab_t *p = staballoc(); stabcircular(x, p); p = stabend(p); stabfree(p); return p != NULL; }
 }
@@ -1069,60 +1175,60 @@ int iseqv(obj x, obj y) {
   if (!x || !y || notaptr(x) || notaptr(y) || notobjptr(x) || notobjptr(y)) return 0;
   if ((h = objptr_from_obj(x)[-1]) != objptr_from_obj(y)[-1]) return 0;
 #ifdef FLONUMS_BOXED /* NB: compare as bits to make sure two nans are eqv */
-  if (h == (obj)FLONUM_NTAG) return flobits_from_obj(x) == flobits_from_obj(y); 
+  if (h == (obj)FLONUM_NTAG) return get_flobits(x) == get_flobits(y); 
 #endif
 #ifdef OPT_TOWER
-  if (h == (obj)BIGNUM_NTAG) return bneq(bignum_from_obj(x), bignum_from_obj(y));
-  if (h == (obj)FATNUM_NTAG) return fneqv(fatnum_from_obj(x), fatnum_from_obj(y));
+  if (h == (obj)BIGNUM_NTAG) return bneq(get_bignum(x), get_bignum(y));
+  if (h == (obj)FATNUM_NTAG) return fneqv(get_fatnum(x), get_fatnum(y));
 #endif
   return 0;
 }
 
 obj ismemv(obj x, obj l) {
   if (!x || notaptr(x) || notobjptr(x)) {
-    for (; l != mknull(); l = cdr(l)) 
-      { if (car(l) == x) return l; }
-  } else if (is_flonum_obj(x)) {
-    flobits_t fx = flobits_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return l; }
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { if (pair_car(l) == x) return l; }
+  } else if (is_flonum(x)) {
+    flobits_t fx = get_flobits(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj y = pair_car(l); if (is_flonum(y) && fx == get_flobits(y)) return l; }
 #ifdef OPT_TOWER
-  } else if (is_bignum_obj(x)) {
-    bignum_t *fx = bignum_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (is_bignum_obj(y) && bneq(fx, bignum_from_obj(y))) return l; }
-  } else if (is_fatnum_obj(x)) {
-    fatnum_t *fx = fatnum_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (is_fatnum_obj(y) && fneqv(fx, fatnum_from_obj(y))) return l; }
+  } else if (is_bignum(x)) {
+    bignum_t *fx = get_bignum(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj y = pair_car(l); if (is_bignum(y) && bneq(fx, get_bignum(y))) return l; }
+  } else if (is_fatnum(x)) {
+    fatnum_t *fx = get_fatnum(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj y = pair_car(l); if (is_fatnum(y) && fneqv(fx, get_fatnum(y))) return l; }
 #endif
   } else { /* for others, memv == memq */
-    for (; l != mknull(); l = cdr(l)) 
-      { if (car(l) == x) return l; }
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { if (pair_car(l) == x) return l; }
   } return 0;
 }
 
 obj isassv(obj x, obj l) {
   if (!x || notaptr(x) || notobjptr(x)) {
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l); if (car(p) == x) return p; }
-  } else if (is_flonum_obj(x)) {
-    flobits_t fx = flobits_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return p; }
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l); if (pair_car(p) == x) return p; }
+  } else if (is_flonum(x)) {
+    flobits_t fx = get_flobits(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l), y = pair_car(p); if (is_flonum(y) && fx == get_flobits(y)) return p; }
 #ifdef OPT_TOWER
-  } else if (is_bignum_obj(x)) {
-    bignum_t *fx = bignum_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (is_bignum_obj(y) && bneq(fx, bignum_from_obj(y))) return p; }
-  } else if (is_fatnum_obj(x)) {
-    fatnum_t *fx = fatnum_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (is_fatnum_obj(y) && fneqv(fx, fatnum_from_obj(y))) return p; }
+  } else if (is_bignum(x)) {
+    bignum_t *fx = get_bignum(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l), y = pair_car(p); if (is_bignum(y) && bneq(fx, get_bignum(y))) return p; }
+  } else if (is_fatnum(x)) {
+    fatnum_t *fx = get_fatnum(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l), y = pair_car(p); if (is_fatnum(y) && fneqv(fx, get_fatnum(y))) return p; }
 #endif
   } else { /* for others, assv == assq */
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l); if (car(p) == x) return p; }
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l); if (pair_car(p) == x) return p; }
   } return 0;
 }
 
@@ -1137,57 +1243,57 @@ int isequal(obj x, obj y) {
 
 obj ismember(obj x, obj l) {
   if (!x || notaptr(x) || notobjptr(x)) {
-    for (; l != mknull(); l = cdr(l)) 
-      { if (car(l) == x) return l; }
-  } else if (is_flonum_obj(x)) {
-    flobits_t fx = flobits_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return l; }
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { if (pair_car(l) == x) return l; }
+  } else if (is_flonum(x)) {
+    flobits_t fx = get_flobits(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj y = pair_car(l); if (is_flonum(y) && fx == get_flobits(y)) return l; }
 #ifdef OPT_TOWER
-  } else if (is_bignum_obj(x)) {
-    bignum_t *fx = bignum_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (is_bignum_obj(y) && bneq(fx, bignum_from_obj(y))) return l; }
-  } else if (is_fatnum_obj(x)) {
-    fatnum_t *fx = fatnum_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (is_fatnum_obj(y) && fneqv(fx, fatnum_from_obj(y))) return l; }
+  } else if (is_bignum(x)) {
+    bignum_t *fx = get_bignum(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj y = pair_car(l); if (is_bignum(y) && bneq(fx, get_bignum(y))) return l; }
+  } else if (is_fatnum(x)) {
+    fatnum_t *fx = get_fatnum(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj y = pair_car(l); if (is_fatnum(y) && fneqv(fx, get_fatnum(y))) return l; }
 #endif
-  } else if (isstring(x)) {
-    const int *xd = stringdata(x);
-    for (; l != mknull(); l = cdr(l)) 
-      { obj y = car(l); if (isstring(y) && 0 == sdatacmp(xd, stringdata(y))) return l; }
+  } else if (is_string(x)) {
+    const int *xd = string_data(x);
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj y = pair_car(l); if (is_string(y) && 0 == sdatacmp(xd, string_data(y))) return l; }
   } else {
-    for (; l != mknull(); l = cdr(l)) 
-      { if (isequal(car(l), x)) return l; }
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { if (isequal(pair_car(l), x)) return l; }
   } return 0;
 }
 
 obj isassoc(obj x, obj l) {
   if (!x || notaptr(x) || notobjptr(x)) {
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l); if (car(p) == x) return p; }
-  } else if (is_flonum_obj(x)) {
-    flobits_t fx = flobits_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (is_flonum_obj(y) && fx == flobits_from_obj(y)) return p; }
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l); if (pair_car(p) == x) return p; }
+  } else if (is_flonum(x)) {
+    flobits_t fx = get_flobits(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l), y = pair_car(p); if (is_flonum(y) && fx == get_flobits(y)) return p; }
 #ifdef OPT_TOWER
-  } else if (is_bignum_obj(x)) {
-    bignum_t *fx = bignum_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (is_bignum_obj(y) && bneq(fx, bignum_from_obj(y))) return p; }
-  } else if (is_fatnum_obj(x)) {
-    fatnum_t *fx = fatnum_from_obj(x); 
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (is_fatnum_obj(y) && fneqv(fx, fatnum_from_obj(y))) return p; }
+  } else if (is_bignum(x)) {
+    bignum_t *fx = get_bignum(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l), y = pair_car(p); if (is_bignum(y) && bneq(fx, get_bignum(y))) return p; }
+  } else if (is_fatnum(x)) {
+    fatnum_t *fx = get_fatnum(x); 
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l), y = pair_car(p); if (is_fatnum(y) && fneqv(fx, get_fatnum(y))) return p; }
 #endif
-  } else if (isstring(x)) {
-    const int *xd = stringdata(x);
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l), y = car(p); if (isstring(y) && 0 == sdatacmp(xd, stringdata(y))) return p; }
+  } else if (is_string(x)) {
+    const int *xd = string_data(x);
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l), y = pair_car(p); if (is_string(y) && 0 == sdatacmp(xd, string_data(y))) return p; }
   } else {
-    for (; l != mknull(); l = cdr(l)) 
-      { obj p = car(l); if (isequal(car(p), x)) return p; }
+    for (; l != null_obj(); l = pair_cdr(l)) 
+      { obj p = pair_car(l); if (isequal(pair_car(p), x)) return p; }
   } return 0;
 }
 
@@ -1225,11 +1331,11 @@ int rdah(int fold, int (*in_getc)(void*), int (*in_ungetc)(int, void*),
   int c, xc; cbuf_t *pcb; char *s; unsigned char *b; 
 next: 
   switch (c = in_getc(in)) {
-    case EOF:  return *po = mkeof(), 'o';
+    case EOF:  return *po = eof_obj(), 'o';
     case '(':  case ')': case '[': case ']':
     case '\'': case '`': case ',': case '\"': case '|':
     case '\\': case '{': case '}':  
-      return *po = obj_from_char(c), 'o';
+      return *po = char_obj(c), 'o';
     case ';':  goto in_linecomm;
     case '#':  goto in_hash;
     default:   
@@ -1239,18 +1345,18 @@ next:
   }
 in_whitespace: 
   c = in_getc(in);
-  if (c == EOF) return *po = mkeof(), 'o';
+  if (c == EOF) return *po = eof_obj(), 'o';
   if ((c >= '\t' && c <= '\n') || (c >= '\f' && c <= '\r') || c == ' ') goto in_whitespace;
   in_ungetc(c, in); goto next;
 in_linecomm:
   c = in_getc(in);
-  if (c == EOF) return *po = mkeof(), 'o';
+  if (c == EOF) return *po = eof_obj(), 'o';
   if (c != '\n') goto in_linecomm;
   goto next;
 in_hash:
   c = in_getc(in); if (c != EOF) in_ungetc(c, in); /* peek */
   if (c == '*') { in_getc(in); goto in_bitvec; }
-  if (strchr("bodxieBODXIE", c) == NULL) return *po = obj_from_char('#'), 'o';
+  if (strchr("bodxieBODXIE", c) == NULL) return *po = char_obj('#'), 'o';
   c = '#'; /* fall through */
 in_numsym:
   pcb = newcb();
@@ -1259,9 +1365,9 @@ in_numsym:
   if (cleansymname((s = cbdata(pcb)), (int)cblen(pcb))) {
     int *d = newsdatan(s, (int)cblen(pcb));
     if (fold) { int *d1 = mapsdata(d, utofold); free(d); d = d1; }
-    *po = mksymbol(internsdata(d, 0)); xc = 'o';
+    *po = symbol_obj(internsdata(d, 0)); xc = 'o';
   } else if (s[0] == '.' && s[1] == 0) {
-    *po = obj_from_char('.'); xc = 'o';
+    *po = char_obj('.'); xc = 'o';
   } else { 
     switch (strtonum4(pf, cbdata(pcb), NULL, 10)) {
       case NUMT_FIX: xc = 'e'; break;
@@ -1317,33 +1423,33 @@ static void wrdatum(obj o, wenv_t *e) {
   tail: ref = stabref(o, e->pst, 1); /* update ref after access */
   if (ref < 0) { char buf[30]; sprintf(buf, "#%ld#", -ref-1); wrs(buf, e); return; }
   if (ref > 0) { char buf[30]; sprintf(buf, "#%ld=", +ref-1); wrs(buf, e); }
-  if (is_bool_obj(o)) {
-    wrs(bool_from_obj(o) ? "#t" : "#f", e);
-  } else if (is_fixnum_obj(o)) {
-    char buf[30]; sprintf(buf, "%ld", fixnum_from_obj(o)); wrs(buf, e);
-  } else if (is_flonum_obj(o)) {
-    wrd(flonum_from_obj(o), -1, e); /* use 'natural' precision */
+  if (is_bool(o)) {
+    wrs(get_bool(o) ? "#t" : "#f", e);
+  } else if (is_fixnum(o)) {
+    char buf[30]; sprintf(buf, "%ld", get_fixnum(o)); wrs(buf, e);
+  } else if (is_flonum(o)) {
+    wrd(get_flonum(o), -1, e); /* use 'natural' precision */
 #ifdef OPT_TOWER
-  } else if (is_bignum_obj(o)) {
-    wrbn(bignum_from_obj(o), 10, e->vt->putch, e->pp);
-  } else if (is_fatnum_obj(o)) {
-    wrfn(fatnum_from_obj(o), 10, 0, -1, e->vt->putch, e->pp);
+  } else if (is_bignum(o)) {
+    wrbn(get_bignum(o), 10, e->vt->putch, e->pp);
+  } else if (is_fatnum(o)) {
+    wrfn(get_fatnum(o), 10, 0, -1, e->vt->putch, e->pp);
 #endif
-  } else if (iseof(o)) {
+  } else if (is_eof(o)) {
     wrs("#<eof>", e);
-  } else if (isvoid(o)) {
+  } else if (is_void(o)) {
     wrs("#<void>", e);
-  } else if (isshebang(o)) {
-    const char *s = symbolname(getshebang(o));
+  } else if (is_shebang(o)) {
+    const char *s = symbolname(get_shebang(o));
     wrs("#<!", e); wrs(s, e); wrc('>', e);
-  } else if (o == obj_from_unit()) {
+  } else if (is_unit(o)) {
     wrs("#<values>", e);
-  } else if (isiport(o)) {
+  } else if (is_iport(o)) {
     char buf[60]; sprintf(buf, "#<%s>", ckiportvt(o)->tname); wrs(buf, e);
-  } else if (isoport(o)) {
+  } else if (is_oport(o)) {
     char buf[60]; sprintf(buf, "#<%s>", ckoportvt(o)->tname); wrs(buf, e);
-  } else if (issymbol(o)) {
-    const int *d = symsdata(getsymbol(o)); int n = sdatacspan(d);
+  } else if (is_symbol(o)) {
+    const int *d = symsdata(get_symbol(o)); int n = sdatacspan(d);
     const char *s = sdatachars(d);
     if (e->disp || cleansymname(s, n)) wrsn(s, n, e);
     else { 
@@ -1363,15 +1469,15 @@ static void wrdatum(obj o, wenv_t *e) {
       }
       wrc('|', e);
     }
-  } else if (isnull(o)) {
+  } else if (is_null(o)) {
     wrs("()", e);
-  } else if (ispair(o)) {
-    wrc('(', e); wrdatum(car(o), e);
-    while (ispair(cdr(o)) && !stabref(cdr(o), e->pst, 0)) { wrc(' ', e); o = cdr(o);  wrdatum(car(o), e); }
-    if (!isnull(cdr(o))) { wrs(" . ", e); wrdatum(cdr(o), e); }
+  } else if (is_pair(o)) {
+    wrc('(', e); wrdatum(pair_car(o), e);
+    while (is_pair(pair_cdr(o)) && !stabref(pair_cdr(o), e->pst, 0)) { wrc(' ', e); o = pair_cdr(o);  wrdatum(pair_car(o), e); }
+    if (!is_null(pair_cdr(o))) { wrs(" . ", e); wrdatum(pair_cdr(o), e); }
     wrc(')', e);
-  } else if (is_char_obj(o)) {
-    int c = char_from_obj(o);
+  } else if (is_char(o)) {
+    int c = get_char(o);
     if (e->disp) wrc(c, e);
     else switch(c) {
       case 0x00: wrs("#\\null", e); break;
@@ -1385,8 +1491,8 @@ static void wrdatum(obj o, wenv_t *e) {
       case ' ': wrs("#\\space", e); break;
       default: wrs("#\\", e); wrc(c, e); break;
     }
-  } else if (isstring(o)) {
-    const int *d = stringdata(o), n = sdatacspan(d);
+  } else if (is_string(o)) {
+    const int *d = string_data(o), n = sdatacspan(d);
     const char *s = sdatachars(d), *es = s + n;
     if (e->disp) wrsn(s, n, e);
     else {
@@ -1405,26 +1511,26 @@ static void wrdatum(obj o, wenv_t *e) {
       }
       wrc('\"', e);
     }
-  } else if (isvector(o)) {
-    int i, n = vectorlen(o);
+  } else if (is_vector(o)) {
+    int i, n = vector_len(o);
     wrs("#(", e);
     for (i = 0; i < n; ++i) { 
-      if (i) wrc(' ', e); wrdatum(vectorref(o, i), e); 
+      if (i) wrc(' ', e); wrdatum(vector_ref(o, i), e); 
     }
     wrc(')', e);
-  } else if (isbytevector(o) && (bytevectortype(o) &~ 7) == 32) {
-    int i, n = bytevectorlen(o), t = bytevectortype(o);
+  } else if (is_bytevector(o) && (bytevector_type(o) &~ 7) == 32) {
+    int i, n = bytevector_len(o), t = bytevector_type(o);
     wrs("#*", e); if (n > 0) {
       int bitl = ((t&7) ? (n-1)*8 + (t&7) : n*8);
-      unsigned char *pb = bytevectorref(o, 0);
+      unsigned char *pb = bytevector_refp(o, 0);
       for (i = 0; i < bitl; ++i) {
         int m = 1 << (i%8);
         wrc(((int)(*pb) & m) ? '1' : '0', e);
         if (i%8 == 7) ++pb;
       }
     }
-  } else if (isbytevector(o)) {
-    int i, n = bytevectorlen(o), t = bytevectortype(o), sz = 1;
+  } else if (is_bytevector(o)) {
+    int i, n = bytevector_len(o), t = bytevector_type(o), sz = 1;
     char buf[60]; 
     switch (t) {
       default: case 0:  wrs("#u8(", e); break;
@@ -1445,7 +1551,7 @@ static void wrdatum(obj o, wenv_t *e) {
 #endif      
     }
     for (i = 0; i < n; i += sz) {
-      unsigned char *p = bytevectorref(o, i); 
+      unsigned char *p = bytevector_refp(o, i); 
       if (i) wrc(' ', e);
       switch (t) {
         default: case 0: sprintf(buf, "%d", (int)*p);           wrs(buf, e); break; 
@@ -1472,25 +1578,32 @@ static void wrdatum(obj o, wenv_t *e) {
       }
     }
     wrc(')', e);
-  } else if (isbox(o)) {
-    wrs("#&", e); o = boxref(o); goto tail;
-  } else if (istagged(o, 0)) {
-    int i, n = taggedlen(o, 0);
+  } else if (is_box(o)) {
+    wrs("#&", e); o = box_ref(o); goto tail;
+  } else if (is_tuple(o)) {
+    int i, n = tuple_len(o);
     wrs("#<values", e);
-    for (i = 0; i < n; ++i) { 
-      wrc(' ', e); wrdatum(*taggedref(o, 0, i), e); 
+    for (i = 0; i < n; ++i) {
+      wrc(' ', e); wrdatum(tuple_ref(o, i), e);
     }
     wrc('>', e);
-  } else if (isprocedure(o)) {
+  } else if (is_procedure(o)) {
     char buf[60];
     sprintf(buf, "#<procedure @%p>", (void*)objptr_from_obj(o));
     wrs(buf, e);
-  } else if (isrecord(o)) {
-    int i, n = recordlen(o);
+  } else if (isaptr(o) && !isobjptr(o)) {
+    /* an aligned pointer that is not in the heap: an instruction word, which
+     * instruction-table hands out on purpose. It used to print as a procedure,
+     * back when the procedure test counted anything outside the heap as one. */
+    char buf[60];
+    sprintf(buf, "#<instruction @%p>", (void*)objptr_from_obj(o));
+    wrs(buf, e);
+  } else if (is_typed(o)) {
+    int i, n = record_len(o);
     wrs("#<record ", e);
-    wrdatum(recordrtd(o), e);
+    wrdatum(record_rtd(o), e);
     for (i = 0; i < n; ++i) { 
-      wrc(' ', e); wrdatum(recordref(o, i), e); 
+      wrc(' ', e); wrdatum(record_ref(o, i), e); 
     }
     wrc('>', e);
   } else {
@@ -2067,7 +2180,10 @@ int wrdn(double x, int radix, int mode, int prc, int (*pf)(int, void*), void *pd
 
 extern int is_tty(FILE *fp)
 {
-  return fp && isatty(fileno(fp));
+  /* isatty() reports "not a tty" by setting ENOTTY, which is an answer here
+   * and not a failure -- do not leave it for unrelated code to trip over */
+  int res = fp && isatty(fileno(fp));
+  return (errno = 0), res;
 }
 
 extern int is_tty_port(obj o)
@@ -2083,7 +2199,7 @@ extern int is_tty_port(obj o)
   else if (vt == OPORT_FILE_NTAG) fp = (FILE*)oportdata(o); 
   else if (vt == OPORT_BYTEFILE_NTAG) fp = (FILE*)oportdata(o); 
   if (!fp) return 0;
-  return isatty(fileno(fp));
+  { int res = isatty(fileno(fp)); return (errno = 0), res; }
 }
 
 extern char *argv_ref(int idx)
