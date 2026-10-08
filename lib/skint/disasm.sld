@@ -392,20 +392,27 @@
     (string->symbol (if boxed? (string-append "^" s) s))))
 
 ;; A display list that grows on demand, for fragments whose free variables have
-;; no binder in view.  The second cell records which slots were dereferenced --
-;; that is, which of the closure's free variables are boxed because something
-;; assigns them.  A caller holding the actual display needs to know: a boxed
-;; slot holds a box, an unboxed one holds the value itself.
-(define (make-dsp l) (list l (quote ())))
-(define (dsp-boxed d) (cadr d))
+;; no binder in view.  Which of its names are dereferenced -- that is, which of
+;; the closure's free variables are boxed because something assigns them -- is
+;; recorded on the side, and by name rather than by slot.  By name, because a
+;; free variable this closure only passes on to a nested one is pushed into that
+;; closure's display without the dereference, so the ^ turns up in the nested
+;; decoding instead; the two slots hold the same box and the nested decoding
+;; names it the same, so the name is what carries the fact outwards.  A caller
+;; holding the actual display needs to know: a boxed slot holds a box, an
+;; unboxed one holds the value itself.
+(define (make-dsp l) (list l))
+(define %boxed-dsps (quote ()))         ; display names read through the box
+(define (boxed-dsp-name? nm) (and (memq nm %boxed-dsps) #t))
 (define (dsp-ref d n boxed?)
   (let grow ()
     (when (<= (length (car d)) n)
       (set-car! d (append (car d) (list (display-name #f))))
       (grow)))
-  (when (and boxed? (not (memv n (cadr d))))
-    (set-car! (cdr d) (cons n (cadr d))))
-  (list-ref (car d) n))
+  (let ([nm (list-ref (car d) n)])
+    (when (and boxed? (not (memq nm %boxed-dsps)))
+      (set! %boxed-dsps (cons nm %boxed-dsps)))
+    nm))
 
 
 ;; --- symbolic slots ---------------------------------------------------------
@@ -1071,6 +1078,7 @@
                 (set! %bail k) (set! %why #f)
                 ;; names are per-call, so the same bytecode always reads the same
                 (set! %lctr 0) (set! %dctr 0) (set! %top-dsp dsp)
+                (set! %boxed-dsps (quote ()))
                 (dcmp cv 0 (vector-length cv) (quote ()) dsp 0)))])
     (cond [(not c) #f]
           [(core-ok? c) c]
@@ -1146,6 +1154,7 @@
                 (set! %bail k) (set! %why #f)
                 (set! %lctr 0) (set! %dctr (length freenames))
                 (set! %top-dsp #f)
+                (set! %boxed-dsps (quote ()))
                 (dcmp-lambda cv freenames)))])
     (cond [(not c) #f]
           [(core-ok? c) c]
@@ -2003,14 +2012,12 @@
                   [core (da-closure (vector-ref (car l) 0) ns)])
              (and core
                   (let ([form (sx core)]
-                        ;; which of this clause's own slots hold a box
-                        [mine (let g ([ix (dsp-boxed %top-dsp)] [r (quote ())])
-                                (if (null? ix)
-                                    r
-                                    (g (cdr ix)
-                                       (if (< (car ix) (length cs))
-                                           (cons (list-ref cs (car ix)) r)
-                                           r))))])
+                        ;; which of this clause's own cells hold a box
+                        [mine (let g ([cs cs] [ns ns] [r (quote ())])
+                                (cond [(null? cs) r]
+                                      [(boxed-dsp-name? (car ns))
+                                       (g (cdr cs) (cdr ns) (cons (car cs) r))]
+                                      [else (g (cdr cs) (cdr ns) r)]))])
                     (and (pair? form) (eq? (car form) (quote lambda))
                          (loop (cdr l)
                                (cons (cons (cadr form) (cddr form)) arms)
@@ -2055,8 +2062,7 @@
     (if (not core)
         (cons (da-name p) #f)
          (let* ([fr (%form-tracked core (cdr cr))]
-                [form (car fr)]
-                [boxed (dsp-boxed %top-dsp)])
+                [form (car fr)])
            (cons
              (if (= n 0)
                  form
@@ -2065,7 +2071,8 @@
                                (if (>= i n)
                                    (reverse bs)
                                    (let* ([cell (vector-ref v (+ i 1))]
-                                          [val (if (and (memv i boxed) (box? cell))
+                                          [val (if (and (boxed-dsp-name? (display-var i))
+                                                        (box? cell))
                                                    (unbox cell)
                                                    cell)])
                                      (loop (+ i 1)

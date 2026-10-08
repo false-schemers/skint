@@ -57,12 +57,22 @@
 ;; equality of the two strings is equality up to renaming, which is all a
 ;; disassembler can be asked for.  (begin) rather than (void) is wanted here --
 ;; see the section on that below.
+;;
+;; The disassembly is compared against the Core compiled again, not against the
+;; bytecode that Core was read from.  The two differ for a procedure whose code
+;; was not emitted by the compiler now in the image: t.c carries the bytecode the
+;; interpreter was built with, and an optimization added since -- 0.8.6's
+;; renaming let, which spends no frame on a let that only gives locals another
+;; name -- makes this compiler emit less for the same program.  Both sides have
+;; to pass through one compiler, or what the test measures is that skew rather
+;; than the disassembler.  That da-code reproduces the bytecode of every closure
+;; in the store, byte for byte, is checked on its own above.
 (define (chain-round-trips? p)
-  (let* ([want (string-append "&0{" (da-code p) "}")]
-         [core (da-bytecode p)]
+  (let* ([core (da-bytecode p)]
+         [want (and core (guard (e (#t #f)) (compile-to-string core)))]
          [form (and core (parameterize ([da-void-for-empty-begin #f]) (da-core core)))]
          [got (and form (guard (e (#t #f)) (compile-to-string (expand form))))])
-    (and got (equal? got want))))
+    (and want got (equal? got want))))
 
 ;; the same for a source expression rather than a live procedure
 (define (source-round-trips? src)
@@ -363,6 +373,27 @@
 ;; a boxed slot holds a box, and what is bound is its contents
 (test '(let ((:a 10)) (lambda () (set! :a (+ :a 1)) :a)) (da (make-counter 10)))
 
+;; the value the display let binds to the first slot
+(define (first-slot-value form)
+  (let ([init (cadr (car (cadr form)))])
+    (if (and (pair? init) (eq? (car init) 'quote)) (cadr init) init)))
+
+;; A slot is boxed just as much when the closure itself never dereferences it
+;; and a closure nested inside it does: the free variable is pushed into the
+;; nested display as the box it is, so the dereference -- and so the ^ -- turns
+;; up one level down, against the same invented name.  What the let binds is
+;; still the contents.
+(define (make-nested-counter start)
+  (let ([n start]) (lambda (f) (f (lambda () (set! n (+ n 1)) n)))))
+(test '(let ((:a 5)) (lambda (.a) (.a (lambda () (set! :a (+ :a 1)) :a))))
+      (da (make-nested-counter 5)))
+(test 5 (first-slot-value (da (make-nested-counter 5))))
+
+;; and a slot nothing dereferences keeps whatever it holds -- a box the program
+;; made is a value like any other, and unboxing it would be a lie
+(define (make-box-holder) (let ([b (box 1)]) (lambda () (unbox b))))
+(test-assert (box? (first-slot-value (da (make-box-holder)))))
+
 ;; the same code without the closure has the names but no values
 (test '(let ((:a ?)) (lambda (.a) (+ .a :a))) (da (procedure-code (make-adder 7))))
 (test (da (procedure-code (make-adder 7))) (da (da-code (make-adder 7))))
@@ -400,6 +431,11 @@
 ;; rather than as one per clause
 (test '(let ((:a 0)) (case-lambda (() :a) ((.a) (set! :a .a) :a)))
       (da (let ([n 0]) (case-lambda [() n] [(x) (set! n x) n]))))
+
+;; including when the assignment is in a closure nested inside the clause
+(test '(let ((:a 0))
+         (case-lambda (() :a) ((.a) (let .b ((.c .a)) (set! :a .c)) :a)))
+      (da (let ([n 0]) (case-lambda [() n] [(x) (let f ([k x]) (set! n k)) n]))))
 
 ;; The optional-argument procedures the implementation generates have the same
 ;; dispatcher shape, so they read back the same way.

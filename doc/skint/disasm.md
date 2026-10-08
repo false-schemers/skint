@@ -287,9 +287,11 @@ says what is missing and where it would go:
 Such a `let` is a display, not a program: `?` is not a value, and the form will
 not compile.
 
-A display entry that the code assigns holds a box rather than the value. `da`
-binds the box's contents, so what you see is the variable's value and not its
-cell.
+A display entry for a variable something assigns holds a box rather than the
+value, whether the assignment is in this closure or in one nested inside it.
+`da` binds the box's contents, so what you see is the variable's value and not
+its cell. An entry nothing assigns is bound to whatever it holds, a box the
+program itself made included.
 
 A display entry can hold any value, and a value with no written form that reads
 back, such as a procedure, is quoted as `write` shows it. That says little about
