@@ -1487,6 +1487,15 @@
     [(define define-syntax define-library import) tail (c-error "misplaced definition form" x)]
     [else (c-error "unexpected <core> form" x)]))
 
+(define (local-posq id l)
+  (let loop ([id id] [l l] [n 0])
+    (cond [(null? l) #f]
+          [(or (pair? (car l)) (null? (car l)))
+           (let ([a (assq id (car l))])
+             (loop (if a (cdr a) id) (cdr l) n))]
+          [(eq? id (car l)) n]
+          [else (loop id (cdr l) (fx+ n 1))])))
+
 (define codegen
   ; x: <core> expression to compile
   ; l: local var list (with #f placeholders for nonvar slots)
@@ -1514,7 +1523,7 @@
        (write-serialized-arg gid port)
        (when k (write-char #\] port) (write-serialized-arg k port))]
       [(ref const) (id)
-       (cond [(posq id l) => ; local
+       (cond [(local-posq id l) => ; local
               (lambda (n) 
                 (write-char #\. port)
                 (write-serialized-arg n port)
@@ -1530,7 +1539,7 @@
        (when k (write-char #\] port) (write-serialized-arg k port))]
       [set! (id x)
        (codegen x l f s g #f port)
-       (cond [(posq id l) => ; local
+       (cond [(local-posq id l) => ; local
               (lambda (n) 
                 (write-char #\. port) (write-char #\! port)
                 (write-serialized-arg n port))]
@@ -1543,7 +1552,7 @@
               (write-serialized-arg id port)])
        (when k (write-char #\] port) (write-serialized-arg k port))]
       [set& (id)
-       (cond [(posq id l) => ; local
+       (cond [(local-posq id l) => ; local
               (lambda (n) 
                 (write-char #\. port)
                 (write-serialized-arg n port))]
@@ -1737,25 +1746,36 @@
       [call (exp . args)
        (cond [(and (eq? (car exp) 'lambda) (list? (cadr exp))
                    (fx=? (length args) (length (cadr exp))))
-              ; let-like call; compile as special lambda + call combo
-              (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
-                [(null? args)]
-                (codegen (car args) l f s g #f port)
-                (write-char #\, port))
-              (let* ([ids (cadr exp)] [exp (caddr exp)]
-                     [sets (find-sets exp ids)]
-                     [news (set-union (set-minus s ids) sets)]
-                     [newl (append ids l)]) ; with real names
-                (do ([ids ids (cdr ids)] [n 0 (fx+ n 1)]) [(null? ids)]
-                  (when (set-member? (car ids) sets)
-                    (write-char #\# port)
-                    (write-serialized-arg n port)))
-                (if k 
-                    (codegen exp newl f news g (fx+ k (length args)) port)
-                    (begin 
-                      (codegen exp newl f news g #f port)
+              ; let-like call; see if it's just a rename
+              (let* ([ids (cadr exp)] [body (caddr exp)]
+                     [sets (find-sets body ids)]
+                     [news (set-union (set-minus s ids) sets)])
+                (if (and (null? sets)
+                         (let loop ([as args])
+                           (or (null? as)
+                               (and (memq (caar as) '(ref const))
+                                    (local-posq (cadar as) l)
+                                    (not (set-member? (cadar as) s))
+                                    (loop (cdr as))))))
+                  ; a rename: extend l by a zero-width aliasing frame
+                  (codegen body (cons (map cons ids (map cadr args)) l)
+                    f news g k port)
+                  ; ordinary let: alloc vars on stack, extend l
+                  (begin
+                    (do ([args (reverse args) (cdr args)] [l l (cons #f l)])
+                      [(null? args)]
+                      (codegen (car args) l f s g #f port)
+                      (write-char #\, port))
+                    (do ([ids ids (cdr ids)] [n 0 (fx+ n 1)])
+                      [(null? ids)]
+                      (when (set-member? (car ids) sets)
+                        (write-char #\# port)
+                        (write-serialized-arg n port)))
+                    (codegen body (append ids l) f news g
+                      (and k (fx+ k (length args))) port)
+                    (unless k
                       (write-char #\_ port)
-                      (write-serialized-arg (length args) port))))]
+                      (write-serialized-arg (length args) port)))))]
              [k ; tail call with k elements under arguments
               (do ([args (reverse args) (cdr args)] [l l (cons #f l)]) 
                 [(null? args) (codegen exp l f s g #f port)]
@@ -3090,7 +3110,7 @@
    [help           "-h" "--help" #f               "Display this help"]
 ))
 
-(define *skint-version* "0.8.5")
+(define *skint-version* "0.8.6")
 
 (define (implementation-version) *skint-version*)
 (define (implementation-name) "SKINT")
