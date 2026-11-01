@@ -1,0 +1,2671 @@
+;;; scmi.mvh -- S-MARV instruction macros, the MARV counterpart of
+;;; Skint's i.c (the "i" layer: VM instructions and integrables).
+;;;
+;;; Macros are named after the instruction mnemonics in Skint's
+;;; i.h declare_instruction table (car, cons, iadd, ilt, jadd,
+;;; vmk, sget, ...), which mostly have no underscores.  The Scheme
+;;; names they implement (fx+, fl<=?, string-set!, ...) are given
+;;; in each section comment.  Definitions are written in terms of
+;;; lib/scmn.mvh primitives, as i.c is written in terms of n.h.
+;;;
+;;; CONVENTION -- Skint's accumulator discipline, mapped to MARV.
+;;; In i.c every instruction fragment reads its first operand from
+;;; the accumulator `ac`, pops any further operands from the VM
+;;; stack (obj x = ac, y = spop()), and leaves its result in `ac`.
+;;; scmi macros do exactly the same:
+;;;
+;;;   * The caller must declare (local $ac i64).  Like $hp and $r,
+;;;     $ac is captured by the templates: a macro reads $ac as its
+;;;     first operand and writes its result back to $ac.
+;;;   * Further operands are popped from the MARV operand stack,
+;;;     in i.c's spop order (top of stack first).  Therefore a
+;;;     macro's declared (effect ...) lists ONLY its stack pops;
+;;;     the result is always $ac.  All scmi macros are statements,
+;;;     never expressions.
+;;;   * Binary ops compute  $ac := $ac OP (pop).             [iadd]
+;;;     For two stack operands, push the deeper one first: vput
+;;;     and sput expect (value index) with the index on top, i.e.
+;;;     pushed last, popped first.                           [vput]
+;;;   * Unary ops and predicates rewrite $ac in place; setter
+;;;     instructions (setcar, vput, sput, setbox) leave $ac
+;;;     itself unchanged, as in i.c.
+;;;   * Type checks (i.c's ckp/cki/ckk...) are NOT emitted; the
+;;;     front end emits its own asserts.  Operations are unchecked,
+;;;     exactly like integrables inlined with known types.
+;;;   * Allocating instructions do NOT reserve heap space.  i.c
+;;;     folds hp_reserve into each instruction because the VM
+;;;     owns its register file; a MARV caller owns its roots, so
+;;;     reservation is a separate preliminary step: emit one
+;;;     ($scmn:hreserve ...) covering the whole allocation
+;;;     sequence before using them (word counts:
+;;;     $scmn:pair_bsz, $scmn:box_bsz, $scmn:vector_bsz,
+;;;     $scmn:string_bsz).  The allocation itself is delegated to
+;;;     the xxx_slow_hreserved procedures in lib/scmi.c (see the
+;;;     declarations below): each takes a result-cell pointer and
+;;;     the current $hp, returns the updated $hp, and writes its
+;;;     result object into the cell pointed to.
+;;;   * Allocating instructions come in two macro conventions.
+;;;     The destination family, ($scmi:NAME_to DST), takes the
+;;;     destination explicitly: DST is any form producing a ptr
+;;;     to the memory cell that is to receive the result object
+;;;     (a root slot, a global cell, a heap cell being filled).
+;;;     Operands are staged exactly as in the $ac family ($ac is
+;;;     the first operand, the rest are popped), but the result
+;;;     lands directly in DST's cell -- no intermediate register
+;;;     round trip -- and $ac is otherwise untouched.  The $ac
+;;;     family (($scmi:cons), ($scmi:vmk), ...) is the same
+;;;     instructions with the destination fixed to the library's
+;;;     own result cell, $scmi:ac_scratch, followed by a reload
+;;;     of $ac from it.  That cell is scmi's private business:
+;;;     no caller's $r layout reserves any slot for these
+;;;     instructions, and $r is a pure root array from $r[0] up.
+;;;
+;;; The including module must (include $scmrt) and (include $scmn)
+;;; before (include $scmi).
+;;;
+;;; Known checker limitation (marv.scm mx-step; applies to scmn
+;;; templates too): a macro template containing (return <value>)
+;;; is rejected by the effect checker, which validates the stack
+;;; at `return` against the macro's own declared outs instead of
+;;; the enclosing function's results.  Hand-written code should
+;;; set a flag local and return after the macro use (see
+;;; marv-macro-test/test-lib.mvs).
+;;;
+;;; Object representation: see lib/scmn.mvh.  Only #f (0) is false,
+;;; so an $ac holding a Scheme boolean tests directly with
+;;; (i64.ne (local.get $ac) (i64.const 0)).
+
+(interface $scmi
+
+  ;; The $ac-convention allocating macros deliver their result
+  ;; through this cell (owned by lib/scmi.c, not a GC root: it
+  ;; never holds a live pointer across a collection).  It is
+  ;; what lets every caller's $r be a pure root array again --
+  ;; no slot is reserved for the instructions' own use.
+  (data $ac_scratch var align 8 (size 8))
+  ;; static C-string fragments for $scmrt:arg_error (passed by
+  ;; pointer; the helper supplies "scmrt: argument is not " and
+  ;; the offending value, so new checks need no new C helper)
+  (data $msg_not_pair var align 1 "a pair" (u8 0))
+  (data $msg_not_proc var align 1 "a procedure" (u8 0))
+  (data $msg_not_nonzero var align 1 "a nonzero divisor" (u8 0))
+  (data $msg_not_number var align 1 "a number" (u8 0))
+  (data $msg_not_string var align 1 "a string" (u8 0))
+  (data $msg_not_vector var align 1 "a vector" (u8 0))
+  (data $msg_not_bytevector var align 1 "a bytevector" (u8 0))
+  (data $msg_not_index var align 1 "an index in range" (u8 0))
+
+  ;; ================================================================
+  ;; Callable generic-numeric implementations (lib/scmi.c).  The
+  ;; macros below keep the both-fixnums fast path and the $ac /
+  ;; operand-stack calling convention inline; everything else --
+  ;; mixed fixnum/flonum dispatch, overflow promotion, floored
+  ;; adjustment, contagion, exact powers -- is behind these calls
+  ;; instead of being substituted at every call site.  Each takes
+  ;; its operands as plain i64 objects and returns the resulting
+  ;; object; none of them allocates (every value is an immediate).
+  ;; ================================================================
+
+  (func $add_slow  (param $a i64) (param $b i64) (result i64))
+  (func $sub_slow  (param $a i64) (param $b i64) (result i64))
+  (func $mul_slow  (param $a i64) (param $b i64) (result i64))
+  (func $div_slow  (param $a i64) (param $b i64) (result i64))
+  (func $quo_slow  (param $a i64) (param $b i64) (result i64))
+  (func $rem_slow  (param $a i64) (param $b i64) (result i64))
+  (func $mod_slow  (param $a i64) (param $b i64) (result i64))
+  (func $fquo_slow (param $a i64) (param $b i64) (result i64))
+  (func $lt_slow   (param $a i64) (param $b i64) (result i64))
+  (func $gt_slow   (param $a i64) (param $b i64) (result i64))
+  (func $le_slow   (param $a i64) (param $b i64) (result i64))
+  (func $ge_slow   (param $a i64) (param $b i64) (result i64))
+  (func $eq_slow   (param $a i64) (param $b i64) (result i64))
+  (func $ne_slow   (param $a i64) (param $b i64) (result i64))
+  (func $gmin_slow (param $a i64) (param $b i64) (result i64))
+  (func $gmax_slow (param $a i64) (param $b i64) (result i64))
+  (func $gabs_slow (param $a i64) (result i64))
+  (func $expt_slow (param $a i64) (param $b i64) (result i64))
+  (func $exact_slow (param $a i64) (result i64))
+  (func $sin_slow  (param $a i64) (result i64))
+  (func $cos_slow  (param $a i64) (result i64))
+  (func $tan_slow  (param $a i64) (result i64))
+  (func $asin_slow (param $a i64) (result i64))
+  (func $acos_slow (param $a i64) (result i64))
+  (func $atan_slow (param $a i64) (result i64))
+  (func $atan2_slow (param $a i64) (param $b i64) (result i64))
+  (func $exp_slow  (param $a i64) (result i64))
+  (func $log_slow  (param $a i64) (result i64))
+  (func $sqrt_slow (param $a i64) (result i64))
+  (func $fxsqrt_slow (param $a i64) (result i64))
+  (func $fxsqrtb_slow (param $a i64) (param $b i64) (result i64))
+  (func $fxaddc_slow (param $a i64) (param $b i64) (param $c i64) (result i64))
+  (func $fxsubc_slow (param $a i64) (param $b i64) (param $c i64) (result i64))
+  (func $fxmulc_slow (param $a i64) (param $b i64) (param $c i64) (result i64))
+  (func $flmodfb_slow (param $a i64) (param $b i64) (result i64))
+  (func $flfrexpb_slow (param $a i64) (param $b i64) (result i64))
+  (func $sinh_slow (param $a i64) (result i64))
+  (func $cosh_slow (param $a i64) (result i64))
+  (func $tanh_slow (param $a i64) (result i64))
+  (func $ldexp_slow (param $a i64) (param $b i64) (result i64))
+  (func $fxgcd_slow (param $a i64) (param $b i64) (result i64))
+  (func $flgcd_slow (param $a i64) (param $b i64) (result i64))
+  (func $fxexpt_slow (param $a i64) (param $b i64) (result i64))
+  (func $log10_slow (param $a i64) (result i64))
+
+  ;; Allocating instructions (lib/scmi.c), xxx_slow_hreserved
+  ;; convention: the caller has already hreserve'd the whole
+  ;; allocation (no collection can occur inside), the first two
+  ;; arguments are the result-cell pointer and the current $hp,
+  ;; instruction operands follow, the updated $hp is returned
+  ;; directly, and the result object is placed in the cell the
+  ;; first argument points to.  The $NAME_to destination
+  ;; macros pass the caller's chosen cell there; the plain
+  ;; $NAME $ac-convention macros pass the library's own
+  ;; $scmi:ac_scratch cell (declared above) and reload $ac
+  ;; from it, so callers reserve nothing for either family.
+  (func $cons_slow_hreserved (param $r ptr) (param $hp ptr)
+                             (param $car i64) (param $cdr i64)
+                             (result ptr))
+  (func $box_slow_hreserved (param $r ptr) (param $hp ptr)
+                            (param $v i64) (result ptr))
+  (func $lmk_slow_hreserved (param $r ptr) (param $hp ptr)
+                            (param $len i64) (param $fill i64)
+                            (result ptr))
+  (func $vmk_slow_hreserved (param $r ptr) (param $hp ptr)
+                            (param $len i64) (param $fill i64)
+                            (result ptr))
+  (func $lrev_slow_hreserved (param $r ptr) (param $hp ptr)
+                             (param $l i64) (result ptr))
+  (func $lcat_slow_hreserved (param $r ptr) (param $hp ptr)
+                             (param $l i64) (param $tail i64)
+                             (result ptr))
+  (func $slist_slow_hreserved (param $r ptr) (param $hp ptr)
+                              (param $s i64) (result ptr))
+  (func $smk_slow_hreserved (param $r ptr) (param $hp ptr)
+                            (param $len i64) (param $fill i64)
+                            (result ptr))
+  (func $ssub_slow_hreserved (param $r ptr) (param $hp ptr)
+                             (param $s i64) (param $b i64)
+                             (param $e i64) (result ptr))
+  (func $scat_slow_hreserved (param $r ptr) (param $hp ptr)
+                             (param $a i64) (param $b i64)
+                             (result ptr))
+  (func $lstr_slow_hreserved (param $r ptr) (param $hp ptr)
+                             (param $l i64) (result ptr))
+  (func $sdwn_slow_hreserved (param $r ptr) (param $hp ptr)
+                             (param $s i64) (result ptr))
+  (func $bvnew_slow_hreserved (param $r ptr) (param $hp ptr)
+                              (param $len i64) (result ptr))
+  (func $bvlist_slow_hreserved (param $r ptr) (param $hp ptr)
+                               (param $b i64) (result ptr))
+  (func $symstr_slow_hreserved (param $r ptr) (param $hp ptr)
+                               (param $sym i64) (result ptr))
+  (func $n2s_slow_hreserved (param $r ptr) (param $hp ptr)
+                            (param $num i64) (param $radix i64)
+                            (result ptr))
+  (func $openin_slow_hreserved (param $r ptr) (param $hp ptr)
+                               (param $name i64) (result ptr))
+  (func $openout_slow_hreserved (param $r ptr) (param $hp ptr)
+                                (param $name i64) (result ptr))
+  (func $openin2_slow_hreserved (param $r ptr) (param $hp ptr)
+                                (param $name i64) (result ptr))
+  (func $openout2_slow_hreserved (param $r ptr) (param $hp ptr)
+                                 (param $name i64) (result ptr))
+  (func $sinport_slow_hreserved (param $r ptr) (param $hp ptr)
+                                (param $s i64) (result ptr))
+  (func $soutport_slow_hreserved (param $r ptr) (param $hp ptr)
+                                 (result ptr))
+  (func $binport_slow_hreserved (param $r ptr) (param $hp ptr)
+                               (param $bv i64) (result ptr))
+  (func $boutport_slow_hreserved (param $r ptr) (param $hp ptr)
+                                (result ptr))
+  (func $getbvo_slow_hreserved (param $r ptr) (param $hp ptr)
+                              (param $port i64) (result ptr))
+  (func $getostr_slow_hreserved (param $r ptr) (param $hp ptr)
+                                (param $port i64) (result ptr))
+  (func $getenv_slow_hreserved (param $r ptr) (param $hp ptr)
+                               (param $name i64) (result ptr))
+
+  ;; ================================================================
+  ;; General predicates and equality (i.h: not, eq?, eqv?, equal?,
+  ;; boolean?)
+  ;; ================================================================
+
+  (macro $not ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj (i64.eq (local.get $ac) (i64.const 0)))))
+
+  (macro $boolp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_bool (local.get $ac)))))
+
+  ;; eq?: x is $ac, y is popped
+  (macro $isq ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj (i64.eq (local.get $ac) (local.get $y))))))
+
+  ;; eqv?
+  (macro $isv ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj (call $scmrt:eqv_p (local.get $ac)
+                                                       (local.get $y))))))
+
+  ;; equal?
+  (macro $ise ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj (call $scmrt:equal_p (local.get $ac)
+                                                         (local.get $y))))))
+
+  ;; ================================================================
+  ;; Pairs (i.h: pair?, null?, cons, car, cdr, set-car!, set-cdr!)
+  ;; ================================================================
+
+  (macro $pairp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_pair (local.get $ac)))))
+
+  (macro $nullp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_null (local.get $ac)))))
+
+  ;; cons: car is $ac, cdr is popped; needs pair_bsz() reserved.
+  ;; $cons_to builds the pair straight into the $dst cell;
+  ;; $cons (below) is the $ac convention via $scmi:ac_scratch.
+    (macro $cons_to ($dst)
+  (locals ($d i64))
+  (effect (i64) -> ())
+  (seq
+    (local.set $d)
+    (local.set $hp (call $scmi:cons_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac) (local.get $d)))
+))
+
+  (macro $cons ()
+  (effect (i64) -> ())
+  (seq
+    ($scmi:cons_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; checked pair access: fast path is one is_pair test; the cold
+  ;; branch calls $scmrt:arg_error, which reports the value and
+  ;; exit(1)s (Skint behaviour), so the macro stream itself stays
+  ;; free of non-tail calls on the regular path.
+  ;; the checked form of $procp: an indirect call jumps through word 0 of
+  ;; the callee, so a value that is not a closure (microtag 2) has to be
+  ;; reported here rather than jumped through.  The generator emits this
+  ;; after the operator and the operands are evaluated, which is where
+  ;; Skint checks.  The argument is bound to a local because a macro
+  ;; argument is expanded once per textual use.  [cco]
+  (macro $ckproc ($f)
+    (locals ($ckp i64))
+    (effect () -> ())
+    (seq
+      (local.set $ckp $f)
+      (if (i32.eqz ($scmn:is_tagged (local.get $ckp) (i32.const 2)))
+        (then (drop (call $scmrt:arg_error (local.get $ckp)
+                          (ref.data $scmi:msg_not_proc)))))))
+
+  ;; Type and range checks for the indexed accessors.  Each is a test
+  ;; and a cold call, on the pattern of $ckproc above: the helper
+  ;; supplies the message prefix and prints the offending value, so no
+  ;; new C function is needed.  Unchecked, a wrong type here dies on a
+  ;; signal and an index out of range reads or writes past the end of a
+  ;; heap object, which is memory unsafety that returns a plausible
+  ;; wrong answer.  [cco]
+  (macro $ckstr ($o)
+    (locals ($cks i64))
+    (effect () -> ())
+    (seq
+      (local.set $cks $o)
+      (if (i32.eqz ($scmn:is_string (local.get $cks)))
+        (then (drop (call $scmrt:arg_error (local.get $cks)
+                          (ref.data $scmi:msg_not_string)))))))
+
+  ;; vector-ref and vector-set! are the shadow library's generic block
+  ;; accessors: record-ref is defined as (vector-ref r (+ i 1)), and a
+  ;; record is a packed block rather than a tagged vector.  So the test
+  ;; these two need is not "a vector" but "a block I can index", which
+  ;; is what the operation actually requires.  A heap block carries its
+  ;; size in the low bits of its header; a native wrapper (string,
+  ;; bytevector, port) carries a cxtype address there, which is aligned,
+  ;; so a non-zero low field is exactly the "has a size" test.  That
+  ;; rejects every immediate and every native, which is what memory
+  ;; safety needs here.  [cco]
+  (macro $ckblk0 ($o)
+    (locals ($ckc i64))
+    (effect () -> ())
+    (seq
+      (local.set $ckc $o)
+      (if (i32.eqz ($scmn:is_objptr (local.get $ckc)))
+        (then (drop (call $scmrt:arg_error (local.get $ckc)
+                          (ref.data $scmi:msg_not_vector)))))
+      (if (i64.eqz (i64.and ($scmn:blkhdr (local.get $ckc))
+                            (i64.const 7)))
+        (then (drop (call $scmrt:arg_error (local.get $ckc)
+                          (ref.data $scmi:msg_not_vector)))))))
+
+  (macro $ckblk ($o $i)
+    (locals ($ckd i64))
+    (effect () -> ())
+    (seq
+      ($scmi:ckblk0 $o)
+      (local.set $ckd $i)
+      (if (i32.ge_u (i32.wrap_i64 ($scmn:get_fixnum (local.get $ckd)))
+                    ($scmn:block_len $o))
+        (then (drop (call $scmrt:arg_error (local.get $ckd)
+                          (ref.data $scmi:msg_not_index)))))))
+
+  (macro $ckbv ($o)
+    (locals ($ckb i64))
+    (effect () -> ())
+    (seq
+      (local.set $ckb $o)
+      (if (i32.eqz (call $scmrt:is_bytevector (local.get $ckb)))
+        (then (drop (call $scmrt:arg_error (local.get $ckb)
+                          (ref.data $scmi:msg_not_bytevector)))))))
+
+  ;; $i is the index as a fixnum object, $n the length as an i32.  The
+  ;; comparison is unsigned, so a negative index wraps to a large value
+  ;; and is caught by the same test.
+  (macro $ckidx ($i $n)
+    (locals ($cke i64))
+    (effect () -> ())
+    (seq
+      (local.set $cke $i)
+      (if (i32.ge_u (i32.wrap_i64 ($scmn:get_fixnum (local.get $cke)))
+                    $n)
+        (then (drop (call $scmrt:arg_error (local.get $cke)
+                          (ref.data $scmi:msg_not_index)))))))
+
+  (macro $ckpair ($o)
+    (locals ($ckq i64))
+    (effect () -> ())
+    (seq
+      (local.set $ckq $o)
+      (if (i32.eqz ($scmn:is_pair (local.get $ckq)))
+        (then (drop (call $scmrt:arg_error (local.get $ckq)
+                          (ref.data $scmi:msg_not_pair)))))))
+
+  ;; a value that is neither a fixnum nor a flonum reaching a numeric
+  ;; conversion.  The C num_f64 guards the slow paths; this guards the
+  ;; three predicates that convert inline through $scmn:number_f64 and
+  ;; so never reach C at all.
+  (macro $cknum ($o)
+    (locals ($ckn2 i64))
+    (effect () -> ())
+    (seq
+      (local.set $ckn2 $o)
+      (if (i32.eqz (i32.or ($scmn:is_fixnum (local.get $ckn2))
+                           ($scmn:is_flonum (local.get $ckn2))))
+        (then (drop (call $scmrt:arg_error (local.get $ckn2)
+                          (ref.data $scmi:msg_not_number)))))))
+
+  (macro $car ()
+    (effect () -> ())
+    (seq
+      (if (i32.eqz ($scmn:is_pair (local.get $ac)))
+        (then (drop (call $scmrt:arg_error (local.get $ac) (ref.data $scmi:msg_not_pair)))))
+      (local.set $ac ($scmn:pair_car (local.get $ac)))))
+
+  (macro $cdr ()
+    (effect () -> ())
+    (seq
+      (if (i32.eqz ($scmn:is_pair (local.get $ac)))
+        (then (drop (call $scmrt:arg_error (local.get $ac) (ref.data $scmi:msg_not_pair)))))
+      (local.set $ac ($scmn:pair_cdr (local.get $ac)))))
+
+  ;; set-car!: pair is $ac, new value is popped; $ac unchanged
+  (macro $setcar ()
+    (locals ($v i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $v)
+      (if (i32.eqz ($scmn:is_pair (local.get $ac)))
+        (then (drop (call $scmrt:arg_error (local.get $ac) (ref.data $scmi:msg_not_pair)))))
+      ($scmn:pair_set_car (local.get $ac) (local.get $v))))
+
+  ;; set-cdr!
+  (macro $setcdr ()
+    (locals ($v i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $v)
+      (if (i32.eqz ($scmn:is_pair (local.get $ac)))
+        (then (drop (call $scmrt:arg_error (local.get $ac) (ref.data $scmi:msg_not_pair)))))
+      ($scmn:pair_set_cdr (local.get $ac) (local.get $v))))
+
+  ;; length of a proper list (i.h: llen); result replaces $ac
+  (macro $llen ()
+    (locals ($t i64) ($n i64))
+    (labels $ldn $llp)
+    (effect () -> ())
+    (seq
+      (local.set $t (local.get $ac))
+      (local.set $n (i64.const 0))
+      (block $ldn
+        (loop $llp
+          (br_if $ldn ($scmn:is_null (local.get $t)))
+          (local.set $t ($scmn:pair_cdr (local.get $t)))
+          (local.set $n (i64.add (local.get $n) (i64.const 1)))
+          (br $llp)))
+      (local.set $ac ($scmn:fixnum_obj (local.get $n)))))
+
+  ;; make-list: $ac is the length (fixnum), the fill is popped;
+  ;; needs make-list's whole reservation up front: n*pair_bsz()
+  ;; words (i.h: lmk)
+    (macro $lmk_to ($dst)
+  (locals ($f i64))
+  (effect (i64) -> ())
+  (seq
+    (local.set $f)
+    (local.set $hp (call $scmi:lmk_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac) (local.get $f)))
+))
+
+  (macro $lmk ()
+  (effect (i64) -> ())
+  (seq
+    ($scmi:lmk_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; ================================================================
+  ;; Boxes (i.h: box?, box, unbox, set-box!)
+  ;; ================================================================
+
+  (macro $boxp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_box (local.get $ac)))))
+
+  ;; box: needs box_bsz() reserved
+    (macro $box_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:box_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $box ()
+  (effect () -> ())
+  (seq
+    ($scmi:box_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  (macro $unbox ()
+    (effect () -> ())
+    (local.set $ac ($scmn:box_ref (local.get $ac))))
+
+  ;; set-box!: box is $ac, new value is popped; $ac unchanged
+  (macro $setbox ()
+    (locals ($v i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $v)
+      ($scmn:box_set (local.get $ac) (local.get $v))))
+
+  ;; ================================================================
+  ;; Fixnums (i.h: fixnum?, fxzero?, ..., fx+, fx<, ...)
+  ;; Binary ops pop the second operand y: $ac := $ac OP y.
+  ;; ================================================================
+
+  (macro $fixp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_fixnum (local.get $ac)))))
+
+  (macro $izerop ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj (i64.eq (local.get $ac) (i64.const 3)))))
+
+  ;; sign tests go through get_fixnum: with the NAN_BOXING
+  ;; encoding a negative fixnum's obj is a large positive i64,
+  ;; so comparing raw objs against the zero obj would misfire
+  (macro $iposp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (i64.gt_s ($scmn:get_fixnum (local.get $ac))
+                               (i64.const 0)))))
+
+  (macro $inegp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (i64.lt_s ($scmn:get_fixnum (local.get $ac))
+                               (i64.const 0)))))
+
+  (macro $ievnp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj (i64.eq (i64.and (local.get $ac)
+                                                    (i64.const 4))
+                                           (i64.const 0)))))
+
+  (macro $ioddp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj (i64.ne (i64.and (local.get $ac)
+                                                    (i64.const 4))
+                                           (i64.const 0)))))
+
+  (macro $iadd ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.add ($scmn:get_fixnum (local.get $ac))
+                                ($scmn:get_fixnum (local.get $y)))))))
+
+  (macro $isub ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.sub ($scmn:get_fixnum (local.get $ac))
+                                ($scmn:get_fixnum (local.get $y)))))))
+
+  (macro $imul ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.mul ($scmn:get_fixnum (local.get $ac))
+                                ($scmn:get_fixnum (local.get $y)))))))
+
+  ;; fxquotient (truncating)
+  (macro $iquo ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.div_s ($scmn:get_fixnum (local.get $ac))
+                                  ($scmn:get_fixnum (local.get $y)))))))
+
+  ;; fxremainder (truncating; sign of dividend)
+  (macro $irem ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.rem_s ($scmn:get_fixnum (local.get $ac))
+                                  ($scmn:get_fixnum (local.get $y)))))))
+
+  ;; immediate-hash (Skint's hshim): raw bits of the object modulo
+  ;; the bound; heap objects hash as 0, while immediates -- fixnums,
+  ;; chars, and flonums (whose bits are the complemented double) --
+  ;; hash on their own bits.  A zero bound (incl. #f) defaults to
+  ;; FIXNUM_MAX+1, as in Skint.
+  (macro $immhash ()
+    (locals ($y i64) ($v i64) ($b i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $v (local.get $ac))
+      (if ($scmn:is_objptr (local.get $v))
+        (then (local.set $v (i64.const 0))))
+      (local.set $b ($scmn:get_fixnum (local.get $y)))
+      (if (i64.eqz (local.get $b))
+        (then (local.set $b (i64.const 536870912))))
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.rem_u (local.get $v) (local.get $b))))))
+
+  (macro $ilt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (i64.lt_s ($scmn:get_fixnum (local.get $ac))
+                                 ($scmn:get_fixnum (local.get $y)))))))
+
+  (macro $igt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (i64.gt_s ($scmn:get_fixnum (local.get $ac))
+                                 ($scmn:get_fixnum (local.get $y)))))))
+
+  (macro $ile ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (i64.le_s ($scmn:get_fixnum (local.get $ac))
+                                 ($scmn:get_fixnum (local.get $y)))))))
+
+  (macro $ige ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (i64.ge_s ($scmn:get_fixnum (local.get $ac))
+                                 ($scmn:get_fixnum (local.get $y)))))))
+
+  (macro $ieq ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj (i64.eq (local.get $ac) (local.get $y))))))
+
+  (macro $ine ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj (i64.ne (local.get $ac) (local.get $y))))))
+
+  (macro $imin ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (if (i64.gt_s ($scmn:get_fixnum (local.get $ac))
+                    ($scmn:get_fixnum (local.get $y)))
+        (then (local.set $ac (local.get $y))))))
+
+  (macro $imax ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (if (i64.lt_s ($scmn:get_fixnum (local.get $ac))
+                    ($scmn:get_fixnum (local.get $y)))
+        (then (local.set $ac (local.get $y))))))
+
+  (macro $ineg ()
+    (effect () -> ())
+    (local.set $ac ($scmn:fixnum_obj
+                     (i64.sub (i64.const 0)
+                              ($scmn:get_fixnum (local.get $ac))))))
+
+  (macro $iabs ()
+    (locals ($p i64))
+    (effect () -> ())
+    (seq
+      (local.set $p ($scmn:get_fixnum (local.get $ac)))
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.xor (i64.add (local.get $p)
+                                         (i64.shr_s (local.get $p)
+                                                    (i64.const 63)))
+                                (i64.shr_s (local.get $p) (i64.const 63)))))))
+
+  ;; fxnot
+  (macro $inot ()
+    (effect () -> ())
+    (local.set $ac ($scmn:fixnum_obj
+                     (i64.xor ($scmn:get_fixnum (local.get $ac))
+                              (i64.const -1)))))
+
+  ;; fxand
+  (macro $iand ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.and ($scmn:get_fixnum (local.get $ac))
+                                ($scmn:get_fixnum (local.get $y)))))))
+
+  ;; fxior
+  (macro $iior ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.or ($scmn:get_fixnum (local.get $ac))
+                               ($scmn:get_fixnum (local.get $y)))))))
+
+  ;; fxxor
+  (macro $ixor ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.xor ($scmn:get_fixnum (local.get $ac))
+                                ($scmn:get_fixnum (local.get $y)))))))
+
+  ;; fxsll: shift left by the popped count
+  (macro $iasl ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.shl ($scmn:get_fixnum (local.get $ac))
+                                ($scmn:get_fixnum (local.get $y)))))))
+
+  ;; fxsra: arithmetic shift right
+  (macro $iasr ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.shr_s ($scmn:get_fixnum (local.get $ac))
+                                  ($scmn:get_fixnum (local.get $y)))))))
+
+  ;; fxsrl: logical shift right (payload read as unsigned)
+  (macro $ilsr ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.shr_u (i64.and ($scmn:get_fixnum (local.get $ac))
+                                           (i64.const 1073741823))
+                                  ($scmn:get_fixnum (local.get $y)))))))
+
+  ;; arithmetic-shift: left for a non-negative count, arithmetic
+  ;; right (by the negated count) for a negative one
+  (macro $ash ()
+    (locals ($y i64) ($v i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $v ($scmn:get_fixnum (local.get $ac)))
+      (local.set $y ($scmn:get_fixnum (local.get $y)))
+      (if (i64.ge_s (local.get $y) (i64.const 0))
+        (then (local.set $v (i64.shl (local.get $v) (local.get $y))))
+        (else (local.set $v (i64.shr_s (local.get $v)
+                                       (i64.sub (i64.const 0)
+                                                (local.get $y))))))
+      (local.set $ac ($scmn:fixnum_obj (local.get $v)))))
+
+  ;; integer-length: bits needed to represent the value in two's
+  ;; complement (negatives measured on their bitwise complement)
+  (macro $ilen ()
+    (locals ($v i64) ($n i64))
+    (labels $idn $ilp)
+    (effect () -> ())
+    (seq
+      (local.set $v ($scmn:get_fixnum (local.get $ac)))
+      (if (i64.lt_s (local.get $v) (i64.const 0))
+        (then (local.set $v (i64.xor (local.get $v) (i64.const -1)))))
+      (local.set $n (i64.const 0))
+      (block $idn
+        (loop $ilp
+          (br_if $idn (i64.eqz (local.get $v)))
+          (local.set $v (i64.shr_u (local.get $v) (i64.const 1)))
+          (local.set $n (i64.add (local.get $n) (i64.const 1)))
+          (br $ilp)))
+      (local.set $ac ($scmn:fixnum_obj (local.get $n)))))
+
+  ;; bit-count: set bits (for negatives, the clear bits, i.e. the
+  ;; set bits of the bitwise complement)
+  (macro $ibcnt ()
+    (locals ($v i64) ($n i64))
+    (labels $bdn $blp)
+    (effect () -> ())
+    (seq
+      (local.set $v ($scmn:get_fixnum (local.get $ac)))
+      (if (i64.lt_s (local.get $v) (i64.const 0))
+        (then (local.set $v (i64.xor (local.get $v) (i64.const -1)))))
+      (local.set $n (i64.const 0))
+      (block $bdn
+        (loop $blp
+          (br_if $bdn (i64.eqz (local.get $v)))
+          (local.set $n (i64.add (local.get $n)
+                                 (i64.and (local.get $v) (i64.const 1))))
+          (local.set $v (i64.shr_u (local.get $v) (i64.const 1)))
+          (br $blp)))
+      (local.set $ac ($scmn:fixnum_obj (local.get $n)))))
+
+  ;; ================================================================
+  ;; Flonums (i.h: flonum?, flzero?, ..., fl+, fl<, ...)
+  ;; ================================================================
+
+  (macro $flop ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_flonum (local.get $ac)))))
+
+  (macro $jzerop ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (f64.eq ($scmn:get_flonum (local.get $ac))
+                             (f64.const 0.0)))))
+
+  (macro $jposp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (f64.gt ($scmn:get_flonum (local.get $ac))
+                             (f64.const 0.0)))))
+
+  (macro $jnegp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (f64.lt ($scmn:get_flonum (local.get $ac))
+                             (f64.const 0.0)))))
+
+  (macro $jadd ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:flonum_obj
+                       (f64.add ($scmn:get_flonum (local.get $ac))
+                                ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jsub ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:flonum_obj
+                       (f64.sub ($scmn:get_flonum (local.get $ac))
+                                ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jmul ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:flonum_obj
+                       (f64.mul ($scmn:get_flonum (local.get $ac))
+                                ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jdiv ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:flonum_obj
+                       (f64.div ($scmn:get_flonum (local.get $ac))
+                                ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jlt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (f64.lt ($scmn:get_flonum (local.get $ac))
+                               ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jgt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (f64.gt ($scmn:get_flonum (local.get $ac))
+                               ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jle ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (f64.le ($scmn:get_flonum (local.get $ac))
+                               ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jge ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (f64.ge ($scmn:get_flonum (local.get $ac))
+                               ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jeq ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (f64.eq ($scmn:get_flonum (local.get $ac))
+                               ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jne ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (f64.ne ($scmn:get_flonum (local.get $ac))
+                               ($scmn:get_flonum (local.get $y)))))))
+
+  ;; flneg
+  (macro $jneg ()
+    (effect () -> ())
+    (local.set $ac ($scmn:flonum_obj
+                     (f64.neg ($scmn:get_flonum (local.get $ac))))))
+
+  ;; flabs
+  (macro $jabs ()
+    (effect () -> ())
+    (local.set $ac ($scmn:flonum_obj
+                     (f64.abs ($scmn:get_flonum (local.get $ac))))))
+
+  ;; flsqrt
+  (macro $jsqrt ()
+    (effect () -> ())
+    (local.set $ac ($scmn:flonum_obj
+                     (f64.sqrt ($scmn:get_flonum (local.get $ac))))))
+
+  ;; fixnum->flonum (i.c: itoj)
+  (macro $itoj ()
+    (effect () -> ())
+    (local.set $ac ($scmn:flonum_obj
+                     (f64.convert_i64_s ($scmn:get_fixnum (local.get $ac))))))
+
+  ;; flonum->fixnum (truncates toward zero; traps on NaN/overflow)
+  (macro $jtoi ()
+    (effect () -> ())
+    (local.set $ac ($scmn:fixnum_obj
+                     (i64.trunc_f64_s ($scmn:get_flonum (local.get $ac))))))
+
+  ;; ================================================================
+  ;; Generic numbers (i.h: +, -, *, /, <, >, <=, >=, =, /= for
+  ;; fixnum/flonum operands; Skint's add/sub/mul/div/lt/gt/le/ge/
+  ;; eq/ne in i.c).  Limited to the operations above: the floored
+  ;; quotient/remainder pair (mqu/mlo) and min/max are not ported.
+  ;;
+  ;; Fast path: are_fixnums tests both operands (two isim0 tests;
+  ;; they do not fuse into one AND -- see $scmn:are_fixnums).
+  ;; Both fixnums => the operation runs in i64; the result is a
+  ;; fixnum iff it lies in FIXNUM_MIN..FIXNUM_MAX (-536870912 ..
+  ;; 536870911, n.h), and a flonum otherwise -- fixnum overflow
+  ;; promotes, it never wraps and never traps.
+  ;; Slow path: any flonum operand (or overflow above) goes
+  ;; through the callable generic implementations in lib/scmi.c
+  ;; ($scmi:add_slow and friends), which convert each operand on
+  ;; its own tag -- mixed fixnum/flonum pairs included -- and
+  ;; produce a flonum.  Flonums are immediates (~bits), so no
+  ;; heap reservation is ever needed here.
+  ;;
+  ;; Like the rest of scmi these are unchecked about TYPES: the
+  ;; operands must be numbers.  A non-number takes the slow path
+  ;; and is reinterpreted as a flonum bits pattern; the front end
+  ;; emits its own number asserts where it wants Skint's failtype.
+  ;; $div by a fixnum zero reports and exits 1, as $iquo's
+  ;; i64.div_s does; a flonum zero divisor follows f64 rules.
+  ;; ================================================================
+
+  (macro $add ()
+    (locals ($y i64) ($z i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then
+            (local.set $z (i64.add ($scmn:get_fixnum (local.get $ac))
+                                    ($scmn:get_fixnum (local.get $y))))
+            (if (result i64) (i32.and (i64.ge_s (local.get $z) (i64.const -536870912))
+                       (i64.le_s (local.get $z) (i64.const 536870911)))
+              (then ($scmn:fixnum_obj (local.get $z)))
+              (else (call $scmi:add_slow (local.get $ac) (local.get $y)))))
+          (else (call $scmi:add_slow (local.get $ac) (local.get $y)))))))
+
+  (macro $sub ()
+    (locals ($y i64) ($z i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then
+            (local.set $z (i64.sub ($scmn:get_fixnum (local.get $ac))
+                                    ($scmn:get_fixnum (local.get $y))))
+            (if (result i64) (i32.and (i64.ge_s (local.get $z) (i64.const -536870912))
+                       (i64.le_s (local.get $z) (i64.const 536870911)))
+              (then ($scmn:fixnum_obj (local.get $z)))
+              (else (call $scmi:sub_slow (local.get $ac) (local.get $y)))))
+          (else (call $scmi:sub_slow (local.get $ac) (local.get $y)))))))
+
+  (macro $mul ()
+    (locals ($y i64) ($z i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then
+            (local.set $z (i64.mul ($scmn:get_fixnum (local.get $ac))
+                                    ($scmn:get_fixnum (local.get $y))))
+            (if (result i64) (i32.and (i64.ge_s (local.get $z) (i64.const -536870912))
+                       (i64.le_s (local.get $z) (i64.const 536870911)))
+              (then ($scmn:fixnum_obj (local.get $z)))
+              (else (call $scmi:mul_slow (local.get $ac) (local.get $y)))))
+          (else (call $scmi:mul_slow (local.get $ac) (local.get $y)))))))
+
+  ;; generic / : a fixnum iff the fixnum quotient is exact and in
+  ;; range, else a flonum (Skint's div, minus its fail() call --
+  ;; a fixnum zero divisor traps here, as noted above)
+  (macro $div ()
+    (locals ($y i64) ($lx i64) ($ly i64) ($z i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (if ($scmn:are_fixnums (local.get $ac) (local.get $y))
+        (then
+          (local.set $lx ($scmn:get_fixnum (local.get $ac)))
+          (local.set $ly ($scmn:get_fixnum (local.get $y)))
+          (if (i64.eq (local.get $ly) (i64.const 0))
+            (then (drop (call $scmrt:arg_error (local.get $y)
+                              (ref.data $scmi:msg_not_nonzero)))))
+          (local.set $z (i64.div_s (local.get $lx) (local.get $ly)))
+          (local.set $ac
+            (if (result i64)
+              (i32.and (i64.eq (i64.rem_s (local.get $lx) (local.get $ly))
+                               (i64.const 0))
+                       (i32.and (i64.ge_s (local.get $z) (i64.const -536870912))
+                       (i64.le_s (local.get $z) (i64.const 536870911))))
+              (then ($scmn:fixnum_obj (local.get $z)))
+              (else (call $scmi:div_slow (local.get $ac) (local.get $y))))))
+        (else (local.set $ac (call $scmi:div_slow (local.get $ac)
+                                                 (local.get $y)))))))
+
+  ;; generic quotient (truncating toward zero, R7RS quotient):
+  ;; a fixnum iff both operands are fixnums and the quotient is
+  ;; in range -- a fixnum quotient can only overflow as
+  ;; FIXNUM_MIN / -1 -- else a flonum (the truncated f64
+  ;; quotient).  A fixnum zero divisor traps, as in $div.
+  (macro $quo ()
+    (locals ($y i64) ($lx i64) ($ly i64) ($z i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (if ($scmn:are_fixnums (local.get $ac) (local.get $y))
+        (then
+          (local.set $lx ($scmn:get_fixnum (local.get $ac)))
+          (local.set $ly ($scmn:get_fixnum (local.get $y)))
+          (if (i64.eq (local.get $ly) (i64.const 0))
+            (then (drop (call $scmrt:arg_error (local.get $y)
+                              (ref.data $scmi:msg_not_nonzero)))))
+          (local.set $z (i64.div_s (local.get $lx) (local.get $ly)))
+          (local.set $ac
+            (if (result i64) (i32.and (i64.ge_s (local.get $z) (i64.const -536870912))
+                       (i64.le_s (local.get $z) (i64.const 536870911)))
+              (then ($scmn:fixnum_obj (local.get $z)))
+              (else (call $scmi:quo_slow (local.get $ac) (local.get $y))))))
+        (else (local.set $ac (call $scmi:quo_slow (local.get $ac)
+                                                 (local.get $y)))))))
+
+  ;; generic remainder (truncating, sign of the dividend, R7RS
+  ;; remainder): i64.rem_s on the fixnum fast path (the result
+  ;; always fits a fixnum), a - trunc(a/b)*b in f64 on the slow
+  ;; path.  A fixnum zero divisor traps, as in $div.
+  (macro $rem ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then
+            (if (i64.eq ($scmn:get_fixnum (local.get $y)) (i64.const 0))
+              (then (drop (call $scmrt:arg_error (local.get $y)
+                              (ref.data $scmi:msg_not_nonzero)))))
+            ($scmn:fixnum_obj
+              (i64.rem_s ($scmn:get_fixnum (local.get $ac))
+                         ($scmn:get_fixnum (local.get $y)))))
+          (else (call $scmi:rem_slow (local.get $ac) (local.get $y)))))))
+
+  (macro $lt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then ($scmn:bool_obj (i64.lt_s ($scmn:get_fixnum (local.get $ac))
+                                         ($scmn:get_fixnum (local.get $y)))))
+          (else (call $scmi:lt_slow (local.get $ac) (local.get $y)))))))
+
+  (macro $gt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then ($scmn:bool_obj (i64.gt_s ($scmn:get_fixnum (local.get $ac))
+                                         ($scmn:get_fixnum (local.get $y)))))
+          (else (call $scmi:gt_slow (local.get $ac) (local.get $y)))))))
+
+  (macro $le ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then ($scmn:bool_obj (i64.le_s ($scmn:get_fixnum (local.get $ac))
+                                         ($scmn:get_fixnum (local.get $y)))))
+          (else (call $scmi:le_slow (local.get $ac) (local.get $y)))))))
+
+  (macro $ge ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then ($scmn:bool_obj (i64.ge_s ($scmn:get_fixnum (local.get $ac))
+                                         ($scmn:get_fixnum (local.get $y)))))
+          (else (call $scmi:ge_slow (local.get $ac) (local.get $y)))))))
+
+  ;; generic = : two fixnums compare as objects (Skint's eq);
+  ;; anything else compares as f64 values
+  (macro $eq ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then ($scmn:bool_obj (i64.eq (local.get $ac) (local.get $y))))
+          (else (call $scmi:eq_slow (local.get $ac) (local.get $y)))))))
+
+  ;; generic /= (Skint's ne)
+  (macro $ne ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then ($scmn:bool_obj (i64.ne (local.get $ac) (local.get $y))))
+          (else (call $scmi:ne_slow (local.get $ac) (local.get $y)))))))
+
+  ;; ================================================================
+  ;; Characters (i.h: char?, char->integer, integer->char, char=?,
+  ;; char<, ..., char-upcase -- ASCII-only case mapping)
+  ;; ================================================================
+
+  (macro $charp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_char (local.get $ac)))))
+
+  ;; char->integer
+  (macro $ctoi ()
+    (effect () -> ())
+    (local.set $ac ($scmn:fixnum_obj ($scmn:get_char (local.get $ac)))))
+
+  ;; integer->char
+  (macro $itoc ()
+    (effect () -> ())
+    (local.set $ac ($scmn:char_obj ($scmn:get_fixnum (local.get $ac)))))
+
+  (macro $ceq ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj (i64.eq (local.get $ac) (local.get $y))))))
+
+  (macro $clt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (i64.lt_u ($scmn:get_char (local.get $ac))
+                                 ($scmn:get_char (local.get $y)))))))
+
+  (macro $cgt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (i64.gt_u ($scmn:get_char (local.get $ac))
+                                 ($scmn:get_char (local.get $y)))))))
+
+  (macro $cle ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (i64.le_u ($scmn:get_char (local.get $ac))
+                                 ($scmn:get_char (local.get $y)))))))
+
+  (macro $cge ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (i64.ge_u ($scmn:get_char (local.get $ac))
+                                 ($scmn:get_char (local.get $y)))))))
+
+  (macro $cupc ()
+    (locals ($u i64))
+    (effect () -> ())
+    (seq
+      (local.set $u ($scmn:get_char (local.get $ac)))
+      (if (i32.and (i64.ge_u (local.get $u) (i64.const 97))
+                   (i64.le_u (local.get $u) (i64.const 122)))
+        (then (local.set $u (i64.sub (local.get $u) (i64.const 32)))))
+      (local.set $ac ($scmn:char_obj (local.get $u)))))
+
+  (macro $cdnc ()
+    (locals ($u i64))
+    (effect () -> ())
+    (seq
+      (local.set $u ($scmn:get_char (local.get $ac)))
+      (if (i32.and (i64.ge_u (local.get $u) (i64.const 65))
+                   (i64.le_u (local.get $u) (i64.const 90)))
+        (then (local.set $u (i64.add (local.get $u) (i64.const 32)))))
+      (local.set $ac ($scmn:char_obj (local.get $u)))))
+
+  ;; char-foldcase
+  (macro $cflc ()
+    (effect () -> ())
+    ($scmi:cdnc))
+
+  ;; ================================================================
+  ;; Strings (i.h: string?, make-string, string-length, string-ref,
+  ;; string-set!).  $ac is the string (or the length for smk);
+  ;; index/char operands are popped like vget/vput.
+  ;; ================================================================
+
+  (macro $strp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_string (local.get $ac)))))
+
+  ;; make-string: $ac is the length (fixnum), the fill char is
+  ;; popped; needs string_bsz() reserved for the wrapper
+    (macro $smk_to ($dst)
+  (locals ($ch i64))
+  (effect (i64) -> ())
+  (seq
+    (local.set $ch)
+    (local.set $hp (call $scmi:smk_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac) (local.get $ch)))
+))
+
+  (macro $smk ()
+  (effect (i64) -> ())
+  (seq
+    ($scmi:smk_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; string-length: $ac becomes the length as a fixnum
+  (macro $slen ()
+    (effect () -> ())
+    (seq
+      ($scmi:ckstr (local.get $ac))
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.extend_i32_s ($scmn:string_len (local.get $ac)))))))
+
+  ;; string-ref: index (fixnum) is popped; $ac becomes the char
+  (macro $sget ()
+    (locals ($ix i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $ix)
+      ($scmi:ckstr (local.get $ac))
+      ($scmi:ckidx (local.get $ix) ($scmn:string_len (local.get $ac)))
+      (local.set $ac ($scmn:char_obj
+                       (i64.extend_i32_u
+                         ($scmn:string_get (local.get $ac)
+                                           (i32.wrap_i64
+                                             ($scmn:get_fixnum
+                                               (local.get $ix)))))))))
+
+  ;; string-set!: $ac is the string; pops index, then char
+  ;; (char pushed first, index last); $ac unchanged
+  (macro $sput ()
+    (locals ($ix i64) ($ch i64))
+    (effect (i64 i64) -> ())
+    (seq
+      (local.set $ix)
+      (local.set $ch)
+      ($scmi:ckstr (local.get $ac))
+      ($scmi:ckidx (local.get $ix) ($scmn:string_len (local.get $ac)))
+      ($scmn:string_put (local.get $ac)
+                        (i32.wrap_i64 ($scmn:get_fixnum (local.get $ix)))
+                        (i32.wrap_i64 ($scmn:get_char (local.get $ch))))))
+
+  ;; ================================================================
+  ;; Vectors (i.h: vector?, make-vector, vector-length, vector-ref,
+  ;; vector-set!)
+  ;; ================================================================
+
+  (macro $vecp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_vector (local.get $ac)))))
+
+  ;; record?: a record block -- PACKED microtag with at least 3
+  ;; cells (slot 0 = rtd); pairs are PACKED with exactly 2 cells
+  ;; and a box with 1, so the size test keeps the kinds disjoint
+  (macro $recp ()
+    (locals ($h i64))
+    (effect () -> ())
+    (local.set $ac
+      ($scmn:bool_obj
+        (if (result i32) ($scmn:is_objptr (local.get $ac))
+          (then
+            (seq
+              (local.set $h ($scmn:blkhdr (local.get $ac)))
+              (i32.and (i64.eq (i64.and (local.get $h) (i64.const 7))
+                               (i64.const 3))
+                       (i64.ge_u (i64.shr_u (local.get $h) (i64.const 3))
+                                 (i64.const 3)))))
+          (else (i32.const 0))))))
+
+  ;; make-vector: $ac is the length (fixnum), the fill is popped;
+  ;; needs vector_bsz(length) reserved
+    (macro $vmk_to ($dst)
+  (locals ($f i64))
+  (effect (i64) -> ())
+  (seq
+    (local.set $f)
+    (local.set $hp (call $scmi:vmk_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac) (local.get $f)))
+))
+
+  (macro $vmk ()
+  (effect (i64) -> ())
+  (seq
+    ($scmi:vmk_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; vector-length: $ac becomes the length as a fixnum
+  (macro $vlen ()
+    (effect () -> ())
+    (seq
+      ($scmi:ckblk0 (local.get $ac))
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.extend_i32_u ($scmn:vector_len (local.get $ac)))))))
+
+  ;; vector-ref: index (fixnum) is popped; $ac becomes the element
+  (macro $vget ()
+    (locals ($ix i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $ix)
+      ($scmi:ckblk (local.get $ac) (local.get $ix))
+      (local.set $ac ($scmn:vector_ref (local.get $ac)
+                                       (i32.wrap_i64
+                                         ($scmn:get_fixnum
+                                           (local.get $ix)))))))
+
+  ;; vector-set!: $ac is the vector; pops index, then value
+  ;; (value pushed first, index last); $ac unchanged
+  (macro $vput ()
+    (locals ($ix i64) ($v i64))
+    (effect (i64 i64) -> ())
+    (seq
+      (local.set $ix)
+      (local.set $v)
+      ($scmi:ckblk (local.get $ac) (local.get $ix))
+      ($scmn:vector_set (local.get $ac)
+                        (i32.wrap_i64 ($scmn:get_fixnum (local.get $ix)))
+                        (local.get $v))))
+
+  ;; ================================================================
+  ;; Text output -- supporting code (not i.h instructions).
+  ;; The current output port is stdout; $ac holds the value and is
+  ;; preserved.  Renders any obj of the core subset.
+  ;; ================================================================
+
+  ;; display: print $ac in display style
+  (macro $display ()
+    (effect () -> ())
+    (call $scmrt:display_obj (local.get $ac)))
+
+  ;; write: print $ac in write style (quoted strings, #\chars)
+  (macro $write ()
+    (effect () -> ())
+    (call $scmrt:write_obj (local.get $ac)))
+
+  ;; write-char: print the char in $ac
+  (macro $writechar ()
+    (effect () -> ())
+    (call $scmrt:display_obj (local.get $ac)))
+
+  ;; newline: print a newline; $ac preserved
+  (macro $newline ()
+    (effect () -> ())
+    (call $scmrt:display_obj (i64.const 2569)))
+
+  ;; current-second (Skint's cursec): seconds since the epoch as a
+  ;; flonum, with Skint's +37.0 leap-second (TAI) offset; result in $ac
+  (macro $cursec ()
+    (effect () -> ())
+    (local.set $ac (call $scmrt:current_second)))
+
+  ;; ================================================================
+  ;; S2 additions: more predicates, the list suite, generic numeric
+  ;; extras, flonum roundings/tests, string constructors, char
+  ;; classes, bytevector accessors, symbol/string/number
+  ;; conversions.  Allocation convention unchanged: $lrev/$lcat/
+  ;; $slist assume the caller reserved 3 words per element of the
+  ;; walked/copied list; the string constructors assume 2 words
+  ;; (one wrapper -- payloads are malloc'd in C, not GC'd).
+  ;; ================================================================
+
+  ;; symbol?: symbols are immediates (index<<8)|17
+  (macro $symp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (i64.eq (i64.and (local.get $ac) (i64.const 255))
+                             (i64.const 17)))))
+
+  ;; eof-object?: the eof immediate is 29
+  (macro $eofp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (i64.eq (local.get $ac) (i64.const 29)))))
+
+  ;; number?: fixnum or flonum (the NAN_BOXING partition is
+  ;; disjoint, so this is exact)
+  (macro $nump ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (i32.or ($scmn:is_fixnum (local.get $ac))
+                             ($scmn:is_flonum (local.get $ac))))))
+
+  ;; exact-integer?: flonums are inexact, hence never exact
+  (macro $xintp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_fixnum (local.get $ac)))))
+
+  ;; exact? / inexact?: this runtime's exact numbers are exactly
+  ;; the fixnums (no rationals or bignums); inexact = flonum
+  (macro $exactp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_fixnum (local.get $ac)))))
+  (macro $inxp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj ($scmn:is_flonum (local.get $ac)))))
+
+  ;; procedure?: a closure object (microtag 2 -- cell 0 is the
+  ;; code pointer); continuations and host wrappers are closures
+  (macro $procp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     ($scmn:is_tagged (local.get $ac) (i32.const 2)))))
+
+  ;; integer?: fixnum, or a flonum with an integral finite value
+  (macro $intp ()
+    (effect () -> ())
+    (local.set $ac
+      ($scmn:bool_obj
+        (i32.or ($scmn:is_fixnum (local.get $ac))
+                (i32.and ($scmn:is_flonum (local.get $ac))
+                         (i32.and
+                           (f64.eq ($scmn:get_flonum (local.get $ac))
+                                   (f64.trunc
+                                     ($scmn:get_flonum
+                                       (local.get $ac))))
+                           (f64.lt (f64.abs
+                                     ($scmn:get_flonum
+                                       (local.get $ac)))
+                                   (f64.const 1.8e308))))))))
+
+  ;; char-upper-case? / char-lower-case?: ASCII, like char-upcase
+  (macro $cupp ()
+    (locals ($c i64))
+    (effect () -> ())
+    (seq
+      (local.set $c ($scmn:get_char (local.get $ac)))
+      (local.set $ac ($scmn:bool_obj
+                       (i32.and (i64.ge_u (local.get $c) (i64.const 65))
+                                (i64.le_u (local.get $c)
+                                          (i64.const 90)))))))
+  (macro $clowp ()
+    (locals ($c i64))
+    (effect () -> ())
+    (seq
+      (local.set $c ($scmn:get_char (local.get $ac)))
+      (local.set $ac ($scmn:bool_obj
+                       (i32.and (i64.ge_u (local.get $c) (i64.const 97))
+                                (i64.le_u (local.get $c)
+                                          (i64.const 122)))))))
+
+  ;; list?: proper-list test with cycle detection (Floyd)
+  (macro $listp ()
+    (locals ($s i64) ($f i64) ($res i64))
+    (labels $dn $lp)
+    (effect () -> ())
+    (seq
+      (local.set $s (local.get $ac))
+      (local.set $f (local.get $ac))
+      (local.set $res (i64.const 1))
+      (block $dn
+        (loop $lp
+          (if (i32.eqz ($scmn:is_pair (local.get $f)))
+            (then (seq (local.set $res
+                         ($scmn:bool_obj ($scmn:is_null (local.get $f))))
+                       (br $dn))))
+          (local.set $f ($scmn:pair_cdr (local.get $f)))
+          (if (i32.eqz ($scmn:is_pair (local.get $f)))
+            (then (seq (local.set $res
+                         ($scmn:bool_obj ($scmn:is_null (local.get $f))))
+                       (br $dn))))
+          (local.set $f ($scmn:pair_cdr (local.get $f)))
+          (local.set $s ($scmn:pair_cdr (local.get $s)))
+          (if (i64.eq (local.get $s) (local.get $f))
+            (then (seq (local.set $res (i64.const 0)) (br $dn))))
+          (br $lp)))
+      (local.set $ac (local.get $res))))
+
+  ;; list-ref: $ac is the list, the index (fixnum) is popped
+  (macro $lref ()
+    (locals ($l i64) ($i i64))
+    (labels $dn $lp)
+    (effect (i64) -> ())
+    (seq
+      (local.set $i)
+      (local.set $i ($scmn:get_fixnum (local.get $i)))
+      (local.set $l (local.get $ac))
+      (block $dn
+        (loop $lp
+          (br_if $dn (i64.eq (local.get $i) (i64.const 0)))
+          (local.set $l ($scmn:pair_cdr (local.get $l)))
+          (local.set $i (i64.sub (local.get $i) (i64.const 1)))
+          (br $lp)))
+      (local.set $ac ($scmn:pair_car (local.get $l)))))
+
+  ;; list-tail: like $lref but returns the sublist itself
+  (macro $ltail ()
+    (locals ($l i64) ($i i64))
+    (labels $dn $lp)
+    (effect (i64) -> ())
+    (seq
+      (local.set $i)
+      (local.set $i ($scmn:get_fixnum (local.get $i)))
+      (local.set $l (local.get $ac))
+      (block $dn
+        (loop $lp
+          (br_if $dn (i64.eq (local.get $i) (i64.const 0)))
+          (local.set $l ($scmn:pair_cdr (local.get $l)))
+          (local.set $i (i64.sub (local.get $i) (i64.const 1)))
+          (br $lp)))
+      (local.set $ac (local.get $l))))
+
+  ;; reverse: $ac is the list; caller reserved 3*length words
+    (macro $lrev_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:lrev_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $lrev ()
+  (effect () -> ())
+  (seq
+    ($scmi:lrev_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; append (binary): $ac is the copied list, the tail is popped;
+  ;; caller reserved 3*length($ac) words
+    (macro $lcat_to ($dst)
+  (locals ($o i64))
+  (effect (i64) -> ())
+  (seq
+    (local.set $o)
+    (local.set $hp (call $scmi:lcat_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac) (local.get $o)))
+))
+
+  (macro $lcat ()
+  (effect (i64) -> ())
+  (seq
+    ($scmi:lcat_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; memq: $ac is the list, the key is popped; result is the
+  ;; sublist starting at the match, or #f
+  (macro $memq ()
+    (locals ($l i64) ($k i64))
+    (labels $dn $lp)
+    (effect (i64) -> ())
+    (seq
+      (local.set $k)
+      (local.set $l (local.get $ac))
+      (block $dn
+        (loop $lp
+          (if (i32.eqz ($scmn:is_pair (local.get $l)))
+            (then (seq (local.set $l (i64.const 0)) (br $dn))))
+          (br_if $dn (i64.eq ($scmn:pair_car (local.get $l))
+                             (local.get $k)))
+          (local.set $l ($scmn:pair_cdr (local.get $l)))
+          (br $lp)))
+      (local.set $ac (local.get $l))))
+
+  ;; memv: eqv? key test
+  (macro $memv ()
+    (locals ($l i64) ($k i64))
+    (labels $dn $lp)
+    (effect (i64) -> ())
+    (seq
+      (local.set $k)
+      (local.set $l (local.get $ac))
+      (block $dn
+        (loop $lp
+          (if (i32.eqz ($scmn:is_pair (local.get $l)))
+            (then (seq (local.set $l (i64.const 0)) (br $dn))))
+          (br_if $dn (call $scmrt:eqv_p ($scmn:pair_car (local.get $l))
+                                        (local.get $k)))
+          (local.set $l ($scmn:pair_cdr (local.get $l)))
+          (br $lp)))
+      (local.set $ac (local.get $l))))
+
+  ;; member: equal? key test
+  (macro $meme ()
+    (locals ($l i64) ($k i64))
+    (labels $dn $lp)
+    (effect (i64) -> ())
+    (seq
+      (local.set $k)
+      (local.set $l (local.get $ac))
+      (block $dn
+        (loop $lp
+          (if (i32.eqz ($scmn:is_pair (local.get $l)))
+            (then (seq (local.set $l (i64.const 0)) (br $dn))))
+          (br_if $dn (call $scmrt:equal_p ($scmn:pair_car (local.get $l))
+                                          (local.get $k)))
+          (local.set $l ($scmn:pair_cdr (local.get $l)))
+          (br $lp)))
+      (local.set $ac (local.get $l))))
+
+  ;; assq: $ac is the alist, the key is popped; result is the
+  ;; matching pair or #f
+  (macro $assq ()
+    (locals ($l i64) ($k i64) ($p i64))
+    (labels $dn $lp)
+    (effect (i64) -> ())
+    (seq
+      (local.set $k)
+      (local.set $l (local.get $ac))
+      (local.set $p (i64.const 0))
+      (block $dn
+        (loop $lp
+          (if (i32.eqz ($scmn:is_pair (local.get $l)))
+            (then (br $dn)))
+          (local.set $p ($scmn:pair_car (local.get $l)))
+          (if (i32.and ($scmn:is_pair (local.get $p))
+                       (i64.eq ($scmn:pair_car (local.get $p))
+                               (local.get $k)))
+            (then (br $dn)))
+          (local.set $p (i64.const 0))
+          (local.set $l ($scmn:pair_cdr (local.get $l)))
+          (br $lp)))
+      (local.set $ac (local.get $p))))
+
+  ;; assv: eqv? key test
+  (macro $assv ()
+    (locals ($l i64) ($k i64) ($p i64))
+    (labels $dn $lp)
+    (effect (i64) -> ())
+    (seq
+      (local.set $k)
+      (local.set $l (local.get $ac))
+      (local.set $p (i64.const 0))
+      (block $dn
+        (loop $lp
+          (if (i32.eqz ($scmn:is_pair (local.get $l)))
+            (then (br $dn)))
+          (local.set $p ($scmn:pair_car (local.get $l)))
+          (if (i32.and ($scmn:is_pair (local.get $p))
+                       (call $scmrt:eqv_p ($scmn:pair_car (local.get $p))
+                                          (local.get $k)))
+            (then (br $dn)))
+          (local.set $p (i64.const 0))
+          (local.set $l ($scmn:pair_cdr (local.get $l)))
+          (br $lp)))
+      (local.set $ac (local.get $p))))
+
+  ;; assoc: equal? key test
+  (macro $asse ()
+    (locals ($l i64) ($k i64) ($p i64))
+    (labels $dn $lp)
+    (effect (i64) -> ())
+    (seq
+      (local.set $k)
+      (local.set $l (local.get $ac))
+      (local.set $p (i64.const 0))
+      (block $dn
+        (loop $lp
+          (if (i32.eqz ($scmn:is_pair (local.get $l)))
+            (then (br $dn)))
+          (local.set $p ($scmn:pair_car (local.get $l)))
+          (if (i32.and ($scmn:is_pair (local.get $p))
+                       (call $scmrt:equal_p ($scmn:pair_car (local.get $p))
+                                            (local.get $k)))
+            (then (br $dn)))
+          (local.set $p (i64.const 0))
+          (local.set $l ($scmn:pair_cdr (local.get $l)))
+          (br $lp)))
+      (local.set $ac (local.get $p))))
+
+  ;; generic modulo (floored, sign of the divisor): $rem with the
+  ;; truncating remainder adjusted by the divisor when the signs
+  ;; differ.  The fixnum adjustment cannot overflow: |r| < |b|
+  ;; keeps |r+b| < |b| <= 2^29.
+  (macro $mod ()
+    (locals ($y i64) ($lx i64) ($ly i64) ($z i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (if ($scmn:are_fixnums (local.get $ac) (local.get $y))
+        (then
+          (local.set $lx ($scmn:get_fixnum (local.get $ac)))
+          (local.set $ly ($scmn:get_fixnum (local.get $y)))
+          (if (i64.eq (local.get $ly) (i64.const 0))
+            (then (drop (call $scmrt:arg_error (local.get $y)
+                              (ref.data $scmi:msg_not_nonzero)))))
+          (local.set $z (i64.rem_s (local.get $lx) (local.get $ly)))
+          (if (i32.and (i64.ne (local.get $z) (i64.const 0))
+                       (i32.xor (i64.lt_s (local.get $z) (i64.const 0))
+                                (i64.lt_s (local.get $ly) (i64.const 0))))
+            (then (local.set $z (i64.add (local.get $z) (local.get $ly)))))
+          (local.set $ac ($scmn:fixnum_obj (local.get $z))))
+        (else (local.set $ac (call $scmi:mod_slow (local.get $ac)
+                                                 (local.get $y)))))))
+
+  ;; generic min/max via $lt/$gt; when either operand is a
+  ;; flonum the result is inexact (contagion, as in Skint)
+  (macro $gmin ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then (if (result i64)
+                  (i64.le_s ($scmn:get_fixnum (local.get $ac))
+                             ($scmn:get_fixnum (local.get $y)))
+                  (then (local.get $ac)) (else (local.get $y))))
+          (else (call $scmi:gmin_slow (local.get $ac) (local.get $y)))))))
+
+  (macro $gmax ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac
+        (if (result i64)
+          ($scmn:are_fixnums (local.get $ac) (local.get $y))
+          (then (if (result i64)
+                  (i64.ge_s ($scmn:get_fixnum (local.get $ac))
+                             ($scmn:get_fixnum (local.get $y)))
+                  (then (local.get $ac)) (else (local.get $y))))
+          (else (call $scmi:gmax_slow (local.get $ac) (local.get $y)))))))
+
+  ;; generic abs: fixnum abs (fxmin promotes), flonum abs
+  (macro $gabs ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:gabs_slow (local.get $ac))))
+
+  ;; generic transcendentals: result is always a flonum
+  (macro $gsin ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:sin_slow (local.get $ac))))
+  (macro $gcos ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:cos_slow (local.get $ac))))
+  (macro $gtan ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:tan_slow (local.get $ac))))
+  (macro $gasin ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:asin_slow (local.get $ac))))
+  (macro $gacos ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:acos_slow (local.get $ac))))
+  (macro $gatan ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:atan_slow (local.get $ac))))
+  (macro $gexp ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:exp_slow (local.get $ac))))
+  (macro $glog ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:log_slow (local.get $ac))))
+  (macro $gsqrt ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:sqrt_slow (local.get $ac))))
+
+  ;; two-argument atan: second operand is popped
+  (macro $gatan2 ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac (call $scmi:atan2_slow (local.get $ac)
+                                            (local.get $y)))))
+
+  (macro $glog10 ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:log10_slow (local.get $ac))))
+
+  ;; hyperbolic transcendentals and ldexp: like the other generic
+  ;; transcendentals, the argument is read as a double
+  (macro $gsinh ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:sinh_slow (local.get $ac))))
+  (macro $gcosh ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:cosh_slow (local.get $ac))))
+  (macro $gtanh ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:tanh_slow (local.get $ac))))
+  (macro $jldexp ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac (call $scmi:ldexp_slow (local.get $ac)
+                                            (local.get $y)))))
+
+  ;; box-writing builtins: the box operand is popped like any
+  ;; second operand; the box cell receives the secondary result
+  (macro $fxsqrt ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:fxsqrt_slow (local.get $ac))))
+  (macro $fxsqrtb ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac (call $scmi:fxsqrtb_slow (local.get $ac)
+                                              (local.get $y)))))
+  (macro $flmodfb ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac (call $scmi:flmodfb_slow (local.get $ac)
+                                              (local.get $y)))))
+  (macro $flfrexpb ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac (call $scmi:flfrexpb_slow (local.get $ac)
+                                               (local.get $y)))))
+  ;; fxeqv: the complement of fxxor
+  (macro $ieqv ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq ($scmi:ixor) ($scmi:inot)))
+
+  (macro $fxgcd ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac (call $scmi:fxgcd_slow (local.get $ac)
+                                            (local.get $y)))))
+  (macro $flgcd ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac (call $scmi:flgcd_slow (local.get $ac)
+                                            (local.get $y)))))
+  (macro $fxexpt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac (call $scmi:fxexpt_slow (local.get $ac)
+                                             (local.get $y)))))
+
+  (macro $fxaddc ()
+    (locals ($y i64) ($b i64))
+    (effect (i64 i64) -> ())
+    (seq
+      (local.set $b)
+      (local.set $y)
+      (local.set $ac (call $scmi:fxaddc_slow (local.get $ac)
+                                             (local.get $y)
+                                             (local.get $b)))))
+  (macro $fxsubc ()
+    (locals ($y i64) ($b i64))
+    (effect (i64 i64) -> ())
+    (seq
+      (local.set $b)
+      (local.set $y)
+      (local.set $ac (call $scmi:fxsubc_slow (local.get $ac)
+                                             (local.get $y)
+                                             (local.get $b)))))
+  (macro $fxmulc ()
+    (locals ($y i64) ($b i64))
+    (effect (i64 i64) -> ())
+    (seq
+      (local.set $b)
+      (local.set $y)
+      (local.set $ac (call $scmi:fxmulc_slow (local.get $ac)
+                                             (local.get $y)
+                                             (local.get $b)))))
+
+  ;; expt: an exact fixnum power that fits a fixnum stays exact
+  ;; (repeated multiplication with range check; |factors| <= 2^29
+  ;; keeps every partial product inside i64); anything else goes
+  ;; through C pow and is a flonum (no bignums in this runtime)
+  (macro $expt ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac (call $scmi:expt_slow (local.get $ac) (local.get $y)))))
+
+  ;; generic truncate: fixnum identity; a flonum truncates and
+  ;; stays a flonum (inexactness is preserved, as in Skint)
+  (macro $trunc ()
+    (effect () -> ())
+    (seq
+      (if (i32.eqz ($scmn:is_fixnum (local.get $ac)))
+        (then
+          (local.set $ac ($scmn:flonum_obj
+                            (f64.trunc ($scmn:get_flonum
+                                         (local.get $ac)))))))))
+
+  ;; exact: fixnum identity; an integral flonum in fixnum range
+  ;; becomes a fixnum, a larger integral flonum stays a flonum
+  ;; (its value is still exact below 2^53; this runtime has no
+  ;; bignums, and whole-mantissa conversion would be wrong)
+  (macro $exact ()
+    (effect () -> ())
+    (local.set $ac (call $scmi:exact_slow (local.get $ac))))
+
+  ;; inexact: fixnum -> flonum, flonum identity
+  (macro $inexact ()
+    (effect () -> ())
+    (seq
+      (if ($scmn:is_fixnum (local.get $ac))
+        (then (local.set $ac ($scmn:flonum_obj
+                               (f64.convert_i64_s
+                                 ($scmn:get_fixnum (local.get $ac)))))))))
+
+  ;; generic zero?/positive?/negative? through number_f64
+  (macro $gzerop ()
+    (effect () -> ())
+    (seq
+      ($scmi:cknum (local.get $ac))
+      (local.set $ac ($scmn:bool_obj
+                       (f64.eq ($scmn:number_f64 (local.get $ac))
+                               (f64.const 0.0))))))
+
+  (macro $gposp ()
+    (effect () -> ())
+    (seq
+      ($scmi:cknum (local.get $ac))
+      (local.set $ac ($scmn:bool_obj
+                       (f64.gt ($scmn:number_f64 (local.get $ac))
+                               (f64.const 0.0))))))
+
+  (macro $gnegp ()
+    (effect () -> ())
+    (seq
+      ($scmi:cknum (local.get $ac))
+      (local.set $ac ($scmn:bool_obj
+                       (f64.lt ($scmn:number_f64 (local.get $ac))
+                               (f64.const 0.0))))))
+
+  ;; flonum roundings (result stays a flonum)
+  (macro $jfloor ()
+    (effect () -> ())
+    (local.set $ac ($scmn:flonum_obj
+                     (f64.floor ($scmn:get_flonum (local.get $ac))))))
+
+  (macro $jceil ()
+    (effect () -> ())
+    (local.set $ac ($scmn:flonum_obj
+                     (f64.ceil ($scmn:get_flonum (local.get $ac))))))
+
+  (macro $jtrunc ()
+    (effect () -> ())
+    (local.set $ac ($scmn:flonum_obj
+                     (f64.trunc ($scmn:get_flonum (local.get $ac))))))
+
+  ;; f64.nearest is round-half-to-even, as R7RS flround requires
+  (macro $jround ()
+    (effect () -> ())
+    (local.set $ac ($scmn:flonum_obj
+                     (f64.nearest ($scmn:get_flonum (local.get $ac))))))
+
+  ;; flsgn: -1.0/1.0, zero keeps its sign (result is $ac itself)
+  (macro $jsgn ()
+    (effect () -> ())
+    (seq
+      (if (f64.lt ($scmn:get_flonum (local.get $ac)) (f64.const 0.0))
+        (then (local.set $ac ($scmn:flonum_obj (f64.const -1.0)))))
+      (if (f64.gt ($scmn:get_flonum (local.get $ac)) (f64.const 0.0))
+        (then (local.set $ac ($scmn:flonum_obj (f64.const 1.0)))))))
+
+  ;; flsignbit: the double's sign bit (from the complemented bits)
+  (macro $jsignbit ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (i32.wrap_i64
+                       (i64.shr_u (i64.xor (local.get $ac)
+                                           (i64.const -1))
+                                  (i64.const 63))))))
+
+  ;; flinteger?: finite and equal to its own floor
+  (macro $jintp ()
+    (locals ($x f64))
+    (effect () -> ())
+    (seq
+      (local.set $x ($scmn:get_flonum (local.get $ac)))
+      (local.set $ac ($scmn:bool_obj
+                       (i32.and (f64.eq (local.get $x)
+                                        (f64.floor (local.get $x)))
+                                (i32.eqz (f64.gt
+                                           (f64.abs (local.get $x))
+                                           (f64.const
+                                             1.7976931348623157e308))))))))
+
+  (macro $jnanp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (f64.ne ($scmn:get_flonum (local.get $ac))
+                             ($scmn:get_flonum (local.get $ac))))))
+
+  (macro $jinfp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (f64.gt (f64.abs ($scmn:get_flonum (local.get $ac)))
+                             (f64.const 1.7976931348623157e308)))))
+
+  (macro $jfinp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (i32.and (f64.eq ($scmn:get_flonum (local.get $ac))
+                                      ($scmn:get_flonum (local.get $ac)))
+                              (i32.eqz (f64.gt
+                                         (f64.abs ($scmn:get_flonum
+                                                    (local.get $ac)))
+                                         (f64.const
+                                           1.7976931348623157e308)))))))
+
+  ;; substring: $ac is the string; start then end (fixnums) are
+  ;; pushed, end on top.  Caller reserved 2.
+    (macro $ssub_to ($dst)
+  (locals ($e i64) ($b i64))
+  (effect (i64 i64) -> ())
+  (seq
+    (local.set $e)
+    (local.set $b)
+    (local.set $hp (call $scmi:ssub_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac) (local.get $b) (local.get $e)))
+))
+
+  (macro $ssub ()
+  (effect (i64 i64) -> ())
+  (seq
+    ($scmi:ssub_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; string-append (binary): $ac is the first string, the second
+  ;; is popped.  Caller reserved 2.
+    (macro $scat_to ($dst)
+  (locals ($o i64))
+  (effect (i64) -> ())
+  (seq
+    (local.set $o)
+    (local.set $hp (call $scmi:scat_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac) (local.get $o)))
+))
+
+  (macro $scat ()
+  (effect (i64) -> ())
+  (seq
+    ($scmi:scat_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; list->string: $ac is a list of chars.  Caller reserved 2.
+    (macro $lstr_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:lstr_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $lstr ()
+  (effect () -> ())
+  (seq
+    ($scmi:lstr_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; string->list: $ac is the string; caller reserved 3*length
+    (macro $slist_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:slist_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $slist ()
+  (effect () -> ())
+  (seq
+    ($scmi:slist_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; string-downcase (ASCII case fold, other chars unchanged).
+  ;; Caller reserved 2.
+    (macro $sdwn_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:sdwn_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $sdwn ()
+  (effect () -> ())
+  (seq
+    ($scmi:sdwn_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; char classes (ASCII; codepoints >= 128 count as alphabetic)
+  (macro $calphap ()
+    (locals ($c i64))
+    (effect () -> ())
+    (seq
+      (local.set $c ($scmn:get_char (local.get $ac)))
+      (local.set $ac ($scmn:bool_obj
+                       (i32.or
+                         (i32.or
+                           (i32.and (i64.ge_u (local.get $c)
+                                              (i64.const 65))
+                                    (i64.le_u (local.get $c)
+                                              (i64.const 90)))
+                           (i32.and (i64.ge_u (local.get $c)
+                                              (i64.const 97))
+                                    (i64.le_u (local.get $c)
+                                              (i64.const 122))))
+                         (i64.ge_u (local.get $c) (i64.const 128)))))))
+
+  (macro $cnump ()
+    (locals ($c i64))
+    (effect () -> ())
+    (seq
+      (local.set $c ($scmn:get_char (local.get $ac)))
+      (local.set $ac ($scmn:bool_obj
+                       (i32.and (i64.ge_u (local.get $c) (i64.const 48))
+                                (i64.le_u (local.get $c)
+                                          (i64.const 57)))))))
+
+  (macro $cspacep ()
+    (locals ($c i64))
+    (effect () -> ())
+    (seq
+      (local.set $c ($scmn:get_char (local.get $ac)))
+      (local.set $ac ($scmn:bool_obj
+                       (i32.or (i64.eq (local.get $c) (i64.const 32))
+                               (i32.and (i64.ge_u (local.get $c)
+                                                  (i64.const 9))
+                                        (i64.le_u (local.get $c)
+                                                  (i64.const 13))))))))
+
+  ;; digit-value: fixnum 0-9, or #f
+  (macro $cdigv ()
+    (locals ($c i64))
+    (effect () -> ())
+    (seq
+      (local.set $c ($scmn:get_char (local.get $ac)))
+      (local.set $ac
+        (if (result i64)
+          (i32.and (i64.ge_u (local.get $c) (i64.const 48))
+                   (i64.le_u (local.get $c) (i64.const 57)))
+          (then ($scmn:fixnum_obj (i64.sub (local.get $c)
+                                           (i64.const 48))))
+          (else (i64.const 0))))))
+
+  ;; bytevector accessors (payload layout is in scmrt.c)
+  (macro $bvp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (call $scmrt:is_bytevector (local.get $ac)))))
+
+  (macro $bvlen ()
+    (effect () -> ())
+    (seq
+      ($scmi:ckbv (local.get $ac))
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.extend_i32_s
+                         (call $scmrt:bytevector_length
+                               (local.get $ac)))))))
+
+  (macro $bvget ()
+    (locals ($i i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $i)
+      ($scmi:ckbv (local.get $ac))
+      ($scmi:ckidx (local.get $i)
+                  (call $scmrt:bytevector_length (local.get $ac)))
+      (local.set $ac ($scmn:fixnum_obj
+                       (i64.extend_i32_u
+                         (call $scmrt:bytevector_u8_ref
+                               (local.get $ac)
+                               (i32.wrap_i64
+                                 ($scmn:get_fixnum (local.get $i)))))))))
+
+  ;; make-bytevector: $ac is the length (fixnum); the zeroed
+  ;; payload is malloc'd in C.  Caller reserved 2.
+    (macro $bvnew_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:bvnew_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $bvnew ()
+  (effect () -> ())
+  (seq
+    ($scmi:bvnew_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; bytevector->list: $ac is the bytevector; caller reserved
+  ;; 3*length, the same as string->list reserves.  [cco]
+    (macro $bvlist_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:bvlist_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $bvlist ()
+  (effect () -> ())
+  (seq
+    ($scmi:bvlist_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; bytevector-u8-set!: $ac is the bytevector; index then byte
+  ;; are pushed, byte on top.  $ac becomes the bytevector again.
+  (macro $bvput ()
+    (locals ($i i64) ($b i64))
+    (effect (i64 i64) -> ())
+    (seq
+      (local.set $b)
+      (local.set $i)
+      ($scmi:ckbv (local.get $ac))
+      ($scmi:ckidx (local.get $i)
+                  (call $scmrt:bytevector_length (local.get $ac)))
+      (i32.store8 (ptr.add (ptr.load offset 0
+                                     (ptr.add64 (ptr.null)
+                                                (local.get $ac)))
+                           (i32.add (i32.const 4)
+                                    (i32.wrap_i64
+                                      ($scmn:get_fixnum
+                                        (local.get $i)))))
+                  (i32.wrap_i64 ($scmn:get_fixnum (local.get $b))))))
+
+  ;; fill a fresh bytevector: $ac is the bytevector, the byte
+  ;; (fixnum) is popped
+  (macro $bvfill ()
+    (locals ($b i64) ($n i32) ($i i32))
+    (labels $dn $lp)
+    (effect (i64) -> ())
+    (seq
+      (local.set $b)
+      (local.set $n (call $scmrt:bytevector_length (local.get $ac)))
+      (local.set $i (i32.const 0))
+      (block $dn
+        (loop $lp
+          (br_if $dn (i32.ge_s (local.get $i) (local.get $n)))
+          (i32.store8 (ptr.add (ptr.load offset 0
+                                         (ptr.add64 (ptr.null)
+                                                    (local.get $ac)))
+                               (i32.add (i32.const 4) (local.get $i)))
+                      (i32.wrap_i64 ($scmn:get_fixnum (local.get $b))))
+          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+          (br $lp)))))
+
+  ;; string=?: payload equality via scmrt's equal?
+  (macro $streq ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:bool_obj
+                       (call $scmrt:equal_p (local.get $ac)
+                                            (local.get $y))))))
+
+  ;; flmin/flmax
+  (macro $jmin ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:flonum_obj
+                       (f64.min ($scmn:get_flonum (local.get $ac))
+                                ($scmn:get_flonum (local.get $y)))))))
+
+  (macro $jmax ()
+    (locals ($y i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (local.set $ac ($scmn:flonum_obj
+                       (f64.max ($scmn:get_flonum (local.get $ac))
+                                ($scmn:get_flonum (local.get $y)))))))
+
+  ;; generic floored quotient: truncating quotient adjusted
+  ;; down when a nonzero remainder's sign differs from the
+  ;; divisor's (the $mod adjustment on the quotient side)
+  (macro $fquo ()
+    (locals ($y i64) ($lx i64) ($ly i64) ($z i64))
+    (effect (i64) -> ())
+    (seq
+      (local.set $y)
+      (if ($scmn:are_fixnums (local.get $ac) (local.get $y))
+        (then
+          (local.set $lx ($scmn:get_fixnum (local.get $ac)))
+          (local.set $ly ($scmn:get_fixnum (local.get $y)))
+          (if (i64.eq (local.get $ly) (i64.const 0))
+            (then (drop (call $scmrt:arg_error (local.get $y)
+                              (ref.data $scmi:msg_not_nonzero)))))
+          (local.set $z (i64.div_s (local.get $lx) (local.get $ly)))
+          (if (i32.and (i64.ne (i64.rem_s (local.get $lx) (local.get $ly))
+                               (i64.const 0))
+                       (i32.xor (i64.lt_s (i64.rem_s (local.get $lx)
+                                                     (local.get $ly))
+                                          (i64.const 0))
+                                (i64.lt_s (local.get $ly) (i64.const 0))))
+            (then (local.set $z (i64.sub (local.get $z) (i64.const 1)))))
+          (local.set $ac
+            (if (result i64) (i32.and (i64.ge_s (local.get $z) (i64.const -536870912))
+                       (i64.le_s (local.get $z) (i64.const 536870911)))
+              (then ($scmn:fixnum_obj (local.get $z)))
+              (else (call $scmi:fquo_slow (local.get $ac) (local.get $y))))))
+        (else (local.set $ac (call $scmi:fquo_slow (local.get $ac)
+                                                  (local.get $y)))))))
+
+  ;; generic neg: fixnum neg (fxmin promotes), flonum neg
+  (macro $gneg ()
+    (locals ($v i64))
+    (effect () -> ())
+    (seq
+      (if ($scmn:is_fixnum (local.get $ac))
+        (then
+          (local.set $v ($scmn:get_fixnum (local.get $ac)))
+          (if (i64.eq (local.get $v) (i64.const -536870912))
+            (then (local.set $ac
+                    ($scmn:flonum_obj (f64.const 536870912.0))))
+            (else (local.set $ac
+                    ($scmn:fixnum_obj
+                      (i64.sub (i64.const 0) (local.get $v)))))))
+        (else
+          (local.set $ac ($scmn:flonum_obj
+                            (f64.neg ($scmn:get_flonum
+                                       (local.get $ac)))))))))
+
+  ;; symbol->string: name bytes decoded in C.  Caller reserved 2.
+    (macro $symstr_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:symstr_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $symstr ()
+  (effect () -> ())
+  (seq
+    ($scmi:symstr_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; string->symbol: interns in C (no GC allocation)
+  (macro $strsym ()
+    (effect () -> ())
+    (local.set $ac (call $scmrt:string_to_symbol (local.get $ac))))
+
+  ;; number->string: $ac is the number, the radix (fixnum) is
+  ;; popped; digits built in C.  Caller reserved 2.
+    (macro $n2s_to ($dst)
+  (locals ($rad i64))
+  (effect (i64) -> ())
+  (seq
+    (local.set $rad)
+    (local.set $hp (call $scmi:n2s_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac) (local.get $rad)))
+))
+
+  (macro $n2s ()
+  (effect (i64) -> ())
+  (seq
+    ($scmi:n2s_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; ================================================================
+  ;; S3 ports: wrappers around $scmrt port payloads.  The open/
+  ;; get macros allocate one wrapper: caller reserved 2.
+  ;; ================================================================
+
+  ;; %port?: the flag bits, as a fixnum, AND the mask that is popped;
+  ;; #f when the value is not a port.  The shadow (scheme base) builds
+  ;; three predicates on this: port? asks whether the answer is a fixnum
+  ;; at all, and textual-port? and binary-port? compare bit 4.  A
+  ;; boolean answer here made all three of them answer #f for every
+  ;; port, since a boolean is not a fixnum.  [cco]
+  (macro $portp ()
+    (locals ($msk i64) ($fl i32))
+    (effect (i64) -> ())
+    (seq
+      (local.set $msk)
+      (local.set $fl (call $scmrt:port_flags (local.get $ac)))
+      (local.set $ac
+        (if (result i64) (i32.lt_s (local.get $fl) (i32.const 0))
+          (then (i64.const 0))
+          (else ($scmn:fixnum_obj
+                  (i64.and (i64.extend_i32_s (local.get $fl))
+                           ($scmn:get_fixnum (local.get $msk)))))))))
+
+  (macro $inportp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (call $scmrt:is_input_port (local.get $ac)))))
+
+  (macro $outportp ()
+    (effect () -> ())
+    (local.set $ac ($scmn:bool_obj
+                     (call $scmrt:is_output_port (local.get $ac)))))
+
+  ;; open-input-file / open-output-file: $ac is the filename
+    (macro $openin_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:openin_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $openin ()
+  (effect () -> ())
+  (seq
+    ($scmi:openin_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+    (macro $openout_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:openout_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $openout ()
+  (effect () -> ())
+  (seq
+    ($scmi:openout_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; %open-input-file / %open-output-file: like $openin/$openout
+  ;; but the result is #f when the file cannot be opened
+    (macro $openin2_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:openin2_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $openin2 ()
+  (effect () -> ())
+  (seq
+    ($scmi:openin2_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+    (macro $openout2_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:openout2_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $openout2 ()
+  (effect () -> ())
+  (seq
+    ($scmi:openout2_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; open-input-string: $ac is the string
+    (macro $sinport_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:sinport_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $sinport ()
+  (effect () -> ())
+  (seq
+    ($scmi:sinport_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; open-output-string: fresh string-output port in $ac
+    (macro $soutport_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:soutport_slow_hreserved
+                         $dst (local.get $hp)))
+))
+
+  (macro $soutport ()
+  (effect () -> ())
+  (seq
+    ($scmi:soutport_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; get-output-string: fresh string with the accumulated text
+    (macro $getostr_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:getostr_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $getostr ()
+  (effect () -> ())
+  (seq
+    ($scmi:getostr_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; The bytevector port trio.  An output bytevector port is a
+  ;; string-output port: a byte is a codepoint below 256, so write-u8
+  ;; reaches it through write-char and no byte-specific path is needed.
+  ;; Only the narrowing at get-output-bytevector is particular to
+  ;; bytes, and it reports a codepoint that is not one.  [cco]
+  ;; open-input-bytevector: $ac is the bytevector
+    (macro $binport_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:binport_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $binport ()
+  (effect () -> ())
+  (seq
+    ($scmi:binport_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; open-output-bytevector: fresh port in $ac
+    (macro $boutport_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:boutport_slow_hreserved
+                         $dst (local.get $hp)))
+))
+
+  (macro $boutport ()
+  (effect () -> ())
+  (seq
+    ($scmi:boutport_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; get-output-bytevector: fresh bytevector of the bytes written
+    (macro $getbvo_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:getbvo_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $getbvo ()
+  (effect () -> ())
+  (seq
+    ($scmi:getbvo_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; get-environment-variable: string, or #f when unset
+    (macro $getenv_to ($dst)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:getenv_slow_hreserved
+                         $dst (local.get $hp) (local.get $ac)))
+))
+
+  (macro $getenv ()
+  (effect () -> ())
+  (seq
+    ($scmi:getenv_to (ref.data $scmi:ac_scratch))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; read-char / peek-char: $ac is the port; result is a char,
+  ;; or the eof object (29) at end of input
+  (macro $rdchar ()
+    (locals ($c i32))
+    (effect () -> ())
+    (seq
+      (local.set $c (call $scmrt:port_read_char (local.get $ac)))
+      (local.set $ac
+        (if (result i64) (i32.lt_s (local.get $c) (i32.const 0))
+          (then (i64.const 29))
+          (else ($scmn:char_obj (i64.extend_i32_u (local.get $c))))))))
+
+  (macro $pkchar ()
+    (locals ($c i32))
+    (effect () -> ())
+    (seq
+      (local.set $c (call $scmrt:port_peek_char (local.get $ac)))
+      (local.set $ac
+        (if (result i64) (i32.lt_s (local.get $c) (i32.const 0))
+          (then (i64.const 29))
+          (else ($scmn:char_obj (i64.extend_i32_u (local.get $c))))))))
+
+)

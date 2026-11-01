@@ -1,0 +1,422 @@
+;;; scmn.mvh -- S-MARV object primitives, the MARV counterpart of
+;;; Skint's n.h/n.c (the "n" layer: native object representation).
+;;;
+;;; Where lib/scmrt provides the heap and collector, this file
+;;; provides the vocabulary everything else is written in, following
+;;; n.h section by section: block headers and sizes, hend_*
+;;; allocation, immediates (fixnums, flonums, chars, booleans),
+;;; strings, vectors, boxes, null, pairs.  Most names have
+;;; underscores, like n.h's.
+;;;
+;;; CONVENTIONS (expression style, C-function-like as in n.h):
+;;;   * A scmn macro takes ordinary form arguments and leaves its
+;;;     single result on the MARV operand stack, e.g.
+;;;     ($scmn:pair_car (local.get $p))  -- an i64 obj.
+;;;   * Predicates (is_pair, is_null, ...) return an i32 0/1 --
+;;;     C's int, NOT a Scheme boolean.  Converting is scmi's job
+;;;     (bool_obj).
+;;;   * Accessors (pair_car, vector_ref, string_get) return the
+;;;     raw value (obj, i32 count, or i32 codepoint); mutators
+;;;     (pair_set_car, block_set, string_put) return nothing.
+;;;   * hend_* macros and hreserve capture the caller's $hp (and
+;;;     $r) locals, exactly as n.h's macros capture hp/r.
+;;;   * Everything is unchecked, like the NDEBUG side of n.h: the
+;;;     caller (compiler front end) emits its own type asserts.
+;;;     Accessors on non-objects read wild memory.
+;;;
+;;; The including module must (include $scmrt) first: the templates
+;;; reference $scmrt:heap_plus1/$hmask/$collect/$string_type.
+;;;
+;;; Object representation (lib/scmrt.mvh): obj is a NaN-boxed i64,
+;;; partitioned exactly as in Skint's n.h (NAN_BOXING): immediates
+;;; occupy the low 32 bits only (high 32 bits zero), heap pointers
+;;; have zero high 16 bits, and a flonum's high 16 bits are
+;;; nonzero -- the classes cannot overlap.
+;;;   fixnum: 30-bit payload in the low 32 bits, (payload<<2)|3
+;;;   #f = 0, #t = 1, '() = 13, char = (code<<8)|9
+;;;   flonum = bitwise complement of the f64 bit pattern
+;;;   heap obj: header at obj-8, hdr = (size<<3)|(mtag<<1)|1,
+;;;   mtags TYPED=0 PACKED=1 CLOSURE=2 VECTOR=3;
+;;;   pair hdr 19 (packed 2), box hdr 11 (packed 1),
+;;;   vector hdr (len<<3)|7, string = native wrapper (even header
+;;;   is the cxtype address) around {i32 len; i32 chars[]}.
+
+(interface $scmn
+
+  ;; ================================================================
+  ;; Block vocabulary (n.h: block header cells...)
+  ;; ================================================================
+
+  ;; words to reserve for a block of $cells cells (header included)
+  (macro $block_bsz ($cells)
+    (effect () -> (i32))
+    (i32.add $cells (i32.const 1)))
+
+  ;; header word builder: obj_from_sztag(n, mtag)
+  (macro $obj_from_sztag ($n $mtag)
+    (effect () -> (i64))
+    (i64.or (i64.shl (i64.extend_i32_u $n) (i64.const 3))
+            (i64.or (i64.shl (i64.extend_i32_u $mtag) (i64.const 1))
+                    (i64.const 1))))
+
+  ;; size_from_obj(hdr): cell count recorded in a header word
+  (macro $size_from_obj ($hdr)
+    (effect () -> (i32))
+    (i32.wrap_i64 (i64.shr_u $hdr (i64.const 3))))
+
+  ;; mtag_from_obj(hdr): the 2-bit microtag of a header word
+  (macro $mtag_from_obj ($hdr)
+    (effect () -> (i32))
+    (i32.wrap_i64 (i64.and (i64.shr_u $hdr (i64.const 1)) (i64.const 3))))
+
+  ;; the header word of a heap obj (caller guarantees objptr)
+  (macro $blkhdr ($o)
+    (effect () -> (i64))
+    (i64.load offset 0 (ptr.sub (ptr.add64 (ptr.null) $o) (i32.const 8))))
+
+  ;; heap-object test from the runtime's exported range mask
+  (macro $is_objptr ($o)
+    (effect () -> (i32))
+    (i64.eq (i64.and (i64.sub $o (global.get $scmrt:heap_plus1))
+                     (global.get $scmrt:hmask))
+            (i64.const 0)))
+
+  ;; notaptr(o): the immediate-class bit test; nonzero means the
+  ;; value cannot be a heap pointer.  Note #f (0) passes as "aptr"
+  ;; by bits alone, exactly as in n.h.
+  (macro $notaptr ($o)
+    (effect () -> (i32))
+    (i64.ne (i64.and $o (i64.const -281474976710655)) (i64.const 0)))
+
+  (macro $is_aptr ($o)
+    (effect () -> (i32))
+    (i64.eq (i64.and $o (i64.const -281474976710655)) (i64.const 0)))
+
+  ;; is_tagged(o, m): heap obj whose header has microtag m
+  (macro $is_tagged ($o $mtag)
+    (effect () -> (i32))
+    (if (result i32) ($scmn:is_objptr $o)
+      (then (i64.eq (i64.and ($scmn:blkhdr $o) (i64.const 7))
+                    (i64.extend_i32_u
+                      (i32.add (i32.shl $mtag (i32.const 1)) (i32.const 1)))))
+      (else (i32.const 0))))
+
+  ;; is_packed(o, n): heap obj whose header is obj_from_packed(n)
+  (macro $is_packed ($o $n)
+    (effect () -> (i32))
+    (if (result i32) ($scmn:is_objptr $o)
+      (then (i64.eq ($scmn:blkhdr $o)
+                    (i64.or (i64.shl (i64.extend_i32_u $n) (i64.const 3))
+                            (i64.const 3))))
+      (else (i32.const 0))))
+
+  ;; block_len(o): cell count of a heap obj
+  (macro $block_len ($o)
+    (effect () -> (i32))
+    ($scmn:size_from_obj ($scmn:blkhdr $o)))
+
+  ;; block_ref(o, i): cell i (0-based from the obj, header excluded)
+  (macro $block_ref ($o $i)
+    (effect () -> (i64))
+    (i64.load (ptr.add (ptr.add64 (ptr.null) $o)
+                       (i32.shl $i (i32.const 3)))))
+
+  (macro $block_set ($o $i $x)
+    (effect () -> ())
+    (i64.store (ptr.add (ptr.add64 (ptr.null) $o)
+                        (i32.shl $i (i32.const 3)))
+               $x))
+
+  ;; hend_tagged(n, m): bump $hp by block_bsz(n) words, write the
+  ;; header, return the obj (cells uninitialized).  hend = "heap
+  ;; end": Skint writes the header last over pre-filled cells, MARV
+  ;; writes it first; no collection can intervene either way.
+  (macro $hend_tagged ($n $mtag)
+    (locals ($sz i32))
+    (effect () -> (i64))
+    (seq
+      (local.set $sz (i32.shl (i32.add $n (i32.const 1)) (i32.const 3)))
+      (local.set $hp (ptr.sub (local.get $hp) (local.get $sz)))
+      (i64.store offset 0 (local.get $hp)
+                 ($scmn:obj_from_sztag $n $mtag))
+      (ptr.diff64 (ptr.add (local.get $hp) (i32.const 8)) (ptr.null))))
+
+  (macro $hend_packed ($n)
+    (effect () -> (i64))
+    ($scmn:hend_tagged $n (i32.const 1)))
+
+  ;; hpushptr(p, pt): a native wrapper -- hend over a 2-word block
+  ;; whose header is the cxtype address $pt and cell 0 is $p.
+  ;; (Skint's hpushptr also reserves; here reservation is separate.)
+  (macro $hpushptr ($p $pt)
+    (effect () -> (i64))
+    (seq
+      (local.set $hp (ptr.sub (local.get $hp) (i32.const 16)))
+      (i64.store offset 0 (local.get $hp) $pt)
+      (ptr.store offset 8 (local.get $hp) $p)
+      (ptr.diff64 (ptr.add (local.get $hp) (i32.const 8)) (ptr.null))))
+
+  ;; hreserve(words, live, spill, reload): preliminary heap
+  ;; reservation (n.h's hreserve).  If $hp cannot cover $words more
+  ;; words, run $spill (store the caller's live objs in
+  ;; $r[0..$live-1] -- the MARV caller owns the root set, where
+  ;; Skint's VM has its register file), collect, then $reload.
+  ;; After a successful hreserve, the covered allocation sequence
+  ;; cannot trigger another collection.
+  (macro $hreserve ($words $live $spill $reload)
+    (locals ($w i32))
+    (effect () -> ())
+    (seq
+      (local.set $w $words)
+      (if (ptr.lt_u (local.get $hp)
+                    (ptr.add (global.get $scmrt:heap_limit)
+                             (i32.shl (local.get $w) (i32.const 3))))
+        (then
+          $spill
+          (local.set $hp (call $scmrt:collect (local.get $r) $live
+                               (local.get $hp) (local.get $w)))
+          $reload))))
+
+  ;; ================================================================
+  ;; Booleans (n.h: TRUE_ITAG, is_bool, bool_obj)
+  ;; ================================================================
+
+  (macro $is_bool ($o)
+    (effect () -> (i32))
+    (i64.le_u $o (i64.const 1)))
+
+  ;; bool_obj(b): the Scheme boolean for C int b (0 = #f, else #t)
+  (macro $bool_obj ($b)
+    (effect () -> (i64))
+    (i64.extend_i32_u $b))
+
+  ;; ================================================================
+  ;; Fixnums (n.h: is_fixnum, fixnum_obj, get_fixnum)
+  ;; ================================================================
+
+  ;; The class tests follow Skint's NAN_BOXING partition exactly,
+  ;; so no bit pattern is both a fixnum and a flonum: immediates
+  ;; (fixnums, chars, ...) live entirely in the low 32 bits -- the
+  ;; high 32 bits are zero -- while a flonum is the bitwise
+  ;; complement of a double, whose high 16 bits are nonzero for
+  ;; every finite double (and heap pointers have zero high bits).
+  (macro $is_fixnum ($o)
+    (effect () -> (i32))
+    (i64.eq (i64.and $o (i64.const -4294967293)) (i64.const 3)))
+
+  ;; are_fixnums(x, y): Skint's both-fixnums test (n.h are_fixnums
+  ;; is is_fixnum(o1) && is_fixnum(o2)).  The two tests cannot be
+  ;; fused into one AND against the isim0 mask: a fixnum's zero
+  ;; high word would mask off a flonum's nonzero high word in
+  ;; (x & y), and a flonum whose inverted low word ends in 11
+  ;; (e.g. 7.5, 1.5) would then pass as a fixnum.
+  (macro $are_fixnums ($x $y)
+    (effect () -> (i32))
+    (i32.and ($scmn:is_fixnum $x) ($scmn:is_fixnum $y)))
+
+  ;; fixnum_obj(v): box a raw payload as mkim0 does -- the 30-bit
+  ;; payload sits in the low 32 bits, high bits zero (unchecked:
+  ;; payloads outside FIXNUM_MIN..FIXNUM_MAX wrap in 30 bits)
+  (macro $fixnum_obj ($v)
+    (effect () -> (i64))
+    (i64.or (i64.shl (i64.and $v (i64.const 1073741823))
+                     (i64.const 2))
+            (i64.const 3)))
+
+  ;; get_fixnum(o): getim0s -- sign-decode the 30-bit payload out
+  ;; of the low 32 bits (shift the low word to the top, then
+  ;; arithmetic-shift back down past the tag bits)
+  (macro $get_fixnum ($o)
+    (effect () -> (i64))
+    (i64.shr_s (i64.shl $o (i64.const 32)) (i64.const 34)))
+
+  ;; ================================================================
+  ;; Flonums (n.h: is_flonum, flonum_obj, get_flonum)
+  ;; ================================================================
+
+  ;; Skint's is_flonum (n.h, NAN_BOXING): the high 16 bits of the
+  ;; complemented double are nonzero.  This is disjoint from every
+  ;; other class by construction: immediates and heap pointers
+  ;; both have zero in the high bits, so there is no bit-pattern
+  ;; overlap between flonums and fixnums (or anything else).
+  (macro $is_flonum ($o)
+    (effect () -> (i32))
+    (i64.ne (i64.and $o (i64.const -281474976710656)) (i64.const 0)))
+
+  (macro $flonum_obj ($d)
+    (effect () -> (i64))
+    (i64.xor (i64.reinterpret_f64 $d) (i64.const -1)))
+
+  (macro $get_flonum ($o)
+    (effect () -> (f64))
+    (f64.reinterpret_i64 (i64.xor $o (i64.const -1))))
+
+  ;; number_f64(o): a generic number (fixnum or flonum) as an f64 --
+  ;; the conversion on Skint's generic slow paths, where each operand
+  ;; is dispatched with is_flonum/is_fixnum.  Unchecked like the rest
+  ;; of this file: a non-number is reinterpreted as a flonum.
+  (macro $number_f64 ($o)
+    (effect () -> (f64))
+    (if (result f64) ($scmn:is_fixnum $o)
+      (then (f64.convert_i64_s ($scmn:get_fixnum $o)))
+      (else ($scmn:get_flonum $o))))
+
+  ;; ================================================================
+  ;; Characters (n.h: CHAR_ITAG, is_char, char_obj, get_char)
+  ;; ================================================================
+
+  ;; isimm(o, CHAR_ITAG): the full mask (high 32 bits zero, low
+  ;; byte the tag) keeps flonums out, as in n.h
+  (macro $is_char ($o)
+    (effect () -> (i32))
+    (i64.eq (i64.and $o (i64.const -4294967041)) (i64.const 9)))
+
+  ;; char_obj(c): box an i64 codepoint
+  (macro $char_obj ($c)
+    (effect () -> (i64))
+    (i64.or (i64.shl $c (i64.const 8)) (i64.const 9)))
+
+  ;; get_char(o): the codepoint of a char obj
+  (macro $get_char ($o)
+    (effect () -> (i64))
+    (i64.shr_u $o (i64.const 8)))
+
+  ;; ================================================================
+  ;; Strings (n.h: STRING_NTAG, string_data, string_len, ...)
+  ;; ================================================================
+  ;; A string is a native wrapper: cell 0 holds a malloc'd payload
+  ;; {i32 len; i32 chars[]}, one int32 codepoint per char (the
+  ;; scmrt.c strpay_t layout, = Skint's int* sdata).
+
+  (macro $is_string ($o)
+    (effect () -> (i32))
+    (if (result i32) ($scmn:is_objptr $o)
+      (then (i64.eq ($scmn:blkhdr $o) (call $scmrt:string_type)))
+      (else (i32.const 0))))
+
+  ;; string_data(o): the payload pointer (Skint's get_native)
+  (macro $string_data ($o)
+    (effect () -> (ptr))
+    (ptr.load offset 0 (ptr.add64 (ptr.null) $o)))
+
+  ;; string_len(o): character count as i32
+  (macro $string_len ($o)
+    (effect () -> (i32))
+    (i32.load offset 0 ($scmn:string_data $o)))
+
+  ;; string_get(o, i): codepoint of char i, as i32
+  (macro $string_get ($o $i)
+    (effect () -> (i32))
+    (i32.load (ptr.add ($scmn:string_data $o)
+                       (i32.add (i32.const 4)
+                                (i32.shl $i (i32.const 2))))))
+
+  ;; string_put(o, i, c): set char i to codepoint c (i32)
+  (macro $string_put ($o $i $c)
+    (effect () -> ())
+    (i32.store (ptr.add ($scmn:string_data $o)
+                        (i32.add (i32.const 4)
+                                 (i32.shl $i (i32.const 2))))
+               $c))
+
+  ;; words to reserve for a string wrapper (the payload is malloc'd)
+  (macro $string_bsz ()
+    (effect () -> (i32))
+    (i32.const 2))
+
+  ;; ================================================================
+  ;; Vectors (n.h: V kind)
+  ;; ================================================================
+
+  (macro $is_vector ($o)
+    (effect () -> (i32))
+    ($scmn:is_tagged $o (i32.const 3)))
+
+  (macro $vector_ref ($v $i)
+    (effect () -> (i64))
+    ($scmn:block_ref $v $i))
+
+  (macro $vector_set ($v $i $x)
+    (effect () -> ())
+    ($scmn:block_set $v $i $x))
+
+  ;; vector_len(v): element count as i32
+  (macro $vector_len ($v)
+    (effect () -> (i32))
+    ($scmn:block_len $v))
+
+  (macro $vector_bsz ($n)
+    (effect () -> (i32))
+    ($scmn:block_bsz $n))
+
+  (macro $hend_vector ($n)
+    (effect () -> (i64))
+    ($scmn:hend_tagged $n (i32.const 3)))
+
+  ;; ================================================================
+  ;; Boxes (n.h: S kind, one cell)
+  ;; ================================================================
+
+  (macro $is_box ($o)
+    (effect () -> (i32))
+    ($scmn:is_packed $o (i32.const 1)))
+
+  (macro $box_ref ($o)
+    (effect () -> (i64))
+    ($scmn:block_ref $o (i32.const 0)))
+
+  (macro $box_set ($o $x)
+    (effect () -> ())
+    ($scmn:block_set $o (i32.const 0) $x))
+
+  (macro $box_bsz ()
+    (effect () -> (i32))
+    ($scmn:block_bsz (i32.const 1)))
+
+  (macro $hend_box ()
+    (effect () -> (i64))
+    ($scmn:hend_packed (i32.const 1)))
+
+  ;; ================================================================
+  ;; Null (n.h: NULL_ITAG, null_obj, is_null)
+  ;; ================================================================
+
+  (macro $null_obj ()
+    (effect () -> (i64))
+    (i64.const 13))
+
+  (macro $is_null ($o)
+    (effect () -> (i32))
+    (i64.eq $o (i64.const 13)))
+
+  ;; ================================================================
+  ;; Pairs and lists (n.h: S kind, two cells)
+  ;; ================================================================
+
+  (macro $is_pair ($o)
+    (effect () -> (i32))
+    ($scmn:is_packed $o (i32.const 2)))
+
+  (macro $pair_car ($o)
+    (effect () -> (i64))
+    ($scmn:block_ref $o (i32.const 0)))
+
+  (macro $pair_cdr ($o)
+    (effect () -> (i64))
+    ($scmn:block_ref $o (i32.const 1)))
+
+  (macro $pair_set_car ($o $x)
+    (effect () -> ())
+    ($scmn:block_set $o (i32.const 0) $x))
+
+  (macro $pair_set_cdr ($o $x)
+    (effect () -> ())
+    ($scmn:block_set $o (i32.const 1) $x))
+
+  (macro $pair_bsz ()
+    (effect () -> (i32))
+    ($scmn:block_bsz (i32.const 2)))
+
+  (macro $hend_pair ()
+    (effect () -> (i64))
+    ($scmn:hend_packed (i32.const 2))))

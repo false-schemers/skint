@@ -1,0 +1,150 @@
+;;; scmrt.mvh -- S-MARV runtime interface (Skint-style, Cheney GC)
+;;;
+;;; The counterpart C file (scmrt.c) is intentionally written in the
+;;; WCPL C dialect, so the same source compiles natively (cc) and to
+;;; a WCPL relocatable object (wcpl -c).  See smarv.html SS9.
+;;;
+;;; Object representation (obj is a 64-bit NaN-boxed i64 everywhere):
+;;;   fixnum   low bits 11, 30-bit payload in bits 2..31
+;;;   imm      low bits 01, 6-bit itag in bits 2..7, payload bits 8..31
+;;;            (TRUE=0, CHAR=2, NULL=3, SYMBOL=4, VOID=5, UNIT=6, EOF=7)
+;;;   flonum   bitwise complement of the f64 bit pattern
+;;;   heap ptr aligned address; header word at offset -8:
+;;;            hdr = (size<<3) | (mtag<<1) | 1
+;;;            mtags: TYPED=0 PACKED=1 CLOSURE=2 VECTOR=3
+;;;   Native bindings carry an even header (a cxtype_t* -- bit 1 is 0)
+;;;
+;;; Allocation bumps $hp DOWNWARD from the top of the active semispace
+;;; toward $scmrt:heap_limit; when $hp would cross it, compiled code
+;;; spills its live objects into $r[0..L-1] and calls $scmrt:collect.
+
+(interface $scmrt
+  (global $heap_limit (mut ptr))             ; base of active semispace
+  (global $heap_plus1 (mut i64))             ; heap base + 1 word, as i64
+  (global $hmask (mut i64))                  ; heap-pointer test mask
+
+  ;; startup: allocates the heap region (two semispaces of pow2 words
+  ;; plus an immortal static area for literals/global boxes) and
+  ;; returns the initial $hp.  $r itself is owned by the caller.
+  (func $init (param $init_heap_words i32) (param $reg_words i32)
+        (result ptr))
+
+  ;; GC: copies live objects (roots: $r[0..$live-1], slots registered
+  ;; via $register_root, and the static area) into the other
+  ;; semispace; needs $needs more words after collection; returns
+  ;; the new $hp.  If the request (plus Skint's half-empty margin of
+  ;; twice the live size) does not fit a semispace, the semispaces
+  ;; are doubled until it does; only if the enlarged heap cannot be
+  ;; allocated does the collector print an error and exit with
+  ;; exit code 1.
+  (func $collect (param $r ptr) (param $live i32) (param $hp ptr)
+        (param $needs i32) (result ptr))
+
+  ;; register an obj cell (an i64 slot address) as a permanent root
+  (func $register_root (param $slot_addr ptr) (result ptr))
+
+  ;; intern a symbol name; returns the symbol obj
+  (func $intern_sym (param $cstr ptr) (result i64))
+
+  ;; get-or-create the global store box for a name; returns box obj.
+  ;; Boxes live in the static area, so $hp is not consumed/changed.
+  (func $global_loc (param $cstr ptr) (param $hp ptr) (result i64))
+
+  ;; decode one literal in Skint's serialized format (rds_sexp);
+  ;; literals are allocated in the static area
+  (func $deserialize_sexp (param $cstr ptr) (param $r ptr) (param $hp ptr)
+        (result i64))
+
+  ;; bulk startup helpers: register a whole cell segment as roots,
+  ;; and materialize a table of literal globals from the $lits blob
+  (func $register_roots_range (param $base ptr) (param $n i32))
+  (func $deserialize_all (param $lits ptr) (param $tab ptr) (param $n i32)
+        (param $gstore ptr) (param $r ptr) (param $hp ptr) (result ptr))
+
+  ;; rest-argument packing; returns new $hp
+  (func $build_rest_list (param $a0 i64) (param $r ptr) (param $hp ptr)
+        (param $rc i32) (param $req i32) (result ptr))
+
+  ;; cold error paths; print a diagnostic and abort, never return
+  (func $arity_error (param $clo ptr) (param $rc i32) (param $expected i32)
+        (result ptr))
+  (func $type_error (param $bad_obj i64) (param $expected_code i32)
+        (result ptr))
+  ;; generic "argument is not a/an X" reporter: X is a static C
+  ;; string passed by pointer (ref.data of a MARV data segment)
+  (func $arg_error (param $bad_obj i64) (param $what ptr)
+        (result ptr))
+  (func $error_raise (param $msg i64) (result ptr))
+
+  ;; Scheme predicates
+  (func $equal_p (param $a i64) (param $b i64) (result i32))
+  (func $eqv_p (param $a i64) (param $b i64) (result i32))
+
+  ;; string support for the $scmn/$scmi libraries: the cxtype address to
+  ;; use as a string wrapper's header word, and payload allocation
+  ;; (malloc'd {i32 length, i32 chars[]}; one int32 codepoint per
+  ;; char).  The 2-word wrapper itself is allocated by compiled code
+  ;; on the GC heap and finalized by the collector.
+  (func $string_type (result i64))
+  (func $make_string_payload (param $len i32) (param $fill i32)
+        (result ptr))
+
+  ;; minimal text output to stdout: renders the core object graph
+  ;; (fixnum flonum boolean char string pair vector box null);
+  ;; $write_obj uses write-style (quoted strings, #\chars)
+  (func $display_obj (param $o i64))
+  (func $write_obj (param $o i64))
+
+  ;; S2 support: bytevector access, symbol/string conversion,
+  ;; number->string digit generation (a library conversion; the
+  ;; compiled code only wraps the malloc'd payload), frexp with a
+  ;; box out-parameter for the exponent, and C pow for expt
+  (func $bytevector_type (result i64))
+  (func $make_bytevector_payload (param $len i32) (result ptr))
+  (func $is_bytevector (param $o i64) (result i32))
+  (func $bytevector_length (param $o i64) (result i32))
+  (func $bytevector_u8_ref (param $o i64) (param $i i32) (result i32))
+  (func $symbol_to_string (param $o i64) (result ptr))
+  (func $string_to_symbol (param $o i64) (result i64))
+  (func $number_to_string (param $o i64) (param $r i64) (result ptr))
+  (func $string_to_number (param $o i64) (param $r i64) (result i64))
+  (func $frexp_into_box (param $x i64) (param $b i64) (result i64))
+  (func $dpow (param $a f64) (param $b f64) (result f64))
+
+  ;; S3 ports & OS: ports are Native wrappers (payload ptr from
+  ;; the open/make functions, wrapped by compiled code); the
+  ;; standard ports are immortal static-area objects created in C
+  (func $port_type (result i64))
+  (func $current_input_port (result i64))
+  (func $current_output_port (result i64))
+  (func $current_error_port (result i64))
+  (func $set_current_input_port (param $o i64))
+  (func $set_current_output_port (param $o i64))
+  (func $set_current_error_port (param $o i64))
+  (func $is_input_port (param $o i64) (result i32))
+  (func $is_output_port (param $o i64) (result i32))
+  (func $port_flags (param $o i64) (result i32))
+  (func $open_input_file (param $o i64) (result ptr))
+  (func $open_output_file (param $o i64) (result ptr))
+  (func $try_open_input_file (param $o i64) (result ptr))
+  (func $try_open_output_file (param $o i64) (result ptr))
+  (func $make_input_string_port (param $o i64) (result ptr))
+  (func $make_output_string_port (result ptr))
+  (func $get_output_string_payload (param $o i64) (result ptr))
+  (func $close_port (param $o i64))
+  (func $flush_port (param $o i64))
+  (func $port_read_char (param $o i64) (result i32))
+  (func $port_peek_char (param $o i64) (result i32))
+  (func $port_write_char (param $o i64) (param $c i32))
+  (func $display_obj_port (param $p i64) (param $o i64))
+  (func $write_obj_port (param $p i64) (param $o i64))
+  (func $file_exists_p (param $o i64) (result i32))
+  (func $delete_file_p (param $o i64) (result i32))
+  (func $get_env_payload (param $o i64) (result ptr))
+  (func $current_jiffy (result i64))
+  (func $current_second (result i64))
+  (func $set_argv (param $argc i32) (param $argv ptr))
+  (func $command_line (result i64))
+  (func $values_tag (result i64))
+  (func $system_cmd (param $o i64) (result i64))
+  (func $exit_process (param $o i64)))
