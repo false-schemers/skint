@@ -195,6 +195,47 @@ static size_t         rt_roots_init;   /* from init's reg_words */
 /* ------------------------------------------------------------------ */
 /* small helpers                                                       */
 
+/* The static area holds literals and global-store boxes.  That is a
+   property of the PROGRAM and does not grow with the heap, so it gets a
+   fixed size rather than the two-semispaces' worth it used to get.
+   Measured across the benchmark corpus, actual use is 2 KB to 83 KB
+   (nucleic is the heaviest at 82,952 bytes); 2 MiB is both ~25x that
+   and exactly the capacity a program got at startup before, so nothing
+   that starts today can run out sooner.
+   Sizing it as 2S was expensive wherever address space is finite,
+   because the region is static + two semispaces and the usable
+   semispace is what is left over: earley ended a run with 8 GiB of
+   static capacity holding 2,272 bytes.  On wasm32 the allocator cannot
+   serve a block above 1 GiB at all (its top bucket is 2^31 and sbrk
+   takes a SIGNED 32-bit increment, so a 2 GiB request arrives as
+   INT32_MIN and trips an assert, which compiles to `unreachable'), and
+   under the old layout that 1 GiB bought only a 256 MiB semispace.
+   With this it buys ~511 MiB, which is the whole point. [cco] */
+#define RT_STATIC_BYTES ((size_t)2 * 1024 * 1024)
+
+/* the region is one power-of-two block so that hmask stays a single
+   base-plus-mask test: big enough for the static area and both
+   semispaces, and no bigger */
+static size_t rt_region_for(size_t semi_bytes)
+{
+  size_t need = RT_STATIC_BYTES + 2 * semi_bytes, r = 4096;
+  while (r < need) {
+    if (r > (size_t)-1 / 2) {
+      fprintf(stderr, "scmrt: heap region too large\n");
+      exit(1);
+    }
+    r <<= 1;
+  }
+  return r;
+}
+
+/* and the semispace is whatever is left of it, after the static area */
+static size_t rt_semi_for(size_t region_bytes)
+{
+  size_t s = (region_bytes - RT_STATIC_BYTES) / 2;
+  return s & ~(size_t)7;              /* whole words */
+}
+
 static obj_t mk_fixnum(int64_t v)
 {
   return (obj_t)(((uint64_t)v & 0x3fffffffULL) << 2) | (obj_t)3;
@@ -297,7 +338,8 @@ void *init(int32_t init_heap_words, int32_t reg_words)
   if (init_heap_words > 0)
     while (semi_words < (size_t)init_heap_words) semi_words <<= 1;
   rt_semi_bytes   = semi_words * sizeof(obj_t);
-  rt_region_bytes = rt_semi_bytes * 4;  /* static 2S + two semispaces */
+  rt_region_bytes = rt_region_for(rt_semi_bytes);
+  rt_semi_bytes   = rt_semi_for(rt_region_bytes);
   {
     /* The region needs no power-of-two alignment.  Every in-region
        test -- the compiler's inlined notobjptr, ct_is_objptr,
@@ -320,9 +362,9 @@ void *init(int32_t init_heap_words, int32_t reg_words)
   }
   rt_static_lo   = rt_region;
   rt_static_bump = rt_region;
-  rt_static_hi   = rt_region + 2 * rt_semi_bytes;
-  rt_semi[0]     = rt_region + 2 * rt_semi_bytes;
-  rt_semi[1]     = rt_region + 3 * rt_semi_bytes;
+  rt_static_hi   = rt_region + RT_STATIC_BYTES;
+  rt_semi[0]     = rt_region + RT_STATIC_BYTES;
+  rt_semi[1]     = rt_region + RT_STATIC_BYTES + rt_semi_bytes;
   rt_active      = 0;
   heap_limit     = rt_semi[0];
   heap_plus1     = (int64_t)(uintptr_t)(rt_region + sizeof(obj_t));
@@ -532,7 +574,7 @@ static void *collect_pass(obj_t *regs, int32_t live, void *hp,
   ct_to_base      = to_base;
   ct_to_bytes     = to_bytes;
   ct_static_from  = rt_static_lo;
-  ct_static_bytes = 2 * rt_semi_bytes;
+  ct_static_bytes = RT_STATIC_BYTES;
   ct_static_to    = static_to;
   ct_old_plus1    = heap_plus1;
   ct_old_hmask    = hmask;
@@ -633,11 +675,19 @@ static double rt_monotonic(void)
 #endif
 static void rt_gc_stats_report(void)
 {
+  /* static-bytes is here because the static area is sized as a multiple
+     of the semispace while what it actually holds -- literals and global
+     boxes -- is a property of the PROGRAM and does not grow with the
+     heap.  On a 32-bit target that overcommitment is expensive: the
+     region is static + two semispaces, and the usable semispace is
+     whatever is left. [cco] */
   fprintf(stderr,
           "scmrt-gc: collects=%ld grows=%ld forwarded-words=%llu "
-          "semi-words=%llu gc-time=%.3f\n",
+          "semi-words=%llu static-bytes=%llu/%llu gc-time=%.3f\n",
           rt_gc_count, rt_gc_grows, rt_gc_forwarded,
           (unsigned long long)(rt_semi_bytes / sizeof(obj_t)),
+          (unsigned long long)(size_t)(rt_static_bump - rt_static_lo),
+          (unsigned long long)(size_t)(rt_static_hi - rt_static_lo),
           rt_gc_time);
 }
 /* file scope, not function scope: WCPL does not accept a block-level
@@ -709,7 +759,8 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
   if (new_semi_words > (size_t)-1 / (4 * sizeof(obj_t)))
     grow_out_of_memory(new_semi_words);
   new_semi_bytes   = new_semi_words * sizeof(obj_t);
-  new_region_bytes = 4 * new_semi_bytes;
+  new_region_bytes = rt_region_for(new_semi_bytes);
+  new_semi_bytes   = rt_semi_for(new_region_bytes);
   new_raw = (unsigned char *)malloc(new_region_bytes);
   if (!new_raw) grow_out_of_memory(new_semi_words);
   new_region = new_raw;
@@ -722,16 +773,16 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
   memcpy(new_region, rt_static_lo, used_static);
   if (regs
       && (unsigned char *)regs >= rt_static_lo
-      && (unsigned char *)regs < rt_static_lo + 2 * rt_semi_bytes)
+      && (unsigned char *)regs < rt_static_lo + RT_STATIC_BYTES)
     regs = (obj_t *)(void *)(new_region
                              + ((unsigned char *)regs - rt_static_lo));
   old_raw = rt_region_raw;
   new_hp = (unsigned char *)collect_pass(
       regs, live, new_hp, rt_semi[rt_active], rt_semi_bytes,
-      new_region + 2 * new_semi_bytes, new_semi_bytes, new_region, 1);
-  rebase_global_store((obj_t)(uintptr_t)rt_region, 2 * rt_semi_bytes,
+      new_region + RT_STATIC_BYTES, new_semi_bytes, new_region, 1);
+  rebase_global_store((obj_t)(uintptr_t)rt_region, RT_STATIC_BYTES,
                       (obj_t)(uintptr_t)new_region);
-  rebase_runtime_caches((obj_t)(uintptr_t)rt_region, 2 * rt_semi_bytes,
+  rebase_runtime_caches((obj_t)(uintptr_t)rt_region, RT_STATIC_BYTES,
                         (obj_t)(uintptr_t)new_region);
 
   /* adopt the new region (static 2S + semispaces at 2S and 3S) */
@@ -741,9 +792,9 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
   rt_semi_bytes   = new_semi_bytes;
   rt_static_lo    = new_region;
   rt_static_bump  = new_region + used_static;
-  rt_static_hi    = new_region + 2 * new_semi_bytes;
-  rt_semi[0]      = new_region + 2 * new_semi_bytes;
-  rt_semi[1]      = new_region + 3 * new_semi_bytes;
+  rt_static_hi    = new_region + RT_STATIC_BYTES;
+  rt_semi[0]      = new_region + RT_STATIC_BYTES;
+  rt_semi[1]      = new_region + RT_STATIC_BYTES + new_semi_bytes;
   rt_active       = 0;
   heap_limit      = rt_semi[0];
   heap_plus1      = (int64_t)(uintptr_t)(rt_region + sizeof(obj_t));
