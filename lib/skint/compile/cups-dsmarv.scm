@@ -1200,6 +1200,41 @@
                  (reverse found)))
       (set! *ds-lit-blob* (get-output-string port)))))
 
+;; Static-area words a literal will occupy once rds_sexp has
+;; deserialized it.  One entry per shape the deserializer allocates,
+;; and the counts are its own: static_block(hdr, n) takes n+1 words, so
+;; a pair is 3, a vector of n is n+1, and a string or bytevector is the
+;; 2-word native header (its payload is malloc'd, not static).  A
+;; symbol is interned in a malloc'd table and an immediate is no
+;; object at all, so both are free.  A proper list of n allocates n
+;; pairs; an improper one is the 'p' case, one pair at a time. [cco]
+(define (ds-static-words d)
+  (cond
+   [(or (boolean? d) (null? d) (char? d) (number? d) (symbol? d)) 0]
+   [(string? d) 2]
+   [(bytevector? d) 2]
+   [(pair? d)
+    (if (list? d)
+        (+ (* 3 (length d))
+           (apply + (map ds-static-words d)))
+        (+ 3 (ds-static-words (car d)) (ds-static-words (cdr d))))]
+   [(vector? d)
+    (+ 1 (vector-length d)
+       (apply + (map ds-static-words (vector->list d))))]
+   [else 0]))
+
+;; What to ask init for: every literal, plus the runtime's own immortal
+;; objects.  Its fixed ones are small and known -- three standard ports
+;; at 2 words each, the 3-cell port-slot block, the values tag -- but
+;; the command line is one string and one pair per argument, so that
+;; part is a per-argv allowance rather than a count.  The slack also
+;; covers global_loc, whose boxes are 2 words and which the compiled
+;; module reaches only through the name-lookup path. [cco]
+(define (ds-static-words-needed)
+  (+ (apply + (map (lambda (e) (ds-static-words (cadr e))) *ds-lit-inits*))
+     (* 2 (length *ds-globals*))     ; a global_loc box each, if used
+     4096))                          ; ports, values tag, ~800 argv entries
+
 (define (ds-lit-entry d)
   (let loop ([xs *ds-lit-inits*])
     (cond [(null? xs) #f]
@@ -4126,8 +4161,10 @@
          '(param $argc i32) '(param $argv ptr) '(result i32)
          '(local $hp ptr) '(local $r ptr)
          '(local.set $r (ref.data $roots))
-         '(local.set $hp (call $scmrt:init (i32.const 131072)
-                               (i32.const 1024))))
+         (list 'local.set '$hp
+               (list 'call '$scmrt:init '(i32.const 131072)
+                     '(i32.const 1024)
+                     (list 'i32.const (ds-static-words-needed)))))
    ;; argv capture only when the %argv-ref prim was emitted: programs
    ;; that never look at the command line link against runtimes
    ;; without argv support too

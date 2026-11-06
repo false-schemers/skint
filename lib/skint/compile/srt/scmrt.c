@@ -211,14 +211,34 @@ static size_t         rt_roots_init;   /* from init's reg_words */
    INT32_MIN and trips an assert, which compiles to `unreachable'), and
    under the old layout that 1 GiB bought only a 256 MiB semispace.
    With this it buys ~511 MiB, which is the whole point. [cco] */
-#define RT_STATIC_BYTES ((size_t)2 * 1024 * 1024)
+/* RIGHT-SIZED FROM THE MODULE, not a constant.  init's $static_words
+   is what the compiler counted: the blocks its own literals will
+   deserialize into, plus room for the runtime's own few.  A constant
+   cannot be right in either direction -- too small aborts a
+   literal-heavy program with "static area exhausted", too large
+   reserves address space that on wasm32 comes straight out of the
+   heap -- and the compiler is the only party that knows the answer.
+   The floor is for init(0,0,0), which is only the ensure_init path. */
+#define RT_STATIC_FLOOR ((size_t)64 * 1024)
+
+static size_t rt_static_bytes = RT_STATIC_FLOOR;
+
+static size_t rt_static_for(int32_t static_words)
+{
+  size_t b;
+  if (static_words <= 0) return RT_STATIC_FLOOR;
+  b = (size_t)static_words * sizeof(obj_t);
+  /* whole pages, so the semispaces start page-aligned */
+  b = (b + 4095u) & ~(size_t)4095u;
+  return b < RT_STATIC_FLOOR ? RT_STATIC_FLOOR : b;
+}
 
 /* the region is one power-of-two block so that hmask stays a single
    base-plus-mask test: big enough for the static area and both
    semispaces, and no bigger */
 static size_t rt_region_for(size_t semi_bytes)
 {
-  size_t need = RT_STATIC_BYTES + 2 * semi_bytes, r = 4096;
+  size_t need = rt_static_bytes + 2 * semi_bytes, r = 4096;
   while (r < need) {
     if (r > (size_t)-1 / 2) {
       fprintf(stderr, "scmrt: heap region too large\n");
@@ -232,7 +252,7 @@ static size_t rt_region_for(size_t semi_bytes)
 /* and the semispace is whatever is left of it, after the static area */
 static size_t rt_semi_for(size_t region_bytes)
 {
-  size_t s = (region_bytes - RT_STATIC_BYTES) / 2;
+  size_t s = (region_bytes - rt_static_bytes) / 2;
   return s & ~(size_t)7;              /* whole words */
 }
 
@@ -330,13 +350,15 @@ static obj_t native_obj(cxtype_t *t, void *payload)
 /* ------------------------------------------------------------------ */
 /* startup                                                             */
 
-void *init(int32_t init_heap_words, int32_t reg_words)
+void *init(int32_t init_heap_words, int32_t reg_words,
+           int32_t static_words)
 {
   size_t semi_words = 256;
   if (rt_ready)
     return rt_semi[rt_active] + rt_semi_bytes;
   if (init_heap_words > 0)
     while (semi_words < (size_t)init_heap_words) semi_words <<= 1;
+  rt_static_bytes = rt_static_for(static_words);
   rt_semi_bytes   = semi_words * sizeof(obj_t);
   rt_region_bytes = rt_region_for(rt_semi_bytes);
   rt_semi_bytes   = rt_semi_for(rt_region_bytes);
@@ -362,9 +384,9 @@ void *init(int32_t init_heap_words, int32_t reg_words)
   }
   rt_static_lo   = rt_region;
   rt_static_bump = rt_region;
-  rt_static_hi   = rt_region + RT_STATIC_BYTES;
-  rt_semi[0]     = rt_region + RT_STATIC_BYTES;
-  rt_semi[1]     = rt_region + RT_STATIC_BYTES + rt_semi_bytes;
+  rt_static_hi   = rt_region + rt_static_bytes;
+  rt_semi[0]     = rt_region + rt_static_bytes;
+  rt_semi[1]     = rt_region + rt_static_bytes + rt_semi_bytes;
   rt_active      = 0;
   heap_limit     = rt_semi[0];
   heap_plus1     = (int64_t)(uintptr_t)(rt_region + sizeof(obj_t));
@@ -380,7 +402,7 @@ void *init(int32_t init_heap_words, int32_t reg_words)
 
 static void ensure_init(void)
 {
-  if (!rt_ready) (void)init(0, 0);
+  if (!rt_ready) (void)init(0, 0, 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -574,7 +596,7 @@ static void *collect_pass(obj_t *regs, int32_t live, void *hp,
   ct_to_base      = to_base;
   ct_to_bytes     = to_bytes;
   ct_static_from  = rt_static_lo;
-  ct_static_bytes = RT_STATIC_BYTES;
+  ct_static_bytes = rt_static_bytes;
   ct_static_to    = static_to;
   ct_old_plus1    = heap_plus1;
   ct_old_hmask    = hmask;
@@ -773,16 +795,16 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
   memcpy(new_region, rt_static_lo, used_static);
   if (regs
       && (unsigned char *)regs >= rt_static_lo
-      && (unsigned char *)regs < rt_static_lo + RT_STATIC_BYTES)
+      && (unsigned char *)regs < rt_static_lo + rt_static_bytes)
     regs = (obj_t *)(void *)(new_region
                              + ((unsigned char *)regs - rt_static_lo));
   old_raw = rt_region_raw;
   new_hp = (unsigned char *)collect_pass(
       regs, live, new_hp, rt_semi[rt_active], rt_semi_bytes,
-      new_region + RT_STATIC_BYTES, new_semi_bytes, new_region, 1);
-  rebase_global_store((obj_t)(uintptr_t)rt_region, RT_STATIC_BYTES,
+      new_region + rt_static_bytes, new_semi_bytes, new_region, 1);
+  rebase_global_store((obj_t)(uintptr_t)rt_region, rt_static_bytes,
                       (obj_t)(uintptr_t)new_region);
-  rebase_runtime_caches((obj_t)(uintptr_t)rt_region, RT_STATIC_BYTES,
+  rebase_runtime_caches((obj_t)(uintptr_t)rt_region, rt_static_bytes,
                         (obj_t)(uintptr_t)new_region);
 
   /* adopt the new region (static 2S + semispaces at 2S and 3S) */
@@ -792,9 +814,9 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
   rt_semi_bytes   = new_semi_bytes;
   rt_static_lo    = new_region;
   rt_static_bump  = new_region + used_static;
-  rt_static_hi    = new_region + RT_STATIC_BYTES;
-  rt_semi[0]      = new_region + RT_STATIC_BYTES;
-  rt_semi[1]      = new_region + RT_STATIC_BYTES + new_semi_bytes;
+  rt_static_hi    = new_region + rt_static_bytes;
+  rt_semi[0]      = new_region + rt_static_bytes;
+  rt_semi[1]      = new_region + rt_static_bytes + new_semi_bytes;
   rt_active       = 0;
   heap_limit      = rt_semi[0];
   heap_plus1      = (int64_t)(uintptr_t)(rt_region + sizeof(obj_t));

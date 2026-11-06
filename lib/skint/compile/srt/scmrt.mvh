@@ -26,7 +26,15 @@
   ;; startup: allocates the heap region (two semispaces of pow2 words
   ;; plus an immortal static area for literals/global boxes) and
   ;; returns the initial $hp.  $r itself is owned by the caller.
+  ;; $static_words is what the module needs of the immortal area: the
+  ;; compiler counts the blocks its own literals will deserialize into
+  ;; and adds room for the runtime's own few (standard ports, the values
+  ;; tag, the command line).  0 asks for the built-in default.  Sizing it
+  ;; here rather than as a fraction of the heap is what lets a
+  ;; literal-heavy program have more than a fixed constant would allow,
+  ;; and a small one reserve almost nothing. [cco]
   (func $init (param $init_heap_words i32) (param $reg_words i32)
+        (param $static_words i32)
         (result ptr))
 
   ;; GC: copies live objects (roots: $r[0..$live-1], slots registered
