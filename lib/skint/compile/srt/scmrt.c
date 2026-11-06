@@ -18,8 +18,7 @@
  *   - rest-argument list building, cold error paths,
  *   - eqv? / equal?.
  *
- * Memory layout.  One power-of-two-sized, power-of-two-aligned
- * region is divided as
+ * Memory layout.  One power-of-two-sized region is divided as
  *      [ static area (2S words) ][ semispace 0 (S) ][ semispace 1 (S) ]
  * where S = the (pow2-rounded) heap size in words.  $hmask is built
  * over the whole region, so the compiler's inlined notobjptr test
@@ -181,7 +180,7 @@ int64_t  heap_plus1;                   /* region base + 1 word, as i64 */
 int64_t  hmask;                        /* in-heap test mask */
 
 /* heap state */
-static unsigned char *rt_region;       /* pow2-aligned region base */
+static unsigned char *rt_region;       /* region base (8-byte aligned) */
 static unsigned char *rt_region_raw;   /* malloc block holding region */
 static size_t         rt_region_bytes; /* total region size, pow2 */
 static unsigned char *rt_static_lo;
@@ -272,6 +271,10 @@ static obj_t *static_block(obj_t hdr, size_t ncells)
     abort();
   }
   rt_static_bump += (ncells + 1) * sizeof(obj_t);
+  /* cleared as it is handed out: the region is not bulk-zeroed, and
+     the collector scans [static_lo, static_bump) as roots, so no
+     cell may reach it uninitialized [cco] */
+  memset(w, 0, (ncells + 1) * sizeof(obj_t));
   w[0] = hdr;
   return w + 1;
 }
@@ -296,16 +299,25 @@ void *init(int32_t init_heap_words, int32_t reg_words)
   rt_semi_bytes   = semi_words * sizeof(obj_t);
   rt_region_bytes = rt_semi_bytes * 4;  /* static 2S + two semispaces */
   {
-    unsigned char *raw =
-      (unsigned char *)malloc(rt_region_bytes + rt_region_bytes);
-    uintptr_t a;
+    /* The region needs no power-of-two alignment.  Every in-region
+       test -- the compiler's inlined notobjptr, ct_is_objptr,
+       ct_ptr_in -- subtracts the region base first, so hmask has
+       only to bound the offset; the one alignment hmask does demand
+       is 8 bytes, because its bit 0 rejects odd offsets, and malloc
+       provides 16.  Over-allocating in order to align spent a second
+       region's worth of address space, and it was that factor, not
+       the live set, that earley ran out of: a 4 GB semispace asks for
+       a 16 GB region, which this host grants, where the same heap
+       asked for 32 GB before, which it does not.  The region is not
+       bulk-zeroed either: the collector reads the static area only up
+       to rt_static_bump and a semispace only down to $hp, and a grown
+       region's static tail has never been zeroed, so nothing depended
+       on it.  static_block clears what it hands out. [cco] */
+    unsigned char *raw = (unsigned char *)malloc(rt_region_bytes);
     if (!raw) { fprintf(stderr, "scmrt: cannot allocate heap\n"); abort(); }
-    a = ((uintptr_t)raw + (rt_region_bytes - 1))
-        & ~(uintptr_t)(rt_region_bytes - 1);
-    rt_region = (unsigned char *)(void *)a;
+    rt_region = raw;
     rt_region_raw = raw;
   }
-  memset(rt_region, 0, rt_region_bytes);
   rt_static_lo   = rt_region;
   rt_static_bump = rt_region;
   rt_static_hi   = rt_region + 2 * rt_semi_bytes;
@@ -387,8 +399,6 @@ void *deserialize_all(void *lits, void *tab, int32_t n,
 /* Cheney copying collector                                            */
 
 static unsigned char *rt_to_bump;      /* next copy goes below this */
-static obj_t        **rt_scanq;        /* copied objs awaiting scan */
-static size_t         rt_scanq_len, rt_scanq_cap;
 
 /* state of the collection pass in progress (normal or growing) */
 static unsigned char *ct_from_base;    /* from-space being evacuated */
@@ -440,18 +450,6 @@ static unsigned long long rt_gc_forwarded;
 static char **rt_syms;
 static size_t rt_syms_len, rt_syms_cap;
 
-static void scanq_push(obj_t o)
-{
-  if (rt_scanq_len == rt_scanq_cap) {
-    rt_scanq_cap = rt_scanq_cap ? rt_scanq_cap * 2 : 1024;
-    rt_scanq = (obj_t **)realloc(rt_scanq,
-                                 rt_scanq_cap * sizeof(obj_t *));
-    if (!rt_scanq) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
-  }
-  rt_scanq[rt_scanq_len++] = (obj_t *)(uintptr_t)o;
-}
-
-
 static obj_t forward(obj_t o)
 {
   obj_t *cell, *dst;
@@ -489,7 +487,6 @@ static obj_t forward(obj_t o)
   dst = (obj_t *)(void *)rt_to_bump;
   memcpy(dst, cell - 1, words * sizeof(obj_t));
   cell[-1] = (obj_t)(uintptr_t)(dst + 1) | (obj_t)2;
-  scanq_push((obj_t)(uintptr_t)(dst + 1));
   return (obj_t)(uintptr_t)(dst + 1);
 }
 
@@ -554,7 +551,6 @@ static void *collect_pass(obj_t *regs, int32_t live, void *hp,
   }
 
   rt_to_bump   = to_base + to_bytes;
-  rt_scanq_len = 0;
 
   /* roots: the caller's live range, registered slots, static area */
   if (regs)
@@ -579,17 +575,26 @@ static void *collect_pass(obj_t *regs, int32_t live, void *hp,
     }
   }
 
-  /* Cheney scan of the copied objects */
-  for (k = 0; k < rt_scanq_len; k++) {
-    obj_t *cell = rt_scanq[k];
-    obj_t h = cell[-1];
-    size_t n, j;
-    if (!(h & 1)) continue;                       /* native: no scan */
-    n = (size_t)(h >> 3);
-    j = ((h >> 1) & 3) == MTAG_CLOSURE ? 1 : 0;   /* skip code ptr */
-    for (; j < n; j++) {
-      obj_t v = cell[j];
-      cell[j] = forward(v);
+  /* Cheney scan, as Skint's relocate (k.c) does it: a reverse word
+     scan over to-space down to the allocation frontier, which forward
+     keeps pushing lower, and no worklist.  The explicit queue this
+     replaces held one pointer per copied object, which on earley
+     meant some 2.7 GB of side table beside a 1.1 GB live set, grown
+     by doubling realloc on the hot path.  Word granularity is sound
+     because the object encoding is Skint's: every non-pointer a cell
+     can hold is rejected by the same mask the inlined notobjptr test
+     uses -- block headers, fixnums, chars, '() and #t have bit 0 set,
+     #f is 0 so its offset underflows, a flonum has nonzero high 16
+     bits, and a closure's code pointer, a native's cxtype_t header
+     and a native's malloc'd payload all lie outside the region.  So
+     scanning a header or a code pointer is a no-op rather than a case
+     to skip, and to-space itself never holds a forwarding word, since
+     forward writes those into from-space. [cco] */
+  {
+    obj_t *q = (obj_t *)(void *)(to_base + to_bytes);
+    while ((unsigned char *)q > rt_to_bump) {
+      q -= 1;
+      *q = forward(*q);
     }
   }
 
@@ -678,11 +683,9 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
     grow_out_of_memory(new_semi_words);
   new_semi_bytes   = new_semi_words * sizeof(obj_t);
   new_region_bytes = 4 * new_semi_bytes;
-  new_raw = (unsigned char *)malloc(new_region_bytes + new_region_bytes);
+  new_raw = (unsigned char *)malloc(new_region_bytes);
   if (!new_raw) grow_out_of_memory(new_semi_words);
-  new_region = (unsigned char *)(void *)
-    (((uintptr_t)new_raw + (new_region_bytes - 1))
-     & ~(uintptr_t)(new_region_bytes - 1));
+  new_region = new_raw;
 
   /* copy the static area across (same offsets), then relocate the
      live objects from the current semispace into semispace 0 of the
@@ -1866,6 +1869,26 @@ obj_t string_to_number(obj_t o, obj_t ro)
       free(s);
       return res;
     }
+  }
+  /* A leading-dot decimal -- .5, -.5, +.5, .5e2 -- has no digit before
+     the integer scan breaks, so `any` stayed 0 and the strtod fallback
+     below was skipped and the whole token rejected.  Admit the token
+     when it looks like a Scheme decimal: an optional sign (already
+     consumed), an optional dot, then a digit.  Testing the shape here
+     rather than dropping the guard keeps strtod away from the spellings
+     C accepts and Scheme does not, such as inf, nan and infinity. */
+  {
+    const char *t = p;
+    if (*t == '.') t += 1;
+    if (*t >= '0' && *t <= '9') any = 1;
+  }
+  /* C's strtod also reads the hexadecimal form 0x10, which Scheme does
+     not: (string->number "0x10") is #f.  The integer scan stops at the
+     'x' with a digit already seen, so without this the token would reach
+     strtod and come back as 16.0. */
+  {
+    const char *t = p;
+    for (; *t; t += 1) if (*t == 'x' || *t == 'X') { any = 0; break; }
   }
   if (radix == 10 && any) {
     char *end = NULL;

@@ -292,9 +292,17 @@
   (list 'i64.load 'offset (* 8 idx)
         (list 'ptr.add64 '(ptr.null) env-expr)))
 (define (env-walk-expr depth)
-  ;; depth 0 = current frame's envvec, always read through the
-  ;; fp-1 mirror slot (the $env local goes stale at any reserve)
-  (let loop ([d depth] [e (slot-load -1)])
+  ;; depth 0 = the current frame's envvec, read from the $env local.
+  ;;
+  ;; This used to read the fp-1 mirror slot every time, on the grounds
+  ;; that "the $env local goes stale at any reserve".  That had it
+  ;; backwards: ds-reserve emits (env-refresh), which is exactly
+  ;; (local.set $env (slot-load -1)), so a reserve LEAVES $env fresh.
+  ;; The one place the two diverged was the envvec build storing a new
+  ;; envvec to the mirror without updating the local, and that now
+  ;; updates it, so the local is always equal to the slot and is the
+  ;; cheaper of the two to read. [cco]
+  (let loop ([d depth] [e '(local.get $env)])
     (if (= d 0) e (loop (- d 1) (env-cell e 0)))))
 
 ;;; ---------------------------------------------------------------
@@ -497,12 +505,21 @@
      ;; (frame-fill npar rest? bound): give every slot in
      ;; [fp+npar, fp+bound) a valid value, so a collection that scans
      ;; the frame before those slots are first written finds objects
-     ;; rather than whatever the previous incarnation left.  A
-     ;; fixed-arity proc with a small frame gets straight-line stores,
-     ;; because a loop's cursor and branch would be paid on every call
-     ;; however small the frame; a rest-arg proc has no static lower
-     ;; bound and a large frame is worth the loop.  Which of the two it
-     ;; is, is a code-shape decision and so is decided here. [cco]
+     ;; rather than whatever the previous incarnation left.
+     ;;
+     ;; A fixed-arity proc fills with ONE memory.fill.  The dummy is #f
+     ;; rather than '() so that it can: memory.fill replicates a single
+     ;; byte, and #f is the zero word while '() is 13, which no byte
+     ;; repeats into.  Both are valid objects and neither is ever read
+     ;; -- the fill exists for the collector, not for the program -- so
+     ;; the choice is free, and it buys a byte count that is a
+     ;; compile-time constant and no cursor or branch at all.  This is
+     ;; paid on every call, so tak, whose frame is 14 slots past its
+     ;; parameters, spent 30% of its time in the loop this replaces.
+     ;; A rest-arg proc keeps the loop: its lower bound is $nargs, so
+     ;; the count is dynamic and may be negative when nargs exceeds the
+     ;; static bound, which the loop's unsigned compare already
+     ;; handles. [cco]
      (let* ([npar (cadr form)] [rest? (caddr form)] [bound (cadddr form)]
             [cursor
              (list 'local.set '$t7
@@ -511,7 +528,17 @@
                              '(i64.extend_i32_u (local.get $nargs))
                              (i64c npar))))])
        (unless bound (ds-die "frame fill bound was never set" form))
-       (if (or rest? (> (- bound npar) 8))
+       (if (not rest?)
+           ;; nothing to cover when the frame is all parameters
+           (if (<= bound npar)
+               '(%seq)
+               (list 'memory.fill
+                     (list 'ptr.add64 '(local.get $r)
+                           (list 'i64.shl
+                                 (list 'i64.add '(local.get $fp) (i64c npar))
+                                 '(i64.const 3)))
+                     '(i32.const 0)
+                     (list 'i32.const (* 8 (- bound npar)))))
            (cons '%seq
                  (list cursor
                        (list 'block '$ds_fill_done
@@ -528,18 +555,7 @@
                                    (list 'local.set '$t7
                                          (list 'i64.add '(local.get $t7)
                                                '(i64.const 1)))
-                                   '(br $ds_fill_lp)))))
-           ;; Highest slot first.  The stores are independent -- each
-           ;; writes a constant to a distinct slot -- so the order means
-           ;; nothing; it matches what the old line patcher happened to
-           ;; produce, which kept the output comparable while the rest of
-           ;; the rewrite was being checked. [cco]
-           (cons '%seq
-                 (let rng ([k npar] [acc '()])
-                   (if (>= k bound)
-                       acc
-                       (rng (+ k 1)
-                            (cons (slot-store k (i64c 13)) acc)))))))]
+                                   '(br $ds_fill_lp)))))))]
     [(marv)
      ;; (marv x): an instruction still built as a MARV form by the
      ;; generator rather than named by a verb of its own.  The
@@ -874,6 +890,17 @@
 (define *ds-main-proc* #f)
 (define *ds-globals* '())        ; alist global id -> gstore idx
 (define *ds-global-procs* '())   ; alist global id -> proc
+
+;; Globals that some (set! g ...) assigns.  A global's entry in
+;; *ds-global-procs* records the procedure its DEFINITION made, and an
+;; assignment replaces that value at run time, so such a global must not
+;; be direct-called: the call would reach the definition's procedure for
+;; the whole run.  nboyer and sboyer are built exactly that way --
+;; (define (test-boyer . args) #t) and later (set! test-boyer (lambda
+;; (alist term n) ...)) -- so the direct call reached the placeholder:
+;; nboyer answered #t, and sboyer was rejected for calling a
+;; "0-argument" procedure with three arguments. [cco]
+(define *ds-assigned-globals* '())
 (define *ds-need-throw* #f)
 ;; Undefined Skint-auxiliary globals (%map1, %for-each, ... --
 ;; produced when borrowed libraries expand Skint's own map/for-each
@@ -916,6 +943,8 @@
     [quote-exp (obj) #f]
     [var-exp (id) (ds-scan-ref id scope #f)]
     [varassign-exp (id exp)
+     (when (and (global-id? id) (not (memq id *ds-assigned-globals*)))
+       (set! *ds-assigned-globals* (cons id *ds-assigned-globals*)))
      (ds-scan-ref id scope #t)
      (ds-scan-exp exp scope)]
     [varaddress-exp (id)
@@ -1080,7 +1109,16 @@
    [(and (integer? d) (exact? d)
          (<= *ds-fx-least* d *ds-fx-greatest*))
     (display "i" port) (display d port)]
-   [(number? d) (display "j" port) (display (number->string (inexact d)) port)]
+   ;; A flonum serializes as itself.  Anything else numeric -- an exact
+   ;; integer outside the fixnum range, a ratio, a complex -- has no
+   ;; compiled-runtime representation, and (inexact d) used to convert it
+   ;; SILENTLY: the chudnovsky and pi benchmarks compiled and then ran
+   ;; forever on flonums standing in for bignums.  A literal the runtime
+   ;; cannot hold is an error. [cco]
+   [(and (number? d) (inexact? d))
+    (display "j" port) (display (number->string d) port)]
+   [(number? d)
+    (ds-die "this number has no compiled-runtime representation" d)]
    [(string? d)
     (display "s" port) (display (string-length d) port) (display ":" port)
     (for-each (lambda (ch) (rds-char (char->integer ch) port))
@@ -1224,6 +1262,31 @@
 ;;; with one MARV stack operand for binaries -- as in cups-smarv
 ;;; ---------------------------------------------------------------
 
+;; Whether the GENERIC arithmetic operators can allocate.
+;;
+;; In this runtime they cannot, and scmi.mvh says so of its own slow
+;; paths: "none of them allocates (every value is an immediate)".
+;; Their signatures prove it rather than promise it -- add_slow and
+;; friends are (param $a i64) (param $b i64) (result i64), with no $r
+;; and no $hp, so they have no heap to allocate in.  What makes it true
+;; is the NaN-boxed representation in scmn/scmi, where a flonum is the
+;; complement of an f64 bit pattern and so an immediate like a fixnum:
+;; + has nothing to cons.  That is a property of the representation and
+;; not of any backend, so it holds on cc, wasm and rv64g alike.
+;;
+;; Every (+ - * / quotient floor-quotient expt) site used to reserve 2
+;; words regardless, and a reserve is not free: it emits a heap-limit
+;; compare and branch, refreshes $sp, and -- because a reserve is a
+;; point where a collection may occur -- it ends the region within
+;; which a value may be cached in a MARV local rather than reloaded
+;; from its slot.  Arithmetic is frequent, so those regions were short.
+;;
+;; WHEN FULL TOWER SUPPORT ARRIVES this stops holding for the generic
+;; operators, which will cons bignums and ratios.  Set this to #t and
+;; they reserve again.  The fl and fx operators never allocate even
+;; then, which is why they are not in the list the flag guards. [cco]
+(define *ds-generic-arith-allocates* #f)
+
 (define *ds-prim-bin*
   '((+ . add) (- . sub) (* . mul) (/ . div)
     ;; fx* on fixnum operands behave exactly like the generic ops
@@ -1335,8 +1398,33 @@
 (define *ds-cost* 0)            ; ops accumulated in current unit
 
 (define (ds-e line)
-  (set! *ds-cur-lines* (cons line *ds-cur-lines*))
-  (set! *ds-cost* (+ *ds-cost* 1)))
+  ;; One peephole, applied as instructions are appended: a (load k)
+  ;; whose IMMEDIATELY preceding instruction is (store k (get ac)) is
+  ;; dropped, because $ac still holds exactly what that store put in
+  ;; slot k.  The store stays -- the slot has to hold the value for
+  ;; later reads and for the collector -- only the read-back goes.
+  ;;
+  ;; "Immediately preceding" is what makes this safe rather than a
+  ;; dataflow question: nothing can have run in between, so no branch,
+  ;; no transfer and no collection can have invalidated $ac.  It also
+  ;; cannot reach across a ds-capture, which rebinds *ds-cur-lines* to
+  ;; '() -- a captured arm's first instruction simply finds no
+  ;; predecessor and the pattern does not fire.
+  ;;
+  ;; The pair arises wherever a staged value is used at once, and
+  ;; ds-prim-args now makes it common: with the own-slot
+  ;; pass-through, a second operand that is already a variable emits
+  ;; nothing, so the binary-prim path stores operand one and reads it
+  ;; straight back. [cco]
+  (if (and (pair? line)
+           (eq? (car line) 'load)
+           (pair? *ds-cur-lines*)
+           (equal? (car *ds-cur-lines*)
+                   (list 'store (cadr line) (list 'get 'ac))))
+      #f
+      (begin
+        (set! *ds-cur-lines* (cons line *ds-cur-lines*))
+        (set! *ds-cost* (+ *ds-cost* 1)))))
 
 ;; Generate into a fresh instruction list and answer it, so an arm
 ;; can be an operand of the form that owns it.  Safe only where the
@@ -1871,13 +1959,23 @@
   (cond [(var-exp? rator)
          (let ([id (var-exp->id rator)])
            (and (global-id? id)
+           (not (memq id *ds-assigned-globals*))
                 (cond [(assq id *ds-global-procs*) => cdr] [else #f])))]
         [else #f]))
 
-(define (ds-check-arity p nargs)
-  (let ([np (length (proc-params p))])
-    (cond [(proc-rest p) (when (< nargs np) (ds-die "arity" (proc-name p)))]
-          [(not (= nargs np)) (ds-die "arity" (proc-name p) nargs)])))
+;; A direct call to a statically known global: its argument count has to
+;; match the definition.  The report names the GLOBAL rather than the
+;; generated proc and gives both counts, because "arity p158 3" said
+;; neither which procedure of the program was meant nor what it wanted.
+;; [cco]
+(define (ds-check-arity p nargs gid)
+  (let ([np (length (proc-params p))]
+        [who (if gid (id->uname gid) (proc-name p))])
+    (cond [(proc-rest p)
+           (when (< nargs np)
+             (ds-die "call has too few arguments" who nargs 'needs-at-least np))]
+          [(not (= nargs np))
+           (ds-die "call has the wrong number of arguments" who nargs 'needs np)])))
 
 ;; stage arguments to fresh slots (evaluated left to right)
 (define (ds-stage-args rands scope)
@@ -1952,7 +2050,9 @@
    [(ilambda-exp? rator) (ds-die "operator ilambda")]
    [else
     (let ([target (ds-known-target rator scope)] [n (length rands)])
-      (when target (ds-check-arity target n))
+      (when target
+        (ds-check-arity target n
+          (and (var-exp? rator) (var-exp->id rator))))
       (cond
        [tail?
         (let ([ts (ds-stage-args rands scope)])
@@ -2010,12 +2110,88 @@
 ;;; ---------------------------------------------------------------
 
 
+;; The slot a variable reference ALREADY occupies, or #f.  Only slot
+;; kind qualifies: boxslot holds a box rather than the value, and cell
+;; kinds live in an envvec.  Depth is not consulted because every
+;; slot-kind binding is in the current physical frame -- ds-var-expr
+;; ignores it for exactly that reason. [cco]
+(define (ds-rand-own-slot r scope)
+  (and (var-exp? r)
+       (let ([id (var-exp->id r)])
+         (and (not (global-id? id))
+              (let ([lk (ds-scope-lookup scope id)])
+                (and lk
+                     (eq? (bnd-kind (car lk)) 'slot)
+                     (bnd-idx (car lk))))))))
+
+;; Prim operands as DESCRIPTORS rather than bare slot indices, so that
+;; an operand needing no slot at all can say so.  A descriptor is
+;; whatever ds-opnd accepts: (slot k), or (marv form) for an immediate.
+;;
+;; The win over ds-prim-args is the immediate case.  A constant operand
+;; used to be staged like any other -- set $ac to the constant, store
+;; it to a fresh slot, read it back -- which is two instructions and a
+;; slot for a value the instruction can simply carry.  (- x 1) showed
+;; it plainly: tak's inner call set $ac to 7, stored it to slot 11 and
+;; loaded slot 11 straight back.  Constants as prim operands are
+;; everywhere -- (+ i 1), (vector-ref v 0), comparisons against 0 --
+;; and takl's module staged 194 of them.  Each slot recovered also
+;; lowers maxslot, and so the per-call frame fill.
+;;
+;; Flonums go through (marv ...) rather than (imm ...) because
+;; ds-immediate-expr renders them as $scmn:flonum_obj of an f64.const,
+;; not as a plain integer; (marv ...) carries any of them. [cco]
+(define (ds-prim-opnds rands scope)
+  (map (lambda (r)
+         (cond
+          [(and (quote-exp? r) (datum-immediate? (quote-exp->obj r)))
+           (list 'marv (ds-immediate-expr (quote-exp->obj r)))]
+          [(ds-rand-own-slot r scope)
+           => (lambda (k) (list 'slot k))]
+          [else
+           (let ([s (ds-alloc-slot!)])
+             (ds-gen-value r scope)
+             (ds-e (list 'store s (list 'get 'ac)))
+             (list 'slot s))]))
+       rands))
+
+;; put a descriptor's value in $ac.  A slot keeps the (load k)
+;; spelling, because that is the form the ds-e peephole recognises.
+(define (ds-load-opnd d)
+  (if (eq? (car d) 'slot)
+      (ds-e (list 'load (cadr d)))
+      (ds-e (list 'set "$ac" d))))
+
 (define (ds-prim-args rands scope)
-  ;; evaluate all args to slots, return slot list
-  (map (lambda (r) (let ([s (ds-alloc-slot!)])
-                     (ds-gen-value r scope)
-                     (ds-e (list 'store s (list 'get 'ac)))
-                     s))
+  ;; Evaluate all args to slots and return the slot list -- except that
+  ;; an argument already sitting in a slot of its own is passed through
+  ;; by that slot instead of being copied into a fresh one.
+  ;;
+  ;; The copy this removes was pure waste: (< y x) staged two
+  ;; parameters that were already in slots 0 and 1, so tak's entry unit
+  ;; stored each to a new slot and loaded it straight back.  About 1200
+  ;; store/reload round-trips per module were this, some 5% of every
+  ;; line emitted, and each fresh slot also raised maxslot and so the
+  ;; frame fill and $sp with it.
+  ;;
+  ;; Three things make the pass-through safe, and all three are checked
+  ;; rather than assumed.  Slot kind means UNASSIGNED -- an assigned
+  ;; local is boxslot -- so no other argument's evaluation can change
+  ;; the value between here and the use, which is what the old snapshot
+  ;; into a fresh slot was protecting.  No consumer writes into a
+  ;; staged slot; they only load and push, so the variable cannot be
+  ;; clobbered through its alias.  And ds-slide-args!, which does need
+  ;; a consecutive run, is only ever given ds-stage-args' slots, never
+  ;; these.  ds-operand-expr states the same idea for an operand
+  ;; EXPRESSION, but it is dead code and these 34 call sites want a
+  ;; slot index, so this is that idea where the callers can take
+  ;; it. [cco]
+  (map (lambda (r)
+         (or (ds-rand-own-slot r scope)
+             (let ([s (ds-alloc-slot!)])
+               (ds-gen-value r scope)
+               (ds-e (list 'store s (list 'get 'ac)))
+               s)))
        rands))
 
 (define (ds-gen-primapp prim rands scope)
@@ -2571,9 +2747,9 @@
                            [else "fxmulc"])))]))]
      [(assq name *ds-prim-bin*)
       => (lambda (pr)
-           (let ([ss (ds-prim-args rands scope)])
-             (when (memq name '(+ - * / quotient floor-quotient expt
-                                fl+ fl- fl* fl/))
+           (let ([ss (ds-prim-opnds rands scope)])
+             (when (and *ds-generic-arith-allocates*
+                        (memq name '(+ - * / quotient floor-quotient expt)))
                (ds-reserve 2))
              (when (and (memq name '(< <= > >= = eq? eqv? equal?
                                      fx=? fx<? fx<=? fx>? fx>=? fx!=?
@@ -2584,8 +2760,8 @@
                (cond [(< (length ss) 2) (ds-e (list 'const 'ac 1))]
                      [else
                       (let ([sr (ds-alloc-slot!)])
-                        (ds-e (list 'load (car ss)))
-                        (ds-e (list 'push (list 'slot (cadr ss))))
+                        (ds-load-opnd (car ss))
+                        (ds-e (list 'push (cadr ss)))
                         (ds-e (list 'rt (cdr pr)))
                         (ds-e (list 'store sr (list 'get 'ac)))
                         (let loop ([prev (cadr ss)] [rest (cddr ss)])
@@ -2599,8 +2775,8 @@
                                          '(i64.const 0))
                                    (ds-capture
                                     (lambda ()
-                                      (ds-e (list 'load prev))
-                                      (ds-e (list 'push (list 'slot (car rest))))
+                                      (ds-load-opnd prev)
+                                      (ds-e (list 'push (car rest)))
                                       (ds-e (list 'rt (cdr pr)))
                                       (ds-e (list 'store sr (list 'get 'ac)))))))
                             (loop (car rest) (cdr rest))))
@@ -2615,11 +2791,11 @@
                       ;; compute 1 (resp. 1.0) divided by the operand
                       (ds-e (list 'const 'ac 7))
                       (when (eq? name 'fl/) (ds-e (list 'rt 'itoj)))
-                      (ds-e (list 'push (list 'slot (car ss))))
+                      (ds-e (list 'push (car ss)))
                       (ds-e (list 'rt (cdr pr)))]
                      [(and (memq name '(- fx- fl-)) (= (length ss) 1))
                       ;; one-argument - fx- fl- are negations
-                      (ds-e (list 'load (car ss)))
+                      (ds-load-opnd (car ss))
                       (ds-e (list 'rt (case name
                                       [(-) "gneg"] [(fx-) "ineg"]
                                       [else "jneg"])))]
@@ -2642,7 +2818,7 @@
                            (ds-e (list 'set "$ac" '(rep flonum_obj (f64.const 1.0))))]
                           [else (ds-die "arity" name 0)]))
                       (unless (null? ss)
-                        (ds-e (list 'load (car ss)))
+                        (ds-load-opnd (car ss))
                         (when (and (eq? name 'immediate-hash) (= (length ss) 1))
                           ;; Skint's hshim bound is optional; supply boxed 0,
                           ;; which $scmi:immhash reads as "default bound"
@@ -2652,7 +2828,7 @@
                                                 (= (length ss) 1))
                                            '() (cdr ss))])
                           (unless (null? ss)
-                            (ds-e (list 'push (list 'slot (car ss))))
+                            (ds-e (list 'push (car ss)))
                             (ds-e (list 'rt (cdr pr)))
                             (when (pair? (cdr ss))
                               (let ([s (ds-alloc-slot!)])
@@ -2788,23 +2964,52 @@
         (do ([j 1 (+ j 1)]) ((> j nc))
           (ds-e (list 'cell-set (list 'get te) j '(imm 13))))
         (ds-e (list 'store -1 (list 'get te)))
-        ;; params into cells / boxes (reload te: boxing may collect)
-        (for-each
-         (lambda (id j)
-           (let ([b (frame-find fr id)])
-             (case (bnd-kind b)
-               [(cell)
-                (ds-e (list 'load-to te -1))
-                (ds-e (list 'cell-set (list 'get te) (bnd-idx b)
-                            (list 'slot j)))]
-               [(boxcell)
-                (ds-e (list 'load j))
-                (let ([tb (ds-make-box!)])
-                  (ds-e (list 'load-to te -1))
+        ;; Keep $env a true mirror of slot -1.  This is the only place
+        ;; the two could diverge: the mirror gets a NEW envvec here,
+        ;; while $env still holds the incoming one.  Everywhere else
+        ;; they already agree -- the other write of slot -1 stores $env
+        ;; itself, and ds-reserve emits (env-refresh) right after every
+        ;; reserve, so a collection cannot separate them either.  With
+        ;; this one instruction per procedure entry the invariant is
+        ;; total, which is what lets env-walk-expr read the local
+        ;; instead of the slot: slot -1 was the most reloaded slot in
+        ;; the output by a wide margin, 360 of 938 removable repeated
+        ;; loads in takl. [cco]
+        (ds-e (list 'set "$env" (list 'get te)))
+        ;; Params into cells / boxes.  te holds the envvec, and the
+        ;; mirror slot at -1 is the copy a collection updates, so te
+        ;; has to be reloaded from it after anything that can collect.
+        ;; Only the boxcell arm can: ds-make-box! allocates.  A cell
+        ;; arm just copies a frame slot into an envvec cell, and
+        ;; cell-set lowers to $scmn:block_set, a bare i64.store with
+        ;; no barrier -- so a run of cell params needs ONE reload
+        ;; between them, not one apiece.  Reloading every time was the
+        ;; single commonest redundant load in the output: takl's
+        ;; $ds$p25 fetched slot -1 seven times in one collection-free
+        ;; region, three of those as whole dead instructions that
+        ;; reloaded a temp with the value it already held. [cco]
+        (let ([stale #t])
+          (for-each
+           (lambda (id j)
+             (let ([b (frame-find fr id)])
+               (case (bnd-kind b)
+                 [(cell)
+                  (when stale
+                    (ds-e (list 'load-to te -1))
+                    (set! stale #f))
                   (ds-e (list 'cell-set (list 'get te) (bnd-idx b)
-                              (list 'get tb))))]
-               [else #f])))
-         params (ds-iota npar))))
+                              (list 'slot j)))]
+                 [(boxcell)
+                  (ds-e (list 'load j))
+                  (let ([tb (ds-make-box!)])
+                    ;; the box allocation above may have moved the
+                    ;; envvec, so this reload is the load-bearing one
+                    (ds-e (list 'load-to te -1))
+                    (set! stale #f)
+                    (ds-e (list 'cell-set (list 'get te) (bnd-idx b)
+                                (list 'get tb))))]
+                 [else #f])))
+           params (ds-iota npar)))))
     ;; boxslot params: replace slot contents with a box
     (for-each
      (lambda (id j)
@@ -3733,6 +3938,7 @@
   (set! *ds-node-procs* '())
   (set! *ds-globals* '())
   (set! *ds-global-procs* '())
+  (set! *ds-assigned-globals* '())
   (set! *ds-need-throw* #f)
   (set! *ds-need-atl* #f)
   (set! *ds-need-argv* #f)
@@ -4052,6 +4258,7 @@
   (set! *ds-main-proc* #f)
   (set! *ds-globals* '())
   (set! *ds-global-procs* '())
+  (set! *ds-assigned-globals* '())
   (set! *ds-need-throw* #f)
   (set! *ds-proc-seq* 0)
   (set! *ds-lit-inits* '())

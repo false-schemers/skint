@@ -45,7 +45,21 @@
    fxbit-field
    fxbit-field-rotate
    fxbit-field-reverse)
-  (import (skint))
+  ;; Scheme comes from the shadow (scheme base), as it does for every other
+  ;; clib SRFI; only the fixnum builtins come from (skint), and they are named
+  ;; one by one.  Importing (skint) whole -- which is what Skint's own copy of
+  ;; this library does, and what this file used to do -- hands a compiled
+  ;; program the interpreter's entire surface, including names whose residual
+  ;; definitions are Skint's rather than clib's.  The builtins stay builtins so
+  ;; that the compiler keeps seeing prim applications.  [cco]
+  (import (scheme base)
+          (only (skint)
+            ;; re-exported unchanged, as this library's own interface
+            fixnum? fx=? fx<? fx>? fx<=? fx>=? fxzero? fxpositive? fxnegative?
+            fxodd? fxeven? fxmax fxmin fx+ fx- fxneg fx* fxquotient fxremainder
+            fxabs fxnot fxand fxior fxxor fxbit-count fxlength
+            ;; used only by the definitions below
+            fxsll fxsra fxexpt fxmodulo %fxsqrt fxaddc fxsubc fxmulc set&))
 
 (begin
 
@@ -127,7 +141,7 @@
       (fxior (fxsll (fxior (fxand mask (fxsll zn count)) (fxsra zn (fx- width count))) start)
              (fxand (fxnot (fxsll mask start)) n)))))
 
-(define (bit-reverse k n) internal;
+(define (bit-reverse k n) ; internal
   (do ([m (if (fxnegative? n) (fxnot n) n) (fxsra m 1)]
        [k (fx- k 1) (fx- k 1)]
        [rvs 0 (fxior (fxsll rvs 1) (fxand 1 m))])
@@ -139,4 +153,4 @@
       (fxior (fxsll (bit-reverse width zn) start)
              (fxand (fxnot (fxsll mask start)) n)))))
  
-))
+))
