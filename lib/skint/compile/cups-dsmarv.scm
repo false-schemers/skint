@@ -1876,7 +1876,13 @@
     (let ([lp (ds-name "$ds_cap" *ds-cap-seq* "_lp")])
       ;; snapshot vec := [fp sp stack...]; live sp first
       (ds-e (list 'sp-set *ds-slot*))
-      (let ([words '(i32.wrap_i64 (i64.add (local.get $sp) (i32.const 3)))])
+      ;; (i64.const 3), not (i32.const 3): the addend of an i64.add must
+      ;; be i64, as the (i64.const 2) three lines down already has it.
+      ;; Only the wasm target checks, and this is the continuation
+      ;; snapshot, so it was the one remaining invalid module shape --
+      ;; ctak, fibc, maze, puzzle, quicksort and read0 all failed here
+      ;; and nowhere else. [cco]
+      (let ([words '(i32.wrap_i64 (i64.add (local.get $sp) (i64.const 3)))])
         (ds-reserve-expr words (list 'i32.shl words '(i32.const 3))))
       (ds-e (list 'alloc "$ac" "vector"
                   '(marv (i32.wrap_i64 (i64.add (local.get $sp)
