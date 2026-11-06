@@ -168,14 +168,14 @@ obj_t ac_scratch[1];
 /* static message fragment for $scmrt:arg_error, declared as
    (data $scmi:msg_not_pair ...) in scmi.mvh; storage lives here
    in the companion C file, like ac_scratch above */
-const unsigned char msg_not_pair[] = "a pair";
-const unsigned char msg_not_proc[] = "a procedure";
-const unsigned char msg_not_nonzero[] = "a nonzero divisor";
-const unsigned char msg_not_number[] = "a number";
-const unsigned char msg_not_string[] = "a string";
-const unsigned char msg_not_vector[] = "a vector";
-const unsigned char msg_not_bytevector[] = "a bytevector";
-const unsigned char msg_not_index[] = "an index in range";
+const char msg_not_pair[] = "a pair";
+const char msg_not_proc[] = "a procedure";
+const char msg_not_nonzero[] = "a nonzero divisor";
+const char msg_not_number[] = "a number";
+const char msg_not_string[] = "a string";
+const char msg_not_vector[] = "a vector";
+const char msg_not_bytevector[] = "a bytevector";
+const char msg_not_index[] = "an index in range";
 
 #if !defined(__WCPL__)
 /* $scmrt services (see above; renamed by the #define block) */
@@ -274,7 +274,7 @@ static double flo_val(obj_t o)
 static double num_f64(obj_t o)
 {
   if (is_fixnum(o)) return (double)fx_val(o);
-  if (!is_flonum(o)) arg_error(o, (const char *)msg_not_number);
+  if (!is_flonum(o)) arg_error(o, msg_not_number);
   return flo_val(o);
 }
 

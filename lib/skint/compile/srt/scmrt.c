@@ -610,6 +610,27 @@ static void *collect_pass(obj_t *regs, int32_t live, void *hp,
    collection/growth counts and words copied are reported on stderr
    at exit.  Used to compare GC behaviour against Skint's cxm_hgc. */
 static double rt_gc_time;
+
+/* Seconds on a monotonic clock, or 0 where there is no such clock.
+   WCPL's time.h has neither struct timespec nor clock_gettime, so the
+   whole platform dependency lives here rather than at each of the
+   three timing sites in collect: nesting one test around one function
+   is what WCPL's preprocessor subset allows, and it keeps the callers
+   free of conditionals.  The gc-time figure in the SCMRT_GC_STATS
+   report is simply 0 on the wasm target. [cco] */
+#ifndef __WCPL__
+static double rt_monotonic(void)
+{
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
+}
+#else
+static double rt_monotonic(void)
+{
+  return 0.0;
+}
+#endif
 static void rt_gc_stats_report(void)
 {
   fprintf(stderr,
@@ -619,23 +640,31 @@ static void rt_gc_stats_report(void)
           (unsigned long long)(rt_semi_bytes / sizeof(obj_t)),
           rt_gc_time);
 }
+/* file scope, not function scope: WCPL does not accept a block-level
+   static, and this runtime is compiled by it for the wasm target.  The
+   wasm build had never been attempted on this file, so the violation
+   sat here from its first commit. [cco] */
+static int rt_gc_stats_armed;
+
 static void rt_gc_stats_arm(void)
 {
-  static int armed;
   const char *e;
-  if (armed) return;
-  armed = 1;
+  if (rt_gc_stats_armed) return;
+  rt_gc_stats_armed = 1;
   e = getenv("SCMRT_GC_STATS");
-  if (e && e[0] == '1') atexit(rt_gc_stats_report);
+  /* &f, not f: WCPL does not apply the function-to-pointer decay in
+     argument position, which is why init installs its free handlers as
+     &free too [cco] */
+  if (e && e[0] == '1') atexit(&rt_gc_stats_report);
 }
 
 void *collect(void *r, int32_t live, void *hp, int32_t needs)
 {
-  struct timespec gc_ts0, gc_ts1;
+  double gc_t0;
   obj_t *regs = (obj_t *)(void *)r;
   rt_gc_stats_arm();
   rt_gc_count++;
-  clock_gettime(CLOCK_MONOTONIC, &gc_ts0);
+  gc_t0 = rt_monotonic();
   if (getenv("SCMRT_GC_STATS") && rt_gc_count <= 20)
     fprintf(stderr,
             "scmrt-gc: collect #%ld live=%d needs=%d used-words=%lld\n",
@@ -666,9 +695,7 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
   if (want > (size_t)-1 - 2 * live_words) grow_out_of_memory(want);
   want += 2 * live_words;
   if (semi_words >= want) {
-    clock_gettime(CLOCK_MONOTONIC, &gc_ts1);
-    rt_gc_time += (double)(gc_ts1.tv_sec - gc_ts0.tv_sec)
-                + 1e-9 * (double)(gc_ts1.tv_nsec - gc_ts0.tv_nsec);
+    rt_gc_time += rt_monotonic() - gc_t0;
     return new_hp;
   }
 
@@ -723,17 +750,17 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
   hmask           = (int64_t)(0xffff000000000001ULL
                                | ~(uint64_t)(rt_region_bytes - 1));
   free(old_raw);
-  clock_gettime(CLOCK_MONOTONIC, &gc_ts1);
-  rt_gc_time += (double)(gc_ts1.tv_sec - gc_ts0.tv_sec)
-              + 1e-9 * (double)(gc_ts1.tv_nsec - gc_ts0.tv_nsec);
+  rt_gc_time += rt_monotonic() - gc_t0;
   return new_hp;
 }
 
 /* ------------------------------------------------------------------ */
 /* symbols and the global store                                        */
 
-static char **rt_syms;
-static size_t rt_syms_len, rt_syms_cap;
+/* rt_syms, rt_syms_len and rt_syms_cap are defined once, up with the
+   collector that reads them: C merges a tentative definition with a
+   later one, but WCPL rejects the pair as "symbol already defined",
+   and this file is compiled by it for the wasm target. [cco] */
 
 static obj_t intern_bytes(const char *s, size_t n)
 {
@@ -1169,6 +1196,10 @@ static int eq_seen(obj_t a, obj_t b)
     if (eq_tab[i].a == a && eq_tab[i].b == b) return 1;
     i = (i + 1) & (eq_cap - 1);
   }
+  /* unreachable: the loop above only exits by returning.  WCPL asks a
+     non-void function to end in an explicit return and does not reason
+     about for(;;), so this is for it. [cco] */
+  return 0;
 }
 
 static int rt_equal_rec(obj_t a, obj_t b, int depth)
@@ -1917,9 +1948,37 @@ static portpay_t *new_portpay(int32_t kind)
   return p;
 }
 
-static obj_t rt_pin = 0;
-static obj_t rt_pout = 0;
-static obj_t rt_perr = 0;
+/* The three standard-port slots live in a 3-cell block in the STATIC
+   area rather than in C variables, and rt_ports holds that block.
+   The collector already scans [static_lo, static_bump) word by word as
+   a root set, so a replacement port -- which may be a heap object, see
+   the setters below -- is forwarded without anything being registered.
+   That is the same arrangement rt_command_line and rt_values_tag use:
+   an obj_t in a C static whose VALUE is rebased when the region grows,
+   and whose address is never taken.
+   Not taking the address is what this is for.  register_root wants the
+   slot's address, and the only C type a MARV `ptr` parameter has is
+   `void *`, which WCPL cannot pass anything to: `&scalar` is "cannot
+   take address of expression" (a file-scope scalar becomes a wasm
+   global, which has no address), an array decays to "unexpected type",
+   and a cast is an "impossible cast" -- while a TYPED pointer
+   parameter takes an array fine.  So the C-side register_root calls
+   could not be expressed at all on the wasm target, and rooting these
+   through the static area removes the need for them. [cco] */
+static obj_t rt_ports;
+
+#define RT_PORT_IN  0
+#define RT_PORT_OUT 1
+#define RT_PORT_ERR 2
+
+static obj_t *port_slots(void)
+{
+  if (!rt_ports) {
+    obj_t *cells = static_block(SCM_HDR(3, MTAG_PACKED), 3);
+    rt_ports = (obj_t)(uintptr_t)cells;
+  }
+  return (obj_t *)(uintptr_t)rt_ports;
+}
 
 static obj_t mk_std_port(FILE *fp, int32_t kind)
 {
@@ -1932,42 +1991,34 @@ static obj_t mk_std_port(FILE *fp, int32_t kind)
 
 obj_t current_input_port(void)
 {
-  if (!rt_pin) rt_pin = mk_std_port(stdin, PORT_FIN);
-  return rt_pin;
+  obj_t *s = port_slots();
+  if (!s[RT_PORT_IN]) s[RT_PORT_IN] = mk_std_port(stdin, PORT_FIN);
+  return s[RT_PORT_IN];
 }
 
 obj_t current_output_port(void)
 {
-  if (!rt_pout) rt_pout = mk_std_port(stdout, PORT_FOUT);
-  return rt_pout;
+  obj_t *s = port_slots();
+  if (!s[RT_PORT_OUT]) s[RT_PORT_OUT] = mk_std_port(stdout, PORT_FOUT);
+  return s[RT_PORT_OUT];
 }
 
 obj_t current_error_port(void)
 {
-  if (!rt_perr) rt_perr = mk_std_port(stderr, PORT_FOUT);
-  return rt_perr;
+  obj_t *s = port_slots();
+  if (!s[RT_PORT_ERR]) s[RT_PORT_ERR] = mk_std_port(stderr, PORT_FOUT);
+  return s[RT_PORT_ERR];
 }
 
 /* The standard ports can be replaced from Scheme (the shadow
    libraries' with-input-from-port / with-output-to-port and
-   friends).  A replacement may be a heap object, so once any
-   setter runs, all three slots are registered as roots and the
-   collector forwards them like any other root. */
-void *register_root(void *slot_addr);
-static int rt_ports_rooted;
-static void root_ports(void)
-{
-  if (!rt_ports_rooted) {
-    rt_ports_rooted = 1;
-    (void)register_root(&rt_pin);
-    (void)register_root(&rt_pout);
-    (void)register_root(&rt_perr);
-  }
-}
-
-void set_current_input_port(obj_t p)  { root_ports(); rt_pin = p; }
-void set_current_output_port(obj_t p) { root_ports(); rt_pout = p; }
-void set_current_error_port(obj_t p)  { root_ports(); rt_perr = p; }
+   friends).  A replacement may be a heap object, and it is rooted by
+   sitting in the static-area block that port_slots hands out, which
+   the collector scans as part of its static root set -- so there is
+   nothing to register here. */
+void set_current_input_port(obj_t p)  { port_slots()[RT_PORT_IN] = p; }
+void set_current_output_port(obj_t p) { port_slots()[RT_PORT_OUT] = p; }
+void set_current_error_port(obj_t p)  { port_slots()[RT_PORT_ERR] = p; }
 
 static int32_t port_kind_p(obj_t o, int32_t a, int32_t b)
 {
@@ -2106,6 +2157,10 @@ int32_t port_flags(obj_t o)
     case PORT_BOUT: return 2 | 4;
     default:        return 0;
   }
+  /* unreachable: every case returns, default included.  As in eq_seen,
+     WCPL wants the last statement of a non-void function to BE a
+     return and does not look inside the switch. [cco] */
+  return 0;
 }
 
 void *make_input_bytevector_port(obj_t o)
@@ -2352,7 +2407,12 @@ obj_t command_line(void)
   ensure_init();
   if (rt_command_line_ready) return rt_command_line;
   for (i = rt_argc - 1; i >= 0; i--) {
-    const char *s = rt_argv && rt_argv[i] ? rt_argv[i] : "";
+    /* the comparisons are explicit because WCPL requires the operands
+       of && to have compatible types, and rt_argv is char** while
+       rt_argv[i] is char*: "incompatible types of logical operator
+       branches".  Written out, both operands are int. [cco] */
+    const char *s =
+      (rt_argv != NULL && rt_argv[i] != NULL) ? rt_argv[i] : "";
     size_t n = strlen(s);
     int32_t *tmp = (int32_t *)malloc((n + 1) * sizeof(int32_t));
     strpay_t *pay;
@@ -2405,9 +2465,9 @@ static void rebase_runtime_caches(obj_t old_base, size_t old_bytes,
                                   obj_t new_base)
 {
   obj_t delta = new_base - old_base;
-  if (rt_pin && rt_pin - old_base < (obj_t)old_bytes) rt_pin += delta;
-  if (rt_pout && rt_pout - old_base < (obj_t)old_bytes) rt_pout += delta;
-  if (rt_perr && rt_perr - old_base < (obj_t)old_bytes) rt_perr += delta;
+  /* rt_ports points at the 3-cell block; the CELLS are rebased by the
+     static-area scan, this rebases the pointer to the block */
+  if (rt_ports && rt_ports - old_base < (obj_t)old_bytes) rt_ports += delta;
   if (rt_command_line - old_base < (obj_t)old_bytes)
     rt_command_line += delta;
   if (rt_values_tag && rt_values_tag - old_base < (obj_t)old_bytes)

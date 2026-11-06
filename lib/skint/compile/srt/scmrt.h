@@ -24,6 +24,12 @@ extern void *open_input_file(uint64_t o);
 extern void *open_output_file(uint64_t o);
 extern void *try_open_input_file(uint64_t o);
 extern void *try_open_output_file(uint64_t o);
+/* scmi.c declares this one for itself in its native block but the
+   header had never carried it, so under WCPL -- where the header is
+   the only source of these declarations -- it was an undefined
+   identifier.  The wasm path had never been built, which is why the
+   two lists had drifted apart by exactly this entry. [cco] */
+extern void *arg_error(uint64_t bad, const char *what);
 extern void *make_input_string_port(uint64_t o);
 extern void *make_output_string_port(void);
 extern void *get_output_string_payload(uint64_t o);

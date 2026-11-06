@@ -563,8 +563,13 @@
      ;; the honest measure of what the IL does not yet name. [cco]
      (ds-marv-payload (cadr form))]
     [(arity-error)
+     ;; (ptr.null), not (i64.const 0): arity_error's first parameter is
+     ;; declared `ptr`, which is i32 on the wasm target, so an i64 zero
+     ;; is a type error there.  The C and rv64g targets never noticed,
+     ;; because both lower a call argument without checking its width.
+     ;; [cco]
      (list 'drop
-           (list 'call '$scmrt:arity_error '(i64.const 0)
+           (list 'call '$scmrt:arity_error '(ptr.null)
                  '(local.get $nargs)
                  (list 'i32.const (cadr form))))]
     [(halt)
@@ -580,7 +585,7 @@
      ;; the false object, and MARV's (then ...) answers that question.
      ;; Nothing in an arm may fork the unit; ds-gen-if only chooses
      ;; this shape where no arm contains a call. [cco]
-     (list 'if '(i32.eq (local.get $ac) (i64.const 0))
+     (list 'if '(i64.eq (local.get $ac) (i64.const 0))
            (cons 'then (ds-il-marv (cadr form)))
            (cons 'else (ds-il-marv (caddr form))))]
     [(branch)
@@ -643,7 +648,7 @@
      ;; the same procedure, so both are return_call and neither goes
      ;; through the trampoline; this is the one place a unit has two
      ;; successors. [cco]
-     (list 'if '(i32.eq (local.get $ac) (i64.const 0))
+     (list 'if '(i64.eq (local.get $ac) (i64.const 0))
            (list 'then
                  (cons 'return_call
                        (cons (ds-label (cadr form)) (ds-abi-tail 0))))
@@ -3432,13 +3437,22 @@
            ;; when it held an immediate (void, a fixnum, ...) -- a
            ;; latent segfault that GCC's optimizer happened to mask by
            ;; eliminating the trapping load, and that Clang executes.
-           (list 'set "$t4" '(imm-i32 0))
+           ;; $t4 holds this flag, and the temps are i64 locals, so the
+           ;; flag is stored as i64 and the branch tests it against
+           ;; zero.  It used to be stored as (imm-i32 0) and then as a
+           ;; bare i64.eq, whose result is i32 -- two i32 values into
+           ;; an i64 local, and then an i64 used directly as an `if`
+           ;; condition, which wants i32.  Only the wasm target checks
+           ;; any of that; C and rv64g lower all three without
+           ;; complaint. [cco]
+           (list 'set "$t4" '(imm 0))
            (list 'guard '(rep is_vector (local.get $ac))
                  (list (list 'set "$t4"
-                             '(marv (i64.eq ($scmn:block_ref
-                                             (local.get $ac) (i32.const 0))
-                                            (call $scmrt:values_tag))))))
-           (list 'branch '(get $t4)
+                             '(marv (i64.extend_i32_u
+                                     (i64.eq ($scmn:block_ref
+                                              (local.get $ac) (i32.const 0))
+                                             (call $scmrt:values_tag)))))))
+           (list 'branch '(cmp i64.ne (local.get $t4) (i64.const 0))
                  ;; a tuple: spread its elements over the arg area
                  (list
                   (list 'set "$t3" '(get ac))
