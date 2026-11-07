@@ -46,7 +46,7 @@
             (make-record %builtin-make-record)
             (record? %builtin-record?))
           (only (scheme cxr) caar cadr cdar cddr)
-          (rename (only (skint) zero? write-char vector? vector-set! vector-ref vector-length truncate-remainder truncate-quotient truncate symbol? symbol->string substring string? string=? string-set! string-ref string-length string->symbol string->number set-cdr! set-car! round reverse remainder read-char quotient procedure? positive? peek-char pair? output-port? output-port-open? open-output-string open-output-bytevector open-input-string open-input-bytevector number? number->string null? not newline negative? modulo min memv memq max make-vector make-string make-list make-bytevector list? list-tail list-ref list->string length integer? integer->char input-port? input-port-open? inexact? inexact get-output-string get-output-bytevector flush-output-port floor-remainder floor-quotient floor expt exact? exact-integer? exact eqv? equal? eq? eof-object? eof-object cons close-output-port close-input-port char? char>? char>=? char=? char<? char<=? char->integer ceiling cdr car bytevector? bytevector-u8-set! bytevector-u8-ref bytevector-length boolean? boolean=? assv assq abs >= > = <= < / - + * values call-with-values)
+          (rename (only (skint) zero? write-char vector? vector-set! vector-ref vector-length truncate-remainder truncate-quotient truncate symbol? symbol->string substring string? string-append string=? string-set! string-ref string-length string->symbol string->number set-cdr! set-car! round reverse remainder read-char quotient procedure? positive? peek-char pair? output-port? output-port-open? open-output-string open-output-bytevector open-input-string open-input-bytevector number? number->string null? not newline negative? modulo min memv memq max make-vector make-string make-list make-bytevector list? list-tail list-ref list->string length integer? integer->char input-port? input-port-open? inexact? inexact get-output-string get-output-bytevector flush-output-port floor-remainder floor-quotient floor expt exact? exact-integer? exact eqv? equal? eq? eof-object? eof-object cons close-output-port close-input-port char? char>? char>=? char=? char<? char<=? char->integer ceiling cdr car bytevector? bytevector-u8-set! bytevector-u8-ref bytevector-length boolean? boolean=? assv assq abs >= > = <= < / - + * values call-with-values)
             (zero? %builtin-zero?)
             (write-char %builtin-write-char)
             (vector? %builtin-vector?)
@@ -409,17 +409,6 @@
 
     (define (string . args) (list->string args))
 
-    (define (string-append . args)
-      (let ([s (make-string
-                (let loop ([n 0] [args args])
-                  (if (null? args) n
-                      (loop (+ n (string-length (car args)))
-                            (cdr args)))))])
-        (let loop ([pos 0] [args args])
-          (cond [(null? args) s]
-                [else (string-copy! s pos (car args))
-                      (loop (+ pos (string-length (car args)))
-                            (cdr args))]))))
 
 (define-syntax let-syntax
   (syntax-rules ()

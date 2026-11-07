@@ -111,6 +111,7 @@
 #define smk_slow_hreserved scmi_smk_slow_hreserved
 #define ssub_slow_hreserved scmi_ssub_slow_hreserved
 #define scat_slow_hreserved scmi_scat_slow_hreserved
+#define sappn_slow_hreserved scmi_sappn_slow_hreserved
 #define lstr_slow_hreserved scmi_lstr_slow_hreserved
 #define sdwn_slow_hreserved scmi_sdwn_slow_hreserved
 #define bvnew_slow_hreserved scmi_bvnew_slow_hreserved
@@ -845,6 +846,34 @@ void *scat_slow_hreserved(void *r, void *hp, obj_t a, obj_t b)
   int32_t *pay = (int32_t *)make_string_payload(n + m, 0);
   for (i = 0; i < n; i++) pay[1 + i] = pa[1 + i];
   for (i = 0; i < m; i++) pay[1 + n + i] = pb[1 + i];
+  return hreserved_wrap(r, hp, (void *)pay, string_type());
+}
+
+/* n-ary string-append over a run of staged slots, after Skint's `sapp`
+   instruction (i.c), which takes a count and a pointer to n strings and
+   calls stringrcat: ONE pass to sum the lengths, ONE allocation, and
+   each part copied ONCE.
+   The compiler used to fold an n-ary append into n-1 pairwise scats,
+   each copying the accumulated prefix, which is quadratic in the result
+   -- the `string' benchmark does (string-append "123" s "456" s "789")
+   with s growing into the hundreds of KB, so it copied the prefix four
+   times per call and ran at 0.04x the interpreter.
+   The slots are consecutive because ds-prim-args stages them that way,
+   which is the same shape sapp wants of the Scheme stack.  Pre-reserved:
+   2, as for scat. [cco] */
+void *sappn_slow_hreserved(void *r, void *hp, void *slots, int32_t n)
+{
+  obj_t *sv = (obj_t *)slots;
+  int32_t total = 0, at = 0, i, j;
+  int32_t *pay;
+  for (i = 0; i < n; i++) total += string_payload(sv[i])[0];
+  pay = (int32_t *)make_string_payload(total, 0);
+  for (i = 0; i < n; i++) {
+    int32_t *ps = string_payload(sv[i]);
+    int32_t m = ps[0];
+    for (j = 0; j < m; j++) pay[1 + at + j] = ps[1 + j];
+    at += m;
+  }
   return hreserved_wrap(r, hp, (void *)pay, string_type());
 }
 

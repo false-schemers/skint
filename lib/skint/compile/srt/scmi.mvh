@@ -189,6 +189,12 @@
   (func $scat_slow_hreserved (param $r ptr) (param $hp ptr)
                              (param $a i64) (param $b i64)
                              (result ptr))
+  ;; n-ary string-append over a run of consecutive staged slots: one
+  ;; pass to sum the lengths, one allocation, each part copied once.
+  ;; After Skint's `sapp' instruction. Caller reserves 2, as for scat.
+  (func $sappn_slow_hreserved (param $r ptr) (param $hp ptr)
+                              (param $slots ptr) (param $n i32)
+                              (result ptr))
   (func $lstr_slow_hreserved (param $r ptr) (param $hp ptr)
                              (param $l i64) (result ptr))
   (func $sdwn_slow_hreserved (param $r ptr) (param $hp ptr)
@@ -2132,6 +2138,17 @@
     (local.set $o)
     (local.set $hp (call $scmi:scat_slow_hreserved
                          $dst (local.get $hp) (local.get $ac) (local.get $o)))
+))
+
+  ;; n-ary string-append: $slots points at the first of $n
+  ;; consecutive staged slots, result in $ac.  Caller reserved 2.
+    (macro $sappn ($slots $n)
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:sappn_slow_hreserved
+                         (ref.data $scmi:ac_scratch) (local.get $hp)
+                         $slots $n))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))
 ))
 
   (macro $scat ()

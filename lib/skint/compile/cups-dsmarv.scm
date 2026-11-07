@@ -1352,7 +1352,7 @@
     (arithmetic-shift . ash)
     (truncate-quotient . quo) (truncate-remainder . rem)
     (floor-quotient . fquo) (floor-remainder . mod)
-    (!= . ne) (string=? . streq)
+    (!= . ne) (string=? . streq) (string-append . scat)
     (flmin . jmin) (flmax . jmax)
     (min . gmin) (max . gmax) (expt . expt)
     (eq? . isq) (eqv? . isv) (equal? . ise) (boolean=? . isq)
@@ -2482,21 +2482,54 @@
                (ds-e (list 'const 'ac 3))
                (ds-e '(push (imm 9)))
                (ds-e (list 'rt 'smk))]
-              [(null? (cdr ss))
-               (ds-e (list 'load (car ss)))]
+              ;; One argument still COPIES: R7RS says the result is
+              ;; newly allocated, and Skint's sapp allocates for n=1
+              ;; too, so (eq? (string-append s) s) is #f there.  This
+              ;; used to return the argument itself.  The n-ary path
+              ;; below handles n=1 and allocates, so just fall into
+              ;; it. [cco]
+              ;; Two arguments keep the pairwise instruction, as Skint
+              ;; keeps sapp2 beside sapp.
+              [(= (length ss) 2)
+               (ds-reserve 2)
+               (ds-e (list 'load (car ss)))
+               (ds-e (list 'push (list 'slot (cadr ss))))
+               (ds-e (list 'rt 'scat))]
               [else
-               (let ([sa (ds-alloc-slot!)])
-                 (ds-e (list 'load (car ss)))
-                 (ds-e (list 'store sa (list 'get 'ac)))
-                 (let loop ([rest (cdr ss)])
-                   (unless (null? rest)
-                     (ds-reserve 2)
-                     (ds-e (list 'load sa))
-                     (ds-e (list 'push (list 'slot (car rest))))
-                     (ds-e (list 'rt 'scat))
-                     (ds-e (list 'store sa (list 'get 'ac)))
-                     (loop (cdr rest))))
-                 (ds-e (list 'load sa)))]))]
+               ;; More than two go to the n-ary instruction in ONE call:
+               ;; it sums the lengths, allocates once and copies each
+               ;; part once.  Folding them into n-1 pairwise scats copied
+               ;; the accumulated prefix every time, which is quadratic
+               ;; in the result -- the `string' benchmark appends five
+               ;; parts around a string that grows into the hundreds of
+               ;; KB and ran at 0.04x the interpreter because of it.
+               ;;
+               ;; The staged slots have to be CONSECUTIVE, since the
+               ;; instruction walks them as a run.  ds-prim-args
+               ;; allocates them in order, but its own-slot
+               ;; pass-through hands back a variable's existing slot
+               ;; instead, so the run can have gaps: copy into a fresh
+               ;; consecutive block first when that has happened. [cco]
+               (let* ([n (length ss)]
+                      [consec?
+                       (let loop ([t ss] [k (car ss)])
+                         (or (null? t)
+                             (and (= (car t) k) (loop (cdr t) (+ k 1)))))]
+                      [base (if consec?
+                                (car ss)
+                                (let ([b (ds-alloc-slot!)])
+                                  (do ([k 1 (+ k 1)]) ((>= k n))
+                                    (ds-alloc-slot!))
+                                  (let loop ([t ss] [d b])
+                                    (unless (null? t)
+                                      (ds-e (list 'load (car t)))
+                                      (ds-e (list 'store d (list 'get 'ac)))
+                                      (loop (cdr t) (+ d 1))))
+                                  b))])
+                 (ds-reserve 2)
+                 (ds-e (list 'marv
+                             (list '$scmi:sappn (slot-addr base)
+                                   (list 'i32.const n)))))]))]
      [(eq? name 'string)
       (let ([ss (ds-prim-args rands scope)] [tl (ds-alloc-slot!)])
         (ds-reserve (+ (* 3 (length ss)) 2))
@@ -3539,6 +3572,7 @@
 (define (ds-binfold-entry name)
   (ds-name "$ds$bf_"
            (case name [(+) "plus"] [(-) "minus"] [(*) "star"]
+                 [(string-append) "sapp"]
                  [(/) "slash"] [(min) "min"] [(max) "max"]
                  [(fl+) "flplus"] [(fl-) "flminus"]
                  [(fl*) "flstar"] [(fl/) "flslash"]
@@ -3559,7 +3593,7 @@
 ;; reciprocals and one-argument - fx- fl- are negations
 (define (ds-binfold-unit name)
   (let* ([macro (cdr (assq name *ds-prim-bin*))]
-         [need1 (if (memq name '(+ * fl+ fl* fx+ fx* fxand fxior
+         [need1 (if (memq name '(+ * fl+ fl* fx+ fx* fxand fxior string-append
                                  fxxor fxeqv bitwise-and bitwise-ior
                                  bitwise-xor))
                     #f #t)]
@@ -3580,6 +3614,22 @@
          [lp (ds-binfold-entry name)])
     (list lp
           (append
+           ;; string-append DOES have an identity -- the empty string --
+           ;; but it is an object, not a MARV immediate like 0 or 1, so
+           ;; it cannot go in `ident' below.  Answer it here instead and
+           ;; return; with that done the fold starts from arg0 like the
+           ;; identity-less names.  Additive: every other name sees the
+           ;; same code as before. [cco]
+           (if (eq? name 'string-append)
+               (list (list 'guard
+                           '(cmp i32.eq (local.get $nargs) (i32.const 0))
+                           (append
+                            (list (ds-reserve-instr 2)
+                                  (list 'const 'ac 3)
+                                  '(push (imm 9))
+                                  (list 'rt 'smk))
+                            (ds-raw-tail-return))))
+               '())
            ;; with no identity to fall back on, no arguments is an error
            (if need1
                (list (list 'guard
@@ -3749,7 +3799,7 @@
                  [(eq? name 'apply-to-list)
                   (set! *ds-need-atl* #t)
                   (ds-register-special! gid '$ds$atl 2 #f)]
-                 [(memq name '(+ - * / min max
+                 [(memq name '(+ - * / min max string-append
                                fl+ fl- fl* fl/ flmin flmax
                                fx+ fx- fx* fxand fxior fxxor fxeqv
                                fxmin fxmax
