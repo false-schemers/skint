@@ -42,10 +42,13 @@
 ;;;     return_calls the callee.  NOTHING is heap-allocated for
 ;;;     control -- no continuation closures, ever.
 ;;;
-;;;   * Closures are (code envvec) pairs; envvec = [parent vars..]
-;;;     allocated once per activation of a capturing frame (Skint
-;;;     displays).  Captured+assigned variables are boxes, so
-;;;     call/cc stack snapshots cannot rewind mutations.
+;;;   * Closures are FLAT: [code display..], the free variables
+;;;     copied into cells 1..n at closure creation, which is
+;;;     Skint's own shape (doc/internals/vm.md).  Nothing is
+;;;     allocated per scope entry and an outer variable is one
+;;;     load, not one per level.  Assigned variables are boxes,
+;;;     so the copies share a mutation and call/cc stack
+;;;     snapshots cannot rewind one.
 ;;;     call/cc (letcc/withcc exps): capture = copy $r[0..$sp)
 ;;;     into a heap vector; throw = copy back and transfer
 ;;;     through the restored return funcref.
@@ -287,23 +290,15 @@
 (define (slot-load k) (list 'i64.load 'offset 0 (slot-addr k)))
 (define (slot-store k v) (list 'i64.store 'offset 0 (slot-addr k) v))
 
-;; envvec cell i lives at byte 8*i of the env object
+;; cell i of a heap block, read raw off the null base
 (define (env-cell env-expr idx)
   (list 'i64.load 'offset (* 8 idx)
         (list 'ptr.add64 '(ptr.null) env-expr)))
-(define (env-walk-expr depth)
-  ;; depth 0 = the current frame's envvec, read from the $env local.
-  ;;
-  ;; This used to read the fp-1 mirror slot every time, on the grounds
-  ;; that "the $env local goes stale at any reserve".  That had it
-  ;; backwards: ds-reserve emits (env-refresh), which is exactly
-  ;; (local.set $env (slot-load -1)), so a reserve LEAVES $env fresh.
-  ;; The one place the two diverged was the envvec build storing a new
-  ;; envvec to the mirror without updating the local, and that now
-  ;; updates it, so the local is always equal to the slot and is the
-  ;; cheaper of the two to read. [cco]
-  (let loop ([d depth] [e '(local.get $env)])
-    (if (= d 0) e (loop (- d 1) (env-cell e 0)))))
+;; A free variable of the frame being generated: cell i of the current
+;; closure, which $env holds.  There is no chain to walk -- a display
+;; is flat, and that is what makes an outer-variable read one load
+;; instead of one load per level of nesting. [cco]
+(define (display-cell idx) (env-cell '(local.get $env) idx))
 
 ;;; ---------------------------------------------------------------
 ;;; The Unit IL
@@ -839,8 +834,10 @@
 ;;; ---------------------------------------------------------------
 
 ;; binding: (vector 'bnd id kind idx)
-;;   kind 'slot|'boxslot: idx = stack slot; 'cell|'boxcell: idx =
-;;   envvec cell (1-based; 0 is the parent link); 'glob: gstore idx;
+;;   kind 'slot|'boxslot: idx = stack slot; a free variable is
+;;   reached through the current closure's display instead, at the
+;;   index frame-free-index gives, so there is no cell kind.
+;;   'glob: gstore idx;
 ;;   'proc: idx indexes *ds-procs* (local known proc binding)
 (define (make-binding id) (vector 'bnd id 'slot 0 #f #f))
 (define (bnd-id b) (vector-ref b 1))
@@ -854,16 +851,35 @@
 (define (bnd-captured-set! b v) (vector-set! b 5 v))
 
 ;; frame: one lambda activation's bindings (vector 'frame proc
-;; bindings cells?) -- bindings an alist id->binding, newest first
-(define (make-frame proc) (vector 'frame proc '() #f))
+;; bindings free) -- bindings an alist id->binding, newest first;
+;; free is the ordered list of bindings this frame reads from an
+;; ENCLOSING frame, which is exactly its closure's display
+(define (make-frame proc) (vector 'frame proc '() '()))
 (define (frame-proc f) (vector-ref f 1))
 (define (frame-bindings f) (vector-ref f 2))
 (define (frame-bindings-set! f v) (vector-set! f 2 v))
 (define (frame-find f id)
   (cond [(assq id (frame-bindings f)) => cdr]
         [else (ds-die "unbound" (id->uname id))]))
-(define (frame-cells? f) (vector-ref f 3))
-(define (frame-cells-set! f v) (vector-set! f 3 v))
+;; The display: a closure holds its free variables BY COPY, in cells
+;; 1..n (cell 0 is the code pointer), which is Skint's own closure
+;; shape (doc/internals/vm.md: [ code ][ display 0 ][ display 1 ]...).
+;; The envvec chain this replaced allocated a vector per activation of
+;; every capturing frame and walked parent links to read an outer
+;; variable; on paraffins that was 2.6x the interpreter's allocation
+;; and the whole of a 2.8x slowdown. [cco]
+(define (frame-free f) (vector-ref f 3))
+(define (frame-free-set! f v) (vector-set! f 3 v))
+(define (frame-free-add! f b)
+  (unless (memq b (frame-free f))
+    (frame-free-set! f (append (frame-free f) (list b)))))
+(define (frame-free-index f b)
+  (let loop ([xs (frame-free f)] [i 1])
+    (cond [(null? xs)
+           (ds-die "variable not in this frame's display"
+                   (id->uname (bnd-id b)))]
+          [(eq? (car xs) b) i]
+          [else (loop (cdr xs) (+ i 1))])))
 (define (frame-add! f id)
   (let ([b (make-binding id)])
     (frame-bindings-set! f (cons (cons id b) (frame-bindings f)))
@@ -999,9 +1015,22 @@
            (cond [(null? sc) (ds-die "unbound variable" (id->uname id))]
                  [(assq id (frame-bindings (car sc)))
                   => (lambda (pr)
-                       (unless (eq? (car sc) (car scope))
-                         (bnd-captured-set! (cdr pr) #t))
-                       (when assign? (bnd-assigned-set! (cdr pr) #t)))]
+                       (let ([b (cdr pr)])
+                         (when assign? (bnd-assigned-set! b #t))
+                         (unless (eq? (car sc) (car scope))
+                           (bnd-captured-set! b #t)
+                           ;; Every frame between the reference and the
+                           ;; frame that owns the binding must carry it
+                           ;; in its own display: a closure copies its
+                           ;; free variables from where IT can read
+                           ;; them, so the variable has to be reachable
+                           ;; at each step down.  Registering it here,
+                           ;; during the scan, makes the sets
+                           ;; transitive without a second pass. [cco]
+                           (let reg ([xs scope])
+                             (unless (eq? (car xs) (car sc))
+                               (frame-free-add! (car xs) b)
+                               (reg (cdr xs)))))))]
                  [else (loop (cdr sc))]))]))
 
 (define (ds-scan-lambda node ids rest body gid scope)
@@ -1016,22 +1045,17 @@
     p))
 
 (define (ds-finalize-frame! fr)
-  ;; decide binding kinds; assign envvec cell indices
-  (let ([cells 0])
-    (for-each
-     (lambda (pr)
-       (let ([b (cdr pr)])
-         (cond [(and (bnd-assigned? b) (bnd-captured? b))
-                (bnd-kind-set! b 'boxcell) (set! cells (+ cells 1))
-                (bnd-idx-set! b cells)]
-               [(bnd-captured? b)
-                (bnd-kind-set! b 'cell) (set! cells (+ cells 1))
-                (bnd-idx-set! b cells)]
-               [(bnd-assigned? b) (bnd-kind-set! b 'boxslot)]
-               [else (bnd-kind-set! b 'slot)])))
-     (frame-bindings fr))
-    (frame-cells-set! fr (> cells 0))
-    cells))
+  ;; An ASSIGNED binding is boxed, so that a mutation is shared with
+  ;; every closure that copied the variable and survives a
+  ;; continuation snapshot; everything else is a plain frame slot and
+  ;; an inner closure takes its VALUE by copy.  Being captured no
+  ;; longer changes where a binding lives -- that is the whole point
+  ;; of a flat display -- so the envvec cell kinds are gone. [cco]
+  (for-each (lambda (pr)
+              (let ([b (cdr pr)])
+                (bnd-kind-set! b (if (bnd-assigned? b) 'boxslot 'slot))))
+            (frame-bindings fr))
+  (length (frame-free fr)))
 
 ;;; collect lambdas of a body in scan (pre-order) creation order
 (define (ds-body-lambdas e)
@@ -1528,19 +1552,13 @@
     s))
 
 (define (ds-scope-lookup scope id)
-  ;; -> (binding depth): depth = number of cells-frames whose
-  ;; envvec must be walked from the current env to reach the frame
-  ;; holding the binding (0 = current frame's envvec context)
+  ;; -> (binding owner-frame): the frame that OWNS the binding.  When
+  ;; that is not the frame being generated, the variable is read out
+  ;; of the current closure's display instead of a frame slot.
   (let loop ([sc scope])
     (cond [(null? sc) #f]
           [(assq id (frame-bindings (car sc)))
-           => (lambda (pr)
-                (let cnt ([xs scope] [n 0])
-                  (cond [(eq? (car xs) (car sc))
-                         (list (cdr pr) n)]
-                        [else
-                         (cnt (cdr xs)
-                              (+ n (if (frame-cells? (car xs)) 1 0)))])))]
+           => (lambda (pr) (list (cdr pr) (car sc)))]
           [else (loop (cdr sc))])))
 
 (define (ds-cur-frame) (car *ds-scope*))
@@ -1552,17 +1570,21 @@
         [else
          (let ([lk (ds-scope-lookup scope id)])
            (unless lk (ds-die "unbound variable" (id->uname id)))
-           (let ([b (car lk)] [depth (cadr lk)])
-             (case (bnd-kind b)
-               [(slot boxslot) (slot-load (bnd-idx b))]
-               [(cell boxcell)
-                (env-cell (env-walk-expr depth) (bnd-idx b))]
-               [else (ds-die "var kind" (bnd-kind b))])))]))
+           (ds-var-place scope (car lk) (cadr lk)))]))
+
+;; Where a variable's STORAGE is: its own frame slot, or, when it
+;; belongs to an enclosing frame, the display cell the closure copied
+;; it into.  For a boxslot binding this is the box, which the caller
+;; dereferences; ds-var-boxed? says which. [cco]
+(define (ds-var-place scope b owner)
+  (if (eq? owner (car scope))
+      (slot-load (bnd-idx b))
+      (display-cell (frame-free-index (car scope) b))))
 
 (define (ds-var-boxed? scope id)
   (and (not (global-id? id))
        (let ([lk (ds-scope-lookup scope id)])
-         (and lk (memq (bnd-kind (car lk)) '(boxslot boxcell))))))
+         (and lk (eq? (bnd-kind (car lk)) 'boxslot)))))
 
 ;; generate exp with result in $ac (fallthrough mode)
 (define (ds-gen-expr e) (ds-gen-value e *ds-scope*))
@@ -1699,19 +1721,22 @@
            [else
             (let ([lk (ds-scope-lookup scope id)])
               (unless lk (ds-die "assign unbound" (id->uname id)))
-              (let ([b (car lk)] [depth (cadr lk)])
+              (let ([b (car lk)] [owner (cadr lk)])
                 (case (bnd-kind b)
-                  [(slot) (ds-e (list 'store (bnd-idx b) (list 'get 'ac)))]
-                  [(boxslot boxcell)
+                  [(slot)
+                   (unless (eq? owner (car scope))
+                     (ds-die "assign to an unboxed outer variable"
+                             (id->uname id)))
+                   (ds-e (list 'store (bnd-idx b) (list 'get 'ac)))]
+                  [(boxslot)
+                   ;; through the box, wherever the box itself is: a
+                   ;; mutation has to reach every closure that copied
+                   ;; the variable
                    (let ([t (ds-fresh-temp)])
                      (ds-e (list 'set t
-                                 (case (bnd-kind b)
-                                   [(boxslot) (list 'slot (bnd-idx b))]
-                                   [else (list 'marv
-                                               (env-cell (env-walk-expr depth)
-                                                         (bnd-idx b)))])))
+                                 (list 'marv (ds-var-place scope b owner))))
                      (ds-e (list 'box-set (list 'get t) '(get ac))))]
-                  [else (ds-die "assign to cell (front should box)")])))])
+                  [else (ds-die "assign kind" (bnd-kind b))])))])
      (ds-e (list 'const 'ac 21))]
     [varaddress-exp (id)
      ;; the value of (set& x) is x's box itself; scan forced the
@@ -1722,7 +1747,7 @@
            [else
             (let ([lk (ds-scope-lookup scope id)])
               (unless lk (ds-die "varaddress unbound" (id->uname id)))
-              (unless (memq (bnd-kind (car lk)) '(boxslot boxcell))
+              (unless (eq? (bnd-kind (car lk)) 'boxslot)
                 (ds-die "varaddress of unboxed variable"
                         (id->uname id)))
               (ds-e (list 'set "$ac"
@@ -1825,20 +1850,17 @@
         [else
          (let ([lk (ds-scope-lookup scope id)])
            (unless lk (ds-die "store unbound" (id->uname id)))
-           (let ([b (car lk)] [depth (cadr lk)])
+           (let ([b (car lk)] [owner (cadr lk)])
              (case (bnd-kind b)
-               [(slot) (ds-e (list 'store (bnd-idx b) (list 'get 'ac)))]
-               [(cell)
-                (ds-e (list 'cell-store (list 'marv (env-walk-expr depth))
-                            (bnd-idx b) '(get ac)))]
-               [(boxslot boxcell)
+               [(slot)
+                (unless (eq? owner (car scope))
+                  (ds-die "store to an unboxed outer variable"
+                          (id->uname id)))
+                (ds-e (list 'store (bnd-idx b) (list 'get 'ac)))]
+               [(boxslot)
                 (let ([t (ds-fresh-temp)])
                   (ds-e (list 'set t
-                              (case (bnd-kind b)
-                                [(boxslot) (list 'slot (bnd-idx b))]
-                                [else (list 'marv
-                                            (env-cell (env-walk-expr depth)
-                                                      (bnd-idx b)))])))
+                              (list 'marv (ds-var-place scope b owner))))
                   (ds-e (list 'box-set (list 'get t) '(get ac))))]
                [else (ds-die "store kind" (bnd-kind b))])))]))
 
@@ -1866,25 +1888,87 @@
          (let ([t (ds-make-box!)])
            (bnd-idx-set! b (ds-alloc-slot!))
            (ds-e (list 'store (bnd-idx b) (list 'get t))))]
-        [(cell boxcell)
-         (when (eq? (bnd-kind b) 'boxcell)
-           (ds-e (list 'set "$ac" (list 'get (ds-make-box!)))))
-         (ds-e (list 'cell-store (list 'marv (env-walk-expr (cadr lk)))
-                     (bnd-idx b) '(get ac)))]
         [else (ds-die "bind kind" (bnd-kind b))]))))
 
 (define (ds-gen-fix ids lams body scope tail?)
-  (for-each (lambda (id lam) (ds-gen-closure (ds-proc-of-node lam) scope)
-              (ds-bind-value! scope id))
-            ids lams)
+  ;; Allocate and bind every closure of the group first, then fill the
+  ;; displays: a display may hold a sibling, so no display can be
+  ;; filled until all the bindings exist.
+  ;;
+  ;; The closure is kept in a slot of its OWN for the filling, not read
+  ;; back out of the binding: a letrec procedure that is also assigned
+  ;; is a boxslot binding, whose slot holds the BOX, and filling
+  ;; through that would write the display cells into the box. [cco]
+  (let ([ps (map (lambda (lam) (ds-proc-of-node lam)) lams)]
+        [cs '()])
+    (for-each (lambda (id p)
+                (ds-alloc-closure p scope #t)
+                (let ([k (ds-alloc-slot!)])
+                  (ds-e (list 'store k '(get ac)))
+                  (set! cs (cons k cs)))
+                (ds-bind-value! scope id))
+              ids ps)
+    (set! cs (reverse cs))
+    (for-each (lambda (p k)
+                (unless (null? (ds-proc-free p))
+                  (let ([t (ds-fresh-temp)])
+                    (ds-e (list 'load-to t k))
+                    (ds-fill-closure! p scope (list 'get t)))))
+              ps cs))
   (ds-gen-seq (flatten-begin body) scope tail?))
 
+;; A closure is [code display...]: the code pointer in cell 0 and the
+;; free variables COPIED into cells 1..n, in frame-free order.  Making
+;; one is split in two so that a fix can allocate every closure of a
+;; mutually recursive group BEFORE filling any display -- a sibling's
+;; display has to be able to hold a closure that does not exist yet,
+;; which the envvec chain got for free and a flat display does not.
+;; [cco]
+;; the display of a proc, empty for a synthesized unit -- those
+;; have no frame and capture nothing
+(define (ds-proc-free p)
+  (if (proc-frame p) (frame-free (proc-frame p)) '()))
+
+;; init? nulls the display cells.  Only a fix needs that: its fills
+;; are deferred past a ds-bind-value! that can box, and so collect,
+;; and a collection may not scan an uninitialised cell.  When the
+;; fill follows immediately nothing in between allocates, so the
+;; nulls would be n stores overwritten at once. [cco]
+(define (ds-alloc-closure p scope init?)
+  (let ([n (length (ds-proc-free p))])
+    (ds-reserve (+ n 2))
+    (ds-e (list 'set "$ac"
+                (list 'rep 'hend_tagged (list 'i32.const (+ n 1))
+                      '(i32.const 2))))
+    (ds-e (list 'fn-store '(ptr.add64 (ptr.null) (local.get $ac))
+                (proc-entry p)))
+    (when init?
+      (do ([j 1 (+ j 1)]) ((> j n))
+        (ds-e (list 'cell-set '(get ac) j '(imm 13)))))))
+
+;; Fill the display of the closure that OBJ names.  Each free variable
+;; is read where the ENCLOSING frame keeps it -- its own slot, or that
+;; frame's own display cell -- which is why the scan registered the
+;; variable in every frame between the reference and its owner.
+(define (ds-fill-closure! p scope obj)
+  (let loop ([xs (ds-proc-free p)] [j 1])
+    (unless (null? xs)
+      (let* ([b (car xs)]
+             [lk (ds-scope-lookup scope (bnd-id b))])
+        (unless lk
+          (ds-die "free variable not in scope" (id->uname (bnd-id b))))
+        ;; the STORAGE, not the value: a boxslot binding travels as its
+        ;; box, so the two frames share the mutation
+        (ds-e (list 'cell-set obj j
+                    (list 'marv (ds-var-place scope (car lk) (cadr lk))))))
+      (loop (cdr xs) (+ j 1)))))
+
+;; a closure as a value in $ac.  Nothing between the allocation and the
+;; fill allocates, so $ac still holds the closure and the display needs
+;; no placeholder values.
 (define (ds-gen-closure p scope)
-  (ds-reserve 3)
-  (ds-e (list 'set "$ac" '(rep hend_tagged (i32.const 2) (i32.const 2))))
-  (ds-e (list 'fn-store '(ptr.add64 (ptr.null) (local.get $ac))
-              (proc-entry p)))
-  (ds-e (list 'cell-set '(get ac) 1 '(slot -1))))
+  (ds-alloc-closure p scope #f)
+  (ds-fill-closure! p scope '(get ac)))
 
 (define *ds-cap-seq* 0)
 
@@ -2168,6 +2252,12 @@
               (let ([lk (ds-scope-lookup scope id)])
                 (and lk
                      (eq? (bnd-kind (car lk)) 'slot)
+                     ;; and OWNED HERE.  With a flat display a
+                     ;; captured binding keeps its slot kind, so
+                     ;; slot-kind no longer implies the frame being
+                     ;; generated -- and an enclosing frame's slot
+                     ;; index means nothing in ours. [cco]
+                     (eq? (cadr lk) (car scope))
                      (bnd-idx (car lk))))))))
 
 ;; Prim operands as DESCRIPTORS rather than bare slot indices, so that
@@ -2531,22 +2621,40 @@
                              (list '$scmi:sappn (slot-addr base)
                                    (list 'i32.const n)))))]))]
      [(eq? name 'string)
-      (let ([ss (ds-prim-args rands scope)] [tl (ds-alloc-slot!)])
-        (ds-reserve (+ (* 3 (length ss)) 2))
-        (ds-e (list 'const 'ac 13))
-        (ds-e (list 'store tl (list 'get 'ac)))
-        (let loop ([rest (reverse ss)])
-          (unless (null? rest)
-            (let ([rs (ds-alloc-slot!)] [p (ds-fresh-temp)])
-              (ds-e (list 'slot-ptr rs))
-              (ds-e (list 'load (car rest)))
-              (ds-e (list 'push (list 'slot tl)))
-              (ds-e '(rt1 cons_to (get p)))
-              (ds-e (list 'load rs))
-              (ds-e (list 'store tl (list 'get 'ac)))
-              (loop (cdr rest)))))
-        (ds-e (list 'load tl))
-        (ds-e (list 'rt 'lstr)))]
+      ;; One pass into a fresh payload.  This used to cons a list of the
+      ;; characters and call list->string, throwing away 3n words per
+      ;; call.  The staged slots have to be CONSECUTIVE, as for
+      ;; string-append: ds-prim-args' own-slot pass-through can hand
+      ;; back a variable's existing slot and leave a gap, so copy into a
+      ;; fresh run when that has happened. [cco]
+      (let* ([ss (ds-prim-args rands scope)]
+             [n (length ss)])
+        (cond
+         [(= n 0)
+          (ds-reserve 2)
+          (ds-e (list 'const 'ac 3))
+          (ds-e '(push (imm 9)))
+          (ds-e (list 'rt 'smk))]
+         [else
+          (let* ([consec?
+                  (let loop ([t ss] [k (car ss)])
+                    (or (null? t)
+                        (and (= (car t) k) (loop (cdr t) (+ k 1)))))]
+                 [base (if consec?
+                           (car ss)
+                           (let ([b (ds-alloc-slot!)])
+                             (do ([k 1 (+ k 1)]) ((>= k n))
+                               (ds-alloc-slot!))
+                             (let loop ([t ss] [d b])
+                               (unless (null? t)
+                                 (ds-e (list 'load (car t)))
+                                 (ds-e (list 'store d (list 'get 'ac)))
+                                 (loop (cdr t) (+ d 1))))
+                             b))])
+            (ds-reserve 2)
+            (ds-e (list 'marv
+                        (list '$scmi:strn (slot-addr base)
+                              (list 'i32.const n)))))]))]
      [(eq? name 'substring)
       (let ([ss (ds-prim-args rands scope)])
         (ds-reserve 2)
@@ -2704,6 +2812,31 @@
                       'flush_port 'close_port)
                   '(get ac)))
       (ds-e (list 'const 'ac 21))]
+     [(eq? name '%read-ahead)
+      ;; (%read-ahead fold-case? port) -- the reader's read-ahead step,
+      ;; in C.  It answers the eof object, a symbol, a number, or a
+      ;; character standing for syntax the Scheme reader handles itself.
+      ;; All four are immediates in this runtime, so nothing is reserved
+      ;; around the call. [cco]
+      (let ([ss (ds-prim-args rands scope)])
+        (ds-e (list 'set "$ac"
+                    (list 'rtcall 'read_ahead
+                          (slot-load (cadr ss))
+                          (slot-load (car ss))))))]
+     [(eq? name 'read-line)
+      ;; one runtime call for the whole line: the Scheme version in
+      ;; clib consed a pair per character and walked the list again
+      ;; at the end.  The port is stashed before the reserve, which
+      ;; may collect; at end of file $scmi:rdline allocates nothing
+      ;; and answers the eof object. [cco]
+      (let ([sl (ds-alloc-slot!)])
+        (if (null? rands)
+            (ds-e (list 'set "$ac" '(rtcall current_input_port)))
+            (ds-gen-value (car rands) scope))
+        (ds-e (list 'store sl (list 'get 'ac)))
+        (ds-reserve 2)
+        (ds-e (list 'load sl))
+        (ds-e (list 'rt 'rdline)))]
      [(memq name '(read-char peek-char))
       (if (null? rands)
           (ds-e (list 'set "$ac"
@@ -3019,76 +3152,12 @@
                              (list 'i32.ne '(local.get $nargs)
                                    (list 'i32.const npar)))
                        (ds-capture (lambda () (ds-emit-arity-error npar)))))])
-    ;; $env arrives as the closure object; the envvec is cell 1
-    (ds-e (list 'set "$env"
-                '(marv (if (result i64)
-                           (i64.ne (local.get $env) (i64.const 0))
-                           (then (i64.load offset 8
-                                           (ptr.add64 (ptr.null)
-                                                      (local.get $env))))
-                           (else (i64.const 0))))))
-    ;; env mirror first (root for the incoming env)
+    ;; $env IS the closure, and stays it: a flat display is read
+    ;; straight out of it, so there is no envvec to extract and none
+    ;; to build.  Slot -1 mirrors $env as the GC root for it, which is
+    ;; what lets a display read use the local: ds-reserve emits
+    ;; (env-refresh), so a collection cannot separate the two. [cco]
     (ds-e (list 'store -1 (list 'get 'env)))
-    ;; build the frame envvec when this frame has cells
-    (when (frame-cells? fr)
-      (let ([nc (proc-ncells p)] [te (ds-fresh-temp)])
-        ;; envvec = [parent, cell1..cellN]: N+1 slots + header.
-        ;; Pre-fill every cell with () and root the envvec in the
-        ;; mirror slot at once: bindings filled later (let/fix cells)
-        ;; must never leave an uninitialized cell for a collection
-        ;; to scan, and boxing a param may itself collect.
-        (ds-reserve (+ nc 2))
-        (ds-e (list 'alloc te "vector" (list 'imm-i32 (+ nc 1))))
-        (ds-e (list 'cell-set (list 'get te) 0 '(slot -1)))
-        (do ([j 1 (+ j 1)]) ((> j nc))
-          (ds-e (list 'cell-set (list 'get te) j '(imm 13))))
-        (ds-e (list 'store -1 (list 'get te)))
-        ;; Keep $env a true mirror of slot -1.  This is the only place
-        ;; the two could diverge: the mirror gets a NEW envvec here,
-        ;; while $env still holds the incoming one.  Everywhere else
-        ;; they already agree -- the other write of slot -1 stores $env
-        ;; itself, and ds-reserve emits (env-refresh) right after every
-        ;; reserve, so a collection cannot separate them either.  With
-        ;; this one instruction per procedure entry the invariant is
-        ;; total, which is what lets env-walk-expr read the local
-        ;; instead of the slot: slot -1 was the most reloaded slot in
-        ;; the output by a wide margin, 360 of 938 removable repeated
-        ;; loads in takl. [cco]
-        (ds-e (list 'set "$env" (list 'get te)))
-        ;; Params into cells / boxes.  te holds the envvec, and the
-        ;; mirror slot at -1 is the copy a collection updates, so te
-        ;; has to be reloaded from it after anything that can collect.
-        ;; Only the boxcell arm can: ds-make-box! allocates.  A cell
-        ;; arm just copies a frame slot into an envvec cell, and
-        ;; cell-set lowers to $scmn:block_set, a bare i64.store with
-        ;; no barrier -- so a run of cell params needs ONE reload
-        ;; between them, not one apiece.  Reloading every time was the
-        ;; single commonest redundant load in the output: takl's
-        ;; $ds$p25 fetched slot -1 seven times in one collection-free
-        ;; region, three of those as whole dead instructions that
-        ;; reloaded a temp with the value it already held. [cco]
-        (let ([stale #t])
-          (for-each
-           (lambda (id j)
-             (let ([b (frame-find fr id)])
-               (case (bnd-kind b)
-                 [(cell)
-                  (when stale
-                    (ds-e (list 'load-to te -1))
-                    (set! stale #f))
-                  (ds-e (list 'cell-set (list 'get te) (bnd-idx b)
-                              (list 'slot j)))]
-                 [(boxcell)
-                  (ds-e (list 'load j))
-                  (let ([tb (ds-make-box!)])
-                    ;; the box allocation above may have moved the
-                    ;; envvec, so this reload is the load-bearing one
-                    (ds-e (list 'load-to te -1))
-                    (set! stale #f)
-                    (ds-e (list 'cell-set (list 'get te) (bnd-idx b)
-                                (list 'get tb))))]
-                 [else #f])))
-           params (ds-iota npar)))))
     ;; boxslot params: replace slot contents with a box
     (for-each
      (lambda (id j)
@@ -3150,22 +3219,13 @@
                                               (list 'i64.gt_u
                                                     (ds-get ti)
                                                     (i64c npar)))))))))))))
-        ;; deliver the list according to the binding kind: a captured
-        ;; rest binding lives in its envvec cell (boxed if assigned)
+        ;; deliver the list according to the binding kind
         (case (bnd-kind rb)
           [(slot) (ds-e (list 'store (bnd-idx rb) (list 'get 'ac)))]
           [(boxslot)
            (let ([tb (ds-make-box!)])
              (ds-e (list 'store (bnd-idx rb) (list 'get tb))))]
-          [(cell)
-           (ds-e (list 'cell-set '(slot -1) (bnd-idx rb) '(get ac)))]
-          [(boxcell)
-           (let ([tb (ds-make-box!)])
-             ;; this was built without block_set's closing paren; the
-             ;; form supplies it, and no battery program reaches the
-             ;; path, which is why nothing had failed to assemble. [cco]
-             (ds-e (list 'cell-set '(slot -1) (bnd-idx rb)
-                         (list 'get tb))))]) ))
+          [else (ds-die "rest kind" (bnd-kind rb))]) ))
     ;; install host-wrapper closures into their global cells
     (when (eq? p *ds-main-proc*)
       (for-each (lambda (pr)
@@ -3613,23 +3673,31 @@
                          [else 'jneg])]
          [lp (ds-binfold-entry name)])
     (list lp
-          (append
-           ;; string-append DOES have an identity -- the empty string --
-           ;; but it is an object, not a MARV immediate like 0 or 1, so
-           ;; it cannot go in `ident' below.  Answer it here instead and
-           ;; return; with that done the fold starts from arg0 like the
-           ;; identity-less names.  Additive: every other name sees the
-           ;; same code as before. [cco]
-           (if (eq? name 'string-append)
-               (list (list 'guard
-                           '(cmp i32.eq (local.get $nargs) (i32.const 0))
-                           (append
-                            (list (ds-reserve-instr 2)
-                                  (list 'const 'ac 3)
-                                  '(push (imm 9))
-                                  (list 'rt 'smk))
-                            (ds-raw-tail-return))))
-               '())
+          (if (eq? name 'string-append)
+              ;; string-append is the one binfold whose accumulator
+              ;; would be a HEAP OBJECT.  A pairwise fold keeps it in
+              ;; $t1, a MARV local, across the loop's reserve -- and a
+              ;; local is not a GC root, so a collection there leaves
+              ;; $t1 pointing into the old semispace and the next
+              ;; append reads freed memory.  Every other binfold
+              ;; accumulates a NUMBER, an immediate in this runtime,
+              ;; which is why the hazard never showed before.  (With a
+              ;; full numeric tower + and * would allocate too, and
+              ;; would need the same treatment.)
+              ;;
+              ;; The argument area is already the consecutive run of
+              ;; slots $scmi:sappn walks, so ONE call does the whole
+              ;; append: no loop, no accumulator, nothing live in a
+              ;; local across the reserve, and a freshly allocated
+              ;; result at every arity -- nought included, where the
+              ;; summed length is zero and the empty string comes
+              ;; out. [cco]
+              (append
+               (list (ds-reserve-instr 2)
+                     (list 'marv (list '$scmi:sappn (slot-addr 0)
+                                       '(local.get $nargs))))
+               (ds-raw-tail-return))
+              (append
            ;; with no identity to fall back on, no arguments is an error
            (if need1
                (list (list 'guard
@@ -3681,7 +3749,7 @@
                           '(br $ds_bf_lp)))))
             (list 'set "$ac" '(get t1)))
            (if ident '() (list (list 'set "$ac" '(get t1))))
-           (ds-raw-tail-return))
+           (ds-raw-tail-return)))
           8 0)))
 
 (define (ds-sym->prim name)
@@ -3730,7 +3798,7 @@
                       input-port-open? output-port-open?
                       get-environment-variable
                       close-input-port close-output-port close-port
-                      flush-output-port read-char peek-char
+                      flush-output-port read-char peek-char read-line
                       file-exists? delete-file %system
                       make-string number->string %string->list1
                       string->number)) 1]

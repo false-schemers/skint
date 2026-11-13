@@ -33,6 +33,8 @@ extern void *arg_error(uint64_t bad, const char *what);
 extern void *make_input_string_port(uint64_t o);
 extern void *make_output_string_port(void);
 extern void *get_output_string_payload(uint64_t o);
+extern void *port_read_line(uint64_t o);
+extern uint64_t read_ahead(uint64_t port, uint64_t fold);
 extern void *make_input_bytevector_port(uint64_t o);
 extern void *get_output_bytevector_payload(uint64_t o);
 extern void *make_output_bytevector_port(void);

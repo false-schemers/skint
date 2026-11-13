@@ -15,9 +15,33 @@
 ;;;     expansion-time machinery, not a runtime global.
 ;;; Only builtin denotations are taken from Skint, via (skint) and, for
 ;;; %-prefixed builtin operations (skint) does not export, (skint hidden).
-;;; A real Scheme reader: Skint's %read from pre/s.scm (the\n;;; pure-Scheme, get-token based reader), adapted to the compiled\n;;; runtime:\n;;;   * fold-case is tracked in a local variable -- compiled\n;;;     ports have no fold-case slot (Skint uses port slots).\n;;;   * the \\x escape caps come from current s.scm: at most\n;;;     max-char-hex-digits (6) digits, value <= max-char-code\n;;;     (#x10FFFF); the shared-alist lookup uses assoc.\n;;;   * only #u8(...) constructs a vector (a bytevector); the\n;;;     other numerical vector types and #e/#i exactness have no\n;;;     compiled-runtime objects and raise a read error.\n;;;   * unknown #!name directives are skipped like shebangs;\n;;;     read errors raise via (scheme base)'s error (kind #f --\n;;;     the error-object constructor is not exported there).\n;;;   * string->number is the compiled 2-argument conversion,\n;;;     so ratios/complex literals read back as symbols.\n
+;;; A real Scheme reader: Skint's %read from pre/s.scm (the
+;;; pure-Scheme, get-token based reader), adapted to the compiled
+;;; runtime:
+;;;   * fold-case is tracked in a local variable -- compiled
+;;;     ports have no fold-case slot (Skint uses port slots).
+;;;   * the \\x escape caps come from current s.scm: at most
+;;;     max-char-hex-digits (6) digits, value <= max-char-code
+;;;     (#x10FFFF); the shared-alist lookup uses assoc.
+;;;   * only #u8(...) constructs a vector (a bytevector); the
+;;;     other numerical vector types and #e/#i exactness have no
+;;;     compiled-runtime objects and raise a read error.
+;;;   * unknown #!name directives are skipped like shebangs;
+;;;     read errors raise via (scheme base)'s error (kind #f --
+;;;     the error-object constructor is not exported there).
+;;;   * string->number is the compiled 2-argument conversion,
+;;;     so ratios/complex literals read back as symbols.
+;;;   * the read-ahead step -- whitespace, line comments and
+;;;     the atom scan -- is the runtime's %read-ahead, which
+;;;     answers a symbol or number directly and a character
+;;;     for the syntax read here.  Its constituent set is this
+;;;     reader's char-constituent?, so a non-ASCII identifier
+;;;     still reads; under #!fold-case the folding it applies
+;;;     is ASCII-only, where Skint folds the whole of Unicode.
 (define-library (scheme read)
   (import (only (skint) define lambda define-syntax syntax-rules if _ ...)
+          (rename (only (skint hidden) %read-ahead)
+            (%read-ahead %builtin-read-ahead))
           (only (skint) fixnum? flonum? fx+ fx<=?)
           (only (scheme base)
             let let* letrec begin cond case else when unless and or quote set!
@@ -218,13 +242,13 @@
                 (let recur ([form form])
                   (cond [(eof-object? form)
                          (r-error p "eof inside list -- unbalanced parentheses")]
-                        [(eq? form close-token) (read-char p) '()]
+                        [(eq? form close-token) '()]
                         [(eq? form dot)
                          (if dot?
                              (let* ([last-form (sub-read-carefully)]
                                     [another-form (sub-read #f)])
                                (if (eq? another-form close-token)
-                                   (begin (read-char p) last-form)
+                                   last-form
                                    (r-error p "randomness after form after dot" another-form)))
                              (r-error p "dot in #(...)"))]
                         [(reader-token? form)
@@ -238,7 +262,7 @@
             (r-error p (string-append "invalid " (symbol->string ts) "vector syntax")))
           (let recur ([form (sub-read #f)])
             (cond [(eof-object? form) (r-error p "eof inside #u8 vector")]
-                  [(eq? form close-paren) (read-char p) '()]
+                  [(eq? form close-paren) '()]
                   [(reader-token? form) (r-error p "error inside #u8 vector --" (cdr form))]
                   [(and (fixnum? form) (fx<=? 0 form) (fx<=? form 255))
                    (cons form (recur (sub-read #f)))]
@@ -323,35 +347,33 @@
                         (r-error p "unsupported numerical vector type in compiled programs" name)]
                        [else (r-error p "unknown # syntax" name)]))])))
 
+        ;; One call per token instead of a peek, a read and a cons per
+        ;; character: %read-ahead skips whitespace and line comments in
+        ;; the runtime, scans an atom there and answers the symbol or
+        ;; number itself, and hands back a CHARACTER as the signal for
+        ;; every piece of syntax read here -- the brackets, the quotes,
+        ;; a string, a |symbol|, a # form, and the lone dot.  This is
+        ;; the shape of Skint's own sub-read (pre/s.scm). [cco]
         (define (sub-read top)
-          (let ([c (peek-char p)])
-            (cond [(eof-object? c) (eof-object)]
-                  [(char-whitespace? c) (read-char p) (sub-read top)]
-                  [(char=? c #\() (read-char p) (sub-read-list c close-paren #t)]
+          (let ([c (%builtin-read-ahead fold-case? p)])
+            (cond [(not (char? c)) c]   ; eof, a symbol, or a number
+                  [(char=? c #\() (sub-read-list c close-paren #t)]
                   [(char=? c #\)) close-paren]
-                  [(char=? c #\[) (read-char p) (sub-read-list c close-bracket #t)]
+                  [(char=? c #\[) (sub-read-list c close-bracket #t)]
                   [(char=? c #\]) close-bracket]
-                  [(char=? c #\;) (sub-read-line-comment) (sub-read top)]
-                  [(char=? c #\') (read-char p) (list 'quote (sub-read-carefully))]
-                  [(char=? c #\`) (read-char p) (list 'quasiquote (sub-read-carefully))]
-                  [(char=? c #\,) (read-char p)
+                  [(char=? c #\.) dot]
+                  [(char=? c #\') (list 'quote (sub-read-carefully))]
+                  [(char=? c #\`) (list 'quasiquote (sub-read-carefully))]
+                  [(char=? c #\,)
                    (let ([next (peek-char p)])
                      (cond [(eof-object? next) (r-error p "end of file after ,")]
                            [(char=? next #\@)
                             (read-char p) (list 'unquote-splicing (sub-read-carefully))]
                            [else (list 'unquote (sub-read-carefully))]))]
-                  [(char=? c #\") (read-char p) (sub-read-string)]
-                  [(char=? c #\|) (read-char p) (sub-read-barsym)]
-                  [(char=? c #\#) (read-char p) (sub-read-sharp top)]
-                  [(token-start-number? c)
-                   (let ([t (get-token (read-char p))])
-                     (if (string? t)
-                         (or (string->number t)
-                             (and (char=? (string-ref t 0) #\.)
-                                  (string->number (string-append "0" t)))
-                             (get-symbol-from-token t))
-                         t))]
-                  [else (get-symbol)])))
+                  [(char=? c #\") (sub-read-string)]
+                  [(char=? c #\|) (sub-read-barsym)]
+                  [(char=? c #\#) (sub-read-sharp top)]
+                  [else (r-error p "illegal character read" c)])))
 
         ;; resolve shared refs in place (structure may be cyclic)
         (define (nmr form)

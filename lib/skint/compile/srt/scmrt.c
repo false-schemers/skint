@@ -121,6 +121,8 @@
 #define flush_port         scmrt_flush_port
 #define port_read_char     scmrt_port_read_char
 #define port_peek_char     scmrt_port_peek_char
+#define port_read_line     scmrt_port_read_line
+#define read_ahead         scmrt_read_ahead
 #define port_write_char    scmrt_port_write_char
 #define display_obj_port   scmrt_display_obj_port
 #define write_obj_port     scmrt_write_obj_port
@@ -150,6 +152,9 @@ typedef uint64_t obj_t;
 #define SCM_VOID  ((obj_t)21)
 #define SCM_UNIT  ((obj_t)25)
 #define SCM_EOF   ((obj_t)29)
+/* a character immediate: imm itag 2, codepoint from bit 8 up.  The
+   reader returns one as a signal for the syntax Scheme owns. [cco] */
+#define RA_CHAR(c) ((((obj_t)(uint32_t)(c)) << 8) | (obj_t)9)
 
 /* block headers: hdr = (size<<3) | (mtag<<1) | 1 */
 #define SCM_HDR(size, mtag) \
@@ -174,6 +179,11 @@ static cxtype_t bytevector_cxtype = { "bytevector", NULL };
 static cxtype_t port_cxtype       = { "port", NULL };
 static cxtype_t hvector_cxtype    = { "hvector", NULL };
 
+typedef struct strpay_s { int32_t len; int32_t chars[1]; } strpay_t;
+typedef struct bvpay_s  { int32_t len; uint8_t bytes[1]; } bvpay_t;
+typedef struct hvpay_s  { int32_t tcode; int32_t len; uint8_t data[1]; }
+  hvpay_t;
+
 /* exported GC globals (see scmrt.mvh) */
 void    *heap_limit;                   /* base of the active semispace */
 int64_t  heap_plus1;                   /* region base + 1 word, as i64 */
@@ -189,6 +199,62 @@ static unsigned char *rt_static_hi;
 static unsigned char *rt_semi[2];
 static size_t         rt_semi_bytes;
 static int            rt_active;
+
+/* ---- payload pressure ---------------------------------------------
+   A string, bytevector or numeric vector is a 2-word wrapper on the
+   collectable heap over a malloc'd payload, and the payload is where
+   almost all of the bytes are: a 500 KB string costs the heap 16 bytes
+   and malloc 2 MB.  The heap check compiled code performs therefore
+   barely notices a string-heavy program -- it allocates two words per
+   string -- so the collector almost never runs, dead payloads are never
+   finalized, and the process grows without bound.  The `string'
+   benchmark reached 12.3 GB that way against the interpreter's 1.78,
+   and spent its time in the allocator rather than on the work.
+
+   So payload bytes are charged too.  rt_pay_since counts what has been
+   malloc'd since the last collection; when it passes rt_pay_trigger,
+   $heap_limit is raised to the top of the active semispace, which makes
+   the next heap check in compiled code fail and collect (collect itself
+   takes its from-base from rt_semi[rt_active], never from $heap_limit,
+   and resets $heap_limit when it flips).  The trigger is then set from
+   the payload bytes that SURVIVED, so at most half the payload bytes in
+   play are garbage -- the same shape as Skint's cxm_hgc policy for the
+   heap proper.
+
+   The charge is monotonic and the live figure is measured, at
+   collection time, from the natives the collector has already
+   recorded.  A payload site that forgets to charge therefore only makes
+   the trigger later, never wrong; nothing can underflow. [cco] */
+
+#define RT_PAY_FLOOR ((size_t)8 * 1024 * 1024)
+
+static size_t rt_pay_since   = 0;
+static size_t rt_pay_live    = 0;   /* set by each collection */
+static size_t rt_pay_trigger = RT_PAY_FLOOR;
+
+static void pay_charge(size_t n)
+{
+  rt_pay_since += n;
+  if (rt_pay_since >= rt_pay_trigger && rt_semi[rt_active] != NULL)
+    heap_limit = rt_semi[rt_active] + rt_semi_bytes;
+}
+
+/* a recorded native's payload size, or 0 for a kind not counted (a
+   port, whose buffer is bounded by what was written to it) */
+static size_t pay_bytes(cxtype_t *t, void *p)
+{
+  if (p == NULL) return 0;
+  if (t == &string_cxtype) {
+    int32_t n = ((strpay_t *)p)->len;
+    return sizeof(strpay_t) + (size_t)(n > 0 ? n - 1 : 0) * 4;
+  }
+  if (t == &bytevector_cxtype) {
+    int32_t n = ((bvpay_t *)p)->len;
+    return sizeof(bvpay_t) + (size_t)(n > 0 ? n - 1 : 0);
+  }
+  return 0;
+}
+
 static int            rt_ready;
 static size_t         rt_roots_init;   /* from init's reg_words */
 
@@ -358,6 +424,20 @@ void *init(int32_t init_heap_words, int32_t reg_words,
     return rt_semi[rt_active] + rt_semi_bytes;
   if (init_heap_words > 0)
     while (semi_words < (size_t)init_heap_words) semi_words <<= 1;
+  /* SCMRT_HEAP_WORDS overrides the initial semispace, as
+     SCMRT_GC_STATS reports the collections: it is how the cost of
+     the GROWTH PHASE is measured.  On paraffins, whose live set
+     reaches 48M words, starting at the eventual size halves the
+     collections (26 -> 14) and saves 115M words of copying at the
+     SAME peak memory.  It is not worth making the default,
+     though: over ten allocation-heavy benchmarks with small live
+     sets it ranges from -7%% to +5%%, mostly noise, because they
+     reach their working size in a few doublings anyway and a
+     bigger region only costs more to allocate and touch. [cco] */
+  { const char *e = getenv("SCMRT_HEAP_WORDS");
+    if (e) { size_t w = (size_t)atol(e);
+             if (w > 256) { semi_words = 256;
+               while (semi_words < w) semi_words <<= 1; } } }
   rt_static_bytes = rt_static_for(static_words);
   rt_semi_bytes   = semi_words * sizeof(obj_t);
   rt_region_bytes = rt_region_for(rt_semi_bytes);
@@ -662,10 +742,18 @@ static void *collect_pass(obj_t *regs, int32_t live, void *hp,
     }
   }
 
-  /* finalize natives that were not forwarded */
-  for (k = 0; k < rt_nats_len; k++)
-    if ((*rt_nats[k].hdr_slot & 3) != 2 && rt_nats[k].type->free != NULL)
-      (*rt_nats[k].type->free)(rt_nats[k].payload);
+  /* Finalize the natives that were not forwarded, and total up the
+     payload bytes of the ones that were: that is the live payload
+     figure the next payload trigger is set from. [cco] */
+  rt_pay_live = 0;
+  for (k = 0; k < rt_nats_len; k++) {
+    if ((*rt_nats[k].hdr_slot & 3) != 2) {
+      if (rt_nats[k].type->free != NULL)
+        (*rt_nats[k].type->free)(rt_nats[k].payload);
+    } else {
+      rt_pay_live += pay_bytes(rt_nats[k].type, rt_nats[k].payload);
+    }
+  }
 
   return rt_to_bump;
 }
@@ -716,6 +804,95 @@ static void rt_gc_stats_report(void)
    static, and this runtime is compiled by it for the wasm target.  The
    wasm build had never been attempted on this file, so the violation
    sat here from its first commit. [cco] */
+/* ---- allocation histogram (SCMRT_GC_HIST=1) ---------------------
+   The from-space at a collection holds EVERY object allocated in that
+   cycle, live and dead: allocation bumps $hp downward and leaves no
+   gaps, and each object is [header][cells..] with the header one word
+   below the object pointer.  So walking from $hp up to the top of the
+   semispace and bucketing by mtag and size is an exact account of what
+   the program allocated, which beats guessing at it from the shape of
+   the generated code.  A header with bit 0 set encodes (size<<3 |
+   mtag<<1 | 1); one without is a cxtype pointer, a Native wrapper of
+   two words.  The last, uncollected cycle is not counted. [cco] */
+
+#define HIST_MAXSZ 12
+
+static unsigned long long rt_hist_n[4][HIST_MAXSZ + 1];
+static unsigned long long rt_hist_w[4][HIST_MAXSZ + 1];
+static unsigned long long rt_hist_nat;
+static unsigned long long rt_hist_natw;
+static unsigned long long rt_hist_bad;
+
+static void rt_hist_walk(void *hp)
+{
+  unsigned char *p   = (unsigned char *)hp;
+  unsigned char *top = rt_semi[rt_active] + rt_semi_bytes;
+  while (p < top) {
+    obj_t h = *(obj_t *)(void *)p;
+    size_t words;
+    if (h & (obj_t)1) {
+      size_t size = (size_t)(h >> 3);
+      int    mtag = (int)((h >> 1) & (obj_t)3);
+      size_t b    = size <= HIST_MAXSZ ? size : HIST_MAXSZ;
+      words = size + 1;
+      if (words == 0 || p + words * sizeof(obj_t) > top) {
+        rt_hist_bad++;
+        return;                       /* desynchronised: stop, say so */
+      }
+      rt_hist_n[mtag][b] += 1;
+      rt_hist_w[mtag][b] += (unsigned long long)words;
+    } else {
+      words = 2;
+      rt_hist_nat  += 1;
+      rt_hist_natw += 2;
+    }
+    p += words * sizeof(obj_t);
+  }
+}
+
+static void rt_hist_report(void)
+{
+  static const char *kind[4];
+  int m;
+  size_t s;
+  unsigned long long tot = 0;
+  kind[0] = "typed  ";
+  kind[1] = "packed ";
+  kind[2] = "closure";
+  kind[3] = "vector ";
+  for (m = 0; m < 4; m++)
+    for (s = 0; s <= HIST_MAXSZ; s++) tot += rt_hist_w[m][s];
+  tot += rt_hist_natw;
+  fprintf(stderr, "scmrt-hist: total-words=%llu (desync=%llu)\n",
+          tot, rt_hist_bad);
+  for (m = 0; m < 4; m++) {
+    for (s = 0; s <= HIST_MAXSZ; s++) {
+      if (rt_hist_n[m][s] == 0) continue;
+      fprintf(stderr,
+              "scmrt-hist: %s size=%2lu%s count=%12llu words=%12llu  %5.1f%%\n",
+              kind[m], (unsigned long)s, s == HIST_MAXSZ ? "+" : " ",
+              rt_hist_n[m][s], rt_hist_w[m][s],
+              tot ? 100.0 * (double)rt_hist_w[m][s] / (double)tot : 0.0);
+    }
+  }
+  if (rt_hist_nat)
+    fprintf(stderr,
+            "scmrt-hist: native  size= 1  count=%12llu words=%12llu  %5.1f%%\n",
+            rt_hist_nat, rt_hist_natw,
+            tot ? 100.0 * (double)rt_hist_natw / (double)tot : 0.0);
+}
+
+static int rt_hist_armed;
+
+static void rt_hist_arm(void)
+{
+  const char *e;
+  if (rt_hist_armed) return;
+  rt_hist_armed = 1;
+  e = getenv("SCMRT_GC_HIST");
+  if (e && e[0] == '1') atexit(&rt_hist_report);
+}
+
 static int rt_gc_stats_armed;
 
 static void rt_gc_stats_arm(void)
@@ -735,6 +912,8 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
   double gc_t0;
   obj_t *regs = (obj_t *)(void *)r;
   rt_gc_stats_arm();
+  rt_hist_arm();
+  if (rt_hist_armed) rt_hist_walk(hp);
   rt_gc_count++;
   gc_t0 = rt_monotonic();
   if (getenv("SCMRT_GC_STATS") && rt_gc_count <= 20)
@@ -766,6 +945,12 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
   want = needs > 0 ? (size_t)needs : 0;
   if (want > (size_t)-1 - 2 * live_words) grow_out_of_memory(want);
   want += 2 * live_words;
+  /* the payload budget is spent: charge the next cycle from what
+     survived, so at most half the payload bytes in play are
+     garbage -- the heap's own policy, applied to malloc. [cco] */
+  rt_pay_since = 0;
+  rt_pay_trigger = rt_pay_live > RT_PAY_FLOOR ? rt_pay_live
+                                              : RT_PAY_FLOOR;
   if (semi_words >= want) {
     rt_gc_time += rt_monotonic() - gc_t0;
     return new_hp;
@@ -1024,10 +1209,6 @@ static size_t hvector_esz(int t)
   return esz;
 }
 
-typedef struct strpay_s { int32_t len; int32_t chars[1]; } strpay_t;
-typedef struct bvpay_s  { int32_t len; uint8_t bytes[1]; } bvpay_t;
-typedef struct hvpay_s  { int32_t tcode; int32_t len; uint8_t data[1]; }
-  hvpay_t;
 
 static obj_t rds_sexp_rec(rds_t *s)
 {
@@ -1168,8 +1349,12 @@ void *build_rest_list(obj_t a0, void *r, void *hp, int32_t rc, int32_t req)
   int32_t i, n = rc - req;
   ensure_init();
   if (n <= 0) return hp;
-  if ((size_t)(p - (unsigned char *)heap_limit)
-      < (size_t)n * 3 * sizeof(obj_t)) {
+  /* The same POINTER COMPARISON compiled code's reserve uses, not a
+     subtraction: payload pressure raises $heap_limit above $hp on
+     purpose to force the next check to fail, and an unsigned
+     difference goes huge there instead of small, so this check
+     would skip the collection it most needs. [cco] */
+  if (p < (unsigned char *)heap_limit + (size_t)n * 3 * sizeof(obj_t)) {
     if (regs) regs[rc - 1] = a0;          /* protect a0 across the GC */
     p = (unsigned char *)collect(r, regs ? rc : 0, hp, 3 * n);
     a0 = regs ? regs[rc - 1] : a0;
@@ -1374,6 +1559,7 @@ void *make_string_payload(int32_t len, int32_t fill)
   if (!p) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
   p->len = len;
   for (i = 0; i < len; i++) p->chars[i] = fill;
+  pay_charge(pay_bytes(&string_cxtype, (void *)p));
   return (void *)p;
 }
 
@@ -1448,10 +1634,31 @@ typedef struct prsink_s {
   portpay_t *sp;
 } prsink_t;
 
+/* one codepoint as UTF-8 to a FILE* (the only encoding the file
+   ports use, in or out) [cco] */
+static void utf8_fputc(FILE *fp, uint32_t c)
+{
+  if (c < 0x80) {
+    fputc((int)c, fp);
+  } else if (c < 0x800) {
+    fputc((int)(0xc0 | (c >> 6)), fp);
+    fputc((int)(0x80 | (c & 63)), fp);
+  } else if (c < 0x10000) {
+    fputc((int)(0xe0 | (c >> 12)), fp);
+    fputc((int)(0x80 | ((c >> 6) & 63)), fp);
+    fputc((int)(0x80 | (c & 63)), fp);
+  } else {
+    fputc((int)(0xf0 | (c >> 18)), fp);
+    fputc((int)(0x80 | ((c >> 12) & 63)), fp);
+    fputc((int)(0x80 | ((c >> 6) & 63)), fp);
+    fputc((int)(0x80 | (c & 63)), fp);
+  }
+}
+
 static void pr_cp(prsink_t *sk, int32_t cp)
 {
   if (sk->sp) spush_cp(sk->sp, cp);
-  else putc(cp < 128 ? (int)cp : '?', sk->fp);
+  else utf8_fputc(sk->fp, (uint32_t)cp);
 }
 
 static void pr_str(prsink_t *sk, const char *s)
@@ -1461,6 +1668,81 @@ static void pr_str(prsink_t *sk, const char *s)
   } else {
     fputs(s, sk->fp);
   }
+}
+
+/* ---- does a symbol name print without vertical bars? -------------
+   Skint's cleansymname: every character must be one a symbol may
+   contain, and the first must be one a symbol may START with, or else
+   the name could read back as a number (1, +5, -.5) or as nothing at
+   all (the empty name, a lone dot).  One deliberate difference: a byte
+   above ASCII counts as a starting character here, because this
+   runtime's reader accepts a non-ASCII identifier -- Skint's does so
+   only when it is built for Unicode, and a build without it bars the
+   name instead. [cco] */
+
+/* 1 = may start a symbol, 2 = may only continue one, 0 = neither */
+static int sym_class(unsigned char c)
+{
+  if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) return 1;
+  if (c == '!' || c == '$' || c == '%' || c == '&' || c == '*'
+      || c == '/' || c == ':' || c == '<' || c == '=' || c == '>'
+      || c == '?' || c == '@' || c == '^' || c == '_' || c == '~')
+    return 1;
+  if (c == '+' || c == '-' || c == '.' || (c >= '0' && c <= '9')) return 2;
+  if (c >= 128) return 1;
+  return 0;
+}
+
+static int sym_digit(unsigned char c)
+{
+  return c >= '0' && c <= '9';
+}
+
+/* the five characters of "inf.0"/"nan.0", ignoring case */
+static int sym_ci5(const char *a, const char *b)
+{
+  int i, ca, cb;
+  for (i = 0; i < 5; i++) {
+    ca = (unsigned char)a[i];
+    cb = (unsigned char)b[i];
+    if (ca >= 'A' && ca <= 'Z') ca = ca + 32;
+    if (ca != cb) return 0;
+  }
+  return 1;
+}
+
+static int sym_is_clean(const char *s)
+{
+  size_t n = strlen(s), i;
+  if (n < 1) return 0;
+  for (i = 0; i < n; i++)
+    if (sym_class((unsigned char)s[i]) == 0) return 0;
+  if (sym_class((unsigned char)s[0]) == 1) return 1;
+  if (s[0] == '+' || s[0] == '-') {
+    if (n == 1) return 1;
+    if (n == 2 && (s[1] == 'i' || s[1] == 'I')) return 0;
+    if (n >= 6 && (sym_ci5(s + 1, "inf.0") || sym_ci5(s + 1, "nan.0")))
+      return 0;
+    if (s[1] == '.' && !sym_digit((unsigned char)s[2])) return 1;
+    if (s[1] != '.' && !sym_digit((unsigned char)s[1])) return 1;
+    return 0;
+  }
+  return (n >= 2 && s[0] == '.' && !sym_digit((unsigned char)s[1]));
+}
+
+/* the name between vertical bars, byte by byte like pr_str (the name is
+   UTF-8, and no byte of a multi-byte character can be | or a backslash) */
+static void pr_bars(prsink_t *sk, const char *s)
+{
+  char one[2];
+  one[1] = 0;
+  pr_str(sk, "|");
+  for (; *s; s++) {
+    if (*s == '|' || *s == 92) pr_str(sk, "\\");
+    one[0] = *s;
+    pr_str(sk, one);
+  }
+  pr_str(sk, "|");
 }
 
 /* Skint-style shortest-round-trip flonum formatting (defined
@@ -1489,19 +1771,29 @@ static void pr_sink(prsink_t *sk, obj_t o, int writep)
     if (itag == 2) {                                   /* char */
       int32_t c = (int32_t)(o >> 8);
       if (writep) {
-        if (c == 10) pr_str(sk, "#\\newline");
+        /* the named characters Skint's write produces, and no others:
+           anything else goes out as itself after the #\ -- which is
+           what Skint does too, readable or not. [cco] */
+        if (c == 0) pr_str(sk, "#\\null");
+        else if (c == 7) pr_str(sk, "#\\alarm");
+        else if (c == 8) pr_str(sk, "#\\backspace");
+        else if (c == 9) pr_str(sk, "#\\tab");
+        else if (c == 10) pr_str(sk, "#\\newline");
+        else if (c == 13) pr_str(sk, "#\\return");
+        else if (c == 27) pr_str(sk, "#\\escape");
         else if (c == 32) pr_str(sk, "#\\space");
+        else if (c == 127) pr_str(sk, "#\\delete");
         else if (c >= 33 && c < 127) { char nb[8]; sprintf(nb, "#\\%c", (int)c); pr_str(sk, nb); }
-        else { char nb[16]; sprintf(nb, "#\\x%x", (unsigned)c); pr_str(sk, nb); }
+        else { pr_str(sk, "#\\"); pr_cp(sk, c); }
       }
-      else if (c < 128) pr_cp(sk, (int)c);
-      else pr_cp(sk, '?');
+      else pr_cp(sk, (int32_t)c);
       return;
     }
     if (itag == 4) {                                   /* symbol */
       size_t idx = (size_t)(o >> 8);
-      if (idx < rt_syms_len) pr_str(sk, rt_syms[idx]);
-      else pr_str(sk, "#<symbol>");
+      if (idx >= rt_syms_len) pr_str(sk, "#<symbol>");
+      else if (writep && !sym_is_clean(rt_syms[idx])) pr_bars(sk, rt_syms[idx]);
+      else pr_str(sk, rt_syms[idx]);
       return;
     }
     if (itag == 5) { pr_str(sk, "#<void>"); return; }
@@ -1519,8 +1811,18 @@ static void pr_sink(prsink_t *sk, obj_t o, int writep)
         if (writep) pr_cp(sk, '"');
         for (i = 0; i < s->len; i++) {
           int32_t c = s->chars[i];
-          if (writep && (c == '"' || c == '\\')) pr_cp(sk, '\\');
-          if (c < 128) pr_cp(sk, (int)c); else pr_cp(sk, '?');
+          if (writep) {
+            /* exactly the escapes Skint's write emits: the three
+               mnemonics, the two delimiters, and NUL in hex (a raw NUL
+               truncates the text for every C reader of it).  Every
+               other control character goes out as itself. [cco] */
+            if (c == 9)  { pr_str(sk, "\\t");   continue; }
+            if (c == 10) { pr_str(sk, "\\n");   continue; }
+            if (c == 13) { pr_str(sk, "\\r");   continue; }
+            if (c == 0)  { pr_str(sk, "\\x0;"); continue; }
+            if (c == '"' || c == '\\') pr_cp(sk, '\\');
+          }
+          pr_cp(sk, c);
         }
         if (writep) pr_cp(sk, '"');
         return;
@@ -1677,6 +1979,7 @@ void *make_bytevector_payload(int32_t len)
   if (!p) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
   p->len = len;
   memset((char *)(void *)p + 4, 0, (size_t)(len > 0 ? len : 0));
+  pay_charge(pay_bytes(&bytevector_cxtype, (void *)p));
   return (void *)p;
 }
 
@@ -1922,19 +2225,17 @@ static char *str_obj_bytes(obj_t o)
    fixnum range become fixnums, other numeric values become
    flonums (this runtime has no bignums), non-numbers become #f.
    Non-allocating: the result is always an immediate. */
-obj_t string_to_number(obj_t o, obj_t ro)
+/* The number parser proper, over a NUL-terminated UTF-8 byte string it
+   TAKES OWNERSHIP of (it frees s before returning).  Split out of
+   string_to_number so the reader's token scanner can reach it without
+   first building a string object on the heap. [cco] */
+static obj_t cstr_to_number(char *s, int radix)
 {
-  char *s = str_obj_bytes(o);
   const char *p = s;
-  int radix = 10;
   int neg = 0, any = 0, big = 0;
   int64_t v = 0;
   double d;
   obj_t res = (obj_t)0;                 /* #f */
-  if (is_fixnum(ro)) {
-    int64_t r = fx_val(ro);
-    if (r >= 2 && r <= 36) radix = (int)r;
-  }
   if (p[0] == '#' && (p[1] == 'b' || p[1] == 'o' || p[1] == 'd' || p[1] == 'x')) {
     radix = (p[1] == 'b') ? 2 : (p[1] == 'o') ? 8 : (p[1] == 'd') ? 10 : 16;
     p += 2;
@@ -2004,6 +2305,16 @@ obj_t string_to_number(obj_t o, obj_t ro)
   else if (!strcmp(s, "+nan.0") || !strcmp(s, "-nan.0")) res = mk_flonum(HUGE_VAL - HUGE_VAL);
   free(s);
   return res;
+}
+
+obj_t string_to_number(obj_t o, obj_t ro)
+{
+  int radix = 10;
+  if (is_fixnum(ro)) {
+    int64_t r = fx_val(ro);
+    if (r >= 2 && r <= 36) radix = (int)r;
+  }
+  return cstr_to_number(str_obj_bytes(o), radix);
 }
 
 obj_t port_type(void)
@@ -2285,6 +2596,7 @@ void *get_output_string_payload(obj_t o)
   r->len = n;
   memcpy((char *)(void *)r + 4, (char *)(void *)p->str + 4,
          (size_t)n * 4);
+  pay_charge(pay_bytes(&string_cxtype, (void *)r));
   return (void *)r;
 }
 
@@ -2340,6 +2652,49 @@ int32_t port_read_char(obj_t o)
   return port_getc(port_of(o));
 }
 
+/* read-line: the rest of the line as a fresh string payload, the
+   terminating newline dropped and not included; NULL at end of file
+   (nothing read at all).  The Scheme-level loop this replaces cost
+   one runtime call and one pair per character, plus a list->string
+   pass at the end. [cco] */
+void *port_read_line(obj_t o)
+{
+  portpay_t *p = port_of(o);
+  int32_t cap = 64, len = 0, c = port_getc(p);
+  strpay_t *s;
+  if (c < 0) return NULL;
+  s = (strpay_t *)malloc(sizeof(strpay_t) + (size_t)(cap - 1) * 4);
+  if (!s) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  while (c >= 0 && c != 10) {
+    if (len >= cap) {
+      strpay_t *ns;
+      cap = cap * 2;
+      ns = (strpay_t *)realloc(s, sizeof(strpay_t)
+                                  + (size_t)(cap - 1) * 4);
+      if (!ns) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+      s = ns;
+    }
+    s->chars[len] = c;
+    len = len + 1;
+    c = port_getc(p);
+  }
+  /* LF alone ends a line: a CR is an ordinary character wherever it
+     stands, which is what Skint's read-line and the clib version
+     this replaces both do. [cco] */
+  s->len = len;
+  /* hand back the slack: a held line keeps its payload for as long as
+     the string is live, and the doubling leaves up to half of it
+     unused (a short line in a 64-codepoint buffer, most of it) */
+  if (cap != len) {
+    strpay_t *ns = (strpay_t *)realloc(s, sizeof(strpay_t)
+                                        + (len > 0
+                                           ? (size_t)(len - 1) * 4 : 0));
+    if (ns) s = ns;
+  }
+  pay_charge(pay_bytes(&string_cxtype, (void *)s));
+  return (void *)s;
+}
+
 int32_t port_peek_char(obj_t o)
 {
   portpay_t *p = port_of(o);
@@ -2349,23 +2704,137 @@ int32_t port_peek_char(obj_t o)
   return c;
 }
 
-static void utf8_fputc(FILE *fp, uint32_t c)
+/* ------------------------------------------------------------------ */
+/* the reader's read-ahead step (%read-ahead)                        */
+/* ------------------------------------------------------------------ */
+
+/* Whitespace, line comments and the atom scan are what a Scheme
+   reader spends its time in, one character at a time; doing them
+   here costs one call per TOKEN instead of a peek, a read and a cons
+   per character.  The Scheme layer keeps everything whose syntax it
+   owns -- strings, |symbols|, every # form, the brackets, the quotes
+   -- and gets a CHARACTER back as the signal for each of those.
+   Anything else comes back as the value itself: the eof object, a
+   symbol, or a number.  Nothing here allocates on the GC heap
+   (symbols, characters, fixnums and flonums are all immediates), so
+   compiled code needs no reservation around the call.
+
+   The constituent set is the clib reader's own char-constituent?,
+   not Skint's ASCII inisub table, so a non-ASCII identifier reads
+   here exactly as it did before.  Under #!fold-case the folding is
+   ASCII-only, where Skint folds the whole of Unicode. [cco] */
+
+static int ra_space(int32_t c)
 {
-  if (c < 0x80) {
-    fputc((int)c, fp);
-  } else if (c < 0x800) {
-    fputc((int)(0xc0 | (c >> 6)), fp);
-    fputc((int)(0x80 | (c & 63)), fp);
-  } else if (c < 0x10000) {
-    fputc((int)(0xe0 | (c >> 12)), fp);
-    fputc((int)(0x80 | ((c >> 6) & 63)), fp);
-    fputc((int)(0x80 | (c & 63)), fp);
-  } else {
-    fputc((int)(0xf0 | (c >> 18)), fp);
-    fputc((int)(0x80 | ((c >> 12) & 63)), fp);
-    fputc((int)(0x80 | ((c >> 6) & 63)), fp);
-    fputc((int)(0x80 | (c & 63)), fp);
+  return c == 32 || (c >= 9 && c <= 13);
+}
+
+/* the characters whose syntax the Scheme layer owns, plus ; which is
+   consumed here; returned to Scheme as a one-character signal */
+static int ra_punct(int32_t c)
+{
+  return c == 40 || c == 41       /* ( ) */
+      || c == 91 || c == 93       /* [ ] */
+      || c == 34 || c == 39       /* " ' */
+      || c == 96 || c == 44       /* ` , */
+      || c == 35 || c == 124      /* # | */
+      || c == 92;                 /* backslash */
+}
+
+static int ra_constituent(int32_t c)
+{
+  return c >= 0 && !ra_space(c) && c != 59 && !ra_punct(c);
+}
+
+/* the token as a NUL-terminated UTF-8 byte string (malloc'd) */
+static char *ra_bytes(const int32_t *buf, int32_t len)
+{
+  char *out = (char *)malloc((size_t)(len > 0 ? len : 1) * 4 + 1);
+  size_t n = 0;
+  int32_t i;
+  if (!out) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  for (i = 0; i < len; i++) {
+    uint32_t c = (uint32_t)buf[i];
+    if (c < 0x80) {
+      out[n++] = (char)c;
+    } else if (c < 0x800) {
+      out[n++] = (char)(0xc0 | (c >> 6));
+      out[n++] = (char)(0x80 | (c & 63));
+    } else if (c < 0x10000) {
+      out[n++] = (char)(0xe0 | (c >> 12));
+      out[n++] = (char)(0x80 | ((c >> 6) & 63));
+      out[n++] = (char)(0x80 | (c & 63));
+    } else {
+      out[n++] = (char)(0xf0 | (c >> 18));
+      out[n++] = (char)(0x80 | ((c >> 12) & 63));
+      out[n++] = (char)(0x80 | ((c >> 6) & 63));
+      out[n++] = (char)(0x80 | (c & 63));
+    }
   }
+  out[n] = 0;
+  return out;
+}
+
+obj_t read_ahead(obj_t port, obj_t fold)
+{
+  portpay_t *p = port_of(port);
+  int32_t c, cap = 32, len = 0, i;
+  int32_t *buf;
+  int numeric;
+  obj_t res;
+  /* skip whitespace and line comments */
+  for (;;) {
+    c = port_getc(p);
+    if (c < 0) return SCM_EOF;
+    if (ra_space(c)) continue;
+    if (c == 59) {                              /* ; to end of line */
+      for (;;) {
+        c = port_getc(p);
+        if (c < 0) return SCM_EOF;
+        if (c == 10) break;
+      }
+      continue;
+    }
+    break;
+  }
+  if (ra_punct(c)) return RA_CHAR(c);           /* Scheme's business */
+  /* an atom: the run of constituents, with the first already in hand */
+  numeric = (c >= 48 && c <= 57) || c == 43 || c == 45 || c == 46;
+  buf = (int32_t *)malloc((size_t)cap * 4);
+  if (!buf) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  for (;;) {
+    if (len >= cap) {
+      int32_t *nb;
+      cap = cap * 2;
+      nb = (int32_t *)realloc(buf, (size_t)cap * 4);
+      if (!nb) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+      buf = nb;
+    }
+    buf[len] = c;
+    len = len + 1;
+    c = port_getc(p);
+    if (!ra_constituent(c)) break;
+  }
+  if (c >= 0) { p->peek = c; p->has_peek = 1; } /* put the delimiter back */
+  if (len == 1 && buf[0] == 46) {               /* the lone dot */
+    free(buf);
+    return RA_CHAR(46);
+  }
+  res = (obj_t)0;
+  if (numeric) res = cstr_to_number(ra_bytes(buf, len), 10);
+  if (!res) {
+    char *s;
+    if (fold) {
+      for (i = 0; i < len; i++) {
+        if (buf[i] >= 65 && buf[i] <= 90) buf[i] = buf[i] + 32;
+      }
+    }
+    s = ra_bytes(buf, len);
+    res = intern_sym((void *)s);
+    free(s);
+  }
+  free(buf);
+  return res;
 }
 
 void port_write_char(obj_t o, int32_t cp)

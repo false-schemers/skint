@@ -192,6 +192,9 @@
   ;; n-ary string-append over a run of consecutive staged slots: one
   ;; pass to sum the lengths, one allocation, each part copied once.
   ;; After Skint's `sapp' instruction. Caller reserves 2, as for scat.
+  (func $strn_slow_hreserved (param $r ptr) (param $hp ptr)
+                             (param $slots ptr) (param $n i32)
+                             (result ptr))
   (func $sappn_slow_hreserved (param $r ptr) (param $hp ptr)
                               (param $slots ptr) (param $n i32)
                               (result ptr))
@@ -228,6 +231,8 @@
                               (param $port i64) (result ptr))
   (func $getostr_slow_hreserved (param $r ptr) (param $hp ptr)
                                 (param $port i64) (result ptr))
+  (func $rdline_slow_hreserved (param $r ptr) (param $hp ptr)
+                               (param $port i64) (result ptr))
   (func $getenv_slow_hreserved (param $r ptr) (param $hp ptr)
                                (param $name i64) (result ptr))
 
@@ -2142,7 +2147,16 @@
 
   ;; n-ary string-append: $slots points at the first of $n
   ;; consecutive staged slots, result in $ac.  Caller reserved 2.
-    (macro $sappn ($slots $n)
+    ;; string: n characters from a consecutive slot run, built in
+  ;; one pass instead of through a list of them [cco]
+  (macro $strn ($slots $n)
+    (effect () -> ())
+    (seq (local.set $hp (call $scmi:strn_slow_hreserved
+                              (ref.data $scmi:ac_scratch) (local.get $hp)
+                              $slots $n))
+         (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  (macro $sappn ($slots $n)
   (effect () -> ())
   (seq
     (local.set $hp (call $scmi:sappn_slow_hreserved
@@ -2595,6 +2609,14 @@
     (local.set $hp (call $scmi:getostr_slow_hreserved
                          $dst (local.get $hp) (local.get $ac)))
 ))
+
+  (macro $rdline ()
+  (effect () -> ())
+  (seq
+    (local.set $hp (call $scmi:rdline_slow_hreserved
+                         (ref.data $scmi:ac_scratch) (local.get $hp)
+                         (local.get $ac)))
+    (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
 
   (macro $getostr ()
   (effect () -> ())

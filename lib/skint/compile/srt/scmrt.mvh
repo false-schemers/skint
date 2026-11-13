@@ -143,6 +143,12 @@
   (func $flush_port (param $o i64))
   (func $port_read_char (param $o i64) (result i32))
   (func $port_peek_char (param $o i64) (result i32))
+  (func $port_read_line (param $o i64) (result ptr))
+  ;; the reader read-ahead step (%read-ahead): one call per token,
+  ;; answering the eof object, a symbol, a number, or a character as
+  ;; the signal for syntax the Scheme layer reads itself.  Allocates
+  ;; nothing on the GC heap, so no reservation is needed. [cco]
+  (func $read_ahead (param $port i64) (param $fold i64) (result i64))
   (func $port_write_char (param $o i64) (param $c i32))
   (func $display_obj_port (param $p i64) (param $o i64))
   (func $write_obj_port (param $p i64) (param $o i64))

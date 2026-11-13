@@ -46,9 +46,13 @@
             (make-record %builtin-make-record)
             (record? %builtin-record?))
           (only (scheme cxr) caar cadr cdar cddr)
-          (rename (only (skint) zero? write-char vector? vector-set! vector-ref vector-length truncate-remainder truncate-quotient truncate symbol? symbol->string substring string? string-append string=? string-set! string-ref string-length string->symbol string->number set-cdr! set-car! round reverse remainder read-char quotient procedure? positive? peek-char pair? output-port? output-port-open? open-output-string open-output-bytevector open-input-string open-input-bytevector number? number->string null? not newline negative? modulo min memv memq max make-vector make-string make-list make-bytevector list? list-tail list-ref list->string length integer? integer->char input-port? input-port-open? inexact? inexact get-output-string get-output-bytevector flush-output-port floor-remainder floor-quotient floor expt exact? exact-integer? exact eqv? equal? eq? eof-object? eof-object cons close-output-port close-input-port char? char>? char>=? char=? char<? char<=? char->integer ceiling cdr car bytevector? bytevector-u8-set! bytevector-u8-ref bytevector-length boolean? boolean=? assv assq abs >= > = <= < / - + * values call-with-values)
+          (rename (only (skint) zero? write-char display read-line vector string vector? vector-set! vector-ref vector-length truncate-remainder truncate-quotient truncate symbol? symbol->string substring string? string-append string=? string-set! string-ref string-length string->symbol string->number set-cdr! set-car! round reverse remainder read-char quotient procedure? positive? peek-char pair? output-port? output-port-open? open-output-string open-output-bytevector open-input-string open-input-bytevector number? number->string null? not newline negative? modulo min memv memq max make-vector make-string make-list make-bytevector list? list-tail list-ref list->string length integer? integer->char input-port? input-port-open? inexact? inexact get-output-string get-output-bytevector flush-output-port floor-remainder floor-quotient floor expt exact? exact-integer? exact eqv? equal? eq? eof-object? eof-object cons close-output-port close-input-port char? char>? char>=? char=? char<? char<=? char->integer ceiling cdr car bytevector? bytevector-u8-set! bytevector-u8-ref bytevector-length boolean? boolean=? assv assq abs >= > = <= < / - + * values call-with-values)
             (zero? %builtin-zero?)
             (write-char %builtin-write-char)
+            (display %builtin-display)
+            (read-line %builtin-read-line)
+            (string %builtin-string)
+            (vector %builtin-vector)
             (vector? %builtin-vector?)
             (vector-set! %builtin-vector-set!)
             (vector-ref %builtin-vector-ref)
@@ -294,10 +298,10 @@
     odd?
     peek-u8
     rational?
-    read-line
+    (rename %cover-read-line read-line)
     read-u8
     real?
-    string
+    (rename %cover-string string)
     string-append
     string<=?
     string<?
@@ -305,7 +309,7 @@
     string>?
     symbol=?
     u8-ready?
-    vector
+    (rename %cover-vector vector)
     vector-append
     write-u8
     caar
@@ -405,9 +409,6 @@
     ;; backend ever has to materialize them as host procedures
     (define (list . args) args)
 
-    (define (vector . args) (list->vector args))
-
-    (define (string . args) (list->string args))
 
 
 (define-syntax let-syntax
@@ -1234,7 +1235,9 @@
     [(k p) (read-subbytevector k p)]))
 
 (define (write-substring from start end p)
-  (do ([i start (fx+ i 1)]) [(fx>=? i end)] (write-char (string-ref from i) p)))
+  (if (and (fx=? start 0) (fx=? end (string-length from)))
+      (%builtin-display from p)
+      (%builtin-display (substring from start end) p)))
 
 (define write-string
   (case-lambda
@@ -1540,14 +1543,14 @@
     (define (denominator q)
       (if (exact? q) 1 (cdr (%num-den q))))
 
-    (define (read-line . args)
-      (let ([p (if (pair? args) (car args) (current-input-port))])
-        (let loop ([cs '()])
-          (let ([c (read-char p)])
-            (cond [(eof-object? c)
-                   (if (null? cs) c (list->string (reverse cs)))]
-                  [(char=? c #\newline) (list->string (reverse cs))]
-                  [else (loop (cons c cs))])))))
+    (define-syntax %cover-read-line
+      (syntax-rules ()
+        [(_ . args) (%builtin-read-line . args)]
+        [_ %residual-read-line]))
+    (define %residual-read-line
+      (lambda args
+        (if (pair? args) (%builtin-read-line (car args)) (%builtin-read-line))))
+    (define-syntax read-line %cover-read-line)
 
     ;; byte io over the character ports: on bytevector ports and
     ;; (for ASCII) on text ports a byte is a char below 256
@@ -1943,6 +1946,26 @@
     (define %residual-max
       (lambda (a0 . args) (%builtin-apply %builtin-max (cons a0 args))))
     (define-syntax max %cover-max)
+    ;; vector was EXPORTED WITHOUT BEING BOUND, so it was borrowed
+    ;; from Skint's own (scheme base) and every call compiled as a
+    ;; call to a variadic procedure -- which packs a REST LIST.
+    ;; (vector 'C a b c) cost four pairs and a runtime-length vector
+    ;; instead of one inline five-word block; on paraffins that was
+    ;; four fifths of the program's allocation.  Bound here as a
+    ;; cover so an applied call reaches the integrable and a bare
+    ;; reference still answers a procedure. [cco]
+    (define-syntax %cover-vector
+      (syntax-rules ()
+        [(_ . args) (%builtin-vector . args)]
+        [_ %residual-vector]))
+    (define (%residual-vector . args) (list->vector args))
+    (define-syntax vector %cover-vector)
+    (define-syntax %cover-string
+      (syntax-rules ()
+        [(_ . args) (%builtin-string . args)]
+        [_ %residual-string]))
+    (define (%residual-string . args) (list->string args))
+    (define-syntax string %cover-string)
     (define-syntax %cover-make-vector
       (syntax-rules ()
         [(_ . args) (%builtin-make-vector . args)]

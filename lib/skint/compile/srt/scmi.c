@@ -112,6 +112,7 @@
 #define ssub_slow_hreserved scmi_ssub_slow_hreserved
 #define scat_slow_hreserved scmi_scat_slow_hreserved
 #define sappn_slow_hreserved scmi_sappn_slow_hreserved
+#define strn_slow_hreserved scmi_strn_slow_hreserved
 #define lstr_slow_hreserved scmi_lstr_slow_hreserved
 #define sdwn_slow_hreserved scmi_sdwn_slow_hreserved
 #define bvnew_slow_hreserved scmi_bvnew_slow_hreserved
@@ -125,6 +126,7 @@
 #define sinport_slow_hreserved scmi_sinport_slow_hreserved
 #define soutport_slow_hreserved scmi_soutport_slow_hreserved
 #define getostr_slow_hreserved scmi_getostr_slow_hreserved
+#define rdline_slow_hreserved scmi_rdline_slow_hreserved
 #define binport_slow_hreserved scmi_binport_slow_hreserved
 #define boutport_slow_hreserved scmi_boutport_slow_hreserved
 #define getbvo_slow_hreserved scmi_getbvo_slow_hreserved
@@ -144,6 +146,7 @@
 #define make_input_string_port scmrt_make_input_string_port
 #define make_output_string_port scmrt_make_output_string_port
 #define get_output_string_payload scmrt_get_output_string_payload
+#define port_read_line scmrt_port_read_line
 #define make_input_bytevector_port scmrt_make_input_bytevector_port
 #define get_output_bytevector_payload scmrt_get_output_bytevector_payload
 #define make_output_bytevector_port scmrt_make_output_bytevector_port
@@ -194,6 +197,7 @@ void *arg_error(obj_t bad, const char *what);
 void *make_input_string_port(obj_t o);
 void *make_output_string_port(void);
 void *get_output_string_payload(obj_t o);
+void *port_read_line(obj_t o);
 void *make_input_bytevector_port(obj_t o);
 void *get_output_bytevector_payload(obj_t o);
 void *make_output_bytevector_port(void);
@@ -674,6 +678,8 @@ void *cons_slow_hreserved(void *r, void *hp, obj_t car, obj_t cdr)
 
 #define SCM_BOX_HDR ((obj_t)((1 << 3) | (1 << 1) | 1))
 #define SCM_NULL_OBJ ((obj_t)13)
+/* imm itag 7 (see scmn.mvh): the end-of-file object */
+#define SCM_EOF_OBJ ((obj_t)29)
 
 /* the obj for a block whose first cell is w+1 goes to $r[0] */
 static obj_t *hreserved_block(void *hp, int32_t words)
@@ -996,6 +1002,31 @@ void *getbvo_slow_hreserved(void *r, void *hp, obj_t port)
 
 /* get-environment-variable: #f instead of a wrapper when the
    variable is unset (no allocation then).  Pre-reserved: 2. */
+
+/* read-line: one runtime call for the whole line.  Pre-reserved: 2
+   (the wrapper), which is given back untouched at end of file --
+   nothing is allocated then. [cco] */
+void *rdline_slow_hreserved(void *r, void *hp, obj_t port)
+{
+  void *p = port_read_line(port);
+  if (!p) { ((obj_t *)r)[0] = SCM_EOF_OBJ; return hp; }
+  return hreserved_wrap(r, hp, p, string_type());
+}
+
+/* string: n characters, read from a consecutive run of staged slots.
+   The compiler used to cons a list of the characters and call
+   list->string, which threw away 3n words per call; this allocates the
+   payload once and fills it.  Same shape as sappn above. [cco]
+   Pre-reserved: 2 (the wrapper). */
+void *strn_slow_hreserved(void *r, void *hp, void *slots, int32_t n)
+{
+  obj_t *sv = (obj_t *)slots;
+  int32_t *pay = (int32_t *)make_string_payload(n, 0);
+  int32_t i;
+  for (i = 0; i < n; i++) pay[1 + i] = (int32_t)(sv[i] >> 8);
+  return hreserved_wrap(r, hp, (void *)pay, string_type());
+}
+
 void *getenv_slow_hreserved(void *r, void *hp, obj_t name)
 {
   void *p = get_env_payload(name);
