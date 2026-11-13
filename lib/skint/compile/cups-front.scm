@@ -31,23 +31,34 @@
 ;;; (scheme xxx) libraries at clib/scheme/*.sld, and are fetched from
 ;;; there by path rather than by searching the library path.
 ;;;
-;;; A shadowed name with no file under clib/ is BORROWED: the host's own
-;;; source for it is re-expanded against this environment, which is
-;;; enough for a library that is portable Scheme over the shadow
-;;; (scheme base).  Most of the names below have no clib/ file and rely
-;;; on exactly that.  It is also a trap: a REWRITTEN shadow library
-;;; that is missing from clib/ is borrowed just as quietly, and the
-;;; program then compiles against the interpreter's world with nothing
-;;; said.  (skint fl), (skint fx) and (skint ivset) were packaged late
-;;; for exactly that reason; the only thing that caught it was a
-;;; byte-comparison against the command-line compiler's output.  [cco]
+;;; EVERY name below has a file under clib/, and clib/ is the only place
+;;; a shadowed name is read from.  A name with no file there is reported,
+;;; not borrowed.  It used to be borrowed: the host's own source for the
+;;; name was re-expanded against this environment, which is enough for a
+;;; library that is portable Scheme over the shadow (scheme base), and
+;;; most of the names below relied on it.  It was also a trap, because a
+;;; shadow library rewritten but not packaged was borrowed just as
+;;; quietly and the program compiled against the interpreter's world
+;;; with nothing said; (skint fl), (skint fx) and (skint ivset) were
+;;; caught only by byte-comparing the output.  The borrowed libraries
+;;; were copied into clib/ verbatim, which cannot change what they
+;;; expand to -- borrowing re-expanded the same text against the same
+;;; environment -- and the fallback was then removed. [cco]
+;;;
+;;; Packaging is the other reason to hold them all: a standalone
+;;; compiler ships clib/ and nothing else of the host's library tree.
+;;;
 ;;; This matters because Skint's own (srfi N) targets the interpreter:
 ;;; it may use builtins the MARV srt runtime does not support and host
-;;; feature assumptions a standalone executable cannot rely on.  The
-;;; shadow copies contain only portable Scheme written against the
+;;; feature assumptions a standalone executable cannot rely on.  A
+;;; shadow copy should contain only portable Scheme written against the
 ;;; shadow libraries, plus (where a builtin has no portable definition)
 ;;; Skint builtins dressed as cover macros/residuals exactly like the
-;;; (scheme xxx) libraries -- restricted to builtins srt supports.
+;;; (scheme xxx) libraries -- restricted to builtins srt supports.  The
+;;; copies made for packaging are the host's own text and have not been
+;;; through that treatment; nine of them still import (skint) or (skint
+;;; hidden) directly.  They are visible under clib/ now, which is where
+;;; such a rewrite would happen.
 
 (define *shadow-library-names*
   '((scheme base) (scheme case-lambda) (scheme char)
@@ -66,7 +77,7 @@
     (srfi 143)
     (srfi 128) (srfi 116) (srfi 125) (srfi 113)
     (srfi 2) (srfi 121) (srfi 145) (srfi 146)
-    ;; wave of dependency-satisfied borrows (Checkpoint 34);
+    ;; admitted once their dependencies were satisfied (Checkpoint 34);
     ;; (srfi 160) itself is a metadata stub, the real libraries
     ;; are its sublibraries (c64/c128 excluded: complex vectors)
     (srfi 4)
@@ -146,11 +157,10 @@
 
 (define (cp-base-path)
   (let ([sld (find-library-path (cp-library-name))])
-    (if sld
-        (dir-add-separator (path-strip-extension sld))
-        ;; Not installed as a library yet: the experiment's own layout,
-        ;; where the caller's -I supplies everything.
-        "")))
+    (unless sld
+      (error "the compiler is not on the library path"
+             (cp-library-name)))
+    (dir-add-separator (path-strip-extension sld))))
 
 (define (cp-resource name)
   (file-resolve-relative-to-base-path name (cp-base-path)))
@@ -180,24 +190,32 @@
                    listname filepath))
           (caddr core))))))
 
-;; Where a shadowed name lives in the compiler's own tree, or #f when
-;; the compiler is not installed as a library and the caller's -I is
-;; supplying them instead.
+;; Where a shadowed name lives in the compiler's own tree.  Every name
+;; in *shadow-library-names* has a file there, so a #f answer is a
+;; packaging fault and fetch below reports it.
 (define (cp-shadow-library-path listname)
-  (let ([clib (cp-resource "clib")])
-    (and (not (string=? clib ""))
-         (let ([p (listname->path listname (dir-add-separator clib) ".sld")])
-           (and p (file-exists? p) p)))))
+  (let* ([clib (cp-resource "clib")]
+         [p (listname->path listname (dir-add-separator clib) ".sld")])
+    (and p (file-exists? p) p)))
 
 (define (make-shadow-sld-environment)
   (define base (make-sld-environment *root-name-registry*))
   (define cache '()) ; alist: shadowed listname -> location of its library
+  ;; A shadowed name is served from clib/ and from nowhere else.  This
+  ;; used to fall through to fetch-library, which re-expanded the HOST's
+  ;; own source for the name against this environment -- correct often
+  ;; enough to be invisible, and a trap the rest of the time: a shadow
+  ;; library rewritten but not packaged was borrowed just as quietly,
+  ;; and the program compiled against the interpreter's world with
+  ;; nothing said.  (skint fl), (skint fx) and (skint ivset) were caught
+  ;; that way only by byte-comparing the output.  Every name in
+  ;; *shadow-library-names* now has a clib/ file, so the fallback has
+  ;; nothing left to do and a missing file is reported instead. [cco]
   (define (fetch id)
     (let ([p (cp-shadow-library-path id)])
-      (if p
-          (cp-fetch-library-at id p env)
-          ;; not installed: the library path, as the driver arranged it
-          (fetch-library id env))))
+      (unless p
+        (error "shadow library: no file under clib/ for this name" id))
+      (cp-fetch-library-at id p env)))
   (define (env id at)
     (cond [(and (memq at '(ref peek)) (member id *dropped-library-names*))
            #f]
@@ -234,7 +252,7 @@
 ;;; whole expansion of a program (libraries included).
 ;; `skint` is claimed: a compiled program implements Skint's
 ;; dialect surface (DS prims plus the shadow libraries), so the
-;; `skint` cond-expand branches of borrowed Skint sources -- the
+;; `skint` cond-expand branches of the copied Skint sources -- the
 ;; ones written against Skint builtins -- are the applicable
 ;; ones.  The tower features stay unclaimed: no full numeric
 ;; tower, no full unicode, no C99/XSI math.

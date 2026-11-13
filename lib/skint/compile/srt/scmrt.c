@@ -65,8 +65,14 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+/* The glibc test has to NEST inside a __WCPL__ one rather than stand on
+   its own: WCPL requires every #if condition to mention __WCPL__, and
+   skips an inactive branch whole, so it never reads the inner test.  A
+   bare #if defined(__GLIBC__) here broke the wasm target. [cco] */
+#ifndef __WCPL__
 #if defined(__GLIBC__)
 #include <malloc.h>                 /* mallopt, for the payload arena */
+#endif
 #endif
 
 #if !defined(__WCPL__)
@@ -421,31 +427,47 @@ static obj_t native_obj(cxtype_t *t, void *payload)
 /* ------------------------------------------------------------------ */
 /* startup                                                             */
 
+/* String and bytevector payloads are malloc'd, and a program that grows one
+   by doubling asks for a size the allocator has never seen before every
+   single time -- `string' appends a string to itself until it passes half a
+   megabyte.  glibc serves each such block from a fresh mmap, which the kernel
+   zero-fills page by page before the runtime writes a single character into
+   it, returns it on free, and trims the top of the arena in between.  That is
+   a hidden second pass over every result plus two system calls, and the
+   doubling defeats glibc's own adaptive mmap threshold, which only ever
+   raises the bar to a size already seen.  Keeping large blocks in the arena
+   and leaving its top alone lets each payload reuse the pages of the last:
+   measured on `string', 2.02s to 0.58s, with no change outside the noise on
+   nboyer, bv2string, tail or paraffins, and 1-2%% more peak resident memory.
+
+   This is a FUNCTION, chosen at file scope, rather than a conditional inside
+   init(): WCPL rejects a preprocessor conditional in a function body, and the
+   outer test must name __WCPL__ because WCPL requires that of every #if and
+   skips an inactive branch whole.  Both rules together give the shape marv's
+   own host_windows() uses.  Getting this wrong broke the wasm target while
+   the native ones stayed green, since no wcpl runs in the usual loop. [cco] */
+#ifndef __WCPL__
+#if defined(__GLIBC__)
+static void tune_allocator(void)
+{
+  mallopt(M_MMAP_THRESHOLD, 64 * 1024 * 1024);
+  mallopt(M_TRIM_THRESHOLD, 64 * 1024 * 1024);
+  mallopt(M_TOP_PAD,        16 * 1024 * 1024);
+}
+#else
+static void tune_allocator(void) {}
+#endif
+#else
+static void tune_allocator(void) {}
+#endif
+
 void *init(int32_t init_heap_words, int32_t reg_words,
            int32_t static_words)
 {
   size_t semi_words = 256;
   if (rt_ready)
     return rt_semi[rt_active] + rt_semi_bytes;
-#if defined(__GLIBC__)
-  /* String and bytevector payloads are malloc'd, and a program that
-     grows one by doubling asks for a size the allocator has never
-     seen before every single time -- `string' appends a string to
-     itself until it passes half a megabyte.  glibc serves each such
-     block from a fresh mmap, which the kernel zero-fills page by page
-     before the runtime writes a single character into it, returns it
-     on free, and trims the top of the arena in between.  That is a
-     hidden second pass over every result plus two system calls, and
-     the doubling defeats glibc's own adaptive mmap threshold, which
-     only ever raises the bar to a size already seen.  Keeping large
-     blocks in the arena and leaving its top alone lets each payload
-     reuse the pages of the last: measured on `string', 2.02s to
-     0.58s, with no change outside the noise on nboyer, bv2string,
-     tail or paraffins, and 1-2%% more peak resident memory. [cco] */
-  mallopt(M_MMAP_THRESHOLD, 64 * 1024 * 1024);
-  mallopt(M_TRIM_THRESHOLD, 64 * 1024 * 1024);
-  mallopt(M_TOP_PAD,        16 * 1024 * 1024);
-#endif
+  tune_allocator();
   if (init_heap_words > 0)
     while (semi_words < (size_t)init_heap_words) semi_words <<= 1;
   /* SCMRT_HEAP_WORDS overrides the initial semispace, as
@@ -874,16 +896,19 @@ static void rt_hist_walk(void *hp)
   }
 }
 
+/* The kind names are a file-scope table, not a block-level static with
+   four assignments: WCPL does not support an extern or static
+   declaration inside a function body, and this file is compiled by it
+   for the wasm target. [cco] */
+static const char *rt_hist_kind[4] = {
+  "typed  ", "packed ", "closure", "vector "
+};
+
 static void rt_hist_report(void)
 {
-  static const char *kind[4];
   int m;
   size_t s;
   unsigned long long tot = 0;
-  kind[0] = "typed  ";
-  kind[1] = "packed ";
-  kind[2] = "closure";
-  kind[3] = "vector ";
   for (m = 0; m < 4; m++)
     for (s = 0; s <= HIST_MAXSZ; s++) tot += rt_hist_w[m][s];
   tot += rt_hist_natw;
@@ -894,7 +919,7 @@ static void rt_hist_report(void)
       if (rt_hist_n[m][s] == 0) continue;
       fprintf(stderr,
               "scmrt-hist: %s size=%2lu%s count=%12llu words=%12llu  %5.1f%%\n",
-              kind[m], (unsigned long)s, s == HIST_MAXSZ ? "+" : " ",
+              rt_hist_kind[m], (unsigned long)s, s == HIST_MAXSZ ? "+" : " ",
               rt_hist_n[m][s], rt_hist_w[m][s],
               tot ? 100.0 * (double)rt_hist_w[m][s] / (double)tot : 0.0);
     }
@@ -1944,28 +1969,30 @@ static void pr_sink(prsink_t *sk, obj_t o, int writep)
            display of a string is the whole of write-string, the hot
            operation of any program that copies a file out. [cco] */
         if (!writep && sk->sp == NULL) {
-          unsigned char buf[512];
+          char buf[512];        /* char, and handed over as &buf[0]: WCPL does not
+                                   decay an array name in an argument position, and
+                                   cannot cast an unsigned char array at all [cco] */
           int32_t at = 0;
           for (i = 0; i < s->len; i++) {
             uint32_t c = (uint32_t)s->chars[i];
-            if (at > 508) { fwrite(buf, 1, (size_t)at, sk->fp); at = 0; }
+            if (at > 508) { fwrite(&buf[0], 1, (size_t)at, sk->fp); at = 0; }
             if (c < 0x80) {
-              buf[at++] = (unsigned char)c;
+              buf[at++] = (char)c;
             } else if (c < 0x800) {
-              buf[at++] = (unsigned char)(0xc0 | (c >> 6));
-              buf[at++] = (unsigned char)(0x80 | (c & 63));
+              buf[at++] = (char)(0xc0 | (c >> 6));
+              buf[at++] = (char)(0x80 | (c & 63));
             } else if (c < 0x10000) {
-              buf[at++] = (unsigned char)(0xe0 | (c >> 12));
-              buf[at++] = (unsigned char)(0x80 | ((c >> 6) & 63));
-              buf[at++] = (unsigned char)(0x80 | (c & 63));
+              buf[at++] = (char)(0xe0 | (c >> 12));
+              buf[at++] = (char)(0x80 | ((c >> 6) & 63));
+              buf[at++] = (char)(0x80 | (c & 63));
             } else {
-              buf[at++] = (unsigned char)(0xf0 | (c >> 18));
-              buf[at++] = (unsigned char)(0x80 | ((c >> 12) & 63));
-              buf[at++] = (unsigned char)(0x80 | ((c >> 6) & 63));
-              buf[at++] = (unsigned char)(0x80 | (c & 63));
+              buf[at++] = (char)(0xf0 | (c >> 18));
+              buf[at++] = (char)(0x80 | ((c >> 12) & 63));
+              buf[at++] = (char)(0x80 | ((c >> 6) & 63));
+              buf[at++] = (char)(0x80 | (c & 63));
             }
           }
-          if (at > 0) fwrite(buf, 1, (size_t)at, sk->fp);
+          if (at > 0) fwrite(&buf[0], 1, (size_t)at, sk->fp);
           return;
         }
         if (writep) pr_cp(sk, '"');
@@ -2810,7 +2837,7 @@ static int port_fill(portpay_t *p)
   p->inext = 0;
   p->ifill = keep;
   if (!p->ieof && p->fp != NULL) {
-    size_t n = fread(p->ibuf + keep, 1,
+    size_t n = fread((char *)(p->ibuf + keep), 1,
                      (size_t)(PORT_IBUF_SIZE - keep), p->fp);
     if (n == 0) p->ieof = 1;
     p->ifill = keep + (int32_t)n;
