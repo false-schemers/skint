@@ -1412,9 +1412,20 @@ int32_t eqv_p(obj_t a, obj_t b)
    is sound here because a failed subcomparison fails the whole
    query at once, and it makes shared structure linear and cyclic
    structure terminate (coinductive equal?, as in Skint). */
-typedef struct { obj_t a, b; } eqpair_t;
+/* Each entry carries the generation it was written in, so a new query
+   invalidates the whole table by bumping eq_gen -- no clearing at all.
+   equal_p used to memset the ENTIRE table twice per call, and eq_cap
+   only ever doubles, so once one large comparison had grown the table
+   every later equal? paid two full clears of it however small the
+   comparison.  On the `equal' benchmark that was 53.9% of the
+   instructions and the reason its L1 write miss rate was 44% against
+   the interpreter's 2.6%: memset of a resident multi-megabyte region
+   writes every line, where the interpreter's calloc of a fresh
+   per-query table gets zeroed pages from the OS. [cco] */
+typedef struct { obj_t a, b; uint64_t gen; } eqpair_t;
 static eqpair_t *eq_tab;
 static size_t eq_cap, eq_len;
+static uint64_t eq_gen;
 
 static int eq_seen(obj_t a, obj_t b)
 {
@@ -1429,11 +1440,13 @@ static int eq_seen(obj_t a, obj_t b)
     size_t ncap = eq_cap * 2, j;
     nt = (eqpair_t *)calloc(ncap, sizeof(eqpair_t));
     if (!nt) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+    /* only THIS query's entries are live; the rest are stale by
+       generation and must not be carried over */
     for (j = 0; j < eq_cap; j++) {
-      if (eq_tab[j].a || eq_tab[j].b) {
+      if (eq_tab[j].gen == eq_gen) {
         size_t k = (size_t)(((eq_tab[j].a >> 4) ^ (eq_tab[j].b >> 7))
                             * (obj_t)0x9E3779B97F4A7C15ULL) & (ncap - 1);
-        while (nt[k].a || nt[k].b) k = (k + 1) & (ncap - 1);
+        while (nt[k].gen == eq_gen) k = (k + 1) & (ncap - 1);
         nt[k] = eq_tab[j];
       }
     }
@@ -1445,9 +1458,10 @@ static int eq_seen(obj_t a, obj_t b)
       & (eq_cap - 1);
   i = h;
   for (;;) {
-    if (!eq_tab[i].a && !eq_tab[i].b) {
+    if (eq_tab[i].gen != eq_gen) {        /* empty for this query */
       eq_tab[i].a = a;
       eq_tab[i].b = b;
+      eq_tab[i].gen = eq_gen;
       eq_len++;
       return 0;
     }
@@ -1527,13 +1541,15 @@ static int rt_equal_rec(obj_t a, obj_t b, int depth)
 
 int32_t equal_p(obj_t a, obj_t b)
 {
-  int32_t r;
-  if (eq_tab) memset(eq_tab, 0, eq_cap * sizeof(eqpair_t));
+  /* A new query invalidates every entry by generation, so there is
+     nothing to clear.  Generation 0 means "never written", which is
+     what calloc leaves, so the counter starts at 1 and skips 0 when
+     it wraps -- at one query per nanosecond that is 585 years, but
+     the check costs nothing. [cco] */
   eq_len = 0;
-  r = rt_equal_rec(a, b, 0);
-  if (eq_tab) memset(eq_tab, 0, eq_cap * sizeof(eqpair_t));
-  eq_len = 0;
-  return r;
+  eq_gen = eq_gen + 1;
+  if (eq_gen == 0) eq_gen = 1;
+  return rt_equal_rec(a, b, 0);
 }
 
 /* ------------------------------------------------------------------ */

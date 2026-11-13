@@ -325,6 +325,46 @@
     (i32.const 2))
 
   ;; ================================================================
+  ;; Bytevectors (scmrt.c bvpay_t)
+  ;; ================================================================
+  ;; A bytevector is a native wrapper exactly like a string: cell 0
+  ;; holds a malloc'd payload {i32 len; u8 bytes[]}.  The string
+  ;; family above is inlined and this one was not, so every
+  ;; bytevector-u8-ref left the generated code THREE TIMES -- the type
+  ;; check, the length, and the byte itself -- where string-ref leaves
+  ;; it none.  On bv2string, scmrt_is_bytevector alone was 3.9% of the
+  ;; run, and the other two calls are on the same path. [cco]
+
+  (macro $is_bytevector ($o)
+    (effect () -> (i32))
+    (if (result i32) ($scmn:is_objptr $o)
+      (then (i64.eq ($scmn:blkhdr $o) (call $scmrt:bytevector_type)))
+      (else (i32.const 0))))
+
+  ;; bv_data(o): the payload pointer
+  (macro $bv_data ($o)
+    (effect () -> (ptr))
+    (ptr.load offset 0 (ptr.add64 (ptr.null) $o)))
+
+  ;; bv_len(o): byte count as i32
+  (macro $bv_len ($o)
+    (effect () -> (i32))
+    (i32.load offset 0 ($scmn:bv_data $o)))
+
+  ;; bv_get(o, i): byte i, zero-extended
+  (macro $bv_get ($o $i)
+    (effect () -> (i32))
+    (i32.load8_u (ptr.add ($scmn:bv_data $o)
+                          (i32.add (i32.const 4) $i))))
+
+  ;; bv_put(o, i, b): set byte i
+  (macro $bv_put ($o $i $b)
+    (effect () -> ())
+    (i32.store8 (ptr.add ($scmn:bv_data $o)
+                         (i32.add (i32.const 4) $i))
+                $b))
+
+  ;; ================================================================
   ;; Vectors (n.h: V kind)
   ;; ================================================================
 

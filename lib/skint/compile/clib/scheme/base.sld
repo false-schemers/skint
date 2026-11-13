@@ -1586,35 +1586,50 @@
     ;; UTF-8 <-> string conversion (utf8->string / string->utf8
     ;; below are case-lambdas over these); pure Scheme, since the
     ;; compiled runtime has no subutf8->string prim and needs none
+    (define (%utf8-blen b)      ; bytes in the character b starts
+      (cond [(< b 128) 1] [(< b 224) 2] [(< b 240) 3] [else 4]))
+
+    ;; Count the characters, then fill a string of that size.  This
+    ;; used to cons a list of them and REVERSE it before list->string:
+    ;; two pairs a character, six words of garbage, and bv2string spent
+    ;; 99.3% of its allocation there.  substring->utf8 below already
+    ;; counts then fills, and this is its mirror. [cco]
     (define (subutf8->string bvec start end)
-      (let loop ([i start] [cs '()])
-        (if (>= i end)
-            (list->string (reverse cs))
-            (let ([b (bytevector-u8-ref bvec i)])
-              (cond
-                [(< b 128)
-                 (loop (+ i 1) (cons (integer->char b) cs))]
-                [(< b 224)
-                 (loop (+ i 2)
-                       (cons (integer->char
-                              (+ (* (- b 192) 64)
-                                 (- (bytevector-u8-ref bvec (+ i 1)) 128)))
-                             cs))]
-                [(< b 240)
-                 (loop (+ i 3)
-                       (cons (integer->char
-                              (+ (* (- b 224) 4096)
-                                 (* (- (bytevector-u8-ref bvec (+ i 1)) 128) 64)
-                                 (- (bytevector-u8-ref bvec (+ i 2)) 128)))
-                             cs))]
-                [else
-                 (loop (+ i 4)
-                       (cons (integer->char
-                              (+ (* (- b 240) 262144)
-                                 (* (- (bytevector-u8-ref bvec (+ i 1)) 128) 4096)
-                                 (* (- (bytevector-u8-ref bvec (+ i 2)) 128) 64)
-                                 (- (bytevector-u8-ref bvec (+ i 3)) 128)))
-                             cs))])))))
+      (let ([n (let loop ([i start] [n 0])
+                 (if (>= i end)
+                     n
+                     (loop (+ i (%utf8-blen (bytevector-u8-ref bvec i)))
+                           (+ n 1))))])
+        (let ([s (make-string n)])
+          (let loop ([i start] [j 0])
+            (if (>= i end)
+                s
+                (let ([b (bytevector-u8-ref bvec i)])
+                  (cond
+                    [(< b 128)
+                     (string-set! s j (integer->char b))
+                     (loop (+ i 1) (+ j 1))]
+                    [(< b 224)
+                     (string-set! s j
+                       (integer->char
+                        (+ (* (- b 192) 64)
+                           (- (bytevector-u8-ref bvec (+ i 1)) 128))))
+                     (loop (+ i 2) (+ j 1))]
+                    [(< b 240)
+                     (string-set! s j
+                       (integer->char
+                        (+ (* (- b 224) 4096)
+                           (* (- (bytevector-u8-ref bvec (+ i 1)) 128) 64)
+                           (- (bytevector-u8-ref bvec (+ i 2)) 128))))
+                     (loop (+ i 3) (+ j 1))]
+                    [else
+                     (string-set! s j
+                       (integer->char
+                        (+ (* (- b 240) 262144)
+                           (* (- (bytevector-u8-ref bvec (+ i 1)) 128) 4096)
+                           (* (- (bytevector-u8-ref bvec (+ i 2)) 128) 64)
+                           (- (bytevector-u8-ref bvec (+ i 3)) 128))))
+                     (loop (+ i 4) (+ j 1))]))))))) 
 
     (define (%utf8-clen c)
       (cond [(< c 128) 1] [(< c 2048) 2] [(< c 65536) 3] [else 4]))

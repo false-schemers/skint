@@ -379,7 +379,7 @@
     (effect () -> ())
     (seq
       (local.set $ckb $o)
-      (if (i32.eqz (call $scmrt:is_bytevector (local.get $ckb)))
+      (if (i32.eqz ($scmn:is_bytevector (local.get $ckb)))
         (then (drop (call $scmrt:arg_error (local.get $ckb)
                           (ref.data $scmi:msg_not_bytevector)))))))
 
@@ -2273,7 +2273,7 @@
   (macro $bvp ()
     (effect () -> ())
     (local.set $ac ($scmn:bool_obj
-                     (call $scmrt:is_bytevector (local.get $ac)))))
+                     ($scmn:is_bytevector (local.get $ac)))))
 
   (macro $bvlen ()
     (effect () -> ())
@@ -2281,8 +2281,7 @@
       ($scmi:ckbv (local.get $ac))
       (local.set $ac ($scmn:fixnum_obj
                        (i64.extend_i32_s
-                         (call $scmrt:bytevector_length
-                               (local.get $ac)))))))
+                         ($scmn:bv_len (local.get $ac)))))))
 
   (macro $bvget ()
     (locals ($i i64))
@@ -2291,13 +2290,13 @@
       (local.set $i)
       ($scmi:ckbv (local.get $ac))
       ($scmi:ckidx (local.get $i)
-                  (call $scmrt:bytevector_length (local.get $ac)))
+                  ($scmn:bv_len (local.get $ac)))
       (local.set $ac ($scmn:fixnum_obj
                        (i64.extend_i32_u
-                         (call $scmrt:bytevector_u8_ref
-                               (local.get $ac)
-                               (i32.wrap_i64
-                                 ($scmn:get_fixnum (local.get $i)))))))))
+                         ($scmn:bv_get (local.get $ac)
+                                       (i32.wrap_i64
+                                         ($scmn:get_fixnum
+                                           (local.get $i)))))))))
 
   ;; make-bytevector: $ac is the length (fixnum); the zeroed
   ;; payload is malloc'd in C.  Caller reserved 2.
@@ -2339,15 +2338,10 @@
       (local.set $i)
       ($scmi:ckbv (local.get $ac))
       ($scmi:ckidx (local.get $i)
-                  (call $scmrt:bytevector_length (local.get $ac)))
-      (i32.store8 (ptr.add (ptr.load offset 0
-                                     (ptr.add64 (ptr.null)
-                                                (local.get $ac)))
-                           (i32.add (i32.const 4)
-                                    (i32.wrap_i64
-                                      ($scmn:get_fixnum
-                                        (local.get $i)))))
-                  (i32.wrap_i64 ($scmn:get_fixnum (local.get $b))))))
+                  ($scmn:bv_len (local.get $ac)))
+      ($scmn:bv_put (local.get $ac)
+                    (i32.wrap_i64 ($scmn:get_fixnum (local.get $i)))
+                    (i32.wrap_i64 ($scmn:get_fixnum (local.get $b))))))
 
   ;; fill a fresh bytevector: $ac is the bytevector, the byte
   ;; (fixnum) is popped
@@ -2357,16 +2351,13 @@
     (effect (i64) -> ())
     (seq
       (local.set $b)
-      (local.set $n (call $scmrt:bytevector_length (local.get $ac)))
+      (local.set $n ($scmn:bv_len (local.get $ac)))
       (local.set $i (i32.const 0))
       (block $dn
         (loop $lp
           (br_if $dn (i32.ge_s (local.get $i) (local.get $n)))
-          (i32.store8 (ptr.add (ptr.load offset 0
-                                         (ptr.add64 (ptr.null)
-                                                    (local.get $ac)))
-                               (i32.add (i32.const 4) (local.get $i)))
-                      (i32.wrap_i64 ($scmn:get_fixnum (local.get $b))))
+          ($scmn:bv_put (local.get $ac) (local.get $i)
+                        (i32.wrap_i64 ($scmn:get_fixnum (local.get $b))))
           (local.set $i (i32.add (local.get $i) (i32.const 1)))
           (br $lp)))))
 
