@@ -43,6 +43,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 
 #if !defined(__WCPL__)
@@ -134,6 +135,7 @@
 /* $scmrt payload/wrapper services used by the allocating
    instructions below (lib/scmrt.h is the WCPL-side declaration) */
 #define make_string_payload scmrt_make_string_payload
+#define make_string_payload_raw scmrt_make_string_payload_raw
 #define string_type scmrt_string_type
 #define make_bytevector_payload scmrt_make_bytevector_payload
 #define bytevector_type scmrt_bytevector_type
@@ -184,6 +186,7 @@ const char msg_not_index[] = "an index in range";
 #if !defined(__WCPL__)
 /* $scmrt services (see above; renamed by the #define block) */
 void *make_string_payload(int32_t len, int32_t fill);
+void *make_string_payload_raw(int32_t len);
 obj_t string_type(void);
 void *make_bytevector_payload(int32_t len);
 obj_t bytevector_type(void);
@@ -838,9 +841,8 @@ void *ssub_slow_hreserved(void *r, void *hp, obj_t s, obj_t b, obj_t e)
 {
   int32_t *src = string_payload(s);
   int32_t bb = (int32_t)fx_val(b), n = (int32_t)(fx_val(e) - fx_val(b));
-  int32_t *pay = (int32_t *)make_string_payload(n, 0);
-  int32_t i;
-  for (i = 0; i < n; i++) pay[1 + i] = src[1 + bb + i];
+  int32_t *pay = (int32_t *)make_string_payload_raw(n);
+  if (n > 0) memcpy(pay + 1, src + 1 + bb, (size_t)n * 4);
   return hreserved_wrap(r, hp, (void *)pay, string_type());
 }
 
@@ -848,10 +850,10 @@ void *ssub_slow_hreserved(void *r, void *hp, obj_t s, obj_t b, obj_t e)
 void *scat_slow_hreserved(void *r, void *hp, obj_t a, obj_t b)
 {
   int32_t *pa = string_payload(a), *pb = string_payload(b);
-  int32_t n = pa[0], m = pb[0], i;
-  int32_t *pay = (int32_t *)make_string_payload(n + m, 0);
-  for (i = 0; i < n; i++) pay[1 + i] = pa[1 + i];
-  for (i = 0; i < m; i++) pay[1 + n + i] = pb[1 + i];
+  int32_t n = pa[0], m = pb[0];
+  int32_t *pay = (int32_t *)make_string_payload_raw(n + m);
+  if (n > 0) memcpy(pay + 1, pa + 1, (size_t)n * 4);
+  if (m > 0) memcpy(pay + 1 + n, pb + 1, (size_t)m * 4);
   return hreserved_wrap(r, hp, (void *)pay, string_type());
 }
 
@@ -870,14 +872,14 @@ void *scat_slow_hreserved(void *r, void *hp, obj_t a, obj_t b)
 void *sappn_slow_hreserved(void *r, void *hp, void *slots, int32_t n)
 {
   obj_t *sv = (obj_t *)slots;
-  int32_t total = 0, at = 0, i, j;
+  int32_t total = 0, at = 0, i;
   int32_t *pay;
   for (i = 0; i < n; i++) total += string_payload(sv[i])[0];
-  pay = (int32_t *)make_string_payload(total, 0);
+  pay = (int32_t *)make_string_payload_raw(total);
   for (i = 0; i < n; i++) {
     int32_t *ps = string_payload(sv[i]);
     int32_t m = ps[0];
-    for (j = 0; j < m; j++) pay[1 + at + j] = ps[1 + j];
+    if (m > 0) memcpy(pay + 1 + at, ps + 1, (size_t)m * 4);
     at += m;
   }
   return hreserved_wrap(r, hp, (void *)pay, string_type());
@@ -890,7 +892,7 @@ void *lstr_slow_hreserved(void *r, void *hp, obj_t l)
   int32_t n = 0, i;
   int32_t *pay;
   while (t != SCM_NULL_OBJ) { n++; t = pair_cdr(t); }
-  pay = (int32_t *)make_string_payload(n, 0);
+  pay = (int32_t *)make_string_payload_raw(n);
   for (i = 0; i < n; i++) {
     pay[1 + i] = (int32_t)(pair_car(l) >> 8);
     l = pair_cdr(l);
@@ -903,7 +905,7 @@ void *sdwn_slow_hreserved(void *r, void *hp, obj_t s)
 {
   int32_t *src = string_payload(s);
   int32_t n = src[0], i;
-  int32_t *pay = (int32_t *)make_string_payload(n, 0);
+  int32_t *pay = (int32_t *)make_string_payload_raw(n);
   for (i = 0; i < n; i++) {
     int32_t c = src[1 + i];
     if (c >= 65 && c <= 90) c += 32;
@@ -1021,7 +1023,7 @@ void *rdline_slow_hreserved(void *r, void *hp, obj_t port)
 void *strn_slow_hreserved(void *r, void *hp, void *slots, int32_t n)
 {
   obj_t *sv = (obj_t *)slots;
-  int32_t *pay = (int32_t *)make_string_payload(n, 0);
+  int32_t *pay = (int32_t *)make_string_payload_raw(n);
   int32_t i;
   for (i = 0; i < n; i++) pay[1 + i] = (int32_t)(sv[i] >> 8);
   return hreserved_wrap(r, hp, (void *)pay, string_type());

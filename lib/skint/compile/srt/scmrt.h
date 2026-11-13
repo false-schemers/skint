@@ -15,6 +15,7 @@
 #include <stdint.h>
 
 extern void *make_string_payload(int32_t len, int32_t fill);
+extern void *make_string_payload_raw(int32_t len);
 extern uint64_t string_type(void);
 extern void *make_bytevector_payload(int32_t len);
 extern uint64_t bytevector_type(void);

@@ -65,6 +65,9 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#if defined(__GLIBC__)
+#include <malloc.h>                 /* mallopt, for the payload arena */
+#endif
 
 #if !defined(__WCPL__)
 /* native build: present the scmrt_ prefixed names the MARV C target
@@ -86,6 +89,7 @@
 #define eqv_p            scmrt_eqv_p
 #define string_type      scmrt_string_type
 #define make_string_payload scmrt_make_string_payload
+#define make_string_payload_raw scmrt_make_string_payload_raw
 #define bytevector_type    scmrt_bytevector_type
 #define make_bytevector_payload scmrt_make_bytevector_payload
 #define is_bytevector      scmrt_is_bytevector
@@ -422,6 +426,25 @@ void *init(int32_t init_heap_words, int32_t reg_words,
   size_t semi_words = 256;
   if (rt_ready)
     return rt_semi[rt_active] + rt_semi_bytes;
+#if defined(__GLIBC__)
+  /* String and bytevector payloads are malloc'd, and a program that
+     grows one by doubling asks for a size the allocator has never
+     seen before every single time -- `string' appends a string to
+     itself until it passes half a megabyte.  glibc serves each such
+     block from a fresh mmap, which the kernel zero-fills page by page
+     before the runtime writes a single character into it, returns it
+     on free, and trims the top of the arena in between.  That is a
+     hidden second pass over every result plus two system calls, and
+     the doubling defeats glibc's own adaptive mmap threshold, which
+     only ever raises the bar to a size already seen.  Keeping large
+     blocks in the arena and leaving its top alone lets each payload
+     reuse the pages of the last: measured on `string', 2.02s to
+     0.58s, with no change outside the noise on nboyer, bv2string,
+     tail or paraffins, and 1-2%% more peak resident memory. [cco] */
+  mallopt(M_MMAP_THRESHOLD, 64 * 1024 * 1024);
+  mallopt(M_TRIM_THRESHOLD, 64 * 1024 * 1024);
+  mallopt(M_TOP_PAD,        16 * 1024 * 1024);
+#endif
   if (init_heap_words > 0)
     while (semi_words < (size_t)init_heap_words) semi_words <<= 1;
   /* SCMRT_HEAP_WORDS overrides the initial semispace, as
@@ -1567,15 +1590,27 @@ obj_t string_type(void)
   return (obj_t)(uintptr_t)&string_cxtype;
 }
 
-void *make_string_payload(int32_t len, int32_t fill)
+/* An uninitialised payload, for the builders that go on to write every
+   character of it: substring, string-append, list->string and string.
+   They used to take a zero-filled one and then overwrite all of it,
+   which wrote the whole result twice -- and `string' appends over
+   half-megabyte strings, so that second pass was half of its memory
+   traffic. [cco] */
+void *make_string_payload_raw(int32_t len)
 {
   strpay_t *p = (strpay_t *)malloc(sizeof(strpay_t)
                                    + (len > 0 ? (size_t)(len - 1) * 4 : 0));
-  int32_t i;
   if (!p) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
   p->len = len;
-  for (i = 0; i < len; i++) p->chars[i] = fill;
   pay_charge(pay_bytes(&string_cxtype, (void *)p));
+  return (void *)p;
+}
+
+void *make_string_payload(int32_t len, int32_t fill)
+{
+  strpay_t *p = (strpay_t *)make_string_payload_raw(len);
+  int32_t i;
+  for (i = 0; i < len; i++) p->chars[i] = fill;
   return (void *)p;
 }
 
@@ -1611,7 +1646,21 @@ typedef struct portpay_s {
   int32_t cap;
   int32_t peek;
   int32_t has_peek;
+  /* A text input file port carries its own byte buffer, after Skint's
+     tifile_t: tigetch (n.c) decodes out of a cbuf_t that fgets refills,
+     so a character costs a pointer bump rather than a call into stdio.
+     This port used to call fgetc per character, and fgetc takes the
+     stream lock on every call -- the programs that read a file one
+     character at a time (tail, read1, cat, wc) spent most of their time
+     there. [cco] */
+  unsigned char *ibuf;
+  int32_t ifill;                      /* bytes held in ibuf */
+  int32_t inext;                      /* next byte to decode */
+  int32_t ieof;                       /* the stream has signalled eof */
+  int32_t ibufok;                     /* 0 undecided, 1 buffered, 2 not */
 } portpay_t;
+
+#define PORT_IBUF_SIZE 8192
 
 static void port_free(void *vp)
 {
@@ -1621,6 +1670,7 @@ static void port_free(void *vp)
   if (p->fp && p->kind == PORT_FOUT) fclose(p->fp);
   if (p->str && (p->kind == PORT_SOUT || p->kind == PORT_BIN
                  || p->kind == PORT_BOUT)) free(p->str);
+  if (p->ibuf) free(p->ibuf);
   free(p);
 }
 
@@ -1824,6 +1874,36 @@ static void pr_sink(prsink_t *sk, obj_t o, int writep)
       if (h == (obj_t)(uintptr_t)&string_cxtype) {
         strpay_t *s = (strpay_t *)(uintptr_t)cell[0];
         int32_t i;
+        /* display to a FILE*: encode into a local buffer and hand it
+           over in blocks.  The general loop below goes through pr_cp,
+           which is one fputc -- one stream lock -- per character, and
+           display of a string is the whole of write-string, the hot
+           operation of any program that copies a file out. [cco] */
+        if (!writep && sk->sp == NULL) {
+          unsigned char buf[512];
+          int32_t at = 0;
+          for (i = 0; i < s->len; i++) {
+            uint32_t c = (uint32_t)s->chars[i];
+            if (at > 508) { fwrite(buf, 1, (size_t)at, sk->fp); at = 0; }
+            if (c < 0x80) {
+              buf[at++] = (unsigned char)c;
+            } else if (c < 0x800) {
+              buf[at++] = (unsigned char)(0xc0 | (c >> 6));
+              buf[at++] = (unsigned char)(0x80 | (c & 63));
+            } else if (c < 0x10000) {
+              buf[at++] = (unsigned char)(0xe0 | (c >> 12));
+              buf[at++] = (unsigned char)(0x80 | ((c >> 6) & 63));
+              buf[at++] = (unsigned char)(0x80 | (c & 63));
+            } else {
+              buf[at++] = (unsigned char)(0xf0 | (c >> 18));
+              buf[at++] = (unsigned char)(0x80 | ((c >> 12) & 63));
+              buf[at++] = (unsigned char)(0x80 | ((c >> 6) & 63));
+              buf[at++] = (unsigned char)(0x80 | (c & 63));
+            }
+          }
+          if (at > 0) fwrite(buf, 1, (size_t)at, sk->fp);
+          return;
+        }
         if (writep) pr_cp(sk, '"');
         for (i = 0; i < s->len; i++) {
           int32_t c = s->chars[i];
@@ -2623,6 +2703,12 @@ void close_port(obj_t o)
     fclose(p->fp);
     p->fp = NULL;
   }
+  if (p->ibuf) {
+    free(p->ibuf);
+    p->ibuf = NULL;
+    p->ifill = 0;
+    p->inext = 0;
+  }
   p->kind = PORT_CLOSED;
 }
 
@@ -2630,6 +2716,29 @@ void flush_port(obj_t o)
 {
   portpay_t *p = port_of(o);
   if (p->kind == PORT_FOUT && p->fp != NULL) fflush(p->fp);
+}
+
+/* Refill a text input file port's buffer, keeping whatever is still
+   undecoded at the front (a UTF-8 sequence may straddle a read).
+   Answers 1 while a byte is available, 0 at end of file. [cco] */
+static int port_fill(portpay_t *p)
+{
+  int32_t keep = p->ifill - p->inext;
+  if (!p->ibuf) {
+    p->ibuf = (unsigned char *)malloc(PORT_IBUF_SIZE);
+    if (!p->ibuf) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  }
+  if (keep > 0 && p->inext > 0)
+    memmove(p->ibuf, p->ibuf + p->inext, (size_t)keep);
+  p->inext = 0;
+  p->ifill = keep;
+  if (!p->ieof && p->fp != NULL) {
+    size_t n = fread(p->ibuf + keep, 1,
+                     (size_t)(PORT_IBUF_SIZE - keep), p->fp);
+    if (n == 0) p->ieof = 1;
+    p->ifill = keep + (int32_t)n;
+  }
+  return p->ifill > 0;
 }
 
 static int32_t port_getc(portpay_t *p)
@@ -2643,19 +2752,43 @@ static int32_t port_getc(portpay_t *p)
     return p->str->chars[p->pos++];
   }
   if (p->kind == PORT_FIN) {
-    int c = fgetc(p->fp);
+    int32_t c;
     uint32_t cp;
     int n;
-    if (c == EOF) return -1;
-    if (c < 0x80) return (int32_t)c;
+    if (p->ibufok == 0) {
+      /* A terminal or a pipe must not be read ahead: fread waits for
+         the whole block, so an interactive program would stall until
+         its input ended.  ftell answers for a regular file and fails
+         for everything else, and a regular file is where the programs
+         that read character by character spend their time. [cco] */
+      p->ibufok = (p->fp != NULL && ftell(p->fp) >= 0) ? 1 : 2;
+    }
+    if (p->ibufok == 2) {
+      int c0 = fgetc(p->fp);
+      if (c0 == EOF) return -1;
+      if (c0 < 0x80) return (int32_t)c0;
+      if (c0 >= 0xf0)      { cp = (uint32_t)(c0 & 7);  n = 3; }
+      else if (c0 >= 0xe0) { cp = (uint32_t)(c0 & 15); n = 2; }
+      else                 { cp = (uint32_t)(c0 & 31); n = 1; }
+      while (n-- > 0) {
+        int c2 = fgetc(p->fp);
+        if (c2 == EOF) break;
+        cp = (cp << 6) | (uint32_t)(c2 & 63);
+      }
+      return (int32_t)cp;
+    }
+    if (p->inext >= p->ifill && !port_fill(p)) return -1;
+    c = p->ibuf[p->inext];
+    if (c < 0x80) { p->inext++; return c; }
     if (c >= 0xf0)      { cp = (uint32_t)(c & 7);  n = 3; }
     else if (c >= 0xe0) { cp = (uint32_t)(c & 15); n = 2; }
     else                { cp = (uint32_t)(c & 31); n = 1; }
-    while (n-- > 0) {
-      int c2 = fgetc(p->fp);
-      if (c2 == EOF) break;
-      cp = (cp << 6) | (uint32_t)(c2 & 63);
-    }
+    /* the continuation bytes may straddle a refill: port_fill keeps the
+       undecoded tail, this lead byte among it, at the front */
+    if (p->ifill - p->inext < n + 1) port_fill(p);
+    p->inext++;
+    while (n-- > 0 && p->inext < p->ifill)
+      cp = (cp << 6) | (uint32_t)(p->ibuf[p->inext++] & 63);
     return (int32_t)cp;
   }
   fprintf(stderr, "scmrt: read from a non-input port\n");
@@ -2676,8 +2809,50 @@ int32_t port_read_char(obj_t o)
 void *port_read_line(obj_t o)
 {
   portpay_t *p = port_of(o);
-  int32_t cap = 64, len = 0, c = port_getc(p);
+  int32_t cap = 64, len = 0, c;
   strpay_t *s;
+  /* A buffered file port can usually answer out of the bytes it already
+     holds, which is what Skint's CTLOP_RDLN does with its line buffer
+     (n.c): find the newline, count the characters before it, allocate
+     exactly that, and decode in one pass.  What that replaces, per
+     line, is a doubling realloc for any line over 64 characters, a
+     second realloc to hand the slack back, and a call per character.
+     A pending peek, and a line that runs past what the buffer holds,
+     both take the general loop below. [cco] */
+  if (p->kind == PORT_FIN && p->ibufok == 1 && !p->has_peek) {
+    int32_t i, nl = -1, n = 0;
+    if (p->inext >= p->ifill && !port_fill(p)) return NULL;
+    for (i = p->inext; i < p->ifill; i++)
+      if (p->ibuf[i] == 10) { nl = i; break; }
+    if (nl >= 0) {
+      for (i = p->inext; i < nl; i++)
+        if ((p->ibuf[i] & 0xc0) != 0x80) n++;   /* lead bytes = chars */
+      s = (strpay_t *)make_string_payload_raw(n);   /* charges itself */
+      i = p->inext;
+      /* i is bounded as well as len: malformed input, where a lead
+         byte claims more continuations than follow it, would otherwise
+         let the lead-byte read walk past the span */
+      for (len = 0; len < n && i < nl; len++) {
+        int32_t b = p->ibuf[i++];
+        if (b < 0x80) {
+          s->chars[len] = b;
+        } else {
+          uint32_t cp;
+          int k;
+          if (b >= 0xf0)      { cp = (uint32_t)(b & 7);  k = 3; }
+          else if (b >= 0xe0) { cp = (uint32_t)(b & 15); k = 2; }
+          else                { cp = (uint32_t)(b & 31); k = 1; }
+          while (k-- > 0 && i < nl)
+            cp = (cp << 6) | (uint32_t)(p->ibuf[i++] & 63);
+          s->chars[len] = (int32_t)cp;
+        }
+      }
+      s->len = len;              /* equals n unless the input was bad */
+      p->inext = nl + 1;
+      return (void *)s;
+    }
+  }
+  c = port_getc(p);
   if (c < 0) return NULL;
   s = (strpay_t *)malloc(sizeof(strpay_t) + (size_t)(cap - 1) * 4);
   if (!s) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
