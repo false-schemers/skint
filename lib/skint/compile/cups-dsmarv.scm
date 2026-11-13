@@ -2655,6 +2655,20 @@
             (ds-e (list 'marv
                         (list '$scmi:strn (slot-addr base)
                               (list 'i32.const n)))))]))]
+     [(memq name '(subutf8->string substring->utf8))
+      ;; One runtime call each, exactly like substring above.  The clib
+      ;; used to define these two in Scheme -- count the characters,
+      ;; allocate, fill -- and `bv2string', which converts a 500-byte
+      ;; string three times per iteration, ran at 0.39x the interpreter
+      ;; because of it: a compiled loop per byte against one C
+      ;; instruction.  Skint has had s8tos and ssto8 since the start,
+      ;; so this is the interpreter's own shape, not a new one. [cco]
+      (let ([ss (ds-prim-args rands scope)])
+        (ds-reserve 2)
+        (ds-e (list 'load (car ss)))
+        (ds-e (list 'push (list 'slot (cadr ss))))
+        (ds-e (list 'push (list 'slot (caddr ss))))
+        (ds-e (list 'rt (if (eq? name 'subutf8->string) 's8tos 'ssto8))))]
      [(eq? name 'substring)
       (let ([ss (ds-prim-args rands scope)])
         (ds-reserve 2)
@@ -3786,7 +3800,8 @@
             [else (loop (+ i 1))]))))
 
 (define (ds-wrapper-arity name)
-  (cond [(memq name '(substring vector-set! string-set!)) 3]
+  (cond [(memq name '(substring vector-set! string-set!
+                      subutf8->string substring->utf8)) 3]
         [(memq name '(memq memv meme assq assv asse
                       list-cat)) 2]
         [(memq name '(symbol->string list->string string-downcase

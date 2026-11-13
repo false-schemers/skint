@@ -92,6 +92,7 @@
 #define make_string_payload_raw scmrt_make_string_payload_raw
 #define bytevector_type    scmrt_bytevector_type
 #define make_bytevector_payload scmrt_make_bytevector_payload
+#define make_bytevector_payload_raw scmrt_make_bytevector_payload_raw
 #define is_bytevector      scmrt_is_bytevector
 #define bytevector_length  scmrt_bytevector_length
 #define bytevector_u8_ref  scmrt_bytevector_u8_ref
@@ -1043,12 +1044,70 @@ void *collect(void *r, int32_t live, void *hp, int32_t needs)
    later one, but WCPL rejects the pair as "symbol already defined",
    and this file is compiled by it for the wasm target. [cco] */
 
+/* A symbol IS its index in rt_syms, so that array and its order have to
+   stay exactly as they are.  What interning needed was an INDEX beside
+   it: the lengths, so that no strlen is called, and a hash table from
+   name to index, so that no scan is made.
+
+   Interning used to walk every symbol seen so far, calling strlen and
+   memcmp on each.  That is quadratic in the number of distinct symbols,
+   and a program that reads many of them pays all of it: `read1', which
+   reads nboyer.sch 2500 times, spent 59.6% of its instructions here --
+   22.7% in the walk and 36.9% in the strlen and memcmp it called.  The
+   interpreter hashes, and internsdata is 3.3% of the same run.
+
+   Open addressing with linear probing, a power-of-two capacity and a
+   load factor of one half.  A slot holds index+1, so zero means empty
+   and a fresh table is all zero bytes.  Growth rebuilds from rt_syms
+   rather than rehashing in place, which keeps the insert path to a
+   single store.  [cco] */
+static int32_t  *rt_symlen;       /* name lengths, parallel to rt_syms */
+static uint32_t *rt_symtab;       /* index+1 per slot, 0 = empty */
+static size_t    rt_symtab_cap;   /* a power of two, or 0 */
+
+static uint32_t sym_hash(const char *s, size_t n)
+{
+  uint32_t h = 2166136261u;       /* FNV-1a */
+  size_t i;
+  for (i = 0; i < n; i++) {
+    h ^= (uint32_t)(unsigned char)s[i];
+    h *= 16777619u;
+  }
+  return h;
+}
+
+static void sym_table_rebuild(void)
+{
+  size_t cap = rt_symtab_cap ? rt_symtab_cap * 2 : 1024;
+  size_t i, mask = cap - 1;
+  uint32_t *tab = (uint32_t *)malloc(cap * sizeof(uint32_t));
+  if (!tab) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  memset((void *)tab, 0, cap * sizeof(uint32_t));
+  for (i = 0; i < rt_syms_len; i++) {
+    size_t j = (size_t)sym_hash(rt_syms[i], (size_t)rt_symlen[i]) & mask;
+    while (tab[j] != 0) j = (j + 1) & mask;
+    tab[j] = (uint32_t)i + 1;
+  }
+  free((void *)rt_symtab);
+  rt_symtab = tab;
+  rt_symtab_cap = cap;
+}
+
 static obj_t intern_bytes(const char *s, size_t n)
 {
-  size_t i;
-  for (i = 0; i < rt_syms_len; i++)
-    if (strlen(rt_syms[i]) == n && memcmp(rt_syms[i], s, n) == 0)
-      return ((obj_t)i << 8) | (obj_t)17;       /* SYMBOL itag 4 */
+  size_t j, mask;
+  /* grown BEFORE the probe, so the empty slot the probe stops on
+     belongs to the table the insert below goes into */
+  if (rt_symtab_cap == 0 || (rt_syms_len + 1) * 2 >= rt_symtab_cap)
+    sym_table_rebuild();
+  mask = rt_symtab_cap - 1;
+  j = (size_t)sym_hash(s, n) & mask;
+  while (rt_symtab[j] != 0) {
+    size_t idx = (size_t)rt_symtab[j] - 1;
+    if ((size_t)rt_symlen[idx] == n && memcmp(rt_syms[idx], s, n) == 0)
+      return ((obj_t)idx << 8) | (obj_t)17;     /* SYMBOL itag 4 */
+    j = (j + 1) & mask;
+  }
   if (rt_syms_len >= ((size_t)1 << 24)) {
     fprintf(stderr, "scmrt: too many symbols\n");
     abort();
@@ -1057,8 +1116,13 @@ static obj_t intern_bytes(const char *s, size_t n)
     rt_syms_cap = rt_syms_cap ? rt_syms_cap * 2 : 256;
     rt_syms = (char **)realloc(rt_syms, rt_syms_cap * sizeof(char *));
     if (!rt_syms) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+    rt_symlen = (int32_t *)realloc(rt_symlen,
+                                   rt_syms_cap * sizeof(int32_t));
+    if (!rt_symlen) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
   }
   rt_syms[rt_syms_len] = dup_bytes(s, n);
+  rt_symlen[rt_syms_len] = (int32_t)n;
+  rt_symtab[j] = (uint32_t)rt_syms_len + 1;
   return ((obj_t)(rt_syms_len++) << 8) | (obj_t)17;
 }
 
@@ -2067,6 +2131,19 @@ static strpay_t *strpay_from_ascii(const char *s, size_t n)
 obj_t bytevector_type(void)
 {
   return (obj_t)(uintptr_t)&bytevector_cxtype;
+}
+
+/* The zeroing maker, below, is make-bytevector: R7RS leaves the fill
+   unspecified and Skint zeroes, so it stays as it is.  This one does
+   not zero, for the builders that write every byte themselves; it is
+   the bytevector counterpart of make_string_payload_raw. [cco] */
+void *make_bytevector_payload_raw(int32_t len)
+{
+  bvpay_t *p = (bvpay_t *)malloc(sizeof(bvpay_t) + (len > 0 ? len - 1 : 0));
+  if (!p) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  p->len = len;
+  pay_charge(pay_bytes(&bytevector_cxtype, (void *)p));
+  return (void *)p;
 }
 
 void *make_bytevector_payload(int32_t len)

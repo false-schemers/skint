@@ -41,6 +41,9 @@
             %current-input-port %current-output-port %current-error-port
             %set-current-input-port! %set-current-output-port!
             %set-current-error-port! apply-to-list
+            ;; the UTF-8 conversions: Skint instructions (s8tos, ssto8)
+            ;; that (skint) does not export [cco]
+            subutf8->string substring->utf8
             %exit)
           (rename (only (skint) make-record record?)
             (make-record %builtin-make-record)
@@ -1583,89 +1586,14 @@
         (subbytevector-copy! bv 0 bvec start end)
         bv))
 
-    ;; UTF-8 <-> string conversion (utf8->string / string->utf8
-    ;; below are case-lambdas over these); pure Scheme, since the
-    ;; compiled runtime has no subutf8->string prim and needs none
-    (define (%utf8-blen b)      ; bytes in the character b starts
-      (cond [(< b 128) 1] [(< b 224) 2] [(< b 240) 3] [else 4]))
-
-    ;; Count the characters, then fill a string of that size.  This
-    ;; used to cons a list of them and REVERSE it before list->string:
-    ;; two pairs a character, six words of garbage, and bv2string spent
-    ;; 99.3% of its allocation there.  substring->utf8 below already
-    ;; counts then fills, and this is its mirror. [cco]
-    (define (subutf8->string bvec start end)
-      (let ([n (let loop ([i start] [n 0])
-                 (if (>= i end)
-                     n
-                     (loop (+ i (%utf8-blen (bytevector-u8-ref bvec i)))
-                           (+ n 1))))])
-        (let ([s (make-string n)])
-          (let loop ([i start] [j 0])
-            (if (>= i end)
-                s
-                (let ([b (bytevector-u8-ref bvec i)])
-                  (cond
-                    [(< b 128)
-                     (string-set! s j (integer->char b))
-                     (loop (+ i 1) (+ j 1))]
-                    [(< b 224)
-                     (string-set! s j
-                       (integer->char
-                        (+ (* (- b 192) 64)
-                           (- (bytevector-u8-ref bvec (+ i 1)) 128))))
-                     (loop (+ i 2) (+ j 1))]
-                    [(< b 240)
-                     (string-set! s j
-                       (integer->char
-                        (+ (* (- b 224) 4096)
-                           (* (- (bytevector-u8-ref bvec (+ i 1)) 128) 64)
-                           (- (bytevector-u8-ref bvec (+ i 2)) 128))))
-                     (loop (+ i 3) (+ j 1))]
-                    [else
-                     (string-set! s j
-                       (integer->char
-                        (+ (* (- b 240) 262144)
-                           (* (- (bytevector-u8-ref bvec (+ i 1)) 128) 4096)
-                           (* (- (bytevector-u8-ref bvec (+ i 2)) 128) 64)
-                           (- (bytevector-u8-ref bvec (+ i 3)) 128))))
-                     (loop (+ i 4) (+ j 1))]))))))) 
-
-    (define (%utf8-clen c)
-      (cond [(< c 128) 1] [(< c 2048) 2] [(< c 65536) 3] [else 4]))
-
-    (define (substring->utf8 str start end)
-      (let ([total (let loop ([i start] [n 0])
-                     (if (>= i end) n
-                         (loop (+ i 1)
-                               (+ n (%utf8-clen
-                                     (char->integer (string-ref str i)))))))])
-        (let ([bv (make-bytevector total)])
-          (let loop ([i start] [j 0])
-            (if (>= i end) bv
-                (let ([c (char->integer (string-ref str i))])
-                  (cond
-                    [(< c 128)
-                     (bytevector-u8-set! bv j c)
-                     (loop (+ i 1) (+ j 1))]
-                    [(< c 2048)
-                     (bytevector-u8-set! bv j (+ 192 (quotient c 64)))
-                     (bytevector-u8-set! bv (+ j 1) (+ 128 (modulo c 64)))
-                     (loop (+ i 1) (+ j 2))]
-                    [(< c 65536)
-                     (bytevector-u8-set! bv j (+ 224 (quotient c 4096)))
-                     (bytevector-u8-set! bv (+ j 1)
-                                         (+ 128 (modulo (quotient c 64) 64)))
-                     (bytevector-u8-set! bv (+ j 2) (+ 128 (modulo c 64)))
-                     (loop (+ i 1) (+ j 3))]
-                    [else
-                     (bytevector-u8-set! bv j (+ 240 (quotient c 262144)))
-                     (bytevector-u8-set! bv (+ j 1)
-                                         (+ 128 (modulo (quotient c 4096) 64)))
-                     (bytevector-u8-set! bv (+ j 2)
-                                         (+ 128 (modulo (quotient c 64) 64)))
-                     (bytevector-u8-set! bv (+ j 3) (+ 128 (modulo c 64)))
-                     (loop (+ i 1) (+ j 4))])))))))
+    ;; UTF-8 <-> string conversion: subutf8->string and substring->utf8
+    ;; are imported above.  They used to be defined here in Scheme --
+    ;; count the characters, allocate, fill -- and `bv2string', which
+    ;; converts a 500-byte string three times per iteration, ran at
+    ;; 0.39x the interpreter because of it: a compiled loop per byte
+    ;; against one C instruction.  They are Skint instructions (s8tos
+    ;; and ssto8), so the compiler emits each as one runtime call, and
+    ;; the %utf8-blen and %utf8-clen helpers went with the loops. [cco]
 
     (define-syntax %cover-zero?
       (syntax-rules ()

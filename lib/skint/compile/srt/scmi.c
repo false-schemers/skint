@@ -116,6 +116,8 @@
 #define strn_slow_hreserved scmi_strn_slow_hreserved
 #define lstr_slow_hreserved scmi_lstr_slow_hreserved
 #define sdwn_slow_hreserved scmi_sdwn_slow_hreserved
+#define s8tos_slow_hreserved scmi_s8tos_slow_hreserved
+#define ssto8_slow_hreserved scmi_ssto8_slow_hreserved
 #define bvnew_slow_hreserved scmi_bvnew_slow_hreserved
 #define bvlist_slow_hreserved scmi_bvlist_slow_hreserved
 #define symstr_slow_hreserved scmi_symstr_slow_hreserved
@@ -138,6 +140,7 @@
 #define make_string_payload_raw scmrt_make_string_payload_raw
 #define string_type scmrt_string_type
 #define make_bytevector_payload scmrt_make_bytevector_payload
+#define make_bytevector_payload_raw scmrt_make_bytevector_payload_raw
 #define bytevector_type scmrt_bytevector_type
 #define symbol_to_string scmrt_symbol_to_string
 #define number_to_string scmrt_number_to_string
@@ -189,6 +192,7 @@ void *make_string_payload(int32_t len, int32_t fill);
 void *make_string_payload_raw(int32_t len);
 obj_t string_type(void);
 void *make_bytevector_payload(int32_t len);
+void *make_bytevector_payload_raw(int32_t len);
 obj_t bytevector_type(void);
 void *symbol_to_string(obj_t o);
 void *number_to_string(obj_t o, obj_t radix);
@@ -912,6 +916,86 @@ void *sdwn_slow_hreserved(void *r, void *hp, obj_t s)
     pay[1 + i] = c;
   }
   return hreserved_wrap(r, hp, (void *)pay, string_type());
+}
+
+/* subutf8->string and substring->utf8, after Skint's s8tos and ssto8
+   instructions.  The clib did both in Scheme, which is why `bv2string'
+   -- which converts a 500-byte string three times per iteration -- ran
+   at 0.39x the interpreter: it executed a compiled loop per BYTE
+   against two C instructions.  Those two Scheme definitions counted,
+   allocated and filled in exactly the shape below, so this is the same
+   algorithm in C rather than a different one.
+
+   The decode is unvalidated, which is what it replaces and what Skint
+   does: its own udecode (n_unicode.c) is documented as detecting no
+   errors whatsoever at all, and the clib classified a lead byte the
+   same way, by the three thresholds 128/224/240.  The one difference
+   is the bound below: a sequence truncated at the end index stops
+   there instead of reading past it.  Pre-reserved: 2. [cco] */
+void *s8tos_slow_hreserved(void *r, void *hp, obj_t b, obj_t s, obj_t e)
+{
+  const unsigned char *src =
+    (const unsigned char *)(void *)(string_payload(b) + 1);
+  int32_t bb = (int32_t)fx_val(s), ee = (int32_t)fx_val(e);
+  int32_t i, n = 0, len;
+  int32_t *pay;
+  for (i = bb; i < ee; ) {
+    uint32_t c = src[i];
+    i += (c < 128) ? 1 : (c < 224) ? 2 : (c < 240) ? 3 : 4;
+    n++;
+  }
+  pay = (int32_t *)make_string_payload_raw(n);
+  i = bb;
+  for (len = 0; len < n && i < ee; len++) {
+    uint32_t c = src[i++];
+    if (c < 128) {
+      pay[1 + len] = (int32_t)c;
+    } else {
+      /* the lead byte's own bits, then six from each continuation
+         byte -- the masks Skint's udecode uses, which agree with the
+         subtractions the Scheme did on every well-formed sequence */
+      int32_t k = (c < 224) ? 1 : (c < 240) ? 2 : 3;
+      uint32_t v = (c < 224) ? (c & 0x1f) : (c < 240) ? (c & 0x0f) : (c & 7);
+      while (k-- > 0 && i < ee) v = (v << 6) | (src[i++] & 0x3f);
+      pay[1 + len] = (int32_t)v;
+    }
+  }
+  pay[0] = len;                 /* equals n unless the input was bad */
+  return hreserved_wrap(r, hp, (void *)pay, string_type());
+}
+
+void *ssto8_slow_hreserved(void *r, void *hp, obj_t s, obj_t b, obj_t e)
+{
+  int32_t *src = string_payload(s);
+  int32_t bb = (int32_t)fx_val(b), ee = (int32_t)fx_val(e);
+  int32_t i, total = 0, at = 0;
+  int32_t *raw;
+  unsigned char *pay;
+  for (i = bb; i < ee; i++) {
+    uint32_t c = (uint32_t)src[1 + i];
+    total += (c < 0x80) ? 1 : (c < 0x800) ? 2 : (c < 0x10000) ? 3 : 4;
+  }
+  raw = (int32_t *)make_bytevector_payload_raw(total);
+  pay = (unsigned char *)(void *)(raw + 1);  /* int32 length, then bytes */
+  for (i = bb; i < ee; i++) {
+    uint32_t c = (uint32_t)src[1 + i];
+    if (c < 0x80) {
+      pay[at++] = (unsigned char)c;
+    } else if (c < 0x800) {
+      pay[at++] = (unsigned char)(0xc0 | (c >> 6));
+      pay[at++] = (unsigned char)(0x80 | (c & 63));
+    } else if (c < 0x10000) {
+      pay[at++] = (unsigned char)(0xe0 | (c >> 12));
+      pay[at++] = (unsigned char)(0x80 | ((c >> 6) & 63));
+      pay[at++] = (unsigned char)(0x80 | (c & 63));
+    } else {
+      pay[at++] = (unsigned char)(0xf0 | (c >> 18));
+      pay[at++] = (unsigned char)(0x80 | ((c >> 12) & 63));
+      pay[at++] = (unsigned char)(0x80 | ((c >> 6) & 63));
+      pay[at++] = (unsigned char)(0x80 | (c & 63));
+    }
+  }
+  return hreserved_wrap(r, hp, (void *)raw, bytevector_type());
 }
 
 /* make-bytevector: len (fixnum obj), zeroed payload.

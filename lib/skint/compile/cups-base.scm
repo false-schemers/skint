@@ -316,6 +316,7 @@
   (char-ci<=?) (char-ci>=?) (string?) (string *)
   (make-string *) (string-length) (string-ref ?)
   (string-set! !) (string-cat * ?) (substring * ?)
+  (subutf8->string * ?) (substring->utf8 * ?)
   (string-position ?) (string-upcase * ?)
   (string-downcase * ?) (string-foldcase * ?) (string-cmp ?)
   (string=? ?) (string<? ?) (string>? ?) (string<=? ?)
@@ -411,7 +412,10 @@
     flsinh flcosh fltanh flgcd
     zero? positive? negative?      ; convert inline, guarded by cknum
     string-length vector-length    ; tag-checked since the length is read
-    bytevector-length))            ; out of the payload
+    bytevector-length            ; out of the payload
+    ;; the two UTF-8 conversions check their argument and their range,
+    ;; the way Skint's s8tos and ssto8 do [cco]
+    subutf8->string substring->utf8))
 
 ;; a primapp's prim is an integrable index here, but not every caller has
 ;; checked that; integrable-global throws on an index it does not know, so

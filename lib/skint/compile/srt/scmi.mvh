@@ -189,6 +189,14 @@
   (func $scat_slow_hreserved (param $r ptr) (param $hp ptr)
                              (param $a i64) (param $b i64)
                              (result ptr))
+  ;; subutf8->string and substring->utf8: the UTF-8 conversions in C,
+  ;; rather than a compiled loop per byte.  Caller reserves 2.
+  (func $s8tos_slow_hreserved (param $r ptr) (param $hp ptr)
+                              (param $b i64) (param $s i64)
+                              (param $e i64) (result ptr))
+  (func $ssto8_slow_hreserved (param $r ptr) (param $hp ptr)
+                              (param $s i64) (param $b i64)
+                              (param $e i64) (result ptr))
   ;; n-ary string-append over a run of consecutive staged slots: one
   ;; pass to sum the lengths, one allocation, each part copied once.
   ;; After Skint's `sapp' instruction. Caller reserves 2, as for scat.
@@ -2133,6 +2141,56 @@
   (seq
     ($scmi:ssub_to (ref.data $scmi:ac_scratch))
     (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; subutf8->string and substring->utf8: $ac is the bytevector (resp.
+  ;; the string); start then end (fixnums) are pushed, end on top, as
+  ;; for $ssub.  The whole conversion is one C call, so the range check
+  ;; costs nothing measurable here -- unlike string-ref, where the check
+  ;; IS the operation.  Skint checks the same two things in its s8tos
+  ;; and ssto8 instructions: start no greater than end, end no greater
+  ;; than the length.  Both comparisons are unsigned, so a negative
+  ;; index wraps to a large value and is caught too. [cco]
+  (macro $cksub ($b $e $n)
+    (locals ($ckf i64) ($ckg i64))
+    (effect () -> ())
+    (seq
+      (local.set $ckf $b)
+      (local.set $ckg $e)
+      (if (i32.gt_u (i32.wrap_i64 ($scmn:get_fixnum (local.get $ckf)))
+                    (i32.wrap_i64 ($scmn:get_fixnum (local.get $ckg))))
+        (then (drop (call $scmrt:arg_error (local.get $ckf)
+                          (ref.data $scmi:msg_not_index)))))
+      (if (i32.gt_u (i32.wrap_i64 ($scmn:get_fixnum (local.get $ckg))) $n)
+        (then (drop (call $scmrt:arg_error (local.get $ckg)
+                          (ref.data $scmi:msg_not_index)))))))
+
+  (macro $s8tos ()
+    (locals ($e i64) ($b i64))
+    (effect (i64 i64) -> ())
+    (seq
+      (local.set $e)
+      (local.set $b)
+      ($scmi:ckbv (local.get $ac))
+      ($scmi:cksub (local.get $b) (local.get $e)
+                   ($scmn:bv_len (local.get $ac)))
+      (local.set $hp (call $scmi:s8tos_slow_hreserved
+                           (ref.data $scmi:ac_scratch) (local.get $hp)
+                           (local.get $ac) (local.get $b) (local.get $e)))
+      (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  (macro $ssto8 ()
+    (locals ($e i64) ($b i64))
+    (effect (i64 i64) -> ())
+    (seq
+      (local.set $e)
+      (local.set $b)
+      ($scmi:ckstr (local.get $ac))
+      ($scmi:cksub (local.get $b) (local.get $e)
+                   ($scmn:string_len (local.get $ac)))
+      (local.set $hp (call $scmi:ssto8_slow_hreserved
+                           (ref.data $scmi:ac_scratch) (local.get $hp)
+                           (local.get $ac) (local.get $b) (local.get $e)))
+      (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
 
   ;; string-append (binary): $ac is the first string, the second
   ;; is popped.  Caller reserved 2.
