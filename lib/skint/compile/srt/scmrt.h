@@ -19,6 +19,19 @@ extern void *make_string_payload_raw(int32_t len);
 extern uint64_t string_type(void);
 extern void *make_bytevector_payload(int32_t len);
 extern void *make_bytevector_payload_raw(int32_t len);
+/* the Unicode character database; the classification and case
+   operations scmi.mvh needs.  digit_value answers -1 when the
+   character is not a digit; the case operations answer the character
+   itself when it has no mapping. */
+extern int32_t char_is_alpha(int32_t c);
+extern int32_t char_is_numeric(int32_t c);
+extern int32_t char_is_space(int32_t c);
+extern int32_t char_is_upper(int32_t c);
+extern int32_t char_is_lower(int32_t c);
+extern int32_t char_digit_value(int32_t c);
+extern int32_t char_to_upper(int32_t c);
+extern int32_t char_to_lower(int32_t c);
+extern int32_t char_to_fold(int32_t c);
 extern uint64_t bytevector_type(void);
 extern void *symbol_to_string(uint64_t o);
 extern void *number_to_string(uint64_t o, uint64_t radix);
@@ -42,4 +55,5 @@ extern void *get_output_bytevector_payload(uint64_t o);
 extern void *make_output_bytevector_port(void);
 extern int32_t port_flags(uint64_t o);
 extern void *get_env_payload(uint64_t o);
+extern void *env_entry_payload(int32_t i);
 extern uint64_t port_type(void);

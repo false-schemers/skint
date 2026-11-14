@@ -38,6 +38,9 @@
 #include "scmrt.h"
 #endif
 
+/* this is for MS headers; shouldn't affect others, as skint's s.h does it */
+#define _CRT_SECURE_NO_WARNINGS 1
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -134,6 +137,7 @@
 #define boutport_slow_hreserved scmi_boutport_slow_hreserved
 #define getbvo_slow_hreserved scmi_getbvo_slow_hreserved
 #define getenv_slow_hreserved scmi_getenv_slow_hreserved
+#define envvref_slow_hreserved scmi_envvref_slow_hreserved
 /* $scmrt payload/wrapper services used by the allocating
    instructions below (lib/scmrt.h is the WCPL-side declaration) */
 #define make_string_payload scmrt_make_string_payload
@@ -141,6 +145,7 @@
 #define string_type scmrt_string_type
 #define make_bytevector_payload scmrt_make_bytevector_payload
 #define make_bytevector_payload_raw scmrt_make_bytevector_payload_raw
+#define char_to_lower    scmrt_char_to_lower
 #define bytevector_type scmrt_bytevector_type
 #define symbol_to_string scmrt_symbol_to_string
 #define number_to_string scmrt_number_to_string
@@ -156,6 +161,7 @@
 #define get_output_bytevector_payload scmrt_get_output_bytevector_payload
 #define make_output_bytevector_port scmrt_make_output_bytevector_port
 #define get_env_payload scmrt_get_env_payload
+#define env_entry_payload scmrt_env_entry_payload
 #define arg_error scmrt_arg_error
 #define port_type scmrt_port_type
 #endif
@@ -193,6 +199,7 @@ void *make_string_payload_raw(int32_t len);
 obj_t string_type(void);
 void *make_bytevector_payload(int32_t len);
 void *make_bytevector_payload_raw(int32_t len);
+int32_t char_to_lower(int32_t c);
 obj_t bytevector_type(void);
 void *symbol_to_string(obj_t o);
 void *number_to_string(obj_t o, obj_t radix);
@@ -209,6 +216,7 @@ void *make_input_bytevector_port(obj_t o);
 void *get_output_bytevector_payload(obj_t o);
 void *make_output_bytevector_port(void);
 void *get_env_payload(obj_t o);
+void *env_entry_payload(int32_t i);
 obj_t port_type(void);
 #endif
 
@@ -904,17 +912,14 @@ void *lstr_slow_hreserved(void *r, void *hp, obj_t l)
   return hreserved_wrap(r, hp, (void *)pay, string_type());
 }
 
-/* string-downcase (ASCII fold).  Pre-reserved: 2. */
+/* string-downcase.  Pre-reserved: 2. */
 void *sdwn_slow_hreserved(void *r, void *hp, obj_t s)
 {
   int32_t *src = string_payload(s);
   int32_t n = src[0], i;
   int32_t *pay = (int32_t *)make_string_payload_raw(n);
-  for (i = 0; i < n; i++) {
-    int32_t c = src[1 + i];
-    if (c >= 65 && c <= 90) c += 32;
-    pay[1 + i] = c;
-  }
+  /* the Unicode simple lowercase mapping, not an ASCII fold [cco] */
+  for (i = 0; i < n; i++) pay[1 + i] = char_to_lower(src[1 + i]);
   return hreserved_wrap(r, hp, (void *)pay, string_type());
 }
 
@@ -1116,6 +1121,15 @@ void *strn_slow_hreserved(void *r, void *hp, void *slots, int32_t n)
 void *getenv_slow_hreserved(void *r, void *hp, obj_t name)
 {
   void *p = get_env_payload(name);
+  if (!p) { ((obj_t *)r)[0] = SCM_FALSE; return hp; }
+  return hreserved_wrap(r, hp, p, string_type());
+}
+
+/* %envv-ref: the i-th environment entry as "KEY=VALUE", or #f past the
+   end.  Pre-reserved: 2. */
+void *envvref_slow_hreserved(void *r, void *hp, obj_t idx)
+{
+  void *p = env_entry_payload((int32_t)fx_val(idx));
   if (!p) { ((obj_t *)r)[0] = SCM_FALSE; return hp; }
   return hreserved_wrap(r, hp, p, string_type());
 }

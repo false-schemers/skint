@@ -657,7 +657,12 @@ int uprop(int c) {
     int mid = (lo + hi) >> 1;
     uint32_t mv = uprops[mid]; int mvc; 
     if (k < (mv & 0xFFFFFF00)) hi = mid-1; 
-    else if (k >= (uprops[mid+1] & 0xFFFFFF00)) lo = mid+1; 
+    /* mid+1 is ONE PAST THE END at the last index, which is reachable:
+       the terminator entry key is 0x10FFFF and uc may equal it.  The
+       garbage read made the search fail and uprop answer -1.  Stopping
+       at the last entry answers from the terminator instead. [cco] */
+    else if (mid+1 < (int)(sizeof(uprops)/sizeof(uint32_t))
+             && k >= (uprops[mid+1] & 0xFFFFFF00)) lo = mid+1;
     else switch (mvc = (int)(mv & 0x000000FF)) {
     case '0': case '1': case '2': case '3': case '4':
     case '5': case '6': case '7': case '8': case '9':
@@ -799,7 +804,13 @@ static const uint64_t utolc[] = {
   0x0001057000000027, 0x0001057B00000000, 0x0001057C00000027, 0x0001058B00000000,
   0x0001058C00000027, 0x0001059300000000, 0x0001059400000027, 0x0001059600000000,
   0x00010C8000000040, 0x00010CB300000000, 0x000118A000000020, 0x000118C000000000,
-  0x00016E4000000020, 0x00016E6000000000, 0x0001E90000000022, 0x0010FFFF00000000
+  0x00016E4000000020, 0x00016E6000000000, 0x0001E90000000022,
+  /* 0x1E922 closes the Adlam range above.  tabgen dropped the last
+     record's tocp and the 0x10FFFF terminator stretched +0x22 over
+     every code point above the block, so char-downcase was wrong for
+     all of the supplementary planes.  See emit_case in pre/tabgen.c,
+     which now closes the last record itself. [cco] */
+  0x0001E92200000000, 0x0010FFFF00000000
 };
 
 static const uint64_t utouc[] = {
@@ -886,9 +897,19 @@ static const uint64_t utouc[] = {
   0x000105A200000000, 0x000105A3FFFFFFD9, 0x000105B200000000, 0x000105B3FFFFFFD9,
   0x000105BA00000000, 0x000105BBFFFFFFD9, 0x000105BD00000000, 0x00010CC0FFFFFFC0,
   0x00010CF300000000, 0x000118C0FFFFFFE0, 0x000118E000000000, 0x00016E60FFFFFFE0,
-  0x00016E8000000000, 0x0001E922FFFFFFDE, 0x0010FFFF00000000
+  0x00016E8000000000, 0x0001E922FFFFFFDE,
+  /* 0x1E944 closes the Adlam range above; the same defect as utolc,
+     and it made char-upcase wrong over the same range. [cco] */
+  0x0001E94400000000, 0x0010FFFF00000000
 };
 
+/* utotc has the same unclosed last record: 0x10FD carries CASEIDENTITY,
+   which the terminator stretches to 0x10FFFF and which suppresses the
+   uppercase fall-back in utotitle over that whole range.  It is left as
+   generated because nothing in Scheme reaches utotitle -- Skint exposes
+   no char-titlecase -- and the correct closing point cannot be read off
+   the table the way the Adlam ones can.  Regenerating with the fixed
+   tabgen closes it. [cco] */
 static const uint64_t utotc[] = {
   0x0000000000000000, 0x000001C400000001, 0x000001C577777700, 0x000001C6FFFFFFFF,
   0x000001C700000001, 0x000001C877777700, 0x000001C9FFFFFFFF, 0x000001CA00000001,
@@ -923,7 +944,9 @@ static int ucase_to(int c, const uint64_t *table, int tsize) {
     int mid = (lo + hi) >> 1;
     uint64_t mv = table[mid]; int32_t mvc; 
     if (k < (mv & 0xFFFFFFFF00000000ULL)) hi = mid-1; 
-    else if (k >= (table[mid+1] & 0xFFFFFFFF00000000ULL)) lo = mid+1; 
+    /* mid+1 is one past the end at the last index; see uprop. [cco] */
+    else if (mid+1 < tsize
+             && k >= (table[mid+1] & 0xFFFFFFFF00000000ULL)) lo = mid+1;
     else switch (mvc = (int32_t)(uint32_t)(mv & 0x00000000FFFFFFFFULL)) {
       case CASEIDENTITY: return -42; /* no fall-thru! */
       case CASEPLUS_01:  return (uc - (mv >> 32)) % 2 ? c+1 : c;

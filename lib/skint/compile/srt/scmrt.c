@@ -57,6 +57,9 @@
 #pragma module "scmrt"
 #endif
 
+/* this is for MS headers; shouldn't affect others, as skint's s.h does it */
+#define _CRT_SECURE_NO_WARNINGS 1
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -72,6 +75,15 @@
 #ifndef __WCPL__
 #if defined(__GLIBC__)
 #include <malloc.h>                 /* mallopt, for the payload arena */
+#endif
+#endif
+
+#ifndef __WCPL__
+#ifdef _WIN32
+/* The Windows headers are needed in two places below -- the monotonic clock
+   and the wide entry points at the OS boundary -- so the include sits here
+   with the others.  Nested inside a __WCPL__ test, as WCPL requires. [cco] */
+#include <windows.h>
 #endif
 #endif
 
@@ -93,6 +105,15 @@
 #define error_raise      scmrt_error_raise
 #define equal_p          scmrt_equal_p
 #define eqv_p            scmrt_eqv_p
+#define char_is_alpha    scmrt_char_is_alpha
+#define char_is_numeric  scmrt_char_is_numeric
+#define char_is_space    scmrt_char_is_space
+#define char_is_upper    scmrt_char_is_upper
+#define char_is_lower    scmrt_char_is_lower
+#define char_digit_value scmrt_char_digit_value
+#define char_to_upper    scmrt_char_to_upper
+#define char_to_lower    scmrt_char_to_lower
+#define char_to_fold     scmrt_char_to_fold
 #define string_type      scmrt_string_type
 #define make_string_payload scmrt_make_string_payload
 #define make_string_payload_raw scmrt_make_string_payload_raw
@@ -140,6 +161,7 @@
 #define file_exists_p      scmrt_file_exists_p
 #define delete_file_p      scmrt_delete_file_p
 #define get_env_payload    scmrt_get_env_payload
+#define env_entry_payload  scmrt_env_entry_payload
 #define current_jiffy      scmrt_current_jiffy
 #define current_second     scmrt_current_second
 #define set_argv           scmrt_set_argv
@@ -817,12 +839,25 @@ static double rt_gc_time;
    free of conditionals.  The gc-time figure in the SCMRT_GC_STATS
    report is simply 0 on the wasm target. [cco] */
 #ifndef __WCPL__
+#ifdef _WIN32
+/* MSVC has neither clock_gettime nor CLOCK_MONOTONIC, so scmrt.c did not
+   compile with it at all and the cl target could not be used.  The _WIN32
+   test NESTS inside the __WCPL__ one, as everywhere else here. [cco] */
+static double rt_monotonic(void)
+{
+  LARGE_INTEGER freq, ctr;
+  if (!QueryPerformanceFrequency(&freq) || freq.QuadPart == 0) return 0.0;
+  QueryPerformanceCounter(&ctr);
+  return (double)ctr.QuadPart / (double)freq.QuadPart;
+}
+#else
 static double rt_monotonic(void)
 {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
 }
+#endif
 #else
 static double rt_monotonic(void)
 {
@@ -2626,10 +2661,193 @@ int32_t is_output_port(obj_t o)
          || port_kind_p(o, PORT_BOUT, PORT_BOUT);
 }
 
+/* ------------------------------------------------------------------ */
+/* the OS boundary                                                     */
+
+/* A string in this runtime is a sequence of code points, and str_obj_bytes
+   hands the operating system its UTF-8 encoding.  On a Unix-like system that
+   is exactly what the OS wants: file names and environment values are byte
+   strings and the encoding passes through untouched.
+
+   On Windows it is not.  The narrow entry points -- fopen, remove, getenv,
+   system -- read those bytes in the process code page, so a name holding
+   anything outside it is mangled or not found.  The wide entry points take
+   UTF-16, which is what Unicode on Windows means.  Skint's OPT_UNICODE build
+   wraps the same four calls the same way in opt/n_unicode.c (ufopen, uremove,
+   ugetenv, usystem); these are those wrappers for the compiled runtime, plus
+   the environment enumeration the runtime did not have at all.
+
+   NOT covered: argv.  A compiled program receives main's narrow argv, so a
+   non-ASCII command-line argument arrives in the process code page on
+   Windows.  Skint has the same limitation -- it calls no wide command-line
+   API either -- and closing it needs CommandLineToArgvW from shell32, which
+   would put a link dependency on every compiled program.  Left as it is and
+   written down rather than papered over.
+
+   The platform test NESTS inside a __WCPL__ one, because WCPL requires every
+   #if to name __WCPL__ and skips an inactive branch whole.  [cco] */
+
+#ifndef __WCPL__
+#ifdef _WIN32
+
+
+/* The one narrowed string the runtime hands back lives here rather than in a
+   function-scope static, which WCPL does not allow.  Every caller copies it
+   into a payload before the next call. */
+static char *rt_os_narrowed = NULL;
+
+static wchar_t *os_widen(const char *s)
+{
+  int n;
+  wchar_t *w;
+  n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+  if (n == 0) return NULL;
+  w = (wchar_t *)malloc((size_t)n * sizeof(wchar_t));
+  if (!w) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  if (MultiByteToWideChar(CP_UTF8, 0, s, -1, w, n) == 0) {
+    free(w);
+    return NULL;
+  }
+  return w;
+}
+
+static const char *os_narrow(const wchar_t *w)
+{
+  int n;
+  char *s;
+  n = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+  if (n == 0) return NULL;
+  s = (char *)malloc((size_t)n);
+  if (!s) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  if (WideCharToMultiByte(CP_UTF8, 0, w, -1, s, n, NULL, NULL) == 0) {
+    free(s);
+    return NULL;
+  }
+  if (rt_os_narrowed) free(rt_os_narrowed);
+  rt_os_narrowed = s;
+  return s;
+}
+
+static FILE *os_fopen(const char *name, const char *mode)
+{
+  wchar_t *wn, *wm;
+  FILE *fp;
+  wn = os_widen(name);
+  if (!wn) return NULL;
+  wm = os_widen(mode);
+  if (!wm) { free(wn); return NULL; }
+  fp = _wfopen(wn, wm);
+  free(wn);
+  free(wm);
+  return fp;
+}
+
+static int os_remove(const char *name)
+{
+  wchar_t *wn;
+  int rc;
+  wn = os_widen(name);
+  if (!wn) return -1;
+  rc = _wremove(wn);
+  free(wn);
+  return rc;
+}
+
+static const char *os_getenv(const char *name)
+{
+  wchar_t *wn, *wv;
+  wn = os_widen(name);
+  if (!wn) return NULL;
+  wv = _wgetenv(wn);
+  free(wn);
+  if (!wv) return NULL;
+  return os_narrow(wv);
+}
+
+/* The i-th environment entry as "KEY=VALUE", or NULL past the end.
+   GetEnvironmentStringsW rather than _wenviron: the CRT fills _wenviron only
+   once a wide environment call has been made, while this block is always
+   there.  Walking it per index makes enumeration quadratic, which does not
+   matter for an environment. */
+static const char *os_envv(int32_t i)
+{
+  wchar_t *blk, *p;
+  const char *r;
+  int32_t k;
+  if (i < 0) return NULL;
+  blk = GetEnvironmentStringsW();
+  if (!blk) return NULL;
+  p = blk;
+  for (k = 0; k < i && *p != 0; k++) {
+    while (*p != 0) p++;
+    p++;
+  }
+  if (*p == 0) { FreeEnvironmentStringsW(blk); return NULL; }
+  r = os_narrow(p);
+  FreeEnvironmentStringsW(blk);
+  return r;
+}
+
+static int os_system(const char *cmd)
+{
+  wchar_t *wc;
+  int rc;
+  wc = os_widen(cmd);
+  if (!wc) return -1;
+  rc = _wsystem(wc);
+  free(wc);
+  return rc;
+}
+
+#else
+
+extern char **environ;
+
+static FILE *os_fopen(const char *name, const char *mode)
+{
+  return fopen(name, mode);
+}
+
+static int os_remove(const char *name) { return remove(name); }
+
+static const char *os_getenv(const char *name) { return getenv(name); }
+
+static const char *os_envv(int32_t i)
+{
+  int32_t k;
+  if (i < 0 || environ == NULL) return NULL;
+  for (k = 0; k < i; k++) if (environ[k] == NULL) return NULL;
+  return environ[i];
+}
+
+static int os_system(const char *cmd) { return system(cmd); }
+
+#endif
+#else
+
+/* WASI: getenv is there, but wcpl's headers declare no environ, so the
+   environment cannot be enumerated on this target and
+   get-environment-variables answers the empty list.  system is unavailable,
+   as the stub for %system below already says. */
+static FILE *os_fopen(const char *name, const char *mode)
+{
+  return fopen(name, mode);
+}
+
+static int os_remove(const char *name) { return remove(name); }
+
+static const char *os_getenv(const char *name) { return getenv(name); }
+
+static const char *os_envv(int32_t i) { (void)i; return NULL; }
+
+static int os_system(const char *cmd) { (void)cmd; return -1; }
+
+#endif
+
 void *open_input_file(obj_t o)
 {
   char *name = str_obj_bytes(o);
-  FILE *fp = fopen(name, "r");
+  FILE *fp = os_fopen(name, "r");
   portpay_t *p;
   if (!fp) {
     fprintf(stderr, "scmrt: cannot open input file: %s\n", name);
@@ -2645,7 +2863,7 @@ void *open_input_file(obj_t o)
 void *open_output_file(obj_t o)
 {
   char *name = str_obj_bytes(o);
-  FILE *fp = fopen(name, "w");
+  FILE *fp = os_fopen(name, "w");
   portpay_t *p;
   if (!fp) {
     fprintf(stderr, "scmrt: cannot open output file: %s\n", name);
@@ -2663,7 +2881,7 @@ void *open_output_file(obj_t o)
 void *try_open_input_file(obj_t o)
 {
   char *name = str_obj_bytes(o);
-  FILE *fp = fopen(name, "r");
+  FILE *fp = os_fopen(name, "r");
   portpay_t *p;
   free(name);
   if (!fp) return NULL;
@@ -2675,7 +2893,7 @@ void *try_open_input_file(obj_t o)
 void *try_open_output_file(obj_t o)
 {
   char *name = str_obj_bytes(o);
-  FILE *fp = fopen(name, "w");
+  FILE *fp = os_fopen(name, "w");
   portpay_t *p;
   free(name);
   if (!fp) return NULL;
@@ -3172,7 +3390,7 @@ void write_obj_port(obj_t po, obj_t o)
 int32_t file_exists_p(obj_t o)
 {
   char *name = str_obj_bytes(o);
-  FILE *fp = fopen(name, "r");
+  FILE *fp = os_fopen(name, "r");
   free(name);
   if (fp) { fclose(fp); return 1; }
   return 0;
@@ -3181,21 +3399,18 @@ int32_t file_exists_p(obj_t o)
 int32_t delete_file_p(obj_t o)
 {
   char *name = str_obj_bytes(o);
-  int rc = remove(name);
+  int rc = os_remove(name);
   free(name);
   return rc == 0;
 }
 
-void *get_env_payload(obj_t o)
+/* A UTF-8 C string as a fresh string payload: the shape get_env_payload
+   built inline, now shared with env_entry_payload below. [cco] */
+static void *utf8_to_payload(const char *v)
 {
-  char *name = str_obj_bytes(o);
-  const char *v = getenv(name);
-  size_t n;
+  size_t n = strlen(v);
   int32_t *tmp, m;
   strpay_t *r;
-  free(name);
-  if (!v) return NULL;
-  n = strlen(v);
   tmp = (int32_t *)malloc((n + 1) * 4);
   if (!tmp) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
   m = utf8_decode(v, n, tmp);
@@ -3206,6 +3421,30 @@ void *get_env_payload(obj_t o)
   memcpy((char *)(void *)r + 4, tmp, (size_t)m * 4);
   free(tmp);
   return (void *)r;
+}
+
+void *get_env_payload(obj_t o)
+{
+  char *name = str_obj_bytes(o);
+  const char *v = os_getenv(name);
+  void *p;
+  free(name);
+  if (!v) return NULL;
+  p = utf8_to_payload(v);
+  return p;
+}
+
+/* The i-th environment entry, as the string "KEY=VALUE", or NULL past the
+   end.  %envv-ref is what (scheme process-context)'s
+   get-environment-variables walks, and the runtime had no implementation of
+   it at all: the generator emitted $scmi:envvref and marv reported an unknown
+   instruction, so that procedure could never be used in a compiled program.
+   [cco] */
+void *env_entry_payload(int32_t i)
+{
+  const char *v = os_envv(i);
+  if (!v) return NULL;
+  return utf8_to_payload(v);
 }
 
 obj_t current_jiffy(void)
@@ -3343,8 +3582,617 @@ obj_t system_cmd(obj_t o)
 obj_t system_cmd(obj_t o)
 {
   char *cmd = str_obj_bytes(o);
-  int rc = system(cmd);
+  int rc = os_system(cmd);
   free(cmd);
   return mk_fixnum((int64_t)rc);
 }
 #endif
+/* ------------------------------------------------------------------ */
+/* the Unicode character database                                      */
+
+/* The classification and case operations used to be ASCII ranges written
+   inline in scmi.mvh: char-upcase tested 97..122, char-whitespace? tested 32
+   and 9..13, char-alphabetic? answered true for every code point at or above
+   128, and char-foldcase was char-downcase.  Strings here are arrays of code
+   points, so those answers were wrong for most of the repertoire the runtime
+   can represent -- 15 of 16 probes disagreed with a Unicode Skint.
+
+   These are Skint's own tables, from opt/n_unicode.c, generated by pre/tabgen.c
+   from the Unicode data files.  They total 14,440 bytes: uprops 2280 entries of
+   4, utolc 285, utouc 336 and ufold 44 of 8.  Each is a sorted list of ranges,
+   keyed by first code point with the property or the case delta in the low
+   bits, and read by binary search.  A range is bounded by the next entry's key.
+
+   Three departures from the Skint originals, all forced:
+
+     * the entry counts are #defines rather than sizeof(x)/sizeof(*x), because
+       WCPL compiles this file for the wasm target and the sizeof-on-array
+       idiom is not used anywhere else here;
+     * there is no assert; a search that cannot resolve answers "no property"
+       and identity case, which is what the terminator entry would have said;
+     * utotc and utotitle are not carried over.  Nothing in the compiled
+       library set reaches titlecase -- Skint exposes no char-titlecase -- and
+       utotc is the one table whose last range tabgen left unclosed in a way
+       that cannot be repaired by reading the table.
+
+   The Adlam closing entries at 0x1E922 and 0x1E944 are present here and were
+   added to opt/n_unicode.c in the same pass: without them the last range of
+   utolc and utouc ran to 0x10FFFF and both case operations were wrong for
+   every code point in the supplementary planes.  [cco] */
+
+#define UPROPS_N 2280
+#define UTOLC_N  285
+#define UTOUC_N  336
+#define UFOLD_N  44
+
+#define CASEIDENTITY  0x77777700 /* 0, but no fall-thru */
+#define CASEPLUS_01   0x77777701 /* oscillating  0 / 1  */
+#define CASEPLUS_10   0x77777710 /* oscillating  1 / 0  */
+#define CASEMINUS_01  0x7777770F /* oscillating  0 / -1 */
+#define CASEMINUS_10  0x777777F0 /* oscillating -1 / 0  */
+
+static const uint32_t uprops[] = {
+  0x0000003F, 0x00000977, 0x00000E3F, 0x00002077, 0x00002169, 0x0000283F, 0x00002A69, 0x00003064,
+  0x00003A69, 0x00004175, 0x00005B3F, 0x00005C69, 0x00005D3F, 0x00005E69, 0x0000616C, 0x00007B3F,
+  0x00007C69, 0x00007D3F, 0x00007E69, 0x00007F3F, 0x00008577, 0x0000863F, 0x0000A077, 0x0000A169,
+  0x0000AA61, 0x0000AB3F, 0x0000AC69, 0x0000AD3F, 0x0000AE69, 0x0000B56C, 0x0000B669, 0x0000BA61,
+  0x0000BB3F, 0x0000BC69, 0x0000C075, 0x0000D769, 0x0000D875, 0x0000DF6C, 0x0000F769, 0x0000F86C,
+  0x00010055, 0x0001384C, 0x0001494C, 0x00017955, 0x00017F6C, 0x00018175, 0x0001834C, 0x00018755,
+  0x00018A75, 0x00018C6C, 0x00018E75, 0x0001924C, 0x00019455, 0x00019775, 0x0001996C, 0x00019C75,
+  0x00019E4C, 0x0001A055, 0x0001A755, 0x0001AB4C, 0x0001AF55, 0x0001B275, 0x0001B44C, 0x0001B855,
+  0x0001BA6C, 0x0001BB61, 0x0001BC55, 0x0001BE6C, 0x0001C061, 0x0001C475, 0x0001C561, 0x0001C64C,
+  0x0001C861, 0x0001C94C, 0x0001CB61, 0x0001CC4C, 0x0001DD4C, 0x0001F04C, 0x0001F261, 0x0001F34C,
+  0x0001F775, 0x0001F94C, 0x0002346C, 0x00023A75, 0x00023C4C, 0x00023E55, 0x0002404C, 0x00024475,
+  0x0002474C, 0x0002506C, 0x00029461, 0x0002956C, 0x0002B061, 0x0002C269, 0x0002C661, 0x0002D269,
+  0x0002E061, 0x0002E569, 0x0002EC61, 0x0002ED69, 0x0002EE61, 0x0002EF69, 0x0003456C, 0x00034669,
+  0x00037055, 0x00037461, 0x00037569, 0x00037655, 0x0003783F, 0x00037A61, 0x00037B6C, 0x00037E69,
+  0x00037F75, 0x0003803F, 0x00038469, 0x00038675, 0x00038769, 0x00038875, 0x00038B3F, 0x00038C75,
+  0x00038D3F, 0x00038E75, 0x0003904C, 0x00039275, 0x0003A23F, 0x0003A375, 0x0003AC6C, 0x0003CF55,
+  0x0003D14C, 0x0003D375, 0x0003D56C, 0x0003D855, 0x0003F06C, 0x0003F455, 0x0003F669, 0x0003F755,
+  0x0003FA55, 0x0003FC4C, 0x0003FE75, 0x0004306C, 0x00046055, 0x00048269, 0x00048873, 0x00048A55,
+  0x0004C155, 0x0004CF4C, 0x0005303F, 0x00053175, 0x0005573F, 0x00055961, 0x00055A69, 0x0005606C,
+  0x00058969, 0x00058B3F, 0x00058D69, 0x0005903F, 0x00059169, 0x0005B061, 0x0005BE69, 0x0005BF61,
+  0x0005C069, 0x0005C161, 0x0005C369, 0x0005C461, 0x0005C669, 0x0005C761, 0x0005C83F, 0x0005D061,
+  0x0005EB3F, 0x0005EF61, 0x0005F369, 0x0005F53F, 0x00060669, 0x00061061, 0x00061B69, 0x00061C3F,
+  0x00061D69, 0x00062061, 0x00065869, 0x00065961, 0x00066064, 0x00066A69, 0x00066E61, 0x0006D469,
+  0x0006D561, 0x0006DD3F, 0x0006DE69, 0x0006E161, 0x0006E969, 0x0006ED61, 0x0006F064, 0x0006FA61,
+  0x0006FD69, 0x0006FF61, 0x00070069, 0x00070E3F, 0x00071061, 0x00074069, 0x00074B3F, 0x00074D61,
+  0x0007B23F, 0x0007C064, 0x0007CA61, 0x0007EB69, 0x0007F461, 0x0007F669, 0x0007FA61, 0x0007FB3F,
+  0x0007FD69, 0x00080061, 0x00081869, 0x00081A61, 0x00082D69, 0x00082E3F, 0x00083069, 0x00083F3F,
+  0x00084061, 0x00085969, 0x00085C3F, 0x00085E69, 0x00085F3F, 0x00086061, 0x00086B3F, 0x00087061,
+  0x00088869, 0x00088961, 0x00088F3F, 0x00089869, 0x0008A061, 0x0008CA69, 0x0008D461, 0x0008E069,
+  0x0008E23F, 0x0008E361, 0x0008EA69, 0x0008F061, 0x00093C69, 0x00093D61, 0x00094D69, 0x00094E61,
+  0x00095169, 0x00095561, 0x00096469, 0x00096664, 0x00097069, 0x00097161, 0x0009843F, 0x00098561,
+  0x00098D3F, 0x00098F61, 0x0009913F, 0x00099361, 0x0009A93F, 0x0009AA61, 0x0009B13F, 0x0009B261,
+  0x0009B33F, 0x0009B661, 0x0009BA3F, 0x0009BC69, 0x0009BD61, 0x0009C53F, 0x0009C761, 0x0009C93F,
+  0x0009CB61, 0x0009CD69, 0x0009CE61, 0x0009CF3F, 0x0009D761, 0x0009D83F, 0x0009DC61, 0x0009DE3F,
+  0x0009DF61, 0x0009E43F, 0x0009E664, 0x0009F061, 0x0009F269, 0x0009FC61, 0x0009FD69, 0x0009FF3F,
+  0x000A0161, 0x000A043F, 0x000A0561, 0x000A0B3F, 0x000A0F61, 0x000A113F, 0x000A1361, 0x000A293F,
+  0x000A2A61, 0x000A313F, 0x000A3261, 0x000A343F, 0x000A3561, 0x000A373F, 0x000A3861, 0x000A3A3F,
+  0x000A3C69, 0x000A3D3F, 0x000A3E61, 0x000A433F, 0x000A4761, 0x000A493F, 0x000A4B61, 0x000A4D69,
+  0x000A4E3F, 0x000A5161, 0x000A523F, 0x000A5961, 0x000A5D3F, 0x000A5E61, 0x000A5F3F, 0x000A6664,
+  0x000A7061, 0x000A7669, 0x000A773F, 0x000A8161, 0x000A843F, 0x000A8561, 0x000A8E3F, 0x000A8F61,
+  0x000A923F, 0x000A9361, 0x000AA93F, 0x000AAA61, 0x000AB13F, 0x000AB261, 0x000AB43F, 0x000AB561,
+  0x000ABA3F, 0x000ABC69, 0x000ABD61, 0x000AC63F, 0x000AC761, 0x000ACA3F, 0x000ACB61, 0x000ACD69,
+  0x000ACE3F, 0x000AD061, 0x000AD13F, 0x000AE061, 0x000AE43F, 0x000AE664, 0x000AF069, 0x000AF23F,
+  0x000AF961, 0x000AFD69, 0x000B003F, 0x000B0161, 0x000B043F, 0x000B0561, 0x000B0D3F, 0x000B0F61,
+  0x000B113F, 0x000B1361, 0x000B293F, 0x000B2A61, 0x000B313F, 0x000B3261, 0x000B343F, 0x000B3561,
+  0x000B3A3F, 0x000B3C69, 0x000B3D61, 0x000B453F, 0x000B4761, 0x000B493F, 0x000B4B61, 0x000B4D69,
+  0x000B4E3F, 0x000B5569, 0x000B5661, 0x000B583F, 0x000B5C61, 0x000B5E3F, 0x000B5F61, 0x000B643F,
+  0x000B6664, 0x000B7069, 0x000B7161, 0x000B7269, 0x000B783F, 0x000B8261, 0x000B843F, 0x000B8561,
+  0x000B8B3F, 0x000B8E61, 0x000B913F, 0x000B9261, 0x000B963F, 0x000B9961, 0x000B9B3F, 0x000B9C61,
+  0x000B9D3F, 0x000B9E61, 0x000BA03F, 0x000BA361, 0x000BA53F, 0x000BA861, 0x000BAB3F, 0x000BAE61,
+  0x000BBA3F, 0x000BBE61, 0x000BC33F, 0x000BC661, 0x000BC93F, 0x000BCA61, 0x000BCD69, 0x000BCE3F,
+  0x000BD061, 0x000BD13F, 0x000BD761, 0x000BD83F, 0x000BE664, 0x000BF069, 0x000BFB3F, 0x000C0061,
+  0x000C0D3F, 0x000C0E61, 0x000C113F, 0x000C1261, 0x000C293F, 0x000C2A61, 0x000C3A3F, 0x000C3C69,
+  0x000C3D61, 0x000C453F, 0x000C4661, 0x000C493F, 0x000C4A61, 0x000C4D69, 0x000C4E3F, 0x000C5561,
+  0x000C573F, 0x000C5861, 0x000C5B3F, 0x000C5D61, 0x000C5E3F, 0x000C6061, 0x000C643F, 0x000C6664,
+  0x000C703F, 0x000C7769, 0x000C8061, 0x000C8469, 0x000C8561, 0x000C8D3F, 0x000C8E61, 0x000C913F,
+  0x000C9261, 0x000CA93F, 0x000CAA61, 0x000CB43F, 0x000CB561, 0x000CBA3F, 0x000CBC69, 0x000CBD61,
+  0x000CC53F, 0x000CC661, 0x000CC93F, 0x000CCA61, 0x000CCD69, 0x000CCE3F, 0x000CD561, 0x000CD73F,
+  0x000CDD61, 0x000CDF3F, 0x000CE061, 0x000CE43F, 0x000CE664, 0x000CF03F, 0x000CF161, 0x000CF43F,
+  0x000D0061, 0x000D0D3F, 0x000D0E61, 0x000D113F, 0x000D1261, 0x000D3B69, 0x000D3D61, 0x000D453F,
+  0x000D4661, 0x000D493F, 0x000D4A61, 0x000D4D69, 0x000D4E61, 0x000D4F69, 0x000D503F, 0x000D5461,
+  0x000D5869, 0x000D5F61, 0x000D643F, 0x000D6664, 0x000D7069, 0x000D7A61, 0x000D803F, 0x000D8161,
+  0x000D843F, 0x000D8561, 0x000D973F, 0x000D9A61, 0x000DB23F, 0x000DB361, 0x000DBC3F, 0x000DBD61,
+  0x000DBE3F, 0x000DC061, 0x000DC73F, 0x000DCA69, 0x000DCB3F, 0x000DCF61, 0x000DD53F, 0x000DD661,
+  0x000DD73F, 0x000DD861, 0x000DE03F, 0x000DE664, 0x000DF03F, 0x000DF261, 0x000DF469, 0x000DF53F,
+  0x000E0161, 0x000E3B3F, 0x000E3F69, 0x000E4061, 0x000E4769, 0x000E4D61, 0x000E4E69, 0x000E5064,
+  0x000E5A69, 0x000E5C3F, 0x000E8161, 0x000E833F, 0x000E8461, 0x000E853F, 0x000E8661, 0x000E8B3F,
+  0x000E8C61, 0x000EA43F, 0x000EA561, 0x000EA63F, 0x000EA761, 0x000EBA69, 0x000EBB61, 0x000EBE3F,
+  0x000EC061, 0x000EC53F, 0x000EC661, 0x000EC73F, 0x000EC869, 0x000ECD61, 0x000ECE69, 0x000ECF3F,
+  0x000ED064, 0x000EDA3F, 0x000EDC61, 0x000EE03F, 0x000F0061, 0x000F0169, 0x000F2064, 0x000F2A69,
+  0x000F3A3F, 0x000F3E73, 0x000F4061, 0x000F483F, 0x000F4961, 0x000F6D3F, 0x000F7161, 0x000F8469,
+  0x000F8861, 0x000F983F, 0x000F9961, 0x000FBD3F, 0x000FBE69, 0x000FCD3F, 0x000FCE69, 0x000FDB3F,
+  0x00100061, 0x00103769, 0x00103861, 0x00103969, 0x00103B61, 0x00104064, 0x00104A69, 0x00105061,
+  0x00109064, 0x00109A61, 0x00109E69, 0x0010A075, 0x0010C63F, 0x0010C775, 0x0010C83F, 0x0010CD75,
+  0x0010CE3F, 0x0010D06C, 0x0010FB69, 0x0010FC61, 0x0010FD6C, 0x00110061, 0x0012493F, 0x00124A61,
+  0x00124E3F, 0x00125061, 0x0012573F, 0x00125861, 0x0012593F, 0x00125A61, 0x00125E3F, 0x00126061,
+  0x0012893F, 0x00128A61, 0x00128E3F, 0x00129061, 0x0012B13F, 0x0012B261, 0x0012B63F, 0x0012B861,
+  0x0012BF3F, 0x0012C061, 0x0012C13F, 0x0012C261, 0x0012C63F, 0x0012C861, 0x0012D73F, 0x0012D861,
+  0x0013113F, 0x00131261, 0x0013163F, 0x00131861, 0x00135B3F, 0x00135D69, 0x00137D3F, 0x00138061,
+  0x00139069, 0x00139A3F, 0x0013A075, 0x0013F63F, 0x0013F86C, 0x0013FE3F, 0x00140069, 0x00140161,
+  0x00166D69, 0x00166F61, 0x00168077, 0x00168161, 0x00169B3F, 0x0016A061, 0x0016EB69, 0x0016EE61,
+  0x0016F93F, 0x00170061, 0x00171469, 0x00171573, 0x0017163F, 0x00171F61, 0x00173473, 0x00173569,
+  0x0017373F, 0x00174061, 0x0017543F, 0x00176061, 0x00176D3F, 0x00176E61, 0x0017713F, 0x00177261,
+  0x0017743F, 0x00178061, 0x0017B469, 0x0017B661, 0x0017C969, 0x0017D761, 0x0017D869, 0x0017DC61,
+  0x0017DD69, 0x0017DE3F, 0x0017E064, 0x0017EA3F, 0x0017F069, 0x0017FA3F, 0x00180069, 0x00180E3F,
+  0x00180F69, 0x00181064, 0x00181A3F, 0x00182061, 0x0018793F, 0x00188061, 0x0018AB3F, 0x0018B061,
+  0x0018F63F, 0x00190061, 0x00191F3F, 0x00192061, 0x00192C3F, 0x00193061, 0x00193969, 0x00193C3F,
+  0x00194069, 0x0019413F, 0x00194469, 0x00194664, 0x00195061, 0x00196E3F, 0x00197061, 0x0019753F,
+  0x00198061, 0x0019AC3F, 0x0019B061, 0x0019CA3F, 0x0019D064, 0x0019DA69, 0x0019DB3F, 0x0019DE69,
+  0x001A0061, 0x001A1C3F, 0x001A1E69, 0x001A2061, 0x001A5F3F, 0x001A6069, 0x001A6161, 0x001A7569,
+  0x001A7D3F, 0x001A7F69, 0x001A8064, 0x001A8A3F, 0x001A9064, 0x001A9A3F, 0x001AA069, 0x001AA761,
+  0x001AA869, 0x001AAE3F, 0x001AB069, 0x001ABE73, 0x001ABF61, 0x001AC169, 0x001ACC61, 0x001ACF3F,
+  0x001B0061, 0x001B3469, 0x001B3561, 0x001B4473, 0x001B4561, 0x001B4D3F, 0x001B5064, 0x001B5A69,
+  0x001B7F3F, 0x001B8061, 0x001BAA73, 0x001BAB69, 0x001BAC61, 0x001BB064, 0x001BBA61, 0x001BE669,
+  0x001BE761, 0x001BF273, 0x001BF43F, 0x001BFC69, 0x001C0061, 0x001C3769, 0x001C383F, 0x001C3B69,
+  0x001C4064, 0x001C4A3F, 0x001C4D61, 0x001C5064, 0x001C5A61, 0x001C7E69, 0x001C806C, 0x001C893F,
+  0x001C9075, 0x001CBB3F, 0x001CBD75, 0x001CC069, 0x001CC83F, 0x001CD069, 0x001CE173, 0x001CE269,
+  0x001CE961, 0x001CED69, 0x001CEE61, 0x001CF469, 0x001CF561, 0x001CF773, 0x001CF869, 0x001CFA61,
+  0x001CFB3F, 0x001D006C, 0x001D2C61, 0x001D6B6C, 0x001D7861, 0x001D796C, 0x001D9B61, 0x001DC069,
+  0x001DE761, 0x001DF569, 0x001E0055, 0x001E966C, 0x001E9E55, 0x001F006C, 0x001F0875, 0x001F106C,
+  0x001F163F, 0x001F1875, 0x001F1E3F, 0x001F206C, 0x001F2875, 0x001F306C, 0x001F3875, 0x001F406C,
+  0x001F463F, 0x001F4875, 0x001F4E3F, 0x001F506C, 0x001F583F, 0x001F5975, 0x001F5A3F, 0x001F5B75,
+  0x001F5C3F, 0x001F5D75, 0x001F5E3F, 0x001F5F55, 0x001F616C, 0x001F6875, 0x001F706C, 0x001F7E3F,
+  0x001F806C, 0x001F8861, 0x001F906C, 0x001F9861, 0x001FA06C, 0x001FA861, 0x001FB06C, 0x001FB53F,
+  0x001FB66C, 0x001FB875, 0x001FBC61, 0x001FBD69, 0x001FBE6C, 0x001FBF69, 0x001FC26C, 0x001FC53F,
+  0x001FC66C, 0x001FC875, 0x001FCC61, 0x001FCD69, 0x001FD06C, 0x001FD43F, 0x001FD66C, 0x001FD875,
+  0x001FDC3F, 0x001FDD69, 0x001FE06C, 0x001FE875, 0x001FED69, 0x001FF03F, 0x001FF26C, 0x001FF53F,
+  0x001FF66C, 0x001FF875, 0x001FFC61, 0x001FFD69, 0x001FFF3F, 0x00200077, 0x00200B3F, 0x00200C69,
+  0x00200E3F, 0x00201069, 0x0020183F, 0x00202069, 0x00202877, 0x00202A3F, 0x00202F77, 0x00203069,
+  0x0020393F, 0x00203B69, 0x0020453F, 0x00204769, 0x00205F77, 0x0020603F, 0x00207069, 0x00207161,
+  0x0020723F, 0x00207469, 0x00207D3F, 0x00207F61, 0x00208069, 0x00208D3F, 0x00209061, 0x00209D3F,
+  0x0020A069, 0x0020C13F, 0x0020D069, 0x0020DD73, 0x0020E169, 0x0020E273, 0x0020E569, 0x0020F13F,
+  0x00210069, 0x00210275, 0x00210369, 0x00210775, 0x00210869, 0x00210A4C, 0x00210C75, 0x00210E6C,
+  0x00211075, 0x0021136C, 0x00211469, 0x00211575, 0x00211669, 0x00211975, 0x00211E69, 0x00212475,
+  0x00212569, 0x00212675, 0x00212769, 0x00212875, 0x00212969, 0x00212A75, 0x00212E69, 0x00212F4C,
+  0x00213175, 0x0021346C, 0x00213561, 0x0021396C, 0x00213A69, 0x00213C6C, 0x00213E75, 0x00214069,
+  0x00214555, 0x0021476C, 0x00214A69, 0x00214E6C, 0x00214F69, 0x00216075, 0x0021706C, 0x00218061,
+  0x00218355, 0x00218561, 0x00218969, 0x00218C3F, 0x00219069, 0x0023083F, 0x00230C69, 0x0023293F,
+  0x00232B69, 0x0024273F, 0x00244069, 0x00244B3F, 0x00246069, 0x0024B675, 0x0024D06C, 0x0024EA69,
+  0x0027683F, 0x00277669, 0x0027C53F, 0x0027C769, 0x0027E63F, 0x0027F069, 0x0029833F, 0x00299969,
+  0x0029D83F, 0x0029DC69, 0x0029FC3F, 0x0029FE69, 0x002B743F, 0x002B7669, 0x002B963F, 0x002B9769,
+  0x002C0075, 0x002C306C, 0x002C6055, 0x002C6375, 0x002C656C, 0x002C6755, 0x002C6E75, 0x002C714C,
+  0x002C744C, 0x002C776C, 0x002C7C61, 0x002C7E75, 0x002C814C, 0x002CE46C, 0x002CE569, 0x002CEB55,
+  0x002CEF69, 0x002CF255, 0x002CF43F, 0x002CF969, 0x002D006C, 0x002D263F, 0x002D276C, 0x002D283F,
+  0x002D2D6C, 0x002D2E3F, 0x002D3061, 0x002D683F, 0x002D6F61, 0x002D7069, 0x002D713F, 0x002D7F69,
+  0x002D8061, 0x002D973F, 0x002DA061, 0x002DA73F, 0x002DA861, 0x002DAF3F, 0x002DB061, 0x002DB73F,
+  0x002DB861, 0x002DBF3F, 0x002DC061, 0x002DC73F, 0x002DC861, 0x002DCF3F, 0x002DD061, 0x002DD73F,
+  0x002DD861, 0x002DDF3F, 0x002DE061, 0x002E0069, 0x002E023F, 0x002E0669, 0x002E093F, 0x002E0B69,
+  0x002E0C3F, 0x002E0E69, 0x002E1C3F, 0x002E1E69, 0x002E203F, 0x002E2A69, 0x002E2F61, 0x002E3069,
+  0x002E423F, 0x002E4369, 0x002E553F, 0x002E5D69, 0x002E5E3F, 0x002E8069, 0x002E9A3F, 0x002E9B69,
+  0x002EF43F, 0x002F0069, 0x002FD63F, 0x002FF069, 0x00300077, 0x00300169, 0x00300561, 0x0030083F,
+  0x00301269, 0x0030143F, 0x00301C69, 0x00301D3F, 0x00302069, 0x00302161, 0x00302A69, 0x00302E73,
+  0x00303069, 0x00303161, 0x00303669, 0x00303861, 0x00303D69, 0x0030403F, 0x00304161, 0x0030973F,
+  0x00309969, 0x00309D61, 0x0030A069, 0x0030A161, 0x0030FB69, 0x0030FC61, 0x0031003F, 0x00310561,
+  0x0031303F, 0x00313161, 0x00318F3F, 0x00319069, 0x0031A061, 0x0031C069, 0x0031E43F, 0x0031EF69,
+  0x0031F061, 0x00320069, 0x00321F3F, 0x00322069, 0x00340061, 0x004DC069, 0x004E0061, 0x00A48D3F,
+  0x00A49069, 0x00A4C73F, 0x00A4D061, 0x00A4FE69, 0x00A50061, 0x00A60D69, 0x00A61061, 0x00A62064,
+  0x00A62A61, 0x00A62C3F, 0x00A64055, 0x00A66E61, 0x00A66F69, 0x00A67073, 0x00A67369, 0x00A67461,
+  0x00A67C69, 0x00A67F61, 0x00A68055, 0x00A69C61, 0x00A6F069, 0x00A6F83F, 0x00A70069, 0x00A71761,
+  0x00A72069, 0x00A72255, 0x00A7306C, 0x00A73255, 0x00A77061, 0x00A7716C, 0x00A77955, 0x00A77E55,
+  0x00A78861, 0x00A78969, 0x00A78B55, 0x00A78F61, 0x00A79055, 0x00A7946C, 0x00A79655, 0x00A7AB75,
+  0x00A7AF4C, 0x00A7B175, 0x00A7B54C, 0x00A7C575, 0x00A7C84C, 0x00A7CB3F, 0x00A7D055, 0x00A7D23F,
+  0x00A7D36C, 0x00A7D43F, 0x00A7D54C, 0x00A7DA3F, 0x00A7F261, 0x00A7F555, 0x00A7F761, 0x00A7FA6C,
+  0x00A7FB61, 0x00A80669, 0x00A80761, 0x00A82869, 0x00A82D3F, 0x00A83069, 0x00A83A3F, 0x00A84061,
+  0x00A87469, 0x00A8783F, 0x00A88061, 0x00A8C469, 0x00A8C561, 0x00A8C63F, 0x00A8CE69, 0x00A8D064,
+  0x00A8DA3F, 0x00A8E069, 0x00A8F261, 0x00A8F869, 0x00A8FB61, 0x00A8FC69, 0x00A8FD61, 0x00A90064,
+  0x00A90A61, 0x00A92B69, 0x00A93061, 0x00A95373, 0x00A9543F, 0x00A95F69, 0x00A96061, 0x00A97D3F,
+  0x00A98061, 0x00A9B369, 0x00A9B461, 0x00A9C073, 0x00A9C169, 0x00A9CE3F, 0x00A9CF61, 0x00A9D064,
+  0x00A9DA3F, 0x00A9DE69, 0x00A9E061, 0x00A9F064, 0x00A9FA61, 0x00A9FF3F, 0x00AA0061, 0x00AA373F,
+  0x00AA4061, 0x00AA4E3F, 0x00AA5064, 0x00AA5A3F, 0x00AA5C69, 0x00AA6061, 0x00AA7769, 0x00AA7A61,
+  0x00AABF69, 0x00AAC061, 0x00AAC169, 0x00AAC261, 0x00AAC33F, 0x00AADB61, 0x00AADE69, 0x00AAE061,
+  0x00AAF069, 0x00AAF261, 0x00AAF669, 0x00AAF73F, 0x00AB0161, 0x00AB073F, 0x00AB0961, 0x00AB0F3F,
+  0x00AB1161, 0x00AB173F, 0x00AB2061, 0x00AB273F, 0x00AB2861, 0x00AB2F3F, 0x00AB306C, 0x00AB5B69,
+  0x00AB5C61, 0x00AB606C, 0x00AB6961, 0x00AB6A69, 0x00AB6C3F, 0x00AB706C, 0x00ABC061, 0x00ABEB69,
+  0x00ABEC73, 0x00ABED69, 0x00ABEE3F, 0x00ABF064, 0x00ABFA3F, 0x00AC0061, 0x00D7A43F, 0x00D7B061,
+  0x00D7C73F, 0x00D7CB61, 0x00D7FC3F, 0x00F90061, 0x00FA6E3F, 0x00FA7061, 0x00FADA3F, 0x00FB006C,
+  0x00FB073F, 0x00FB136C, 0x00FB183F, 0x00FB1D61, 0x00FB2969, 0x00FB2A61, 0x00FB373F, 0x00FB3861,
+  0x00FB3D3F, 0x00FB3E61, 0x00FB3F3F, 0x00FB4061, 0x00FB423F, 0x00FB4361, 0x00FB453F, 0x00FB4661,
+  0x00FBB269, 0x00FBC33F, 0x00FBD361, 0x00FD3E3F, 0x00FD4069, 0x00FD5061, 0x00FD903F, 0x00FD9261,
+  0x00FDC83F, 0x00FDCF69, 0x00FDD03F, 0x00FDF061, 0x00FDFC69, 0x00FE173F, 0x00FE1969, 0x00FE1A3F,
+  0x00FE2069, 0x00FE353F, 0x00FE4569, 0x00FE473F, 0x00FE4969, 0x00FE533F, 0x00FE5469, 0x00FE593F,
+  0x00FE5F69, 0x00FE673F, 0x00FE6869, 0x00FE6C3F, 0x00FE7061, 0x00FE753F, 0x00FE7661, 0x00FEFD3F,
+  0x00FF0169, 0x00FF083F, 0x00FF0A69, 0x00FF1064, 0x00FF1A69, 0x00FF2175, 0x00FF3B3F, 0x00FF3C69,
+  0x00FF3D3F, 0x00FF3E69, 0x00FF416C, 0x00FF5B3F, 0x00FF5C69, 0x00FF5D3F, 0x00FF5E69, 0x00FF5F3F,
+  0x00FF6169, 0x00FF623F, 0x00FF6469, 0x00FF6661, 0x00FFBF3F, 0x00FFC261, 0x00FFC83F, 0x00FFCA61,
+  0x00FFD03F, 0x00FFD261, 0x00FFD83F, 0x00FFDA61, 0x00FFDD3F, 0x00FFE069, 0x00FFE73F, 0x00FFE869,
+  0x00FFEF3F, 0x00FFFC69, 0x00FFFE3F, 0x01000061, 0x01000C3F, 0x01000D61, 0x0100273F, 0x01002861,
+  0x01003B3F, 0x01003C61, 0x01003E3F, 0x01003F61, 0x01004E3F, 0x01005061, 0x01005E3F, 0x01008061,
+  0x0100FB3F, 0x01010069, 0x0101033F, 0x01010769, 0x0101343F, 0x01013769, 0x01014061, 0x01017569,
+  0x01018F3F, 0x01019069, 0x01019D3F, 0x0101A069, 0x0101A13F, 0x0101D069, 0x0101FE3F, 0x01028061,
+  0x01029D3F, 0x0102A061, 0x0102D13F, 0x0102E069, 0x0102FC3F, 0x01030061, 0x01032069, 0x0103243F,
+  0x01032D61, 0x01034B3F, 0x01035061, 0x01037B3F, 0x01038061, 0x01039E3F, 0x01039F69, 0x0103A061,
+  0x0103C43F, 0x0103C861, 0x0103D069, 0x0103D161, 0x0103D63F, 0x01040075, 0x0104286C, 0x01045061,
+  0x01049E3F, 0x0104A064, 0x0104AA3F, 0x0104B075, 0x0104D43F, 0x0104D86C, 0x0104FC3F, 0x01050061,
+  0x0105283F, 0x01053061, 0x0105643F, 0x01056F69, 0x01057075, 0x01057B3F, 0x01057C75, 0x01058B3F,
+  0x01058C75, 0x0105933F, 0x01059475, 0x0105963F, 0x0105976C, 0x0105A23F, 0x0105A36C, 0x0105B23F,
+  0x0105B36C, 0x0105BA3F, 0x0105BB6C, 0x0105BD3F, 0x01060061, 0x0107373F, 0x01074061, 0x0107563F,
+  0x01076061, 0x0107683F, 0x01078061, 0x0107863F, 0x01078761, 0x0107B13F, 0x0107B261, 0x0107BB3F,
+  0x01080061, 0x0108063F, 0x01080861, 0x0108093F, 0x01080A61, 0x0108363F, 0x01083761, 0x0108393F,
+  0x01083C61, 0x01083D3F, 0x01083F61, 0x0108563F, 0x01085769, 0x01086061, 0x01087769, 0x01088061,
+  0x01089F3F, 0x0108A769, 0x0108B03F, 0x0108E061, 0x0108F33F, 0x0108F461, 0x0108F63F, 0x0108FB69,
+  0x01090061, 0x01091669, 0x01091C3F, 0x01091F69, 0x01092061, 0x01093A3F, 0x01093F69, 0x0109403F,
+  0x01098061, 0x0109B83F, 0x0109BC69, 0x0109BE61, 0x0109C069, 0x0109D03F, 0x0109D269, 0x010A0061,
+  0x010A043F, 0x010A0561, 0x010A073F, 0x010A0C61, 0x010A143F, 0x010A1561, 0x010A183F, 0x010A1961,
+  0x010A363F, 0x010A3869, 0x010A3B3F, 0x010A3F69, 0x010A493F, 0x010A5069, 0x010A593F, 0x010A6061,
+  0x010A7D69, 0x010A8061, 0x010A9D69, 0x010AA03F, 0x010AC061, 0x010AC869, 0x010AC961, 0x010AE569,
+  0x010AE73F, 0x010AEB69, 0x010AF73F, 0x010B0061, 0x010B363F, 0x010B3969, 0x010B4061, 0x010B563F,
+  0x010B5869, 0x010B6061, 0x010B733F, 0x010B7869, 0x010B8061, 0x010B923F, 0x010B9969, 0x010B9D3F,
+  0x010BA969, 0x010BB03F, 0x010C0061, 0x010C493F, 0x010C8075, 0x010CB33F, 0x010CC06C, 0x010CF33F,
+  0x010CFA69, 0x010D0061, 0x010D283F, 0x010D3064, 0x010D3A3F, 0x010E6069, 0x010E7F3F, 0x010E8061,
+  0x010EAA3F, 0x010EAB61, 0x010EAD69, 0x010EAE3F, 0x010EB061, 0x010EB23F, 0x010EFD69, 0x010F0061,
+  0x010F1D69, 0x010F2761, 0x010F283F, 0x010F3061, 0x010F4669, 0x010F5A3F, 0x010F7061, 0x010F8269,
+  0x010F8A3F, 0x010FB061, 0x010FC569, 0x010FCC3F, 0x010FE061, 0x010FF73F, 0x01100061, 0x01104669,
+  0x01104E3F, 0x01105269, 0x01106664, 0x01107069, 0x01107161, 0x0110763F, 0x01107F69, 0x01108061,
+  0x0110B969, 0x0110BD3F, 0x0110BE69, 0x0110C261, 0x0110C33F, 0x0110D061, 0x0110E93F, 0x0110F064,
+  0x0110FA3F, 0x01110061, 0x01113369, 0x0111353F, 0x01113664, 0x01114069, 0x01114461, 0x0111483F,
+  0x01115061, 0x01117369, 0x01117661, 0x0111773F, 0x01118061, 0x0111C073, 0x0111C161, 0x0111C569,
+  0x0111CE61, 0x0111D064, 0x0111DA61, 0x0111DB69, 0x0111DC61, 0x0111DD69, 0x0111E03F, 0x0111E169,
+  0x0111F53F, 0x01120061, 0x0112123F, 0x01121361, 0x01123573, 0x01123669, 0x01123761, 0x01123869,
+  0x01123E61, 0x0112423F, 0x01128061, 0x0112873F, 0x01128861, 0x0112893F, 0x01128A61, 0x01128E3F,
+  0x01128F61, 0x01129E3F, 0x01129F61, 0x0112A969, 0x0112AA3F, 0x0112B061, 0x0112E969, 0x0112EB3F,
+  0x0112F064, 0x0112FA3F, 0x01130061, 0x0113043F, 0x01130561, 0x01130D3F, 0x01130F61, 0x0113113F,
+  0x01131361, 0x0113293F, 0x01132A61, 0x0113313F, 0x01133261, 0x0113343F, 0x01133561, 0x01133A3F,
+  0x01133B69, 0x01133D61, 0x0113453F, 0x01134761, 0x0113493F, 0x01134B61, 0x01134D73, 0x01134E3F,
+  0x01135061, 0x0113513F, 0x01135761, 0x0113583F, 0x01135D61, 0x0113643F, 0x01136669, 0x01136D3F,
+  0x01137069, 0x0113753F, 0x01140061, 0x01144269, 0x01144361, 0x01144669, 0x01144761, 0x01144B69,
+  0x01145064, 0x01145A69, 0x01145C3F, 0x01145D69, 0x01145F61, 0x0114623F, 0x01148061, 0x0114C269,
+  0x0114C461, 0x0114C669, 0x0114C761, 0x0114C83F, 0x0114D064, 0x0114DA3F, 0x01158061, 0x0115B63F,
+  0x0115B861, 0x0115BF69, 0x0115D861, 0x0115DE3F, 0x01160061, 0x01163F69, 0x01164061, 0x01164169,
+  0x01164461, 0x0116453F, 0x01165064, 0x01165A3F, 0x01166069, 0x01166D3F, 0x01168061, 0x0116B673,
+  0x0116B769, 0x0116B861, 0x0116B969, 0x0116BA3F, 0x0116C064, 0x0116CA3F, 0x01170061, 0x01171B3F,
+  0x01171D61, 0x01172B69, 0x01172C3F, 0x01173064, 0x01173A69, 0x01174061, 0x0117473F, 0x01180061,
+  0x01183969, 0x01183C3F, 0x0118A075, 0x0118C06C, 0x0118E064, 0x0118EA69, 0x0118F33F, 0x0118FF61,
+  0x0119073F, 0x01190961, 0x01190A3F, 0x01190C61, 0x0119143F, 0x01191561, 0x0119173F, 0x01191861,
+  0x0119363F, 0x01193761, 0x0119393F, 0x01193B61, 0x01193D73, 0x01193E69, 0x01193F61, 0x01194369,
+  0x0119473F, 0x01195064, 0x01195A3F, 0x0119A061, 0x0119A83F, 0x0119AA61, 0x0119D83F, 0x0119DA61,
+  0x0119E069, 0x0119E161, 0x0119E269, 0x0119E361, 0x0119E53F, 0x011A0061, 0x011A3369, 0x011A3561,
+  0x011A3F69, 0x011A483F, 0x011A5061, 0x011A9869, 0x011A9D61, 0x011A9E69, 0x011AA33F, 0x011AB061,
+  0x011AF93F, 0x011B0069, 0x011B0A3F, 0x011C0061, 0x011C093F, 0x011C0A61, 0x011C373F, 0x011C3861,
+  0x011C3F69, 0x011C4061, 0x011C4169, 0x011C463F, 0x011C5064, 0x011C5A69, 0x011C6D3F, 0x011C7069,
+  0x011C7261, 0x011C903F, 0x011C9261, 0x011CA83F, 0x011CA961, 0x011CB73F, 0x011D0061, 0x011D073F,
+  0x011D0861, 0x011D0A3F, 0x011D0B61, 0x011D373F, 0x011D3A61, 0x011D3B3F, 0x011D3C61, 0x011D3E3F,
+  0x011D3F61, 0x011D4269, 0x011D4361, 0x011D4469, 0x011D4661, 0x011D483F, 0x011D5064, 0x011D5A3F,
+  0x011D6061, 0x011D663F, 0x011D6761, 0x011D693F, 0x011D6A61, 0x011D8F3F, 0x011D9061, 0x011D923F,
+  0x011D9361, 0x011D9769, 0x011D9861, 0x011D993F, 0x011DA064, 0x011DAA3F, 0x011EE061, 0x011EF769,
+  0x011EF93F, 0x011F0061, 0x011F113F, 0x011F1261, 0x011F3B3F, 0x011F3E61, 0x011F4173, 0x011F4269,
+  0x011F5064, 0x011F5A3F, 0x011FB061, 0x011FB13F, 0x011FC069, 0x011FF23F, 0x011FFF69, 0x01200061,
+  0x01239A3F, 0x01240061, 0x01246F3F, 0x01247069, 0x0124753F, 0x01248061, 0x0125443F, 0x012F9061,
+  0x012FF169, 0x012FF33F, 0x01300061, 0x0134303F, 0x01344069, 0x01344161, 0x01344769, 0x0134563F,
+  0x01440061, 0x0146473F, 0x01680061, 0x016A393F, 0x016A4061, 0x016A5F3F, 0x016A6064, 0x016A6A3F,
+  0x016A6E69, 0x016A7061, 0x016ABF3F, 0x016AC064, 0x016ACA3F, 0x016AD061, 0x016AEE3F, 0x016AF069,
+  0x016AF63F, 0x016B0061, 0x016B3069, 0x016B4061, 0x016B4469, 0x016B463F, 0x016B5064, 0x016B5A3F,
+  0x016B5B69, 0x016B623F, 0x016B6361, 0x016B783F, 0x016B7D61, 0x016B903F, 0x016E4075, 0x016E606C,
+  0x016E8069, 0x016E9B3F, 0x016F0061, 0x016F4B3F, 0x016F4F61, 0x016F883F, 0x016F8F61, 0x016FA03F,
+  0x016FE061, 0x016FE269, 0x016FE361, 0x016FE469, 0x016FE53F, 0x016FF061, 0x016FF23F, 0x01700061,
+  0x0187F83F, 0x01880061, 0x018CD63F, 0x018D0061, 0x018D093F, 0x01AFF061, 0x01AFF43F, 0x01AFF561,
+  0x01AFFC3F, 0x01AFFD61, 0x01AFFF3F, 0x01B00061, 0x01B1233F, 0x01B13261, 0x01B1333F, 0x01B15061,
+  0x01B1533F, 0x01B15561, 0x01B1563F, 0x01B16461, 0x01B1683F, 0x01B17061, 0x01B2FC3F, 0x01BC0061,
+  0x01BC6B3F, 0x01BC7061, 0x01BC7D3F, 0x01BC8061, 0x01BC893F, 0x01BC9061, 0x01BC9A3F, 0x01BC9C69,
+  0x01BC9E61, 0x01BC9F69, 0x01BCA03F, 0x01CF0069, 0x01CF2E3F, 0x01CF3069, 0x01CF473F, 0x01CF5069,
+  0x01CFC43F, 0x01D00069, 0x01D0F63F, 0x01D10069, 0x01D1273F, 0x01D12969, 0x01D16573, 0x01D16769,
+  0x01D16D73, 0x01D1733F, 0x01D17B69, 0x01D1EB3F, 0x01D20069, 0x01D2463F, 0x01D2C069, 0x01D2D43F,
+  0x01D2E069, 0x01D2F43F, 0x01D30069, 0x01D3573F, 0x01D36069, 0x01D3793F, 0x01D40075, 0x01D41A6C,
+  0x01D43475, 0x01D44E6C, 0x01D4553F, 0x01D4566C, 0x01D46875, 0x01D4826C, 0x01D49C75, 0x01D49D3F,
+  0x01D49E75, 0x01D4A03F, 0x01D4A275, 0x01D4A33F, 0x01D4A575, 0x01D4A73F, 0x01D4A975, 0x01D4AD3F,
+  0x01D4AE75, 0x01D4B66C, 0x01D4BA3F, 0x01D4BB6C, 0x01D4BC3F, 0x01D4BD6C, 0x01D4C43F, 0x01D4C56C,
+  0x01D4D075, 0x01D4EA6C, 0x01D50475, 0x01D5063F, 0x01D50775, 0x01D50B3F, 0x01D50D75, 0x01D5153F,
+  0x01D51675, 0x01D51D3F, 0x01D51E6C, 0x01D53875, 0x01D53A3F, 0x01D53B75, 0x01D53F3F, 0x01D54075,
+  0x01D5453F, 0x01D54675, 0x01D5473F, 0x01D54A75, 0x01D5513F, 0x01D5526C, 0x01D56C75, 0x01D5866C,
+  0x01D5A075, 0x01D5BA6C, 0x01D5D475, 0x01D5EE6C, 0x01D60875, 0x01D6226C, 0x01D63C75, 0x01D6566C,
+  0x01D67075, 0x01D68A6C, 0x01D6A63F, 0x01D6A875, 0x01D6C169, 0x01D6C26C, 0x01D6DB69, 0x01D6DC6C,
+  0x01D6E275, 0x01D6FB69, 0x01D6FC6C, 0x01D71569, 0x01D7166C, 0x01D71C75, 0x01D73569, 0x01D7366C,
+  0x01D74F69, 0x01D7506C, 0x01D75675, 0x01D76F69, 0x01D7706C, 0x01D78969, 0x01D78A6C, 0x01D79075,
+  0x01D7A969, 0x01D7AA6C, 0x01D7C369, 0x01D7C46C, 0x01D7CA55, 0x01D7CC3F, 0x01D7CE64, 0x01D7D864,
+  0x01D7E264, 0x01D7EC64, 0x01D7F664, 0x01D80069, 0x01DA8C3F, 0x01DA9B69, 0x01DAA03F, 0x01DAA169,
+  0x01DAB03F, 0x01DF006C, 0x01DF0A61, 0x01DF0B6C, 0x01DF1F3F, 0x01DF256C, 0x01DF2B3F, 0x01E00061,
+  0x01E0073F, 0x01E00861, 0x01E0193F, 0x01E01B61, 0x01E0223F, 0x01E02361, 0x01E0253F, 0x01E02661,
+  0x01E02B3F, 0x01E03061, 0x01E06E3F, 0x01E08F61, 0x01E0903F, 0x01E10061, 0x01E12D3F, 0x01E13069,
+  0x01E13761, 0x01E13E3F, 0x01E14064, 0x01E14A3F, 0x01E14E61, 0x01E14F69, 0x01E1503F, 0x01E29061,
+  0x01E2AE69, 0x01E2AF3F, 0x01E2C061, 0x01E2EC69, 0x01E2F064, 0x01E2FA3F, 0x01E2FF69, 0x01E3003F,
+  0x01E4D061, 0x01E4EC69, 0x01E4F064, 0x01E4FA3F, 0x01E7E061, 0x01E7E73F, 0x01E7E861, 0x01E7EC3F,
+  0x01E7ED61, 0x01E7EF3F, 0x01E7F061, 0x01E7FF3F, 0x01E80061, 0x01E8C53F, 0x01E8C769, 0x01E8D73F,
+  0x01E90075, 0x01E9226C, 0x01E94469, 0x01E94761, 0x01E94869, 0x01E94B61, 0x01E94C3F, 0x01E95064,
+  0x01E95A3F, 0x01E95E69, 0x01E9603F, 0x01EC7169, 0x01ECB53F, 0x01ED0169, 0x01ED3E3F, 0x01EE0061,
+  0x01EE043F, 0x01EE0561, 0x01EE203F, 0x01EE2161, 0x01EE233F, 0x01EE2461, 0x01EE253F, 0x01EE2761,
+  0x01EE283F, 0x01EE2961, 0x01EE333F, 0x01EE3461, 0x01EE383F, 0x01EE3961, 0x01EE3A3F, 0x01EE3B61,
+  0x01EE3C3F, 0x01EE4261, 0x01EE433F, 0x01EE4761, 0x01EE483F, 0x01EE4961, 0x01EE4A3F, 0x01EE4B61,
+  0x01EE4C3F, 0x01EE4D61, 0x01EE503F, 0x01EE5161, 0x01EE533F, 0x01EE5461, 0x01EE553F, 0x01EE5761,
+  0x01EE583F, 0x01EE5961, 0x01EE5A3F, 0x01EE5B61, 0x01EE5C3F, 0x01EE5D61, 0x01EE5E3F, 0x01EE5F61,
+  0x01EE603F, 0x01EE6161, 0x01EE633F, 0x01EE6461, 0x01EE653F, 0x01EE6761, 0x01EE6B3F, 0x01EE6C61,
+  0x01EE733F, 0x01EE7461, 0x01EE783F, 0x01EE7961, 0x01EE7D3F, 0x01EE7E61, 0x01EE7F3F, 0x01EE8061,
+  0x01EE8A3F, 0x01EE8B61, 0x01EE9C3F, 0x01EEA161, 0x01EEA43F, 0x01EEA561, 0x01EEAA3F, 0x01EEAB61,
+  0x01EEBC3F, 0x01EEF069, 0x01EEF23F, 0x01F00069, 0x01F02C3F, 0x01F03069, 0x01F0943F, 0x01F0A069,
+  0x01F0AF3F, 0x01F0B169, 0x01F0C03F, 0x01F0C169, 0x01F0D03F, 0x01F0D169, 0x01F0F63F, 0x01F10069,
+  0x01F13075, 0x01F14A69, 0x01F15075, 0x01F16A69, 0x01F17075, 0x01F18A69, 0x01F1AE3F, 0x01F1E669,
+  0x01F2033F, 0x01F21069, 0x01F23C3F, 0x01F24069, 0x01F2493F, 0x01F25069, 0x01F2523F, 0x01F26069,
+  0x01F2663F, 0x01F30069, 0x01F6D83F, 0x01F6DC69, 0x01F6ED3F, 0x01F6F069, 0x01F6FD3F, 0x01F70069,
+  0x01F7773F, 0x01F77B69, 0x01F7DA3F, 0x01F7E069, 0x01F7EC3F, 0x01F7F069, 0x01F7F13F, 0x01F80069,
+  0x01F80C3F, 0x01F81069, 0x01F8483F, 0x01F85069, 0x01F85A3F, 0x01F86069, 0x01F8883F, 0x01F89069,
+  0x01F8AE3F, 0x01F8B069, 0x01F8B23F, 0x01F90069, 0x01FA543F, 0x01FA6069, 0x01FA6E3F, 0x01FA7069,
+  0x01FA7D3F, 0x01FA8069, 0x01FA893F, 0x01FA9069, 0x01FABE3F, 0x01FABF69, 0x01FAC63F, 0x01FACE69,
+  0x01FADC3F, 0x01FAE069, 0x01FAE93F, 0x01FAF069, 0x01FAF93F, 0x01FB0069, 0x01FB933F, 0x01FB9469,
+  0x01FBCB3F, 0x01FBF064, 0x01FBFA3F, 0x02000061, 0x02A6E03F, 0x02A70061, 0x02B73A3F, 0x02B74061,
+  0x02B81E3F, 0x02B82061, 0x02CEA23F, 0x02CEB061, 0x02EBE13F, 0x02EBF061, 0x02EE5E3F, 0x02F80061,
+  0x02FA1E3F, 0x03000061, 0x03134B3F, 0x03135061, 0x0323B03F, 0x0E010069, 0x0E01F03F, 0x10FFFF3F
+};
+
+static const uint64_t utolc[] = {
+  0x0000000000000000ULL, 0x0000004100000020ULL, 0x0000005B00000000ULL, 0x000000C000000020ULL,
+  0x000000D700000000ULL, 0x000000D800000020ULL, 0x000000DF00000000ULL, 0x0000010077777710ULL,
+  0x00000130FFFFFF39ULL, 0x0000013177777701ULL, 0x0000013700000000ULL, 0x0000013977777710ULL,
+  0x0000014800000000ULL, 0x0000014A77777710ULL, 0x00000178FFFFFF87ULL, 0x0000017977777710ULL,
+  0x0000017E00000000ULL, 0x00000181000000D2ULL, 0x0000018277777710ULL, 0x00000186000000CEULL,
+  0x0000018777777710ULL, 0x00000189000000CDULL, 0x0000018B00000001ULL, 0x0000018C00000000ULL,
+  0x0000018E0000004FULL, 0x0000018F000000CAULL, 0x00000190000000CBULL, 0x0000019177777710ULL,
+  0x00000193000000CDULL, 0x00000194000000CFULL, 0x0000019500000000ULL, 0x00000196000000D3ULL,
+  0x00000197000000D1ULL, 0x0000019800000001ULL, 0x0000019900000000ULL, 0x0000019C000000D3ULL,
+  0x0000019D000000D5ULL, 0x0000019E00000000ULL, 0x0000019F000000D6ULL, 0x000001A077777710ULL,
+  0x000001A6000000DAULL, 0x000001A777777710ULL, 0x000001A9000000DAULL, 0x000001AA00000000ULL,
+  0x000001AC77777710ULL, 0x000001AE000000DAULL, 0x000001AF77777710ULL, 0x000001B1000000D9ULL,
+  0x000001B377777710ULL, 0x000001B7000000DBULL, 0x000001B800000001ULL, 0x000001B900000000ULL,
+  0x000001BC00000001ULL, 0x000001BD00000000ULL, 0x000001C400000002ULL, 0x000001C577777710ULL,
+  0x000001C700000002ULL, 0x000001C877777710ULL, 0x000001CA00000002ULL, 0x000001CB77777710ULL,
+  0x000001DC00000000ULL, 0x000001DE77777710ULL, 0x000001EF00000000ULL, 0x000001F100000002ULL,
+  0x000001F277777710ULL, 0x000001F6FFFFFF9FULL, 0x000001F7FFFFFFC8ULL, 0x000001F877777710ULL,
+  0x00000220FFFFFF7EULL, 0x0000022177777701ULL, 0x0000023300000000ULL, 0x0000023A00002A2BULL,
+  0x0000023B77777710ULL, 0x0000023DFFFFFF5DULL, 0x0000023E00002A28ULL, 0x0000023F00000000ULL,
+  0x0000024177777710ULL, 0x00000243FFFFFF3DULL, 0x0000024400000045ULL, 0x0000024500000047ULL,
+  0x0000024677777710ULL, 0x0000024F00000000ULL, 0x0000037077777710ULL, 0x0000037300000000ULL,
+  0x0000037600000001ULL, 0x0000037700000000ULL, 0x0000037F00000074ULL, 0x0000038000000000ULL,
+  0x0000038600000026ULL, 0x0000038700000000ULL, 0x0000038800000025ULL, 0x0000038B00000000ULL,
+  0x0000038C00000040ULL, 0x0000038D00000000ULL, 0x0000038E0000003FULL, 0x0000039000000000ULL,
+  0x0000039100000020ULL, 0x000003A200000000ULL, 0x000003A300000020ULL, 0x000003AC00000000ULL,
+  0x000003CF00000008ULL, 0x000003D000000000ULL, 0x000003D877777710ULL, 0x000003EF00000000ULL,
+  0x000003F4FFFFFFC4ULL, 0x000003F500000000ULL, 0x000003F777777710ULL, 0x000003F9FFFFFFF9ULL,
+  0x000003FA00000001ULL, 0x000003FB00000000ULL, 0x000003FDFFFFFF7EULL, 0x0000040000000050ULL,
+  0x0000041000000020ULL, 0x0000043000000000ULL, 0x0000046077777710ULL, 0x0000048100000000ULL,
+  0x0000048A77777710ULL, 0x000004C00000000FULL, 0x000004C177777710ULL, 0x000004CE00000000ULL,
+  0x000004D077777710ULL, 0x0000052F00000000ULL, 0x0000053100000030ULL, 0x0000055700000000ULL,
+  0x000010A000001C60ULL, 0x000010C600000000ULL, 0x000010C700001C60ULL, 0x000010C800000000ULL,
+  0x000010CD00001C60ULL, 0x000010CE00000000ULL, 0x000013A0000097D0ULL, 0x000013F000000008ULL,
+  0x000013F600000000ULL, 0x00001C90FFFFF440ULL, 0x00001CBB00000000ULL, 0x00001CBDFFFFF440ULL,
+  0x00001CC000000000ULL, 0x00001E0077777710ULL, 0x00001E9500000000ULL, 0x00001E9EFFFFE241ULL,
+  0x00001E9F77777701ULL, 0x00001EFF00000000ULL, 0x00001F08FFFFFFF8ULL, 0x00001F1000000000ULL,
+  0x00001F18FFFFFFF8ULL, 0x00001F1E00000000ULL, 0x00001F28FFFFFFF8ULL, 0x00001F3000000000ULL,
+  0x00001F38FFFFFFF8ULL, 0x00001F4000000000ULL, 0x00001F48FFFFFFF8ULL, 0x00001F4E00000000ULL,
+  0x00001F59FFFFFFF8ULL, 0x00001F5A00000000ULL, 0x00001F5BFFFFFFF8ULL, 0x00001F5C00000000ULL,
+  0x00001F5DFFFFFFF8ULL, 0x00001F5E00000000ULL, 0x00001F5FFFFFFFF8ULL, 0x00001F6000000000ULL,
+  0x00001F68FFFFFFF8ULL, 0x00001F7000000000ULL, 0x00001F88FFFFFFF8ULL, 0x00001F9000000000ULL,
+  0x00001F98FFFFFFF8ULL, 0x00001FA000000000ULL, 0x00001FA8FFFFFFF8ULL, 0x00001FB000000000ULL,
+  0x00001FB8FFFFFFF8ULL, 0x00001FBAFFFFFFB6ULL, 0x00001FBCFFFFFFF7ULL, 0x00001FBD00000000ULL,
+  0x00001FC8FFFFFFAAULL, 0x00001FCCFFFFFFF7ULL, 0x00001FCD00000000ULL, 0x00001FD8FFFFFFF8ULL,
+  0x00001FDAFFFFFF9CULL, 0x00001FDC00000000ULL, 0x00001FE8FFFFFFF8ULL, 0x00001FEAFFFFFF90ULL,
+  0x00001FECFFFFFFF9ULL, 0x00001FED00000000ULL, 0x00001FF8FFFFFF80ULL, 0x00001FFAFFFFFF82ULL,
+  0x00001FFCFFFFFFF7ULL, 0x00001FFD00000000ULL, 0x00002126FFFFE2A3ULL, 0x0000212700000000ULL,
+  0x0000212AFFFFDF41ULL, 0x0000212BFFFFDFBAULL, 0x0000212C00000000ULL, 0x000021320000001CULL,
+  0x0000213300000000ULL, 0x0000216000000010ULL, 0x0000217000000000ULL, 0x0000218300000001ULL,
+  0x0000218400000000ULL, 0x000024B60000001AULL, 0x000024D000000000ULL, 0x00002C0000000030ULL,
+  0x00002C3000000000ULL, 0x00002C6077777710ULL, 0x00002C62FFFFD609ULL, 0x00002C63FFFFF11AULL,
+  0x00002C64FFFFD619ULL, 0x00002C6500000000ULL, 0x00002C6777777710ULL, 0x00002C6DFFFFD5E4ULL,
+  0x00002C6EFFFFD603ULL, 0x00002C6FFFFFD5E1ULL, 0x00002C70FFFFD5E2ULL, 0x00002C7177777701ULL,
+  0x00002C7300000000ULL, 0x00002C7500000001ULL, 0x00002C7600000000ULL, 0x00002C7EFFFFD5C1ULL,
+  0x00002C8077777710ULL, 0x00002CE300000000ULL, 0x00002CEB77777710ULL, 0x00002CEE00000000ULL,
+  0x00002CF200000001ULL, 0x00002CF300000000ULL, 0x0000A64077777710ULL, 0x0000A66D00000000ULL,
+  0x0000A68077777710ULL, 0x0000A69B00000000ULL, 0x0000A72277777710ULL, 0x0000A72F00000000ULL,
+  0x0000A73277777710ULL, 0x0000A76F00000000ULL, 0x0000A77977777710ULL, 0x0000A77DFFFF75FCULL,
+  0x0000A77E77777710ULL, 0x0000A78700000000ULL, 0x0000A78B77777710ULL, 0x0000A78DFFFF5AD8ULL,
+  0x0000A78E00000000ULL, 0x0000A79077777710ULL, 0x0000A79300000000ULL, 0x0000A79677777710ULL,
+  0x0000A7AAFFFF5ABCULL, 0x0000A7ABFFFF5AB1ULL, 0x0000A7ACFFFF5AB5ULL, 0x0000A7ADFFFF5ABFULL,
+  0x0000A7AEFFFF5ABCULL, 0x0000A7AF00000000ULL, 0x0000A7B0FFFF5AEEULL, 0x0000A7B1FFFF5AD6ULL,
+  0x0000A7B2FFFF5AEBULL, 0x0000A7B3000003A0ULL, 0x0000A7B477777710ULL, 0x0000A7C4FFFFFFD0ULL,
+  0x0000A7C5FFFF5ABDULL, 0x0000A7C6FFFF75C8ULL, 0x0000A7C777777710ULL, 0x0000A7CA00000000ULL,
+  0x0000A7D000000001ULL, 0x0000A7D100000000ULL, 0x0000A7D677777710ULL, 0x0000A7D900000000ULL,
+  0x0000A7F500000001ULL, 0x0000A7F600000000ULL, 0x0000FF2100000020ULL, 0x0000FF3B00000000ULL,
+  0x0001040000000028ULL, 0x0001042800000000ULL, 0x000104B000000028ULL, 0x000104D400000000ULL,
+  0x0001057000000027ULL, 0x0001057B00000000ULL, 0x0001057C00000027ULL, 0x0001058B00000000ULL,
+  0x0001058C00000027ULL, 0x0001059300000000ULL, 0x0001059400000027ULL, 0x0001059600000000ULL,
+  0x00010C8000000040ULL, 0x00010CB300000000ULL, 0x000118A000000020ULL, 0x000118C000000000ULL,
+  0x00016E4000000020ULL, 0x00016E6000000000ULL, 0x0001E90000000022ULL,
+  /* 0x1E922 closes the Adlam range above.  tabgen dropped the last
+     record's tocp and the 0x10FFFF terminator stretched +0x22 over
+     every code point above the block, so char-downcase was wrong for
+     all of the supplementary planes.  See emit_case in pre/tabgen.c,
+     which now closes the last record itself. [cco] */
+  0x0001E92200000000ULL, 0x0010FFFF00000000ULL
+};
+
+static const uint64_t utouc[] = {
+  0x0000000000000000ULL, 0x00000061FFFFFFE0ULL, 0x0000007B00000000ULL, 0x000000B5000002E7ULL,
+  0x000000B600000000ULL, 0x000000E0FFFFFFE0ULL, 0x000000F700000000ULL, 0x000000F8FFFFFFE0ULL,
+  0x000000FF00000079ULL, 0x000001007777770FULL, 0x00000131FFFFFF18ULL, 0x000001327777770FULL,
+  0x0000013800000000ULL, 0x0000013A777777F0ULL, 0x0000014900000000ULL, 0x0000014B777777F0ULL,
+  0x0000017800000000ULL, 0x0000017A777777F0ULL, 0x0000017FFFFFFED4ULL, 0x00000180000000C3ULL,
+  0x0000018100000000ULL, 0x00000183777777F0ULL, 0x0000018600000000ULL, 0x00000188FFFFFFFFULL,
+  0x0000018900000000ULL, 0x0000018CFFFFFFFFULL, 0x0000018D00000000ULL, 0x00000192FFFFFFFFULL,
+  0x0000019300000000ULL, 0x0000019500000061ULL, 0x0000019600000000ULL, 0x00000199FFFFFFFFULL,
+  0x0000019A000000A3ULL, 0x0000019B00000000ULL, 0x0000019E00000082ULL, 0x0000019F00000000ULL,
+  0x000001A1777777F0ULL, 0x000001A600000000ULL, 0x000001A8FFFFFFFFULL, 0x000001A900000000ULL,
+  0x000001ADFFFFFFFFULL, 0x000001AE00000000ULL, 0x000001B0FFFFFFFFULL, 0x000001B100000000ULL,
+  0x000001B4777777F0ULL, 0x000001B700000000ULL, 0x000001B9FFFFFFFFULL, 0x000001BA00000000ULL,
+  0x000001BD777777F0ULL, 0x000001BF00000038ULL, 0x000001C000000000ULL, 0x000001C5FFFFFFFFULL,
+  0x000001C6FFFFFFFEULL, 0x000001C77777770FULL, 0x000001C9FFFFFFFEULL, 0x000001CA7777770FULL,
+  0x000001CCFFFFFFFEULL, 0x000001CD7777770FULL, 0x000001DDFFFFFFB1ULL, 0x000001DE7777770FULL,
+  0x000001F000000000ULL, 0x000001F2FFFFFFFFULL, 0x000001F3FFFFFFFEULL, 0x000001F47777770FULL,
+  0x000001F600000000ULL, 0x000001F9777777F0ULL, 0x0000022000000000ULL, 0x00000223777777F0ULL,
+  0x0000023400000000ULL, 0x0000023CFFFFFFFFULL, 0x0000023D00000000ULL, 0x0000023F00002A3FULL,
+  0x000002417777770FULL, 0x0000024300000000ULL, 0x00000247777777F0ULL, 0x0000025000002A1FULL,
+  0x0000025100002A1CULL, 0x0000025200002A1EULL, 0x00000253FFFFFF2EULL, 0x00000254FFFFFF32ULL,
+  0x0000025500000000ULL, 0x00000256FFFFFF33ULL, 0x0000025800000000ULL, 0x00000259FFFFFF36ULL,
+  0x0000025A00000000ULL, 0x0000025BFFFFFF35ULL, 0x0000025C0000A54FULL, 0x0000025D00000000ULL,
+  0x00000260FFFFFF33ULL, 0x000002610000A54BULL, 0x0000026200000000ULL, 0x00000263FFFFFF31ULL,
+  0x0000026400000000ULL, 0x000002650000A528ULL, 0x000002660000A544ULL, 0x0000026700000000ULL,
+  0x00000268FFFFFF2FULL, 0x00000269FFFFFF2DULL, 0x0000026A0000A544ULL, 0x0000026B000029F7ULL,
+  0x0000026C0000A541ULL, 0x0000026D00000000ULL, 0x0000026FFFFFFF2DULL, 0x0000027000000000ULL,
+  0x00000271000029FDULL, 0x00000272FFFFFF2BULL, 0x0000027300000000ULL, 0x00000275FFFFFF2AULL,
+  0x0000027600000000ULL, 0x0000027D000029E7ULL, 0x0000027E00000000ULL, 0x00000280FFFFFF26ULL,
+  0x0000028100000000ULL, 0x000002820000A543ULL, 0x00000283FFFFFF26ULL, 0x0000028400000000ULL,
+  0x000002870000A52AULL, 0x00000288FFFFFF26ULL, 0x00000289FFFFFFBBULL, 0x0000028AFFFFFF27ULL,
+  0x0000028CFFFFFFB9ULL, 0x0000028D00000000ULL, 0x00000292FFFFFF25ULL, 0x0000029300000000ULL,
+  0x0000029D0000A515ULL, 0x0000029E0000A512ULL, 0x0000029F00000000ULL, 0x0000034500000054ULL,
+  0x0000034600000000ULL, 0x00000371777777F0ULL, 0x0000037400000000ULL, 0x00000377FFFFFFFFULL,
+  0x0000037800000000ULL, 0x0000037B00000082ULL, 0x0000037E00000000ULL, 0x000003ACFFFFFFDAULL,
+  0x000003ADFFFFFFDBULL, 0x000003B000000000ULL, 0x000003B1FFFFFFE0ULL, 0x000003C2FFFFFFE1ULL,
+  0x000003C3FFFFFFE0ULL, 0x000003CCFFFFFFC0ULL, 0x000003CDFFFFFFC1ULL, 0x000003CF00000000ULL,
+  0x000003D0FFFFFFC2ULL, 0x000003D1FFFFFFC7ULL, 0x000003D200000000ULL, 0x000003D5FFFFFFD1ULL,
+  0x000003D6FFFFFFCAULL, 0x000003D7FFFFFFF8ULL, 0x000003D87777770FULL, 0x000003F0FFFFFFAAULL,
+  0x000003F1FFFFFFB0ULL, 0x000003F200000007ULL, 0x000003F3FFFFFF8CULL, 0x000003F400000000ULL,
+  0x000003F5FFFFFFA0ULL, 0x000003F600000000ULL, 0x000003F8FFFFFFFFULL, 0x000003F900000000ULL,
+  0x000003FBFFFFFFFFULL, 0x000003FC00000000ULL, 0x00000430FFFFFFE0ULL, 0x00000450FFFFFFB0ULL,
+  0x000004607777770FULL, 0x0000048200000000ULL, 0x0000048B777777F0ULL, 0x000004C000000000ULL,
+  0x000004C2777777F0ULL, 0x000004CFFFFFFFF1ULL, 0x000004D07777770FULL, 0x0000053000000000ULL,
+  0x00000561FFFFFFD0ULL, 0x0000058700000000ULL, 0x000010D000000BC0ULL, 0x000010FB00000000ULL,
+  0x000010FD00000BC0ULL, 0x0000110000000000ULL, 0x000013F8FFFFFFF8ULL, 0x000013FE00000000ULL,
+  0x00001C80FFFFE792ULL, 0x00001C81FFFFE793ULL, 0x00001C82FFFFE79CULL, 0x00001C83FFFFE79EULL,
+  0x00001C85FFFFE79DULL, 0x00001C86FFFFE7A4ULL, 0x00001C87FFFFE7DBULL, 0x00001C88000089C2ULL,
+  0x00001C8900000000ULL, 0x00001D7900008A04ULL, 0x00001D7A00000000ULL, 0x00001D7D00000EE6ULL,
+  0x00001D7E00000000ULL, 0x00001D8E00008A38ULL, 0x00001D8F00000000ULL, 0x00001E01777777F0ULL,
+  0x00001E9600000000ULL, 0x00001E9BFFFFFFC5ULL, 0x00001E9C00000000ULL, 0x00001EA1777777F0ULL,
+  0x00001F0000000008ULL, 0x00001F0800000000ULL, 0x00001F1000000008ULL, 0x00001F1600000000ULL,
+  0x00001F2000000008ULL, 0x00001F2800000000ULL, 0x00001F3000000008ULL, 0x00001F3800000000ULL,
+  0x00001F4000000008ULL, 0x00001F4600000000ULL, 0x00001F5100000008ULL, 0x00001F5200000000ULL,
+  0x00001F5300000008ULL, 0x00001F5400000000ULL, 0x00001F5500000008ULL, 0x00001F5600000000ULL,
+  0x00001F5700000008ULL, 0x00001F5800000000ULL, 0x00001F6000000008ULL, 0x00001F6800000000ULL,
+  0x00001F700000004AULL, 0x00001F7200000056ULL, 0x00001F7600000064ULL, 0x00001F7800000080ULL,
+  0x00001F7A00000070ULL, 0x00001F7C0000007EULL, 0x00001F7E00000000ULL, 0x00001F8000000008ULL,
+  0x00001F8800000000ULL, 0x00001F9000000008ULL, 0x00001F9800000000ULL, 0x00001FA000000008ULL,
+  0x00001FA800000000ULL, 0x00001FB000000008ULL, 0x00001FB200000000ULL, 0x00001FB300000009ULL,
+  0x00001FB400000000ULL, 0x00001FBEFFFFE3DBULL, 0x00001FBF00000000ULL, 0x00001FC300000009ULL,
+  0x00001FC400000000ULL, 0x00001FD000000008ULL, 0x00001FD200000000ULL, 0x00001FE000000008ULL,
+  0x00001FE200000000ULL, 0x00001FE500000007ULL, 0x00001FE600000000ULL, 0x00001FF300000009ULL,
+  0x00001FF400000000ULL, 0x0000214EFFFFFFE4ULL, 0x0000214F00000000ULL, 0x00002170FFFFFFF0ULL,
+  0x0000218000000000ULL, 0x00002184FFFFFFFFULL, 0x0000218500000000ULL, 0x000024D0FFFFFFE6ULL,
+  0x000024EA00000000ULL, 0x00002C30FFFFFFD0ULL, 0x00002C607777770FULL, 0x00002C6200000000ULL,
+  0x00002C65FFFFD5D5ULL, 0x00002C66FFFFD5D8ULL, 0x00002C677777770FULL, 0x00002C6D00000000ULL,
+  0x00002C73FFFFFFFFULL, 0x00002C7400000000ULL, 0x00002C76FFFFFFFFULL, 0x00002C7700000000ULL,
+  0x00002C81777777F0ULL, 0x00002CE400000000ULL, 0x00002CEC777777F0ULL, 0x00002CEF00000000ULL,
+  0x00002CF3FFFFFFFFULL, 0x00002CF400000000ULL, 0x00002D00FFFFE3A0ULL, 0x00002D2600000000ULL,
+  0x00002D27FFFFE3A0ULL, 0x00002D2800000000ULL, 0x00002D2DFFFFE3A0ULL, 0x00002D2E00000000ULL,
+  0x0000A641777777F0ULL, 0x0000A66E00000000ULL, 0x0000A681777777F0ULL, 0x0000A69C00000000ULL,
+  0x0000A723777777F0ULL, 0x0000A73000000000ULL, 0x0000A733777777F0ULL, 0x0000A77000000000ULL,
+  0x0000A77A777777F0ULL, 0x0000A77D00000000ULL, 0x0000A77F777777F0ULL, 0x0000A78800000000ULL,
+  0x0000A78CFFFFFFFFULL, 0x0000A78D00000000ULL, 0x0000A791777777F0ULL, 0x0000A79400000030ULL,
+  0x0000A79500000000ULL, 0x0000A797777777F0ULL, 0x0000A7AA00000000ULL, 0x0000A7B5777777F0ULL,
+  0x0000A7C400000000ULL, 0x0000A7C8777777F0ULL, 0x0000A7CB00000000ULL, 0x0000A7D1FFFFFFFFULL,
+  0x0000A7D200000000ULL, 0x0000A7D7777777F0ULL, 0x0000A7DA00000000ULL, 0x0000A7F6FFFFFFFFULL,
+  0x0000A7F700000000ULL, 0x0000AB53FFFFFC60ULL, 0x0000AB5400000000ULL, 0x0000AB70FFFF6830ULL,
+  0x0000ABC000000000ULL, 0x0000FF41FFFFFFE0ULL, 0x0000FF5B00000000ULL, 0x00010428FFFFFFD8ULL,
+  0x0001045000000000ULL, 0x000104D8FFFFFFD8ULL, 0x000104FC00000000ULL, 0x00010597FFFFFFD9ULL,
+  0x000105A200000000ULL, 0x000105A3FFFFFFD9ULL, 0x000105B200000000ULL, 0x000105B3FFFFFFD9ULL,
+  0x000105BA00000000ULL, 0x000105BBFFFFFFD9ULL, 0x000105BD00000000ULL, 0x00010CC0FFFFFFC0ULL,
+  0x00010CF300000000ULL, 0x000118C0FFFFFFE0ULL, 0x000118E000000000ULL, 0x00016E60FFFFFFE0ULL,
+  0x00016E8000000000ULL, 0x0001E922FFFFFFDEULL,
+  /* 0x1E944 closes the Adlam range above; the same defect as utolc,
+     and it made char-upcase wrong over the same range. [cco] */
+  0x0001E94400000000ULL, 0x0010FFFF00000000ULL
+};
+
+static const uint64_t ufold[] = {
+  0x0000000000000000ULL, 0x000000B500000307ULL, 0x000000B600000000ULL, 0x0000017FFFFFFEF4ULL,
+  0x0000018000000000ULL, 0x0000034500000074ULL, 0x0000034600000000ULL, 0x000003C200000001ULL,
+  0x000003C300000000ULL, 0x000003D0FFFFFFE2ULL, 0x000003D1FFFFFFE7ULL, 0x000003D200000000ULL,
+  0x000003D5FFFFFFF1ULL, 0x000003D6FFFFFFEAULL, 0x000003D700000000ULL, 0x000003F0FFFFFFCAULL,
+  0x000003F1FFFFFFD0ULL, 0x000003F200000000ULL, 0x000003F5FFFFFFC0ULL, 0x000003F600000000ULL,
+  0x000013F8FFFFFFF8ULL, 0x000013FE00000000ULL, 0x00001C80FFFFE7B2ULL, 0x00001C81FFFFE7B3ULL,
+  0x00001C82FFFFE7BCULL, 0x00001C83FFFFE7BEULL, 0x00001C85FFFFE7BDULL, 0x00001C86FFFFE7C4ULL,
+  0x00001C87FFFFE7DCULL, 0x00001C88000089C3ULL, 0x00001C8900000000ULL, 0x00001E9BFFFFFFC6ULL,
+  0x00001E9C00000000ULL, 0x00001FBEFFFFE3FBULL, 0x00001FBF00000000ULL, 0x00001FD3FFFFE3BDULL,
+  0x00001FD400000000ULL, 0x00001FE3FFFFE3CDULL, 0x00001FE400000000ULL, 0x0000AB70FFFF6830ULL,
+  0x0000ABC000000000ULL, 0x0000FB0500000001ULL, 0x0000FB0600000000ULL, 0x0010FFFF00000000ULL
+};
+
+/* 'l' lowercase, 'u' uppercase, 'w' whitespace, 'a' alphabetic,
+   0-9 the digit value, 'i'/'s' identifier initial/subsequent, '?' none. */
+static int32_t uprop(int32_t c)
+{
+  uint32_t uc = (uint32_t)c, k;
+  int32_t lo, hi;
+  if (uc > 0x10FFFF) return '?';
+  k = uc << 8;
+  lo = 0; hi = UPROPS_N - 1;
+  while (lo <= hi) {
+    int32_t mid = (lo + hi) >> 1;
+    uint32_t mv = uprops[mid];
+    int32_t mvc;
+    if (k < (mv & 0xFFFFFF00U)) hi = mid - 1;
+    /* mid+1 is one past the end at the last index, and that index is
+       reachable: the terminator's key is 0x10FFFF and uc may equal it. */
+    else if (mid + 1 < UPROPS_N && k >= (uprops[mid + 1] & 0xFFFFFF00U))
+      lo = mid + 1;
+    else {
+      mvc = (int32_t)(mv & 0x000000FF);
+      if (mvc >= '0' && mvc <= '9') return mvc - '0';
+      if (mvc == 'd') return (int32_t)(uc - (mv >> 8));
+      if (mvc == 'L') return ((uc - (mv >> 8)) % 2) ? 'u' : 'l';
+      if (mvc == 'U') return ((uc - (mv >> 8)) % 2) ? 'l' : 'u';
+      return mvc;
+    }
+  }
+  return '?';
+}
+
+int32_t char_is_space(int32_t c) { return uprop(c) == 'w'; }
+int32_t char_is_lower(int32_t c) { return uprop(c) == 'l'; }
+int32_t char_is_upper(int32_t c) { return uprop(c) == 'u'; }
+
+int32_t char_is_alpha(int32_t c)
+{
+  int32_t p = uprop(c);
+  return p == 'l' || p == 'u' || p == 'a';
+}
+
+int32_t char_is_numeric(int32_t c)
+{
+  int32_t p = uprop(c);
+  return p >= 0 && p <= 9;
+}
+
+/* the digit value, or -1 when the character is not a digit */
+int32_t char_digit_value(int32_t c)
+{
+  int32_t p = uprop(c);
+  return (p >= 0 && p <= 9) ? p : -1;
+}
+
+/* the mapped code point, or c itself when there is none */
+static int32_t ucase_to(int32_t c, const uint64_t *table, int32_t tsize)
+{
+  uint64_t uc = (uint64_t)(uint32_t)c, k;
+  int32_t lo, hi;
+  if (uc > 0x10FFFF) return c;
+  k = uc << 32;
+  lo = 0; hi = tsize - 1;
+  while (lo <= hi) {
+    int32_t mid = (lo + hi) >> 1;
+    uint64_t mv = table[mid];
+    int32_t mvc;
+    if (k < (mv & 0xFFFFFFFF00000000ULL)) hi = mid - 1;
+    else if (mid + 1 < tsize && k >= (table[mid + 1] & 0xFFFFFFFF00000000ULL))
+      lo = mid + 1;
+    else {
+      mvc = (int32_t)(uint32_t)(mv & 0x00000000FFFFFFFFULL);
+      /* -42 marks "titlecase is the character itself, do not fall back to
+         uppercase"; it appears only in utotc, which is not carried over,
+         so it cannot reach the three entry points below. */
+      if (mvc == CASEIDENTITY) return -42;
+      if (mvc == CASEPLUS_01)  return ((uc - (mv >> 32)) % 2) ? c + 1 : c;
+      if (mvc == CASEPLUS_10)  return ((uc - (mv >> 32)) % 2) ? c : c + 1;
+      if (mvc == CASEMINUS_01) return ((uc - (mv >> 32)) % 2) ? c - 1 : c;
+      if (mvc == CASEMINUS_10) return ((uc - (mv >> 32)) % 2) ? c : c - 1;
+      return c + mvc;
+    }
+  }
+  return c;
+}
+
+int32_t char_to_lower(int32_t c) { return ucase_to(c, utolc, UTOLC_N); }
+int32_t char_to_upper(int32_t c) { return ucase_to(c, utouc, UTOUC_N); }
+
+int32_t char_to_fold(int32_t c)
+{
+  int32_t fc = ucase_to(c, ufold, UFOLD_N);
+  if (fc == -42) return c;
+  return (fc != c) ? fc : ucase_to(c, utolc, UTOLC_N);
+}

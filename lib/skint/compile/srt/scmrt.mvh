@@ -155,8 +155,21 @@
   (func $file_exists_p (param $o i64) (result i32))
   (func $delete_file_p (param $o i64) (result i32))
   (func $get_env_payload (param $o i64) (result ptr))
+  (func $env_entry_payload (param $i i32) (result ptr))
   (func $current_jiffy (result i64))
   (func $current_second (result i64))
+  ;; the Unicode character database (scmrt.c): classification and case.
+  ;; digit_value answers -1 when the character is not a digit; the case
+  ;; operations answer the character itself when it has no mapping.
+  (func $char_is_alpha (param $c i32) (result i32))
+  (func $char_is_numeric (param $c i32) (result i32))
+  (func $char_is_space (param $c i32) (result i32))
+  (func $char_is_upper (param $c i32) (result i32))
+  (func $char_is_lower (param $c i32) (result i32))
+  (func $char_digit_value (param $c i32) (result i32))
+  (func $char_to_upper (param $c i32) (result i32))
+  (func $char_to_lower (param $c i32) (result i32))
+  (func $char_to_fold (param $c i32) (result i32))
   (func $set_argv (param $argc i32) (param $argv ptr))
   (func $command_line (result i64))
   (func $values_tag (result i64))

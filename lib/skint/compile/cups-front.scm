@@ -77,20 +77,15 @@
     (srfi 143)
     (srfi 128) (srfi 116) (srfi 125) (srfi 113)
     (srfi 2) (srfi 121) (srfi 145) (srfi 146)
-    ;; admitted once their dependencies were satisfied (Checkpoint 34);
-    ;; (srfi 160) itself is a metadata stub, the real libraries
-    ;; are its sublibraries (c64/c128 excluded: complex vectors)
-    (srfi 4)
+    ;; admitted once their dependencies were satisfied (Checkpoint 34)
     (srfi 5) (srfi 6) (srfi 11) (srfi 16) (srfi 22) (srfi 23)
     (srfi 25) (srfi 30) (srfi 34) (srfi 35) (srfi 37) (srfi 38)
     (srfi 39) (srfi 42) (srfi 45) (srfi 62) (srfi 64) (srfi 71)
-    (srfi 86) (srfi 156) (srfi 160) (srfi 173) (srfi 175)
+    (srfi 86) (srfi 156) (srfi 173) (srfi 175)
     (srfi 189) (srfi 196) (srfi 197) (srfi 214) (srfi 217)
     (srfi 221) (srfi 222) (srfi 223) (srfi 227) (srfi 232)
     (srfi 235) (srfi 236) (srfi 239) (srfi 244) (srfi 251)
     (srfi 253) (srfi 257)
-    (srfi 160 base) (srfi 160 f32) (srfi 160 f64) (srfi 160 s8)
-    (srfi 160 s16) (srfi 160 u8) (srfi 160 u16)
     (srfi 227 definition)
     (srfi 257 box) (srfi 257 misc)))
 
@@ -128,14 +123,29 @@
   ;;   (srfi 115)       imports (srfi 151), so it inherits that
   ;;   (srfi 146 hash)  the same collision through its own chain
   ;;   (srfi 144)       wants even? as a DS prim
-  ;;   (srfi 160 s32/s64/u32/u64)
-  ;;                    s32vector? and friends are no DS prim: Skint
-  ;;                    builds those four numvector types only with
-  ;;                    OPT_TOWER, so srt has nothing to lower them to.
-  ;;                    base/f32/f64/s8/s16/u8/u16 compile and stay.
+  ;;   (srfi 4), (srfi 160) and every (srfi 160 ...)
+  ;;                    NUMVECTORS ARE NOT SUPPORTED AT ALL.  The runtime
+  ;;                    defines none of the six MARV macros the generator
+  ;;                    named for them, so these libraries compiled and
+  ;;                    then failed at the assembler on "unknown
+  ;;                    instruction $scmi:nvp".  That held for u8vector
+  ;;                    too, even though bytevectors work: clib's
+  ;;                    (srfi 4) defines u8vector-ref as
+  ;;                    (numvector-ref (numvector-check u8 x) i).  So
+  ;;                    nothing that worked is lost by dropping them, and
+  ;;                    an import now fails as unprovided instead of
+  ;;                    reaching marv.  The clib files and the generator's
+  ;;                    commented-out prim entries are kept, so supporting
+  ;;                    numvectors later means writing the runtime half.
+  ;;                    (scheme read) is unaffected: its own
+  ;;                    list->numvector is local to it, serves #u8 through
+  ;;                    `bytevector', and reports every other type.
   ;; [cco]
   '((scheme load) (scheme repl) (srfi 257 rx)
     (srfi 115) (srfi 144) (srfi 151) (srfi 146 hash)
+    (srfi 4) (srfi 160)
+    (srfi 160 base) (srfi 160 f32) (srfi 160 f64) (srfi 160 s8)
+    (srfi 160 s16) (srfi 160 u8) (srfi 160 u16)
     (srfi 160 s32) (srfi 160 s64) (srfi 160 u32) (srfi 160 u64)))
 
 ;;; ---------------------------------------------------------------
@@ -254,9 +264,26 @@
 ;; dialect surface (DS prims plus the shadow libraries), so the
 ;; `skint` cond-expand branches of the copied Skint sources -- the
 ;; ones written against Skint builtins -- are the applicable
-;; ones.  The tower features stay unclaimed: no full numeric
-;; tower, no full unicode, no C99/XSI math.
-(define *ds-features* '(r7rs skint))
+;; ones.
+;;
+;; `full-unicode` is claimed too, and that is a statement about three
+;; layers agreeing.  A character IS a code point: strings are arrays of
+;; them, the reader and writer carry them, and string->utf8 and
+;; utf8->string are the srt's own conversions.  The classification and
+;; case operations read the Unicode tables in scmrt.c rather than
+;; testing ASCII ranges, so char-upcase, char-whitespace? and
+;; string-ci=? answer for the whole repertoire.  And the OS boundary
+;; carries them: file names, environment names and values go through
+;; the wide Windows entry points, as Skint's own OPT_UNICODE build does.
+;; (scheme char) and the Unicode branches of (srfi 14) are the visible
+;; beneficiaries; those branches used to be dead.
+;;
+;; argv is the one place that does not carry Unicode on Windows, which
+;; is also true of Skint; see the note at the OS boundary in scmrt.c.
+;;
+;; The tower features stay unclaimed: no full numeric tower, no
+;; C99/XSI math.
+(define *ds-features* '(r7rs skint full-unicode))
 
 ;; library-available? decides (library ...) cond-expand tests.  Skint's
 ;; version answers from the host's world (root registry, then

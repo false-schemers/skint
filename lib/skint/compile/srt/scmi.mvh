@@ -241,6 +241,8 @@
                                 (param $port i64) (result ptr))
   (func $rdline_slow_hreserved (param $r ptr) (param $hp ptr)
                                (param $port i64) (result ptr))
+  (func $envvref_slow_hreserved (param $r ptr) (param $hp ptr)
+                                (param $idx i64) (result ptr))
   (func $getenv_slow_hreserved (param $r ptr) (param $hp ptr)
                                (param $name i64) (result ptr))
 
@@ -1276,30 +1278,33 @@
                        (i64.ge_u ($scmn:get_char (local.get $ac))
                                  ($scmn:get_char (local.get $y)))))))
 
+  ;; char-upcase / char-downcase / char-foldcase: the Unicode simple case
+  ;; mappings, from the tables in scmrt.c.  These used to test 97..122 and
+  ;; 65..90 inline, and char-foldcase was char-downcase, so every mapping
+  ;; outside ASCII was wrong even though a character here is a code point.
   (macro $cupc ()
-    (locals ($u i64))
     (effect () -> ())
-    (seq
-      (local.set $u ($scmn:get_char (local.get $ac)))
-      (if (i32.and (i64.ge_u (local.get $u) (i64.const 97))
-                   (i64.le_u (local.get $u) (i64.const 122)))
-        (then (local.set $u (i64.sub (local.get $u) (i64.const 32)))))
-      (local.set $ac ($scmn:char_obj (local.get $u)))))
+    (local.set $ac
+      ($scmn:char_obj
+        (i64.extend_i32_s
+          (call $scmrt:char_to_upper
+                (i32.wrap_i64 ($scmn:get_char (local.get $ac))))))))
 
   (macro $cdnc ()
-    (locals ($u i64))
     (effect () -> ())
-    (seq
-      (local.set $u ($scmn:get_char (local.get $ac)))
-      (if (i32.and (i64.ge_u (local.get $u) (i64.const 65))
-                   (i64.le_u (local.get $u) (i64.const 90)))
-        (then (local.set $u (i64.add (local.get $u) (i64.const 32)))))
-      (local.set $ac ($scmn:char_obj (local.get $u)))))
+    (local.set $ac
+      ($scmn:char_obj
+        (i64.extend_i32_s
+          (call $scmrt:char_to_lower
+                (i32.wrap_i64 ($scmn:get_char (local.get $ac))))))))
 
-  ;; char-foldcase
   (macro $cflc ()
     (effect () -> ())
-    ($scmi:cdnc))
+    (local.set $ac
+      ($scmn:char_obj
+        (i64.extend_i32_s
+          (call $scmrt:char_to_fold
+                (i32.wrap_i64 ($scmn:get_char (local.get $ac))))))))
 
   ;; ================================================================
   ;; Strings (i.h: string?, make-string, string-length, string-ref,
@@ -1545,23 +1550,17 @@
 
   ;; char-upper-case? / char-lower-case?: ASCII, like char-upcase
   (macro $cupp ()
-    (locals ($c i64))
     (effect () -> ())
-    (seq
-      (local.set $c ($scmn:get_char (local.get $ac)))
-      (local.set $ac ($scmn:bool_obj
-                       (i32.and (i64.ge_u (local.get $c) (i64.const 65))
-                                (i64.le_u (local.get $c)
-                                          (i64.const 90)))))))
+    (local.set $ac
+      ($scmn:bool_obj
+        (call $scmrt:char_is_upper
+              (i32.wrap_i64 ($scmn:get_char (local.get $ac)))))))
   (macro $clowp ()
-    (locals ($c i64))
     (effect () -> ())
-    (seq
-      (local.set $c ($scmn:get_char (local.get $ac)))
-      (local.set $ac ($scmn:bool_obj
-                       (i32.and (i64.ge_u (local.get $c) (i64.const 97))
-                                (i64.le_u (local.get $c)
-                                          (i64.const 122)))))))
+    (local.set $ac
+      ($scmn:bool_obj
+        (call $scmrt:char_is_lower
+              (i32.wrap_i64 ($scmn:get_char (local.get $ac)))))))
 
   ;; list?: proper-list test with cycle detection (Floyd)
   (macro $listp ()
@@ -2273,59 +2272,42 @@
     (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
 
   ;; char classes (ASCII; codepoints >= 128 count as alphabetic)
+  ;; char-alphabetic? used to answer true for EVERY code point at or above
+  ;; 128, so a snowman and an emoji were letters.  It is a table lookup now.
   (macro $calphap ()
-    (locals ($c i64))
     (effect () -> ())
-    (seq
-      (local.set $c ($scmn:get_char (local.get $ac)))
-      (local.set $ac ($scmn:bool_obj
-                       (i32.or
-                         (i32.or
-                           (i32.and (i64.ge_u (local.get $c)
-                                              (i64.const 65))
-                                    (i64.le_u (local.get $c)
-                                              (i64.const 90)))
-                           (i32.and (i64.ge_u (local.get $c)
-                                              (i64.const 97))
-                                    (i64.le_u (local.get $c)
-                                              (i64.const 122))))
-                         (i64.ge_u (local.get $c) (i64.const 128)))))))
+    (local.set $ac
+      ($scmn:bool_obj
+        (call $scmrt:char_is_alpha
+              (i32.wrap_i64 ($scmn:get_char (local.get $ac)))))))
 
   (macro $cnump ()
-    (locals ($c i64))
     (effect () -> ())
-    (seq
-      (local.set $c ($scmn:get_char (local.get $ac)))
-      (local.set $ac ($scmn:bool_obj
-                       (i32.and (i64.ge_u (local.get $c) (i64.const 48))
-                                (i64.le_u (local.get $c)
-                                          (i64.const 57)))))))
+    (local.set $ac
+      ($scmn:bool_obj
+        (call $scmrt:char_is_numeric
+              (i32.wrap_i64 ($scmn:get_char (local.get $ac)))))))
 
   (macro $cspacep ()
-    (locals ($c i64))
     (effect () -> ())
-    (seq
-      (local.set $c ($scmn:get_char (local.get $ac)))
-      (local.set $ac ($scmn:bool_obj
-                       (i32.or (i64.eq (local.get $c) (i64.const 32))
-                               (i32.and (i64.ge_u (local.get $c)
-                                                  (i64.const 9))
-                                        (i64.le_u (local.get $c)
-                                                  (i64.const 13))))))))
+    (local.set $ac
+      ($scmn:bool_obj
+        (call $scmrt:char_is_space
+              (i32.wrap_i64 ($scmn:get_char (local.get $ac)))))))
 
-  ;; digit-value: fixnum 0-9, or #f
+  ;; digit-value: the value for any Nd character, #f otherwise.  The C side
+  ;; answers -1 for "not a digit", which is why the test below is signed.
   (macro $cdigv ()
-    (locals ($c i64))
+    (locals ($dv i32))
     (effect () -> ())
     (seq
-      (local.set $c ($scmn:get_char (local.get $ac)))
+      (local.set $dv (call $scmrt:char_digit_value
+                           (i32.wrap_i64 ($scmn:get_char (local.get $ac)))))
       (local.set $ac
         (if (result i64)
-          (i32.and (i64.ge_u (local.get $c) (i64.const 48))
-                   (i64.le_u (local.get $c) (i64.const 57)))
-          (then ($scmn:fixnum_obj (i64.sub (local.get $c)
-                                           (i64.const 48))))
-          (else (i64.const 0))))))
+          (i32.lt_s (local.get $dv) (i32.const 0))
+          (then (i64.const 0))
+          (else ($scmn:fixnum_obj (i64.extend_i32_s (local.get $dv))))))))
 
   ;; bytevector accessors (payload layout is in scmrt.c)
   (macro $bvp ()
@@ -2733,6 +2715,18 @@
   (seq
     ($scmi:getenv_to (ref.data $scmi:ac_scratch))
     (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; %envv-ref: $ac is the index; the result is the entry string, or #f past
+  ;; the end.  get-environment-variables walks this.  The runtime had no
+  ;; implementation at all, so that procedure compiled and then failed at
+  ;; marv on an unknown instruction.  Caller reserved 2.
+  (macro $envvref ()
+    (effect () -> ())
+    (seq
+      (local.set $hp (call $scmi:envvref_slow_hreserved
+                           (ref.data $scmi:ac_scratch) (local.get $hp)
+                           (local.get $ac)))
+      (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
 
   ;; read-char / peek-char: $ac is the port; result is a char,
   ;; or the eof object (29) at end of input

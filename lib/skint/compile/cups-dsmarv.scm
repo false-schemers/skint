@@ -1385,8 +1385,17 @@
     (fl+ . jadd) (fl- . jsub) (fl* . jmul) (fl/ . jdiv)
     (vector-ref . vget) (string-ref . sget)
     (list-ref . lref) (list-tail . ltail)
-    (bytevector-u8-ref . bvget) (numvector-ref . nvget)
-    (numvector? . nvp) (list->numvector . lnv)))
+    (bytevector-u8-ref . bvget)
+    ;; NUMVECTORS ARE NOT SUPPORTED.  The six entries below name MARV
+    ;; macros -- $scmi:nvp, nvget, nvput, nvlen, nvnew, lnv -- that the
+    ;; runtime has never defined, so a numvector operation compiled
+    ;; cleanly and then failed at the assembler with "unknown
+    ;; instruction", naming a MARV macro rather than a Scheme
+    ;; operation.  Commented out rather than deleted, so that adding
+    ;; the macros is all it takes to support numvectors later.
+    ;; (numvector-ref . nvget) (numvector? . nvp)
+    ;; (list->numvector . lnv)
+    ))
 
 (define *ds-prim-un*
   '((not . not) (car . car) (cdr . cdr) (length . llen)
@@ -1413,7 +1422,7 @@
     (char-foldcase . cflc)
     (string-length . slen) (bytevector? . bvp)
     (bytevector-length . bvlen) (string->symbol . strsym)
-    (numvector-length . nvlen)
+    ;; (numvector-length . nvlen)   ; see the note in *ds-prim-bin*
     (flneg . jneg) (flsqrt . jsqrt)
     (flsin . gsin) (flcos . gcos) (fltan . gtan)
     (flasin . gasin) (flacos . gacos) (flexp . gexp) (fllog10 . glog10)
@@ -2697,25 +2706,25 @@
         (when (= (length ss) 2)
           (ds-e (list 'push (list 'slot (cadr ss))))
           (ds-e (list 'rt 'bvfill))))]
-     [(eq? name 'make-numvector)
-      (let ([ss (ds-prim-args rands scope)])
-        (ds-reserve 2)
-        (ds-e (list 'load (car ss)))
-        (ds-e (list 'push (list 'slot (cadr ss))))
-        (ds-e (list (quote rt) (quote nvnew))))]
+     ;;      [(eq? name 'make-numvector)
+     ;;       (let ([ss (ds-prim-args rands scope)])
+     ;;         (ds-reserve 2)
+     ;;         (ds-e (list 'load (car ss)))
+     ;;         (ds-e (list 'push (list 'slot (cadr ss))))
+     ;;         (ds-e (list (quote rt) (quote nvnew))))]
      [(eq? name 'bytevector->list)
       (let ([ss (ds-prim-args rands scope)])
         (ds-reserve-by-length
          (list 'call '$scmrt:bytevector_length (slot-load (car ss))))
         (ds-e (list 'load (car ss)))
         (ds-e (list 'rt 'bvlist)))]
-     [(eq? name 'numvector-set!)
-      (let ([ss (ds-prim-args rands scope)])
-        (ds-e (list 'load (car ss)))
-        (ds-e (list 'push (list 'slot (cadr ss))))
-        (ds-e (list 'push (list 'slot (caddr ss))))
-        (ds-e (list 'rt 'nvput))
-        (ds-e (list 'const 'ac 21)))]
+     ;;      [(eq? name 'numvector-set!)
+     ;;       (let ([ss (ds-prim-args rands scope)])
+     ;;         (ds-e (list 'load (car ss)))
+     ;;         (ds-e (list 'push (list 'slot (cadr ss))))
+     ;;         (ds-e (list 'push (list 'slot (caddr ss))))
+     ;;         (ds-e (list 'rt 'nvput))
+     ;;         (ds-e (list 'const 'ac 21)))]
      [(eq? name 'bytevector-u8-set!)
       (let ([ss (ds-prim-args rands scope)])
         (ds-e (list 'load (car ss)))

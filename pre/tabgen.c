@@ -404,6 +404,17 @@ void emit_case(FILE *f, char *tname, struct cte *table, int n)
     fprintf(f, " 0x%016llX,", w);
     if ((i+1) % 4 == 0) fputs("\n ", f);
   }
+  /* CLOSE THE LAST RECORD.  Only fromcp is written for each record; what
+     bounds a record is the NEXT record's fromcp.  So the last record's tocp
+     was dropped on the floor and the MAX_CP terminator below stretched that
+     record all the way to 0x10FFFF.  utolc and utouc end on the Adlam block,
+     so char-downcase and char-upcase applied the Adlam delta to every code
+     point above it -- all of the supplementary planes, emoji included -- and
+     utotc ended on a CASEIDENTITY record, which suppressed the uppercase
+     fall-back for the same range.  parse_fold_case pushed its own MAX_CP
+     record, which is the only reason ufold came out right.  [cco] */
+  if (table[n-1].tocp < MAX_CP)
+    fprintf(f, " 0x%016llX,", ((uint64_t)(table[n-1].tocp + 1)) << 32);
   fprintf(f, " 0x0010FFFF00000000\n};\n\n");
 
   if (verbose > 0) fprintf(stderr, "  %d %s entries\n", n, tname);
