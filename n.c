@@ -758,7 +758,17 @@ static int sigetch(sifile_t *fp) {
   if (fp->p >= fp->e) return EOF; c = unextc(fp->p); return c; }
 
 static int siungetch(int c, sifile_t *fp) {
-  assert(fp && fp->p); --(fp->p); assert(c == *(fp->p)); return c; }
+  char buf[4]; /* uencode gives the length c occupies, in both builds */
+#ifndef NDEBUG
+  const char *p;
+#endif
+  assert(fp && fp->p);
+  /* mirror unextc: step back over the whole encoding of c, as uungetch does
+   * for buffered ports.  sigetch uses the unchecked decoder, so c is never
+   * the 0xFFFD that uungetch has to special-case. [cco] */
+  fp->p -= uencode(buf, c);
+  assert((p = fp->p, unextc(p) == c && p == fp->p + uencode(buf, c)));
+  return c; }
 
 static int sictl(ctlop_t op, sifile_t *sp, ...) {
   switch (op) {
