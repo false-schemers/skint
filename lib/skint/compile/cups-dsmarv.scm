@@ -654,21 +654,28 @@
      (let ([target (cadr form)] [env-expr (caddr form)]
            [nargs (cadddr form)] [spv (list-ref form 4)]
            [fpv (list-ref form 5)])
-       (append (list (ds-verb) (ds-label target)
-                     (ds-marv-payload spv) (ds-marv-payload fpv)
-                     (ds-marv-payload env-expr))
-               (list '(local.get $ac) '(local.get $r) '(local.get $hp)
-                     (ds-nargs nargs))))]
+       (list '%seq
+             (ds-stack-guard (ds-marv-payload spv))
+             (append (list (ds-verb) (ds-label target)
+                           (ds-marv-payload spv) (ds-marv-payload fpv)
+                           (ds-marv-payload env-expr))
+                     (list '(local.get $ac) '(local.get $r)
+                           '(local.get $hp)
+                           (ds-nargs nargs)))))]
     [(jump-ind)
      (let ([code-expr (cadr form)] [env-expr (caddr form)]
            [nargs (cadddr form)] [spv (list-ref form 4)]
            [fpv (list-ref form 5)])
-       (append (list (ds-verb-i)
-                     '(param i64 i64 i64 i64 ptr ptr i32) '(result ptr)
-                     (ds-marv-payload spv) (ds-marv-payload fpv)
-                     (ds-marv-payload env-expr))
-               (list '(local.get $ac) '(local.get $r) '(local.get $hp)
-                     (ds-nargs nargs) code-expr)))]
+       (list '%seq
+             (ds-stack-guard (ds-marv-payload spv))
+             (append (list (ds-verb-i)
+                           '(param i64 i64 i64 i64 ptr ptr i32)
+                           '(result ptr)
+                           (ds-marv-payload spv) (ds-marv-payload fpv)
+                           (ds-marv-payload env-expr))
+                     (list '(local.get $ac) '(local.get $r)
+                           '(local.get $hp)
+                           (ds-nargs nargs) code-expr))))]
     [(ret)
      ;; the frame is already popped into the two temps the form names
      (let ([te (cadr form)] [tf (caddr form)])
@@ -689,6 +696,77 @@
   (list '(local.get $sp) '(local.get $fp) '(local.get $env)
         '(local.get $ac) '(local.get $r) '(local.get $hp)
         (list 'i32.const nargs)))
+
+;; ---------------------------------------------------------------
+;; the stack red zone
+;; ---------------------------------------------------------------
+;;
+;; The root stack is one static segment and nothing can grow it, so a
+;; program that runs off the end would write past $roots with no sign
+;; of it.  Every transfer that pushes a frame therefore compares the
+;; stack pointer it is about to pass against a limit a red zone short
+;; of the end, and transfers to $ds_overflow instead when it is past.
+;;
+;; $sp is a word index into $r, and the segment's length is known at
+;; compile time, so the limit is an immediate: the check is one
+;; compare against a constant and a branch that is not taken.  The
+;; taken branch is a transfer with the identical ABI, so it needs no
+;; register shuffling -- it is a jump to a known entry.
+;;
+;; The check runs AFTER the frame's arguments have been written, so
+;; the zone has to be wider than any single frame.  A frame is the
+;; four header words plus the arguments, and the only unbounded one
+;; is apply's, which $ds$atl checks for itself before it spreads the
+;; list.  1024 words leaves room for the rest by a wide margin. [cco]
+(define ds-redzone-words 1024)
+
+;; the largest $sp a pushing transfer may pass
+(define (ds-sp-limit)
+  (- (* (cp-stack-pages) ds-words-per-page) ds-redzone-words))
+
+;; The guard, as a MARV form.  spv is the new stack pointer, the same
+;; expression the transfer passes; rep is the value to report, which is
+;; the live $sp at an ordinary call -- within a frame of spv, and free,
+;; because it is already in its register.
+;;
+;; return_call, not the chain's usual trampoline_jump.  The handler
+;; exits, so there is no chain left to reset, and a trampoline_jump
+;; expands on a host without musttail into eleven stores and a return
+;; through the trampoline buffer -- eleven lines per call site, on the
+;; untaken branch, never run.
+;;
+;; $ds_overflow carries the chain's own seven-register signature, and
+;; that is load-bearing: a tail call stays a jump only where the
+;; callee's signature matches the caller's.  Give the handler fewer
+;; parameters and the transfer becomes an ordinary call; a function
+;; that makes an ordinary call needs a frame, so the callee-saved
+;; registers are saved and restored in the GUARDED function, on every
+;; call of it, to pay for a branch that is never taken.
+;;
+;; The handler is a func in this module rather than the runtime entry
+;; point, which was measured both ways on clang 22 at -O2 over the 106
+;; guard sites in tak.  Jumping straight at the runtime costs more, not
+;; less: a tail call across a translation unit has to restore the
+;; callee-saved registers and drop the frame before the jump, at every
+;; site -- 13113 instructions and 7 frames, against 12925 and 5 for the
+;; wrapper, which lets the inliner fold that away.  With no guard at
+;; all it is 12064 and 1.  Neither variant was distinguishable in time.
+;;
+;; rep is the stack pointer to report.  At an ordinary call it is the
+;; live $sp, already in the first argument register, so the untaken
+;; branch needs no move at all; it is within one frame of spv.  What
+;; the hot path keeps is a compare and a branch, which is what clang
+;; emits: cmpq against the immediate, then jg forward, not taken. [cco]
+(define (ds-stack-guard-report spv rep)
+  (list 'if (list 'i64.gt_s spv (list 'i64.const (ds-sp-limit)))
+        (list 'then
+              (append (list 'return_call '$ds_overflow rep)
+                      (list '(local.get $fp) '(local.get $env)
+                            '(local.get $ac) '(local.get $r)
+                            '(local.get $hp) '(local.get $nargs))))))
+
+(define (ds-stack-guard spv)
+  (ds-stack-guard-report spv '(local.get $sp)))
 
 ;; An operand is a value an instruction reads.  (get r) is a local: a
 ;; symbol names it without the $, which is how an IL form is written by
@@ -3440,6 +3518,14 @@
                        '(set "$t1" (rep pair_cdr (local.get $t1)))
                        '(step "$t2" 1)
                        '(br $ds_atl_clp)))))
+         ;; The count is known now and the spread loop is about to
+         ;; write that many words, so this is the one frame the
+         ;; transfer's own guard would be too late for: an argument
+         ;; list longer than the red zone would be written past the
+         ;; end before any transfer was reached. [cco]
+         (list 'marv
+               (let ([spv '(i64.add (local.get $fp) (local.get $t2))])
+                 (ds-stack-guard-report spv spv)))
          (ds-fp-load "$t1" 1)                   ; cursor again
          (list 'set "$t3" '(imm 0))             ; index
          ;; walk it again, storing each element into the arg area
@@ -3496,6 +3582,7 @@
    ;; call deliberately passes nought there instead.  Spelled as data
    ;; rather than given an extra operand, because nothing else wants
    ;; one. [cco]
+   (list 'marv (ds-stack-guard (ds-sp-after (+ hbase 4 nargs))))
    (list 'marv
          (append (list (ds-verb-i)
                        '(param i64 i64 i64 i64 ptr ptr i32)
@@ -4388,10 +4475,11 @@
       (list 'module $ds-module-name)
       ;; Skint grows its register/stack region with realloc (cxm_rgc in
       ;; k.c); the DS root stack is a static segment, so give it
-      ;; comparable headroom: 64 MiB of BSS (pages are only touched as
-      ;; the stack actually grows).  1 MiB was overflowed by deep
-      ;; non-tail recursion (ack, conform).
-      (list '(data $roots var align 8 (size 67108864))
+      ;; comparable headroom: cp-stack-pages pages of BSS, 64 MiB by
+      ;; default (pages are only touched as the stack actually grows).
+      ;; 1 MiB was overflowed by deep non-tail recursion (ack, conform).
+      (list (list 'data '$roots 'var 'align 8
+                  (list 'size (ds-roots-bytes)))
             (list 'data '$gstore 'var 'align 8
                   (list 'size (* 8 (max 1 (length *ds-globals*))))))
       ;; the blob is a MARV string literal, so it travels as its payload
@@ -4410,6 +4498,20 @@
            kept)
       (list (append (list 'func '$ds_halt) (ds-abi-signature)
                     (list '(return (ptr.null)))))
+      ;; The red zone's landing place: ds-stack-guard-report says why it
+      ;; is a func here, with the chain's signature, rather than the
+      ;; runtime entry point.  The stack's size is folded in once here
+      ;; instead of at every guard.  It reports and exits, so the
+      ;; (return (ptr.null)) is only there to make the func well
+      ;; formed. [cco]
+      (list (append (list 'func '$ds_overflow) (ds-abi-signature)
+                    (list (list 'drop
+                                (list 'call '$scmrt:stack_overflow
+                                      '(local.get $sp)
+                                      (list 'i64.const
+                                            (* (cp-stack-pages)
+                                               ds-words-per-page))))
+                          '(return (ptr.null)))))
       (if *ds-trampoline?*
           (list (append (list 'trampoline_func '$ds_run)
                         (ds-abi-signature)
@@ -4441,9 +4543,35 @@
 (define cp-optimize
   (make-parameter 1
     (lambda (v)
-      (unless (and (exact-integer? v) (<= 0 v 3))
+      ;; number? first: on a full-tower build exact-integer? raises
+      ;; for a non-number rather than answering #f, so an unguarded
+      ;; test reports "argument is not a number" instead of naming the
+      ;; parameter.  See feedback: fix the caller, not the predicate.
+      (unless (and (number? v) (exact-integer? v) (<= 0 v 3))
         (error "cp-optimize: not an optimization level 0..3" v))
       v)))
+
+;; The root stack's size, in pages.  A page is 65536 words of eight
+;; bytes, so the default of 128 pages is the 64 MiB of BSS the
+;; generator used to bake in, and the emitted size is unchanged at the
+;; default.  One page is the floor.
+;;
+;; Every transfer that pushes a frame checks the stack against a limit
+;; a red zone short of the end, so outgrowing it is reported and exits
+;; rather than corrupting memory; see the red zone section below.  The
+;; pages are BSS and are touched only as the stack grows, so the cost
+;; of the default is address space rather than memory, and lowering it
+;; is for a target whose address space is the binding constraint. [cco]
+(define ds-words-per-page 65536)
+
+(define cp-stack-pages
+  (make-parameter 128
+    (lambda (v)
+      (unless (and (number? v) (exact-integer? v) (>= v 1))
+        (error "cp-stack-pages: not a page count of 1 or more" v))
+      v)))
+
+(define (ds-roots-bytes) (* (cp-stack-pages) ds-words-per-page 8))
 
 ;; EVERY per-compile global, reset together.  This is what a library
 ;; needs and a one-shot program did not: without it a second call

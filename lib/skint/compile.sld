@@ -18,6 +18,18 @@
 ;;;                 other levels are accepted and validated but not yet
 ;;;                 interpreted.
 ;;;
+;;;   cp-stack-pages  the size of the compiled program's root stack, in
+;;;                 pages of 65536 words of eight bytes, an exact
+;;;                 integer of 1 or more, default 128.  The default is
+;;;                 64 MiB, which is what the generator used to bake
+;;;                 in, so the emitted module is unchanged unless this
+;;;                 is set.  The stack is a BSS segment and its pages
+;;;                 are touched only as the stack grows, so the cost of
+;;;                 the default is address space rather than memory.
+;;;                 A program that outgrows the stack reports and
+;;;                 exits 1: every call that pushes a frame checks it
+;;;                 against a limit one red zone short of the end.
+;;;
 ;;; INPUT and OUTPUT filenames are used exactly as given, so they mean
 ;;; what they would to any other tool: the working directory decides.
 ;;; The compiler's own files -- srt/ and clib/ under compile/ -- are
@@ -101,7 +113,7 @@
             gensym features x-error c-error
             andmap ormap list1? list2+?
             ))
-  (export compile-program cp-optimize)
+  (export compile-program cp-optimize cp-stack-pages)
   (include "compile/cups-base.scm")
   (include "compile/cups-signatures.scm")
   (include "compile/cups-passes.scm")

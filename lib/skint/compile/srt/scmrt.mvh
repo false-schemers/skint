@@ -78,6 +78,10 @@
         (result ptr))
   (func $type_error (param $bad_obj i64) (param $expected_code i32)
         (result ptr))
+  ;; the root stack ran into its red zone: report and exit.  Called by
+  ;; the generated $ds_overflow, which is where a guard's tail call
+  ;; lands and which knows the segment's size in words.
+  (func $stack_overflow (param $sp i64) (param $size i64) (result ptr))
   ;; generic "argument is not a/an X" reporter: X is a static C
   ;; string passed by pointer (ref.data of a MARV data segment)
   (func $arg_error (param $bad_obj i64) (param $what ptr)

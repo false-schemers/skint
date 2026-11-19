@@ -55,6 +55,32 @@ The optimization level, an exact integer from 0 to 3. The default is 1 and is
 what the compiler does. The other levels are accepted and validated, and are
 not yet interpreted. It is an error to set the parameter to anything else.
 
+`(cp-stack-pages)` → *exact integer*
+
+The size of the compiled program's root stack, in pages. A page is 65536 words
+of eight bytes, so the default of 128 pages is 64 MiB. The floor is 1 and there
+is no ceiling; it is an error to set the parameter to anything that is not an
+exact integer of 1 or more.
+
+The stack is emitted as one BSS data segment, so its pages are touched only as
+the stack grows and the cost of a large value is address space rather than
+memory or object size. 1 MiB was not enough for the deepest non-tail recursion
+in the benchmark set, which is where the default comes from. Lower it for a
+target whose address space is the binding constraint, not to save memory.
+
+A program that outgrows the stack reports it and exits with status 1:
+
+```
+scmrt: stack overflow: 64513 words of a 65536-word stack;
+ recompile with a larger --stack-pages
+```
+
+Every transfer that pushes a frame compares the stack pointer it is about to
+pass against a limit one red zone of 1024 words short of the end, so the
+report comes before anything is written past the segment. `apply` checks its
+own frame before spreading the argument list, because that is the one frame
+whose size the argument count decides rather than the code generator.
+
 ### What it emits
 
 The module is named `$ds$program`. The name is fixed rather than taken from the

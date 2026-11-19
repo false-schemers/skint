@@ -100,6 +100,7 @@
 #define deserialize_sexp scmrt_deserialize_sexp
 #define build_rest_list  scmrt_build_rest_list
 #define arity_error      scmrt_arity_error
+#define stack_overflow   scmrt_stack_overflow
 #define type_error       scmrt_type_error
 #define arg_error        scmrt_arg_error
 #define error_raise      scmrt_error_raise
@@ -1543,6 +1544,22 @@ void *type_error(obj_t bad_obj, int32_t expected_code)
   fprintf(stderr,
           "scmrt: type error: obj 0x%llx does not satisfy type code %d\n",
           (unsigned long long)bad_obj, (int)expected_code);
+  exit(1);
+  return NULL;
+}
+
+/* The root stack has run into its red zone.  Nothing can grow a static
+   segment, so this reports and exits rather than raising: a Scheme
+   handler would need stack of its own to run in.  SIZE is the whole
+   segment in words; the generated $ds_overflow folds it in, so no
+   guard site carries a copy of the constant. */
+void *stack_overflow(int64_t sp, int64_t size)
+{
+  fflush(stdout);
+  fprintf(stderr,
+          "scmrt: stack overflow: %lld words of a %lld-word stack;"
+          " recompile with a larger --stack-pages\n",
+          (long long)sp, (long long)size);
   exit(1);
   return NULL;
 }
