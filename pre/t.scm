@@ -742,7 +742,7 @@
     [(id-escape=? x 'boolean?)       
      boolean?]
     [(id-escape=? x 'char?)          
-     char? sexp]
+     char?]
     [(id-escape=? x 'string?)        
      string?]
     [(id-escape=? x 'bytevector?)    
@@ -782,10 +782,10 @@
        (apply string-append sexps))]
     [(id-escape=? x 'char<=?)
      (lambda (sexps) (check-syntax sexps '(<char> ...) "invalid char<=? template args")
-       (apply < sexps))]
+       (apply char<=? sexps))]
     [(id-escape=? x '<=)
      (lambda (sexps) (check-syntax sexps '(<number> ...) "invalid <= template args")
-       (apply < sexps))]
+       (apply <= sexps))]
     [(id-escape=? x '+)
      (lambda (sexps) (check-syntax sexps '(<number> ...) "invalid + template args")
        (apply + sexps))]

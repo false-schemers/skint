@@ -2937,6 +2937,7 @@
                (ds-e (list 'rtcall
                            (case name
                              [(display) 'display_obj_port]
+                             [(write) (quote write_circular_obj_port)]
                              [(write-shared) 'write_shared_obj_port]
                              [else 'write_obj_port])
                            (slot-load (cadr ss))
@@ -2944,7 +2945,8 @@
             [else (ds-gen-value (car rands) scope)
                   (ds-e (list 'rt (case name
                                   [(display) "display"]
-                                  [(write write-simple) "write"]
+                                  [(write) "write_circular"]
+                                  [(write-simple) "write"]
                                   [(write-shared) "write_shared"]
                                   [else "writechar"])))])
       (ds-e (list 'const 'ac 21))]

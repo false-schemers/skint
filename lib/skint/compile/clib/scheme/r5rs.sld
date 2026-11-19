@@ -243,6 +243,13 @@
             delay)
           (rename (only (scheme base) inexact exact)
             (inexact exact->inexact) (exact inexact->exact))
+          (only (scheme complex)
+            real-part
+            imag-part
+            magnitude
+            angle
+            make-rectangular
+            make-polar)
           (only (scheme read) read)
           (only (scheme base) define error))
   (export
@@ -286,6 +293,7 @@
     reverse
     remainder
     real?
+    real-part
     read-char
     rationalize
     rational?
@@ -315,6 +323,9 @@
     map
     make-vector
     make-string
+    make-rectangular
+    make-polar
+    magnitude
     list?
     list-tail
     list-ref
@@ -333,6 +344,7 @@
     integer->char
     input-port?
     inexact?
+    imag-part
     if
     gcd
     for-each
@@ -381,6 +393,7 @@
     assoc
     apply
     append
+    angle
     and
     abs
     >=

@@ -243,6 +243,8 @@
                                (param $port i64) (result ptr))
   (func $envvref_slow_hreserved (param $r ptr) (param $hp ptr)
                                 (param $idx i64) (result ptr))
+  (func $argvref_slow_hreserved (param $r ptr) (param $hp ptr)
+                                (param $idx i64) (result ptr))
   (func $getenv_slow_hreserved (param $r ptr) (param $hp ptr)
                                (param $name i64) (result ptr))
 
@@ -1459,6 +1461,19 @@
     (call $scmrt:display_obj (local.get $ac)))
 
   ;; write: print $ac in write style (quoted strings, #\chars)
+  ;; write-shared: like $write, but datum labels mark every datum
+  ;; reachable by more than one path.  The runtime does the sharing
+  ;; pass; nothing is reserved, since it prints rather than conses.
+  ;; write: like $write_simple, but datum labels mark circular
+  ;; structure, which R7RS requires of write and not of write-simple.
+  (macro $write_circular ()
+    (effect () -> ())
+    (call $scmrt:write_circular_obj (local.get $ac)))
+
+  (macro $write_shared ()
+    (effect () -> ())
+    (call $scmrt:write_shared_obj (local.get $ac)))
+
   (macro $write ()
     (effect () -> ())
     (call $scmrt:write_obj (local.get $ac)))
@@ -2715,6 +2730,16 @@
   (seq
     ($scmi:getenv_to (ref.data $scmi:ac_scratch))
     (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
+
+  ;; %argv-ref: $ac is the index; the result is argv[$ac] as a string,
+  ;; or #f past the end.  command-line walks this.  Caller reserved 2.
+  (macro $argvref ()
+    (effect () -> ())
+    (seq
+      (local.set $hp (call $scmi:argvref_slow_hreserved
+                           (ref.data $scmi:ac_scratch) (local.get $hp)
+                           (local.get $ac)))
+      (local.set $ac (i64.load offset 0 (ref.data $scmi:ac_scratch)))))
 
   ;; %envv-ref: $ac is the index; the result is the entry string, or #f past
   ;; the end.  get-environment-variables walks this.  The runtime had no

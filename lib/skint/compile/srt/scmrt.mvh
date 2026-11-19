@@ -102,6 +102,8 @@
   ;; $write_obj uses write-style (quoted strings, #\chars)
   (func $display_obj (param $o i64))
   (func $write_obj (param $o i64))
+  (func $write_shared_obj (param $o i64))
+  (func $write_circular_obj (param $o i64))
 
   ;; S2 support: bytevector access, symbol/string conversion,
   ;; number->string digit generation (a library conversion; the
@@ -152,10 +154,15 @@
   (func $port_write_char (param $o i64) (param $c i32))
   (func $display_obj_port (param $p i64) (param $o i64))
   (func $write_obj_port (param $p i64) (param $o i64))
+  (func $write_shared_obj_port (param $p i64) (param $o i64))
+  (func $write_circular_obj_port (param $p i64) (param $o i64))
   (func $file_exists_p (param $o i64) (result i32))
+  (func $port_input_open_p (param $o i64) (result i32))
+  (func $port_output_open_p (param $o i64) (result i32))
   (func $delete_file_p (param $o i64) (result i32))
   (func $get_env_payload (param $o i64) (result ptr))
   (func $env_entry_payload (param $i i32) (result ptr))
+  (func $argv_entry_payload (param $i i32) (result ptr))
   (func $current_jiffy (result i64))
   (func $current_second (result i64))
   ;; the Unicode character database (scmrt.c): classification and case.

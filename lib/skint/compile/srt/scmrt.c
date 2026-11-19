@@ -158,10 +158,17 @@
 #define port_write_char    scmrt_port_write_char
 #define display_obj_port   scmrt_display_obj_port
 #define write_obj_port     scmrt_write_obj_port
+#define write_shared_obj_port scmrt_write_shared_obj_port
+#define write_shared_obj   scmrt_write_shared_obj
+#define write_circular_obj_port scmrt_write_circular_obj_port
+#define write_circular_obj scmrt_write_circular_obj
 #define file_exists_p      scmrt_file_exists_p
 #define delete_file_p      scmrt_delete_file_p
 #define get_env_payload    scmrt_get_env_payload
 #define env_entry_payload  scmrt_env_entry_payload
+#define argv_entry_payload scmrt_argv_entry_payload
+#define port_input_open_p  scmrt_port_input_open_p
+#define port_output_open_p scmrt_port_output_open_p
 #define current_jiffy      scmrt_current_jiffy
 #define current_second     scmrt_current_second
 #define set_argv           scmrt_set_argv
@@ -1573,42 +1580,61 @@ typedef struct { obj_t a, b; uint64_t gen; } eqpair_t;
 static eqpair_t *eq_tab;
 static size_t eq_cap, eq_len;
 static uint64_t eq_gen;
+static int32_t *eq_lab;      /* labels, parallel to eq_tab; see write-shared */
+static int sh_on;            /* a sharing pass is in progress */
+
+/* The slot a key hashes to.  Factored out of eq_seen so that the
+   sharing scan below probes the same table the same way. [cco] */
+static size_t eq_slot(obj_t a, obj_t b)
+{
+  return (size_t)(((a >> 4) ^ (b >> 7)) * (obj_t)0x9E3779B97F4A7C15ULL)
+         & (eq_cap - 1);
+}
+
+/* Double the table, carrying over only this query's entries: the rest
+   are stale by generation.  eq_lab moves with them when it exists, so a
+   label keeps its slot. */
+static void eq_grow(void)
+{
+  eqpair_t *nt;
+  int32_t *nl = NULL;
+  size_t ncap = eq_cap * 2, j, oldcap = eq_cap;
+  nt = (eqpair_t *)calloc(ncap, sizeof(eqpair_t));
+  if (!nt) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  if (eq_lab) {
+    nl = (int32_t *)calloc(ncap, sizeof(int32_t));
+    if (!nl) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  }
+  eq_cap = ncap;
+  for (j = 0; j < oldcap; j++) {
+    if (eq_tab[j].gen == eq_gen) {
+      size_t k = eq_slot(eq_tab[j].a, eq_tab[j].b);
+      while (nt[k].gen == eq_gen) k = (k + 1) & (ncap - 1);
+      nt[k] = eq_tab[j];
+      if (nl) nl[k] = eq_lab[j];
+    }
+  }
+  free(eq_tab);
+  eq_tab = nt;
+  if (nl) { free(eq_lab); eq_lab = nl; }
+}
 
 static int eq_seen(obj_t a, obj_t b)
 {
-  size_t h, i;
+  size_t i;
   if (!eq_tab) {
     eq_cap = 1024;
     eq_tab = (eqpair_t *)calloc(eq_cap, sizeof(eqpair_t));
     if (!eq_tab) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
   }
-  if ((eq_len + 1) * 2 > eq_cap) {
-    eqpair_t *nt;
-    size_t ncap = eq_cap * 2, j;
-    nt = (eqpair_t *)calloc(ncap, sizeof(eqpair_t));
-    if (!nt) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
-    /* only THIS query's entries are live; the rest are stale by
-       generation and must not be carried over */
-    for (j = 0; j < eq_cap; j++) {
-      if (eq_tab[j].gen == eq_gen) {
-        size_t k = (size_t)(((eq_tab[j].a >> 4) ^ (eq_tab[j].b >> 7))
-                            * (obj_t)0x9E3779B97F4A7C15ULL) & (ncap - 1);
-        while (nt[k].gen == eq_gen) k = (k + 1) & (ncap - 1);
-        nt[k] = eq_tab[j];
-      }
-    }
-    free(eq_tab);
-    eq_tab = nt;
-    eq_cap = ncap;
-  }
-  h = (size_t)(((a >> 4) ^ (b >> 7)) * (obj_t)0x9E3779B97F4A7C15ULL)
-      & (eq_cap - 1);
-  i = h;
+  if ((eq_len + 1) * 2 > eq_cap) eq_grow();
+  i = eq_slot(a, b);
   for (;;) {
     if (eq_tab[i].gen != eq_gen) {        /* empty for this query */
       eq_tab[i].a = a;
       eq_tab[i].b = b;
       eq_tab[i].gen = eq_gen;
+      if (eq_lab) eq_lab[i] = 0;
       eq_len++;
       return 0;
     }
@@ -1697,6 +1723,239 @@ int32_t equal_p(obj_t a, obj_t b)
   eq_gen = eq_gen + 1;
   if (eq_gen == 0) eq_gen = 1;
   return rt_equal_rec(a, b, 0);
+}
+
+/* ------------------------------------------------------------------ */
+/* Datum labels for write-shared, over the equal? table.               */
+/*                                                                     */
+/* Skint reuses one shared-structure walk for isequal and for its       */
+/* shared writer (n.c: stabshared feeds both), so this reuses the only  */
+/* such table the srt has.  eq_seen's hash, doubling and generation     */
+/* stamping are exactly what a sharing scan needs; what is added is a   */
+/* label cell per slot, allocated only if write-shared is ever called   */
+/* and grown in step with eq_tab, so equal? pays nothing for it.        */
+/*                                                                     */
+/* The key is (o, 0).  It cannot be mistaken for an equal? entry: a     */
+/* query of either kind bumps eq_gen first, which makes the other       */
+/* kind's entries stale.                                                */
+/*                                                                     */
+/* Label NUMBERS are handed out while printing, not while scanning,     */
+/* because that is what Skint does -- stabri assigns an index lazily on */
+/* first reference -- and it is what makes #0= the first label the      */
+/* reader meets rather than the first node the scan happened to see      */
+/* twice.  A cell holds 0 for "not shared", -1 for "shared, not yet     */
+/* printed", and n+1 for "printed as #n=". [cco]                        */
+
+static int32_t sh_next;              /* the next label number to hand out */
+
+/* The slot for o, inserting the key when absent; *fresh is 1 when this
+   call inserted it.  The probe is eq_seen's, with b fixed at 0. */
+static int32_t *sh_cell(obj_t o, int *fresh)
+{
+  size_t i;
+  if (!eq_tab) {
+    eq_cap = 1024;
+    eq_tab = (eqpair_t *)calloc(eq_cap, sizeof(eqpair_t));
+    if (!eq_tab) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  }
+  if (!eq_lab) {
+    eq_lab = (int32_t *)calloc(eq_cap, sizeof(int32_t));
+    if (!eq_lab) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+  }
+  if ((eq_len + 1) * 2 > eq_cap) eq_grow();
+  i = eq_slot(o, (obj_t)0);
+  for (;;) {
+    if (eq_tab[i].gen != eq_gen) {
+      eq_tab[i].a = o;
+      eq_tab[i].b = 0;
+      eq_tab[i].gen = eq_gen;
+      eq_lab[i] = 0;
+      eq_len++;
+      *fresh = 1;
+      return &eq_lab[i];
+    }
+    if (eq_tab[i].a == o && eq_tab[i].b == 0) {
+      *fresh = 0;
+      return &eq_lab[i];
+    }
+    i = (i + 1) & (eq_cap - 1);
+  }
+  /* unreachable; WCPL wants an explicit return. [cco] */
+  *fresh = 0;
+  return &eq_lab[0];
+}
+
+/* the slot for o, or NULL: a lookup that never inserts */
+static int32_t *sh_find(obj_t o)
+{
+  size_t i;
+  if (!eq_tab) return NULL;
+  if (!eq_lab) return NULL;
+  i = eq_slot(o, (obj_t)0);
+  for (;;) {
+    if (eq_tab[i].gen != eq_gen) return NULL;
+    if (eq_tab[i].a == o && eq_tab[i].b == 0) return &eq_lab[i];
+    i = (i + 1) & (eq_cap - 1);
+  }
+  /* unreachable; WCPL wants an explicit return. [cco] */
+  return NULL;
+}
+
+/* only these headers describe a node whose sharing the printed text
+   can show */
+static int sh_labelable(obj_t h)
+{
+  if (h == SCM_PAIR_HDR) return 1;
+  if (h == SCM_BOX_HDR) return 1;
+  if (((h >> 1) & 3) == MTAG_VECTOR) return 1;
+  return 0;
+}
+
+/* 0 when o carries no label, whatever its state otherwise */
+static int32_t sh_state(obj_t o)
+{
+  int32_t *c;
+  if (!is_objptr(o)) return 0;
+  if (!sh_labelable(((obj_t *)(uintptr_t)o)[-1])) return 0;
+  c = sh_find(o);
+  if (!c) return 0;
+  return *c;
+}
+
+/* One pass before printing: a node met a second time is marked shared
+   and not descended into again, which terminates on a cycle as well as
+   on a shared tail.  The pair spine iterates, as rt_equal_rec's does. */
+static void sh_scan(obj_t o)
+{
+  for (;;) {
+    obj_t h;
+    obj_t *cell;
+    int fresh;
+    int32_t *lab;
+    if (!is_objptr(o)) return;
+    cell = (obj_t *)(uintptr_t)o;
+    h = cell[-1];
+    if (!sh_labelable(h)) return;
+    lab = sh_cell(o, &fresh);
+    if (!fresh) { *lab = -1; return; }
+    if (h == SCM_PAIR_HDR) {
+      sh_scan(cell[0]);
+      o = cell[1];
+      continue;
+    }
+    if (h == SCM_BOX_HDR) {
+      o = cell[0];
+      continue;
+    }
+    {
+      size_t n = (size_t)(h >> 3), j;
+      for (j = 0; j < n; j++) sh_scan(cell[j]);
+      return;
+    }
+  }
+}
+
+/* The cycle-only scan, for write.                                      */
+/*                                                                      */
+/* R7RS requires write to label circular structure; only write-simple   */
+/* may diverge on it.  Skint draws the same line, with stabcircular for */
+/* write and stabshared for write-shared, and this is stabcircular's    */
+/* method: a node is labelled when it is met again while still on the   */
+/* path from the root, which is what distinguishes a cycle from mere    */
+/* sharing.                                                             */
+/*                                                                      */
+/* Skint delimits the path with a 0 sentinel because it resumes the     */
+/* spine with a goto; here each call records where the path stood when  */
+/* it was entered and unwinds to there on the way out, so the C stack   */
+/* holds what the sentinel holds there.  The spine still iterates, so a */
+/* long list costs path entries rather than C frames.                   */
+/*                                                                      */
+/* A cell is 0 unseen, -2 on the path, -3 left the path, -1 labelled,   */
+/* and n+1 once printed as #n=. [cco]                                   */
+
+static obj_t *sh_path;
+static size_t sh_path_cap, sh_path_len;
+
+static void sh_path_push(obj_t o)
+{
+  if (sh_path_len == sh_path_cap) {
+    size_t ncap = (sh_path_cap == 0) ? 64 : sh_path_cap * 2;
+    obj_t *np = (obj_t *)realloc(sh_path, ncap * sizeof(obj_t));
+    if (!np) { fprintf(stderr, "scmrt: out of memory\n"); abort(); }
+    sh_path = np;
+    sh_path_cap = ncap;
+  }
+  sh_path[sh_path_len] = o;
+  sh_path_len = sh_path_len + 1;
+}
+
+/* leave the path, keeping any mark the scan turned into a label */
+static void sh_path_drop(size_t to)
+{
+  while (sh_path_len > to) {
+    int32_t *c;
+    sh_path_len = sh_path_len - 1;
+    c = sh_find(sh_path[sh_path_len]);
+    if (c) { if (*c == -2) *c = -3; }
+  }
+}
+
+static void sh_scan_cyc(obj_t o)
+{
+  size_t base = sh_path_len;
+  for (;;) {
+    obj_t h;
+    obj_t *cell;
+    int fresh;
+    int32_t *lab;
+    if (!is_objptr(o)) break;
+    cell = (obj_t *)(uintptr_t)o;
+    h = cell[-1];
+    if (!sh_labelable(h)) break;
+    lab = sh_cell(o, &fresh);
+    if (!fresh) {
+      /* met again: a label only if it is still on the path */
+      if (*lab == -2) *lab = -1;
+      break;
+    }
+    *lab = -2;
+    sh_path_push(o);
+    /* lab is not used past here: sh_cell below may move the table */
+    if (h == SCM_PAIR_HDR) {
+      sh_scan_cyc(cell[0]);
+      o = cell[1];
+      continue;
+    }
+    if (h == SCM_BOX_HDR) {
+      o = cell[0];
+      continue;
+    }
+    {
+      size_t n = (size_t)(h >> 3), j;
+      for (j = 0; j < n; j++) sh_scan_cyc(cell[j]);
+      break;
+    }
+  }
+  sh_path_drop(base);
+}
+
+/* Start a pass over o, as equal_p does: a new generation makes every
+   earlier entry stale, so nothing is cleared. */
+static void sh_begin(obj_t o, int all_sharing)
+{
+  eq_len = 0;
+  eq_gen = eq_gen + 1;
+  if (eq_gen == 0) eq_gen = 1;
+  sh_next = 0;
+  sh_path_len = 0;
+  sh_on = 1;
+  if (all_sharing) sh_scan(o);
+  else sh_scan_cyc(o);
+}
+
+static void sh_end(void)
+{
+  sh_on = 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1994,6 +2253,27 @@ static void pr_sink(prsink_t *sk, obj_t o, int writep)
   if (is_objptr(o)) {
     obj_t *cell = (obj_t *)(uintptr_t)o;
     obj_t h = cell[-1];
+    /* write-shared: a label is numbered when it is first printed,
+       as Skint numbers it in wrdatum rather than in the scan. */
+    if (sh_on) {
+      if (sh_labelable(h)) {
+        int32_t *c = sh_find(o);
+        if (c) {
+          char nb[24];
+          if (*c > 0) {
+            sprintf(nb, "#%d#", (int)(*c - 1));
+            pr_str(sk, &nb[0]);
+            return;
+          }
+          if (*c == -1) {
+            sprintf(nb, "#%d=", (int)sh_next);
+            pr_str(sk, &nb[0]);
+            *c = sh_next + 1;
+            sh_next = sh_next + 1;
+          }
+        }
+      }
+    }
     if (!(h & 1)) {                                    /* Native */
       if (h == (obj_t)(uintptr_t)&string_cxtype) {
         strpay_t *s = (strpay_t *)(uintptr_t)cell[0];
@@ -2078,6 +2358,13 @@ static void pr_sink(prsink_t *sk, obj_t o, int writep)
         t = tc[1];
         if (t == SCM_NULL) break;
         if (is_objptr(t) && ((obj_t *)(uintptr_t)t)[-1] == SCM_PAIR_HDR) {
+          /* a labelled tail leaves the spine as a dotted tail, which
+             is the condition Skint spells in its spine loop too */
+          if (sh_on && (sh_state(t) == -1 || sh_state(t) > 0)) {
+            pr_str(sk, " . ");
+            pr_sink(sk, t, writep);
+            break;
+          }
           pr_cp(sk, ' ');
           continue;
         }
@@ -3387,6 +3674,67 @@ void write_obj_port(obj_t po, obj_t o)
   pr_sink(&sk, o, 1);
 }
 
+/* input-port-open? / output-port-open?.  A closed port has kind
+   PORT_CLOSED, so the direction test alone answers both halves of
+   the R7RS question: a port that has been closed, and a port of the
+   other direction, are each #f.  The three kinds are tested one at a
+   time rather than folded into one || chain because WCPL wants
+   compatible operand types there, as command_line below also notes.
+   [cco] */
+int32_t port_input_open_p(obj_t o)
+{
+  portpay_t *p = port_of(o);
+  if (p->kind == PORT_FIN) return 1;
+  if (p->kind == PORT_SIN) return 1;
+  if (p->kind == PORT_BIN) return 1;
+  return 0;
+}
+
+int32_t port_output_open_p(obj_t o)
+{
+  portpay_t *p = port_of(o);
+  if (p->kind == PORT_FOUT) return 1;
+  if (p->kind == PORT_SOUT) return 1;
+  if (p->kind == PORT_BOUT) return 1;
+  return 0;
+}
+
+void write_circular_obj_port(obj_t po, obj_t o)
+{
+  prsink_t sk = port_sink(po);
+  sh_begin(o, 0);
+  pr_sink(&sk, o, 1);
+  sh_end();
+}
+
+void write_circular_obj(obj_t o)
+{
+  prsink_t sk;
+  sk.fp = stdout;
+  sk.sp = NULL;
+  sh_begin(o, 0);
+  pr_sink(&sk, o, 1);
+  sh_end();
+}
+
+void write_shared_obj_port(obj_t po, obj_t o)
+{
+  prsink_t sk = port_sink(po);
+  sh_begin(o, 1);
+  pr_sink(&sk, o, 1);
+  sh_end();
+}
+
+void write_shared_obj(obj_t o)
+{
+  prsink_t sk;
+  sk.fp = stdout;
+  sk.sp = NULL;
+  sh_begin(o, 1);
+  pr_sink(&sk, o, 1);
+  sh_end();
+}
+
 int32_t file_exists_p(obj_t o)
 {
   char *name = str_obj_bytes(o);
@@ -3474,6 +3822,19 @@ void set_argv(int32_t argc, void *argv)
   rt_argv = (char **)argv;
   rt_command_line = SCM_NULL;
   rt_command_line_ready = 0;
+}
+
+/* argv[i] as a fresh string payload, or NULL past the end: the
+   per-index accessor the %argv-ref prim needs.  It sits beside
+   command_line because it reads the same two variables, and it
+   shares utf8_to_payload with env_entry_payload. [cco] */
+void *argv_entry_payload(int32_t i)
+{
+  if (i < 0) return NULL;
+  if (i >= rt_argc) return NULL;
+  if (rt_argv == NULL) return NULL;
+  if (rt_argv[i] == NULL) return NULL;
+  return utf8_to_payload(rt_argv[i]);
 }
 
 obj_t command_line(void)

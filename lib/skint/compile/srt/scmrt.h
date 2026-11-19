@@ -56,4 +56,5 @@ extern void *make_output_bytevector_port(void);
 extern int32_t port_flags(uint64_t o);
 extern void *get_env_payload(uint64_t o);
 extern void *env_entry_payload(int32_t i);
+extern void *argv_entry_payload(int32_t i);
 extern uint64_t port_type(void);

@@ -1221,6 +1221,100 @@
       ((_ (... string? s)) '(... string->list s))))
   (test '(#\F #\o #\o) (unstringed "Foo")))
 
+; esl+ -- every row of the pattern-escape and template-escape tables
+; (pre/t.scm: pattern-escape->test, template-escape->conv).  The rows above
+; cover string?, number?, string->id and string->list; these cover the rest,
+; because a table whose covered rows work says nothing about the others.
+; char?, char<=? and <= were each wrong and none of them was exercised.
+(let ()
+  (define-syntax pat-kind
+    (syntax-rules ()
+      ((_ (... number? v)) '(num v))
+      ((_ (... exact-integer? v)) '(exi v))
+      ((_ (... boolean? v)) '(bool v))
+      ((_ (... char? v)) '(chr v))
+      ((_ (... string? v)) '(str v))
+      ((_ (... bytevector? v)) '(bv v))
+      ((_ (... id? v)) '(id v))
+      ((_ v) '(other v))))
+  ; number? comes before exact-integer?, so an exact integer answers num
+  (test '(num 42) (pat-kind 42))
+  (test '(num 1.5) (pat-kind 1.5))
+  (test '(bool #t) (pat-kind #t))
+  (test '(chr #\a) (pat-kind #\a))
+  (test '(str "s") (pat-kind "s"))
+  (test '(bv #u8(1 2)) (pat-kind #u8(1 2)))
+  (test '(id abc) (pat-kind abc))
+  (test '(other (1 2)) (pat-kind (1 2))))
+
+(let ()
+  (define-syntax exi-only
+    (syntax-rules ()
+      ((_ (... exact-integer? v)) '(exi v))
+      ((_ v) '(other v))))
+  (test '(exi 7) (exi-only 7))
+  (test '(other 1.5) (exi-only 1.5)))
+
+(let ()
+  (define-syntax tpl1
+    (syntax-rules ()
+      ((_ num->str v) '(... number->string v))))
+  (test "42" (tpl1 num->str 42)))
+
+(let ()
+  (define-syntax tpl2 (syntax-rules () ((_ v) '(... string->number v))))
+  (test 42 (tpl2 "42")))
+
+(let ()
+  (define-syntax tpl3 (syntax-rules () ((_ v) '(... list->string v))))
+  (test "ab" (tpl3 (#\a #\b))))
+
+(let ()
+  (define-syntax tpl4 (syntax-rules () ((_ v) '(... list->bytevector v))))
+  (test #u8(1 2) (tpl4 (1 2))))
+
+(let ()
+  (define-syntax tpl5 (syntax-rules () ((_ v) '(... bytevector->list v))))
+  (test '(1 2) (tpl5 #u8(1 2))))
+
+(let ()
+  (define-syntax tpl6 (syntax-rules () ((_ v) '(... length v))))
+  (test 3 (tpl6 (a b c))))
+
+(let ()
+  (define-syntax tpl7 (syntax-rules () ((_ n v) '(... make-list n v))))
+  (test '(x x) (tpl7 2 x)))
+
+(let ()
+  (define-syntax tpl8 (syntax-rules () ((_ a b) '(... string-append a b))))
+  (test "ab" (tpl8 "a" "b")))
+
+(let ()
+  (define-syntax tpl9 (syntax-rules () ((_ a b) '(... id->string a b))))
+  (test "abc" (let-syntax () (let () (define-syntax t (syntax-rules () ((_ v) '(... id->string v)))) (t abc)))))
+
+; char<=? and <= are the two rows that were applying < instead, which only
+; shows on equal arguments: (... <= 1 2) was right and (... <= 2 2) was not
+(let ()
+  (define-syntax le (syntax-rules () ((_ a b) '(... <= a b))))
+  (test #t (le 1 2))
+  (test #t (le 2 2))
+  (test #f (le 3 2)))
+
+(let ()
+  (define-syntax chle (syntax-rules () ((_ a b) '(... char<=? a b))))
+  (test #t (chle #\a #\b))
+  (test #t (chle #\a #\a))
+  (test #f (chle #\b #\a)))
+
+(let ()
+  (define-syntax plus (syntax-rules () ((_ a b) '(... + a b))))
+  (test 3 (plus 1 2)))
+
+(let ()
+  (define-syntax minus (syntax-rules () ((_ a b) '(... - a b))))
+  (test 1 (minus 2 1)))
+
 
 ; these 2 tests presume that let-syntax is splicing, which is not a requirenment in r7rs
 #;(test 'ok (let ()

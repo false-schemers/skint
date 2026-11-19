@@ -138,6 +138,7 @@
 #define getbvo_slow_hreserved scmi_getbvo_slow_hreserved
 #define getenv_slow_hreserved scmi_getenv_slow_hreserved
 #define envvref_slow_hreserved scmi_envvref_slow_hreserved
+#define argvref_slow_hreserved scmi_argvref_slow_hreserved
 /* $scmrt payload/wrapper services used by the allocating
    instructions below (lib/scmrt.h is the WCPL-side declaration) */
 #define make_string_payload scmrt_make_string_payload
@@ -162,6 +163,7 @@
 #define make_output_bytevector_port scmrt_make_output_bytevector_port
 #define get_env_payload scmrt_get_env_payload
 #define env_entry_payload scmrt_env_entry_payload
+#define argv_entry_payload scmrt_argv_entry_payload
 #define arg_error scmrt_arg_error
 #define port_type scmrt_port_type
 #endif
@@ -217,6 +219,7 @@ void *get_output_bytevector_payload(obj_t o);
 void *make_output_bytevector_port(void);
 void *get_env_payload(obj_t o);
 void *env_entry_payload(int32_t i);
+void *argv_entry_payload(int32_t i);
 obj_t port_type(void);
 #endif
 
@@ -1127,6 +1130,15 @@ void *getenv_slow_hreserved(void *r, void *hp, obj_t name)
 
 /* %envv-ref: the i-th environment entry as "KEY=VALUE", or #f past the
    end.  Pre-reserved: 2. */
+/* %argv-ref: argv[idx] as a string, or #f past the end.  The same
+   shape as envvref above, over argv rather than the environment. */
+void *argvref_slow_hreserved(void *r, void *hp, obj_t idx)
+{
+  void *p = argv_entry_payload((int32_t)fx_val(idx));
+  if (!p) { ((obj_t *)r)[0] = SCM_FALSE; return hp; }
+  return hreserved_wrap(r, hp, p, string_type());
+}
+
 void *envvref_slow_hreserved(void *r, void *hp, obj_t idx)
 {
   void *p = env_entry_payload((int32_t)fx_val(idx));
